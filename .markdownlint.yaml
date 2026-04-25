@@ -1,0 +1,10 @@
+default: true
+
+# Allow long lines in tables and prose.
+MD013: false
+
+# Fenced code block style is already default (```); leave enforced.
+
+# No duplicate-heading complaints for the README's ToC structure.
+MD024:
+  siblings_only: true

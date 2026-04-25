@@ -1,0 +1,49 @@
+# Pre-commit hooks for tilde. Run on every `git commit`; set up via
+# `pre-commit install` (see README "Daily operation").
+
+repos:
+  - repo: https://github.com/pre-commit/pre-commit-hooks
+    rev: v5.0.0
+    hooks:
+      - id: trailing-whitespace
+      - id: end-of-file-fixer
+      - id: check-yaml
+      - id: check-toml
+      - id: check-json
+      - id: check-added-large-files
+        args: [--maxkb=1024]
+      - id: check-merge-conflict
+      - id: mixed-line-ending
+      - id: check-executables-have-shebangs
+      - id: check-shebang-scripts-are-executable
+        # zsh config files carry `#!/bin/zsh` or `#!/usr/bin/env zsh` as a
+        # filetype hint but are sourced by zsh, not executed.
+        exclude: |
+          (?x)^(
+            dot_zshrc$|
+            dot_zshenv$|
+            dot_zsh/aliases$|
+            dot_zsh/custom/functions/.*\.zsh$
+          )$
+
+  # Shell-script linting for the install scripts in scripts/. Exclude:
+  #   - chezmoi .tmpl files (Go template syntax is not valid sh)
+  #   - dot_zsh/* — zsh is not supported by shellcheck (SC1071)
+  # -x follows `# shellcheck source=...` directives inside scripts.
+  - repo: https://github.com/shellcheck-py/shellcheck-py
+    rev: v0.10.0.1
+    hooks:
+      - id: shellcheck
+        args: ['-x']
+        exclude: |
+          (?x)^(
+            .*\.tmpl$|
+            dot_zsh/.*
+          )$
+
+  # Markdown linting (global rule: markdownlint-compliant).
+  - repo: https://github.com/igorshubovych/markdownlint-cli
+    rev: v0.43.0
+    hooks:
+      - id: markdownlint
+        args: [--config=.markdownlint.yaml]

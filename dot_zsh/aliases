@@ -1,0 +1,112 @@
+# remember dis not vim
+alias ":w"="echo '(⩾﹏⩽) Not Vim, smooth brain. (⩾﹏⩽)'"
+alias ":W"="echo '(⩾﹏⩽) Not Vim, smooth brain. (⩾﹏⩽)'"
+alias "q"="echo '༼ つ ◕_◕ ༽つ Not Vim, smooth brain. ༼ つ ◕_◕ ༽つ'"
+alias ":q"="echo '༼ つ ◕_◕ ༽つ Not Vim, smooth brain  ༼ つ ◕_◕ ༽つ'"
+alias ":Q"="echo '༼ つ ◕_◕ ༽つ Not Vim, smooth brain  ༼ つ ◕_◕ ༽つ'"
+alias "wq"="echo '⊂(◉‿◉)つ Not Vim, brainlet. ⊂(◉‿◉)つ'"
+alias ":wq"="echo '⊂(◉‿◉)つ Not Vim, brainlet. ⊂(◉‿◉)つ'"
+# git
+alias "gitcm"="git commit -m"
+alias "gitpm"="git push origin main"
+alias "gitck"="git checkout"
+alias "gitcam"="git commit -a -m"
+alias "gs"="git status"
+alias "gitmours"="git merge --strategy=ours"
+alias "gitsup"="git submodule update --remote --init --recursive"
+alias "gitrs"="git restore"
+alias "gitrename"="git branch -m"
+alias "gitparent"="git show-branch -a | grep '*' | grep -v '\$(git rev-parse --abbrev-ref HEAD)' | head -n1 | sed 's/.*\[\(.*\)\].*/\1/' | sed 's/[\^~].*//'"
+# shortcuts
+# Python3
+alias "tinit"="touch __init__.py"
+alias "venv"='source $(pwd)/venv/bin/activate'
+alias "tvenv"='source $(pwd)/tests/venv/bin/activate'
+alias "newvenv"="rm -rf venv && python3 -m venv venv"
+alias "flake8"="flake8 --append-config ~/.config/nvim/linter-configs/flake8"
+alias "sourcez"="source ~/.zshrc"
+alias "du"="du -h"
+alias "recent_f_changes"="ls -ltrRh"
+alias "watch"="watch -n .1 -c"
+alias "meow"="highlight"
+alias "xhist"="echo '' > ~/.zsh_history & exec $SHELL -l"
+alias "day"="date +%d-%b-%Y"
+alias "datetime"="date +%d-%b-%Y_%H%M"
+alias "dt"="date +%d-%b-%Y_%H.%M"
+alias "gp"="ping google.com"
+alias "grep"="grep --color=always"
+alias "grepp"="grep  --color=always -rnwe"
+alias "teelog"="2>&1 | tee"
+alias "tws"="terraform workspace select"
+alias "twl"="terraform workspace list"
+# Docker - only define if docker is available
+if command -v docker &>/dev/null; then
+  # Stop all containers:
+  alias "docker_stopall"="docker stop \$(docker ps -aq)"
+  # Remove all containers
+  alias "docker_rmf"="docker rm \$(docker ps -aq)"
+  # Remove all images
+  alias "docker_rmif"="docker rmi \$(docker images -q)"
+  alias "docker-compose-update"="docker compose pull && docker compose up --force-recreate --build -d"
+fi
+# Trying out NeoVim
+alias "vim"="nvim"
+alias "vi"="nvim"
+alias "vimlog"="nvim -V9myVim.log"
+alias "vimdiff"="nvim -d"
+alias "vun"="nvim"
+alias "bim"="nvim"
+# Trying out NeoVim
+#alias "vim"="vim"
+#alias "vi"="vim"
+#alias "vimlog"="vim -V9myVim.log"
+#alias "vimdiff"="vim -d"
+#alias "vun"="vim"
+#alias "bim"="vim"
+# autocorrect
+alias "cd.."="cd .."
+alias "vm"="mv"
+alias "calude"="claude"
+#
+######
+case "$OSTYPE" in
+  darwin*)
+    ## macOS specific aliases
+    alias "tg"="terragrunt"
+    alias "pbc"="pbcopy"
+    alias "python"="python3"
+    alias "lsblk"="diskutil list";
+    alias "ssh-add-key"="ssh-add -k"
+    alias "ssh-keychain-add"="ssh-add -k"
+    alias "incog"="open -a /Applications/Google\ Chrome\ Canary.app --args --incognito"
+    alias "brewski"="brew update && brew upgrade && brew cleanup; brew doctor"
+    alias "dns-reset"="sudo killall -HUP mDNSResponder;sudo killall mDNSResponderHelper;sudo dscacheutil -flushcache"
+    alias "resnet"="sudo networksetup -listallhardwareports |grep -o 'Hardware Port: .*'| cut -f2 -d:| xargs -n3 -I_ciface -- sh -c ' networksetup -setnetworkserviceenabled '_ciface' off >/dev/null 2>&1 && networksetup -setnetworkserviceenabled "_ciface" on > /dev/null 2>&1'"
+    # Display TimeMachine logs
+    alias "tm_log"="printf '[3J' && log show --predicate 'subsystem == com.apple.TimeMachine' --info --last 6h | grep -F 'eMac' | grep -Fv 'etat' | awk -F']' '{print substr(-zsh,1,19), }'"
+    # wireless testing
+    alias "scanarea"="sudo /System/Library/PrivateFrameworks/Apple80211.framework/Versions/Current/Resources/airport -s"
+    alias "currentapi"="sudo /System/Library/PrivateFrameworks/Apple80211.framework/Versions/Current/Resources/airport --getinfo"
+    alias "setchannelto1"="sudo /System/Library/PrivateFrameworks/Apple80211.framework/Versions/Current/Resources/airport --channel=2"
+    alias "setchannelto2"="sudo /System/Library/PrivateFrameworks/Apple80211.framework/Versions/Current/Resources/airport --channel=2"
+    alias "setchannelto3"="sudo /System/Library/PrivateFrameworks/Apple80211.framework/Versions/Current/Resources/airport --channel=3"
+    alias "setchannelto4"="sudo /System/Library/PrivateFrameworks/Apple80211.framework/Versions/Current/Resources/airport --channel=4"
+    alias "setchannelto5"="sudo /System/Library/PrivateFrameworks/Apple80211.framework/Versions/Current/Resources/airport --channel=5"
+    alias "setchannelto6"="sudo /System/Library/PrivateFrameworks/Apple80211.framework/Versions/Current/Resources/airport --channel=6"
+    alias "setchannelto7"="sudo /System/Library/PrivateFrameworks/Apple80211.framework/Versions/Current/Resources/airport --channel=7"
+    alias "setchannelto8"="sudo /System/Library/PrivateFrameworks/Apple80211.framework/Versions/Current/Resources/airport --channel=8"
+    alias "setchannelto9"="sudo /System/Library/PrivateFrameworks/Apple80211.framework/Versions/Current/Resources/airport --channel=9"
+    alias "setchannelto10"="sudo /System/Library/PrivateFrameworks/Apple80211.framework/Versions/Current/Resources/airport --channel=10"
+    alias "setchannelto11"="sudo /System/Library/PrivateFrameworks/Apple80211.framework/Versions/Current/Resources/airport --channel=11"
+    alias "setchannelto12"="sudo /System/Library/PrivateFrameworks/Apple80211.framework/Versions/Current/Resources/airport --channel=12"
+    alias "setchannelto13"="sudo /System/Library/PrivateFrameworks/Apple80211.framework/Versions/Current/Resources/airport --channel=13"
+  ;;
+  linux*)
+    # Linux specific aliases
+    alias "df"="df -h"
+    # map ata[\d] to device in /dev/sd*
+    alias "whichdisk"="ls -l /sys/block/sd* | sed 's/.*\(sd.*\) -.*\(ata.*\)\/h.*/\2 => \1/'"
+    # this doesn't work with MacOS
+    alias "wnet"="watch -n .1 -c 'netstat -tulpna'"
+  ;;
+esac

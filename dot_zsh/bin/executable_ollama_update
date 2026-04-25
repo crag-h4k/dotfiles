@@ -1,0 +1,33 @@
+#!/usr/bin/env zsh
+# This script pulls the latest code from the llamas repo and updates the llamas
+# repo on the local machine.
+# Usage:
+# Pass in arg: "auto" | "-auto" | "--auto" | "y" | "-y"  to automatically
+# update without a prompt
+#
+MODELS=( $(ollama list | awk 'NR>1 {print $1}') )
+echo "\n\033[33mWill update the following $MODELS:\033[0m"
+for MODEL in "${MODELS[@]}"; do
+        echo "\033[94m${MODEL}\033[0m"
+done
+
+if [ $# -gt 0 ]; then
+    case $1 in
+        "auto" | "-auto" | "--auto" | "y" | "-y" );;
+    esac
+else
+    echo "Continue? (y/n)"
+    read CONTINUE
+    if [[ $CONTINUE != "y" ]]; then
+            echo "Exiting..."
+            exit 1
+    fi
+fi
+
+echo "\n\033[33mUpdating:\033[0m \033[94m${MODELS}\033[0m"
+for MODEL in "${MODELS[@]}"; do
+    eval "ollama pull $MODEL" &
+done
+wait
+
+echo "\n\033[33mAll Done!\033[0m"

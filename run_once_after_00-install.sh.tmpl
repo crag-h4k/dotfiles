@@ -1,0 +1,8 @@
+#!/usr/bin/env bash
+# chezmoi runs this once on first apply, and re-runs any time the file's
+# hash changes (e.g. you update one of the scripts). Delegates to
+# scripts/install.sh so the same flow works from chezmoi or the CLI.
+
+set -euo pipefail
+
+bash "{{ .chezmoi.sourceDir }}/scripts/install.sh"

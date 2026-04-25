@@ -1,0 +1,44 @@
+[core]
+    excludesfile = ~/.gitignore_global
+    editor = nvim
+[diff]
+    tool = nvimdiff
+[init]
+    defaultBranch = main
+
+[pull]
+    rebase = false
+
+[push]
+    autoSetupRemote = true
+    default = current
+
+[alias]
+   showtrackedignored = ls-files -i --exclude-standard
+
+[color]
+  branch = auto
+  diff = auto
+  interactive = auto
+  status = auto
+
+[user]
+    useConfigOnly = true
+
+# Personal identity by default. Fill in ~/.gitconfig.personal on each host
+# (it is shipped as a placeholder skeleton — see TODO.md).
+[include]
+    path = ~/.gitconfig.personal
+
+# Optional: per-context override. Drop a ~/.gitconfig.work file (or any other
+# context-named file) and uncomment the corresponding includeIf block, e.g.:
+#   [includeIf "gitdir:~/work/**"]
+#       path = ~/.gitconfig.work
+
+# If git has auth issues with ssh-agent, run: killall ssh-agent
+[credential "https://github.com"]
+	helper =
+	helper = !/opt/homebrew/bin/gh auth git-credential
+[credential "https://gist.github.com"]
+	helper =
+	helper = !/opt/homebrew/bin/gh auth git-credential

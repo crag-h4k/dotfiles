@@ -1,0 +1,7 @@
+README.md
+TODO.md
+LICENSE
+.github
+.pre-commit-config.yaml
+.markdownlint.yaml
+scripts

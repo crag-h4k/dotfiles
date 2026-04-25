@@ -1,0 +1,3 @@
+#!/usr/bin/env bash
+# Fuzzy-select branches in an fzf multi-select and delete them locally.
+git branch --no-color | fzf -m | xargs -I {} git branch -D '{}'

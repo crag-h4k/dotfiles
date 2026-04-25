@@ -1,0 +1,18 @@
+# Personal git identity. Fill in before first use on a new host.
+# Loaded by ~/.gitconfig as the default include.
+#
+# Consider converting this file to a chezmoi template (.tmpl) so values are
+# prompted at `chezmoi init` time and stored per-host outside the repo.
+# See TODO.md for guidance.
+
+[user]
+    name =
+    email =
+
+# Optional. Set if you use a dedicated SSH key for git pushes:
+# [core]
+#     sshCommand = "ssh -i ~/.ssh/your-key-name"
+
+# Optional. Sets your GitHub username (used by some tools):
+# [github]
+#     user = ""
