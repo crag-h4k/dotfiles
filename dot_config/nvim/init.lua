@@ -429,7 +429,7 @@ require("lazy").setup({
       provider = "claude",
       providers = {
         claude = {
-          model = "claude-sonnet-4-6",
+          model = "claude-sonnet-4-7",
         },
         opus = {
           __inherited_from = "claude",

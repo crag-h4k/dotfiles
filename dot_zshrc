@@ -38,6 +38,11 @@ autoload zmv
 
 source $ZSH_BASE/aliases
 
+# tmux plugin: don't auto-attach to an existing session when running bare `tmux`.
+# Default is true, which makes `tmux` with no args attach to the last session
+# instead of starting a new one.
+ZSH_TMUX_AUTOCONNECT=false
+
 plugins=(
     aws
     colored-man-pages
