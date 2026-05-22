@@ -29,6 +29,14 @@ main() {
 
     ensure_chezmoi
 
+    # Convenience symlink: ~/tilde -> ~/.local/share/chezmoi
+    local chezmoi_src="$HOME/.local/share/chezmoi"
+    local tilde_link="$HOME/tilde"
+    if [[ -d "$chezmoi_src" && ! -e "$tilde_link" ]]; then
+        ln -s "$chezmoi_src" "$tilde_link"
+        info "created symlink $tilde_link -> $chezmoi_src"
+    fi
+
     bash "$SCRIPT_DIR/install-zsh.sh"
     bash "$SCRIPT_DIR/install-tmux.sh"
     bash "$SCRIPT_DIR/install-neovim.sh"

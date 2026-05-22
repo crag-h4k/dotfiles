@@ -2,7 +2,7 @@
 function tf_log() {
     local log_level="DEBUG"
     local log_provider="DEBUG"
-    local log_file="$(PWD)/terraform-$(date +%d-%b-%Y_%H%M).log"
+    local log_file="$PWD/terraform-$(date +%d-%b-%Y_%H%M).log"
 
     if [ $# -gt 0 ]; then
         case $1 in
@@ -10,13 +10,13 @@ function tf_log() {
                 log_level=$1
                 ;;
             *)
-                log_file="$(PWD)/$1"
+                log_file="$PWD/$1"
                 ;;
         esac
     fi
 
     if [ $# -gt 1 ]; then
-        log_file="$(PWD)/$2"
+        log_file="$PWD/$2"
     fi
 
     export TF_LOG_CORE="$log_level"

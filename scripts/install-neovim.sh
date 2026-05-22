@@ -23,16 +23,18 @@ main() {
             ;;
         debian)
             pkg_install \
-                neovim \
                 python3 python3-pip python3-venv \
                 nodejs npm \
                 golang cargo \
+                jq \
                 yamllint shellcheck
             # tflint / hadolint / rust-analyzer are not reliably in apt;
             # install via their own installers if present, else skip.
             warn "tflint and hadolint not installed on Debian by this script; install separately if needed"
             # markdownlint-cli2 is not in apt; install via npm to ~/.local/bin (no sudo needed).
             npm install -g --prefix "$HOME/.local" markdownlint-cli2
+            # apt neovim is typically <0.11; install from GitHub releases instead.
+            install_neovim_debian
             ;;
         *)
             die "unsupported OS for install-neovim"

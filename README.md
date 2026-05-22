@@ -20,7 +20,7 @@ vendored and plugins refresh on their own.
 ## Quick start (new host)
 
 ```sh
-sh -c "$(curl -fsLS get.chezmoi.io)" -- init --apply crag-h4k/tilde
+sh -c "$(curl -fsLS get.chezmoi.io)" -- init --apply crag-h4k
 ```
 
 This one line:
@@ -38,7 +38,8 @@ This one line:
      linter-configs.
    - Runs `run_once_after_00-install.sh`, which calls `scripts/install.sh` to
      install chezmoi (to `~/.local/bin` if not already in PATH), brew/apt
-     packages, and pre-warm the Neovim plugin cache.
+     packages, pre-warm the Neovim plugin cache, and create a convenience
+     symlink `~/tilde -> ~/.local/share/chezmoi`.
 
 When it finishes, open a new terminal. `zsh` should be your login shell
 already; if not, `sudo chsh -s "$(command -v zsh)" "$USER"`.
@@ -93,8 +94,9 @@ already; if not, `sudo chsh -s "$(command -v zsh)" "$USER"`.
 chezmoi edit ~/.zshrc
 chezmoi apply                      # materialize the edit into $HOME
 
-# Or edit the source tree directly and then apply:
-cd ~/.local/share/chezmoi
+# Or edit the source tree directly and then apply (~/tilde is a symlink to
+# ~/.local/share/chezmoi, created by scripts/install.sh):
+cd ~/tilde
 $EDITOR dot_zshrc
 chezmoi apply
 

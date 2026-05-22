@@ -24,8 +24,8 @@ function zsh_history_backup() {
     if [[ -n "$newest" && -f "$newest" ]]; then
         local now last
         now=$(date +%s)
-        # stat is BSD on macOS (-f %m), GNU on Linux (-c %Y).
-        last=$(stat -f %m "$newest" 2>/dev/null || stat -c %Y "$newest" 2>/dev/null)
+        # GNU stat: -c %Y (Linux). BSD stat: -f %m (macOS). Try GNU first.
+        last=$(stat -c %Y "$newest" 2>/dev/null || stat -f %m "$newest" 2>/dev/null)
         if [[ -n "$last" ]] && (( now - last < min_secs )); then
             return 0
         fi

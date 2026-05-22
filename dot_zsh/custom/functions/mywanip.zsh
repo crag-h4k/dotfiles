@@ -11,7 +11,8 @@ function mywanip() {
     if [[ -f "$cache" ]]; then
         local now mtime
         now=$(date +%s)
-        mtime=$(stat -f %m "$cache" 2>/dev/null || stat -c %Y "$cache" 2>/dev/null)
+        # GNU stat: -c %Y (Linux). BSD stat: -f %m (macOS). Try GNU first.
+        mtime=$(stat -c %Y "$cache" 2>/dev/null || stat -f %m "$cache" 2>/dev/null)
         if [[ -n "$mtime" ]] && (( now - mtime < ttl )); then
             cat "$cache"
             return 0
