@@ -52,6 +52,44 @@ ensure_chezmoi() {
     esac
 }
 
+# Install neovim 0.11+ from GitHub releases on Debian.
+# apt neovim is too old on most Debian versions to satisfy nvim-lspconfig v3.
+install_neovim_debian() {
+    local major=0 minor=0
+    if command -v nvim >/dev/null 2>&1; then
+        local ver_line
+        ver_line=$(nvim --version 2>/dev/null | head -1)
+        if [[ "$ver_line" =~ NVIM[[:space:]]v([0-9]+)\.([0-9]+) ]]; then
+            major="${BASH_REMATCH[1]}"
+            minor="${BASH_REMATCH[2]}"
+        fi
+        if (( major > 0 || minor >= 11 )); then
+            info "neovim ${major}.${minor} already >= 0.11, skipping"
+            return 0
+        fi
+    fi
+    local arch
+    case "$(uname -m)" in
+        x86_64)          arch="x86_64" ;;
+        aarch64|arm64)   arch="arm64"  ;;
+        *)
+            warn "unsupported arch $(uname -m) for prebuilt neovim; install manually"
+            return 1
+            ;;
+    esac
+    info "installing neovim stable (>= 0.11) from GitHub releases (arch: $arch)"
+    require_cmd curl
+    local tmp_dir
+    tmp_dir=$(mktemp -d)
+    curl -L --fail -o "$tmp_dir/nvim.tar.gz" \
+        "https://github.com/neovim/neovim/releases/download/stable/nvim-linux-${arch}.tar.gz"
+    tar -xzf "$tmp_dir/nvim.tar.gz" -C "$tmp_dir"
+    mkdir -p "$HOME/.local/bin"
+    install -m 755 "$tmp_dir/nvim-linux-${arch}/bin/nvim" "$HOME/.local/bin/nvim"
+    rm -rf "$tmp_dir"
+    info "neovim installed to $HOME/.local/bin/nvim"
+}
+
 # Platform-aware package install wrapper.
 # Usage: pkg_install pkg1 pkg2 ...
 pkg_install() {
