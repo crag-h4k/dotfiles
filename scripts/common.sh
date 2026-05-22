@@ -94,13 +94,17 @@ install_neovim_debian() {
     tmp_dir=$(mktemp -d)
     curl -L --fail -o "$tmp_dir/nvim.tar.gz" \
         "https://github.com/neovim/neovim/releases/download/${tag}/nvim-linux-${arch}.tar.gz"
-    tar -xzf "$tmp_dir/nvim.tar.gz" -C "$tmp_dir"
 
+    # Extract directly into /usr/local (strip the top-level nvim-linux-<arch>/ prefix).
+    # This puts the binary at /usr/local/bin/nvim and the runtime at
+    # /usr/local/share/nvim/runtime/ - the path the binary resolves at startup.
+    # A symlink would cause neovim to compute the wrong runtime root.
+    sudo tar -C /usr/local --strip-components=1 -xzf "$tmp_dir/nvim.tar.gz"
+
+    # Clean up any leftovers from the previous /opt/nvim symlink approach.
     sudo rm -rf /opt/nvim
-    sudo mv "$tmp_dir/nvim-linux-${arch}" /opt/nvim
-    sudo ln -sf /opt/nvim/bin/nvim /usr/local/bin/nvim
 
-    # Remove any user-local nvim left by a previous version of this script.
+    # Remove any user-local nvim left by an earlier version of this script.
     rm -f "$HOME/.local/bin/nvim"
 
     rm -rf "$tmp_dir"
