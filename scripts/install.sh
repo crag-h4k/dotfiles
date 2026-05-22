@@ -10,7 +10,7 @@ source "$SCRIPT_DIR/common.sh"
 main() {
     local os
     os=$(os_detect)
-    info "tilde installer: platform=$os"
+    info "dotfiles installer: platform=$os"
 
     # Prereqs required by the per-app scripts themselves.
     case "$os" in
