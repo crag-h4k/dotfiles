@@ -17,7 +17,7 @@ main() {
             pkg_install tmux reattach-to-user-namespace
             ;;
         debian)
-            pkg_install tmux xclip
+            pkg_install tmux xclip wl-clipboard
             ;;
         *)
             die "unsupported OS for install-tmux"

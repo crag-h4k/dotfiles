@@ -49,7 +49,6 @@ case "$OSTYPE" in
         export PATH=/opt/bin:$PATH
         export PATH=/opt/miniconda3/bin:$PATH
         export PATH=/usr/local/go/bin:$PATH
-        export PYTHONPATH=/opt/code/libs:${PYTHONPATH}
         export PYTHONPATH=${PYTHONPATH}:$CONDA_PATH
         ;;
 esac
