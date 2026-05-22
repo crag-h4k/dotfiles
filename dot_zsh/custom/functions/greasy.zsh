@@ -8,6 +8,9 @@ function greasy() {
         ( vlc --play-and-exit --no-embedded-video --no-video-deco "$greasy_path" &&
           vlc://quit ) &>/dev/null 2>&1;
         return $?
+    elif command -v xdg-open &>/dev/null; then
+        xdg-open "$greasy_path" &>/dev/null 2>&1;
+        return $?
     elif command -v open &>/dev/null; then
         open "$greasy_path" &>/dev/null 2>&1;
         return $?

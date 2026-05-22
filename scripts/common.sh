@@ -85,8 +85,11 @@ install_neovim_debian() {
     require_cmd curl
     info "fetching latest neovim release tag from GitHub"
     local tag
-    tag=$(curl -fsSL "https://api.github.com/repos/neovim/neovim/releases/latest" \
-        | awk -F'"' '/tag_name/{print $4; exit}')
+    local tmp_json
+    tmp_json=$(mktemp)
+    curl -fsSL -o "$tmp_json" "https://api.github.com/repos/neovim/neovim/releases/latest"
+    tag=$(awk -F'"' '/tag_name/{print $4; exit}' "$tmp_json")
+    rm -f "$tmp_json"
     [[ -n "$tag" ]] || { warn "could not determine latest neovim release tag"; return 1; }
     info "installing neovim ${tag} (${arch}) to /opt/nvim"
 

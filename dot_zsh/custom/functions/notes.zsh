@@ -4,5 +4,5 @@ function notes() {
     name=$1;
     notes_dir=$HOME/notes;
     mkdir -p $notes_dir;
-    vim $notes_dir/$name-$(date +%d-%b-%Y).md;
+    ${EDITOR:-nvim} "$notes_dir/$name-$(date +%d-%b-%Y).md";
 }

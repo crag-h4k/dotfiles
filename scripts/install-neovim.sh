@@ -26,6 +26,7 @@ main() {
                 python3 python3-pip python3-venv \
                 nodejs npm \
                 golang cargo \
+                jq \
                 yamllint shellcheck
             # tflint / hadolint / rust-analyzer are not reliably in apt;
             # install via their own installers if present, else skip.
