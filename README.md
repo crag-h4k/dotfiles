@@ -1,4 +1,4 @@
-# tilde
+# dotfiles
 
 Single-repo dotfile deployment using [chezmoi](https://chezmoi.io). `~` is the
 only repo you need to clone on a new host.
@@ -36,6 +36,9 @@ This one line:
      config.
    - Creates `~/.darglint` and `~/.config/yamllint` symlinks into the shared
      linter-configs.
+   - Runs `run_before_00-backup.sh` first, which snapshots every currently
+     managed file that already exists into `~/.dotfiles-backup/<timestamp>/`
+     before anything is overwritten. Runs on every apply (installs and updates).
    - Runs `run_once_after_00-install.sh`, which calls `scripts/install.sh` to
      install chezmoi (to `~/.local/bin` if not already in PATH), brew/apt
      packages, pre-warm the Neovim plugin cache, and create a convenience
