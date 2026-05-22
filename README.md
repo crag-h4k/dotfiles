@@ -20,11 +20,8 @@ vendored and plugins refresh on their own.
 ## Quick start (new host)
 
 ```sh
-sh -c "$(curl -fsLS get.chezmoi.io)" -- init --apply <YOUR_GITHUB_OWNER>/tilde
+sh -c "$(curl -fsLS get.chezmoi.io)" -- init --apply crag-h4k/tilde
 ```
-
-Replace `<YOUR_GITHUB_OWNER>` with whichever org or user owns this repo on
-GitHub.
 
 This one line:
 
