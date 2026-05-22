@@ -27,6 +27,8 @@ main() {
             ;;
     esac
 
+    ensure_chezmoi
+
     bash "$SCRIPT_DIR/install-zsh.sh"
     bash "$SCRIPT_DIR/install-tmux.sh"
     bash "$SCRIPT_DIR/install-neovim.sh"

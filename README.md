@@ -20,11 +20,8 @@ vendored and plugins refresh on their own.
 ## Quick start (new host)
 
 ```sh
-sh -c "$(curl -fsLS get.chezmoi.io)" -- init --apply <YOUR_GITHUB_OWNER>/tilde
+sh -c "$(curl -fsLS get.chezmoi.io)" -- init --apply crag-h4k/tilde
 ```
-
-Replace `<YOUR_GITHUB_OWNER>` with whichever org or user owns this repo on
-GitHub.
 
 This one line:
 
@@ -40,7 +37,8 @@ This one line:
    - Creates `~/.darglint` and `~/.config/yamllint` symlinks into the shared
      linter-configs.
    - Runs `run_once_after_00-install.sh`, which calls `scripts/install.sh` to
-     install brew/apt packages and pre-warm the Neovim plugin cache.
+     install chezmoi (to `~/.local/bin` if not already in PATH), brew/apt
+     packages, and pre-warm the Neovim plugin cache.
 
 When it finishes, open a new terminal. `zsh` should be your login shell
 already; if not, `sudo chsh -s "$(command -v zsh)" "$USER"`.
@@ -66,6 +64,7 @@ already; if not, `sudo chsh -s "$(command -v zsh)" "$USER"`.
 | `dot_zsh/aliases` | `~/.zsh/aliases` | real file |
 | `dot_zsh/bin/executable_*` | `~/.zsh/bin/*` | exec bit preserved |
 | `dot_zsh/custom/functions/*.zsh` | `~/.zsh/custom/functions/*.zsh` | |
+| `dot_zsh/custom/themes/gud.zsh-theme` | `~/.zsh/custom/themes/gud.zsh-theme` | custom oh-my-zsh theme; `ZSH_THEME="gud"` |
 | `dot_tmux.conf` | `~/.tmux.conf` | real file |
 | `dot_tmux/conf.d/*.conf` | `~/.tmux/conf.d/*.conf` | |
 | `dot_config/nvim/init.lua` | `~/.config/nvim/init.lua` | lazy.nvim entrypoint |
@@ -74,6 +73,7 @@ already; if not, `sudo chsh -s "$(command -v zsh)" "$USER"`.
 | `dot_config/nvim/linter-configs/darglint` | `~/.config/nvim/linter-configs/darglint` | docstring style |
 | `dot_config/nvim/linter-configs/flake8` | `~/.config/nvim/linter-configs/flake8` | python style; `flake8` alias appends it |
 | `dot_config/nvim/linter-configs/tflint.hcl` | `~/.config/nvim/linter-configs/tflint.hcl` | terraform lint rules |
+| `dot_config/nvim/linter-configs/markdownlint.yaml` | `~/.config/nvim/linter-configs/markdownlint.yaml` | used by nvim-lint for markdown files |
 | `dot_config/nvim/linter-configs/yamllint/config` | `~/.config/nvim/linter-configs/yamllint/config` | |
 | `symlink_dot_darglint` | `~/.darglint` (symlink) | → `.config/nvim/linter-configs/darglint` |
 | `dot_config/symlink_yamllint` | `~/.config/yamllint` (symlink) | → `nvim/linter-configs/yamllint` (dir) |

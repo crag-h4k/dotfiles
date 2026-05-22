@@ -14,8 +14,12 @@ function zsh_history_backup() {
     mkdir -p "$backup_dir"
 
     # Newest existing backup (by mtime, survives clock skew).
-    local newest
-    newest=$(command ls -t "$backup_dir"/zsh_history_backup_* 2>/dev/null | head -1)
+    # (N) glob qualifier: expand to empty array instead of erroring when no backups exist yet.
+    local newest=""
+    local -a _backups=( "$backup_dir"/zsh_history_backup_*(N) )
+    if (( ${#_backups} )); then
+        newest=$(command ls -t "${_backups[@]}" | head -1)
+    fi
 
     if [[ -n "$newest" && -f "$newest" ]]; then
         local now last
