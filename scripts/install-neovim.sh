@@ -19,7 +19,7 @@ main() {
                 neovim cmake llvm \
                 go rust rust-analyzer rustfmt \
                 python3 node \
-                hadolint tflint yamllint shellcheck
+                hadolint tflint yamllint shellcheck markdownlint-cli2
             ;;
         debian)
             pkg_install \
@@ -31,6 +31,8 @@ main() {
             # tflint / hadolint / rust-analyzer are not reliably in apt;
             # install via their own installers if present, else skip.
             warn "tflint and hadolint not installed on Debian by this script; install separately if needed"
+            # markdownlint-cli2 is not in apt; install via npm to ~/.local/bin (no sudo needed).
+            npm install -g --prefix "$HOME/.local" markdownlint-cli2
             ;;
         *)
             die "unsupported OS for install-neovim"

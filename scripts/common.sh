@@ -26,6 +26,32 @@ require_cmd() {
     command -v "$1" >/dev/null 2>&1 || die "required command not found: $1"
 }
 
+# Install chezmoi to ~/.local/bin if it is not already in PATH.
+ensure_chezmoi() {
+    if command -v chezmoi >/dev/null 2>&1; then
+        info "chezmoi already in PATH: $(command -v chezmoi)"
+        return 0
+    fi
+    info "chezmoi not found - installing to ~/.local/bin"
+    mkdir -p "$HOME/.local/bin"
+    local os
+    os=$(os_detect)
+    case "$os" in
+        macos)
+            require_cmd brew
+            brew install chezmoi
+            ;;
+        debian)
+            require_cmd curl
+            sh -c "$(curl -fsLS get.chezmoi.io)" -- -b "$HOME/.local/bin"
+            ;;
+        *)
+            warn "unsupported OS: $(uname -s) - install chezmoi manually"
+            return 1
+            ;;
+    esac
+}
+
 # Platform-aware package install wrapper.
 # Usage: pkg_install pkg1 pkg2 ...
 pkg_install() {

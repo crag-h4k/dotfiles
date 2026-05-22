@@ -441,6 +441,23 @@ require("lazy").setup({
       },
     },
   },
+
+  -- Markdown linting via markdownlint-cli2
+  {
+    "mfussenegger/nvim-lint",
+    event = { "BufReadPost", "BufWritePost" },
+    config = function()
+      local lint = require("lint")
+      lint.linters_by_ft = { markdown = { "markdownlint-cli2" } }
+      lint.linters["markdownlint-cli2"].args = {
+        "--config",
+        vim.fn.expand("~/.config/nvim/linter-configs/markdownlint.yaml"),
+      }
+      vim.api.nvim_create_autocmd({ "BufReadPost", "BufWritePost", "InsertLeave" }, {
+        callback = function() lint.try_lint() end,
+      })
+    end,
+  },
 })
 
 -- Colorscheme (ported from ~/.vim/vimrc)
