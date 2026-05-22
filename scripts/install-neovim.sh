@@ -25,10 +25,21 @@ main() {
             pkg_install \
                 python3 python3-pip python3-venv \
                 nodejs npm \
-                golang cargo \
+                golang \
                 jq \
                 yamllint shellcheck
-            # tflint / hadolint / rust-analyzer are not reliably in apt;
+            # Install Rust toolchain via rustup (apt cargo is too old and lacks rust-analyzer).
+            if ! command -v rustup >/dev/null 2>&1; then
+                require_cmd curl
+                info "installing rustup"
+                curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs \
+                    | sh -s -- -y --no-modify-path
+            fi
+            # Source cargo env so rustup commands are available in this script.
+            # shellcheck source=/dev/null
+            [[ -f "$HOME/.cargo/env" ]] && source "$HOME/.cargo/env"
+            rustup component add rust-analyzer 2>/dev/null || warn "rust-analyzer component not available yet; run: rustup component add rust-analyzer"
+            # tflint / hadolint are not reliably in apt;
             # install via their own installers if present, else skip.
             warn "tflint and hadolint not installed on Debian by this script; install separately if needed"
             # markdownlint-cli2 is not in apt; install via npm to ~/.local/bin (no sudo needed).

@@ -26,6 +26,20 @@ require_cmd() {
     command -v "$1" >/dev/null 2>&1 || die "required command not found: $1"
 }
 
+# Add the GitHub CLI apt repo on Debian if gh is not already installed.
+# Safe to call multiple times; no-ops if gh is already in PATH.
+ensure_gh_apt_repo() {
+    command -v gh >/dev/null 2>&1 && return 0
+    require_cmd curl
+    info "adding GitHub CLI apt repo"
+    curl -fsSL https://cli.github.com/packages/githubcli-archive-keyring.gpg \
+        | sudo dd of=/usr/share/keyrings/githubcli-archive-keyring.gpg
+    sudo chmod go+r /usr/share/keyrings/githubcli-archive-keyring.gpg
+    echo "deb [arch=$(dpkg --print-architecture) signed-by=/usr/share/keyrings/githubcli-archive-keyring.gpg] https://cli.github.com/packages stable main" \
+        | sudo tee /etc/apt/sources.list.d/github-cli.list >/dev/null
+    sudo apt-get update
+}
+
 # Install chezmoi to ~/.local/bin if it is not already in PATH.
 ensure_chezmoi() {
     if command -v chezmoi >/dev/null 2>&1; then

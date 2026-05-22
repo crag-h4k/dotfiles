@@ -13,7 +13,7 @@ source $HOME/.zsh_private
 # History Settings
 export HISTFILE=$HOME/.zsh_history
 export HISTSIZE=256000             # the number of items for the internal history list
-export SAVESIZE=256000             # maximum number of items for the history file
+export SAVEHIST=256000             # maximum number of items for the history file
 # No beeps!
 unsetopt LIST_BEEP
 unsetopt HIST_BEEP

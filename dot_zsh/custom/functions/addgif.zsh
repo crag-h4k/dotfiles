@@ -3,5 +3,5 @@
 function addgif() {
     url=$1;
     gif_file=$HOME/.gifs.md;
-    echo !\[$(date +%d-%b-%Y)\]\($url\) >> $gif_file;
+    echo !\[$(date +%d-%b-%Y)\]\("$url"\) >> "$gif_file";
 }

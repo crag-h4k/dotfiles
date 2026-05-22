@@ -25,20 +25,27 @@
 [user]
     useConfigOnly = true
 
-# Personal identity by default. Fill in ~/.gitconfig.personal on each host
-# (it is shipped as a placeholder skeleton — see TODO.md).
+# Personal identity by default.
 [include]
     path = ~/.gitconfig.personal
 
-# Optional: per-context override. Drop a ~/.gitconfig.work file (or any other
-# context-named file) and uncomment the corresponding includeIf block, e.g.:
+# Optional per-context override. Uncomment and adapt as needed:
 #   [includeIf "gitdir:~/work/**"]
 #       path = ~/.gitconfig.work
 
 # If git has auth issues with ssh-agent, run: killall ssh-agent
+{{- if eq .chezmoi.os "darwin" }}
 [credential "https://github.com"]
 	helper =
 	helper = !/opt/homebrew/bin/gh auth git-credential
 [credential "https://gist.github.com"]
 	helper =
 	helper = !/opt/homebrew/bin/gh auth git-credential
+{{- else if eq .chezmoi.os "linux" }}
+[credential "https://github.com"]
+	helper =
+	helper = !/usr/bin/gh auth git-credential
+[credential "https://gist.github.com"]
+	helper =
+	helper = !/usr/bin/gh auth git-credential
+{{- end }}
