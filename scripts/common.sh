@@ -1,9 +1,9 @@
 #!/usr/bin/env bash
-# Shared helpers for tilde's install scripts. Source, do not exec.
+# Shared helpers for dotfiles install scripts. Source, do not exec.
 
 set -euo pipefail
 
-die() { printf 'tilde: %s\n' "$*" >&2; exit 1; }
+die() { printf 'dotfiles: %s\n' "$*" >&2; exit 1; }
 info() { printf '==> %s\n' "$*"; }
 warn() { printf 'WARN: %s\n' "$*" >&2; }
 
@@ -52,8 +52,9 @@ ensure_chezmoi() {
     esac
 }
 
-# Install neovim 0.11+ from GitHub releases on Debian.
-# apt neovim is too old on most Debian versions to satisfy nvim-lspconfig v3.
+# Install the latest tagged neovim release from GitHub, system-wide.
+# Removes the apt package if an older version is installed.
+# Installs to /opt/nvim with a symlink at /usr/local/bin/nvim (all users).
 install_neovim_debian() {
     local major=0 minor=0
     if command -v nvim >/dev/null 2>&1; then
@@ -67,27 +68,43 @@ install_neovim_debian() {
             info "neovim ${major}.${minor} already >= 0.11, skipping"
             return 0
         fi
+        info "neovim ${major}.${minor} < 0.11; removing apt package"
+        sudo apt-get remove -y neovim 2>/dev/null || true
     fi
+
     local arch
     case "$(uname -m)" in
-        x86_64)          arch="x86_64" ;;
-        aarch64|arm64)   arch="arm64"  ;;
+        x86_64)        arch="x86_64" ;;
+        aarch64|arm64) arch="arm64"  ;;
         *)
             warn "unsupported arch $(uname -m) for prebuilt neovim; install manually"
             return 1
             ;;
     esac
-    info "installing neovim stable (>= 0.11) from GitHub releases (arch: $arch)"
+
     require_cmd curl
+    info "fetching latest neovim release tag from GitHub"
+    local tag
+    tag=$(curl -fsSL "https://api.github.com/repos/neovim/neovim/releases/latest" \
+        | awk -F'"' '/tag_name/{print $4; exit}')
+    [[ -n "$tag" ]] || { warn "could not determine latest neovim release tag"; return 1; }
+    info "installing neovim ${tag} (${arch}) to /opt/nvim"
+
     local tmp_dir
     tmp_dir=$(mktemp -d)
     curl -L --fail -o "$tmp_dir/nvim.tar.gz" \
-        "https://github.com/neovim/neovim/releases/download/stable/nvim-linux-${arch}.tar.gz"
+        "https://github.com/neovim/neovim/releases/download/${tag}/nvim-linux-${arch}.tar.gz"
     tar -xzf "$tmp_dir/nvim.tar.gz" -C "$tmp_dir"
-    mkdir -p "$HOME/.local/bin"
-    install -m 755 "$tmp_dir/nvim-linux-${arch}/bin/nvim" "$HOME/.local/bin/nvim"
+
+    sudo rm -rf /opt/nvim
+    sudo mv "$tmp_dir/nvim-linux-${arch}" /opt/nvim
+    sudo ln -sf /opt/nvim/bin/nvim /usr/local/bin/nvim
+
+    # Remove any user-local nvim left by a previous version of this script.
+    rm -f "$HOME/.local/bin/nvim"
+
     rm -rf "$tmp_dir"
-    info "neovim installed to $HOME/.local/bin/nvim"
+    info "neovim ${tag} installed: $(nvim --version 2>/dev/null | head -1)"
 }
 
 # Platform-aware package install wrapper.
