@@ -42,7 +42,7 @@ This one line:
    - Runs `run_once_after_00-install.sh`, which calls `scripts/install.sh` to
      install chezmoi (to `~/.local/bin` if not already in PATH), brew/apt
      packages, pre-warm the Neovim plugin cache, and create a convenience
-     symlink `~/tilde -> ~/.local/share/chezmoi`.
+     symlink `~/dotfiles -> ~/.local/share/chezmoi`.
 
 When it finishes, open a new terminal. `zsh` should be your login shell
 already; if not, `sudo chsh -s "$(command -v zsh)" "$USER"`.
@@ -97,9 +97,9 @@ already; if not, `sudo chsh -s "$(command -v zsh)" "$USER"`.
 chezmoi edit ~/.zshrc
 chezmoi apply                      # materialize the edit into $HOME
 
-# Or edit the source tree directly and then apply (~/tilde is a symlink to
+# Or edit the source tree directly and then apply (~/dotfiles is a symlink to
 # ~/.local/share/chezmoi, created by scripts/install.sh):
-cd ~/tilde
+cd ~/dotfiles
 $EDITOR dot_zshrc
 chezmoi apply
 

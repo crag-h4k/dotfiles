@@ -29,12 +29,12 @@ main() {
 
     ensure_chezmoi
 
-    # Convenience symlink: ~/tilde -> ~/.local/share/chezmoi
+    # Convenience symlink: ~/dotfiles -> ~/.local/share/chezmoi
     local chezmoi_src="$HOME/.local/share/chezmoi"
-    local tilde_link="$HOME/tilde"
-    if [[ -d "$chezmoi_src" && ! -e "$tilde_link" ]]; then
-        ln -s "$chezmoi_src" "$tilde_link"
-        info "created symlink $tilde_link -> $chezmoi_src"
+    local dotfiles_link="$HOME/dotfiles"
+    if [[ -d "$chezmoi_src" && ! -e "$dotfiles_link" ]]; then
+        ln -s "$chezmoi_src" "$dotfiles_link"
+        info "created symlink $dotfiles_link -> $chezmoi_src"
     fi
 
     bash "$SCRIPT_DIR/install-zsh.sh"
