@@ -16,19 +16,33 @@ main() {
     case "$os" in
         macos)
             pkg_install \
-                neovim cmake llvm \
-                go rust rust-analyzer rustfmt \
-                python3 node \
-                hadolint yamllint shellcheck markdownlint-cli2 \
-                terraform-linters/tap/tflint
+                cmake \
+                go \
+                hadolint \
+                llvm \
+                markdownlint-cli2 \
+                neovim \
+                node \
+                python3 \
+                rust \
+                rust-analyzer \
+                rustfmt \
+                shellcheck \
+                yamllint
+            # Need to install taps seperately
+            pkg_install terraform-linters/tap/tflint
             ;;
         debian)
             pkg_install \
-                python3 python3-pip python3-venv \
-                nodejs npm \
                 golang \
                 jq \
-                yamllint shellcheck
+                nodejs \
+                npm \
+                python3 \
+                python3-pip \
+                python3-venv \
+                shellcheck \
+                yamllint
             # Install Rust toolchain via rustup (apt cargo is too old and lacks rust-analyzer).
             if ! command -v rustup >/dev/null 2>&1; then
                 require_cmd curl
