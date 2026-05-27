@@ -19,7 +19,8 @@ main() {
                 neovim cmake llvm \
                 go rust rust-analyzer rustfmt \
                 python3 node \
-                hadolint tflint yamllint shellcheck markdownlint-cli2
+                hadolint yamllint shellcheck markdownlint-cli2 \
+                terraform-linters/tap/tflint
             ;;
         debian)
             pkg_install \
