@@ -366,3 +366,12 @@ terraform.rc
 *.ig
 ipython_config.py
 ### Exceptions to .gitignore rules
+#
+### No more to do files ########
+*TO-DO*.md
+*TO_DO*.md
+*TODO.md
+*to-do*.md
+*to_do*.md
+*todo.md
+ ########
