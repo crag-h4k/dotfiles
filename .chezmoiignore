@@ -5,3 +5,4 @@ LICENSE
 .pre-commit-config.yaml
 .markdownlint.yaml
 scripts
+*.example

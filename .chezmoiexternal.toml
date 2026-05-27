@@ -76,10 +76,3 @@
   refreshPeriod = "168h"
   [".tmux/plugins/tmux-resurrect".clone]
     args = ["--depth=1"]
-
-[".tmux/plugins/tmux-continuum"]
-  type = "git-repo"
-  url = "https://github.com/tmux-plugins/tmux-continuum.git"
-  refreshPeriod = "168h"
-  [".tmux/plugins/tmux-continuum".clone]
-    args = ["--depth=1"]

@@ -1,4 +1,4 @@
-# Pre-commit hooks for tilde. Run on every `git commit`; set up via
+# Pre-commit hooks for dotfiles. Run on every `git commit`; set up via
 # `pre-commit install` (see README "Daily operation").
 
 repos:

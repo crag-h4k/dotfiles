@@ -45,6 +45,7 @@ ZSH_TMUX_AUTOCONNECT=false
 
 plugins=(
     aws
+    chezmoi
     colored-man-pages
     colorize
     command-not-found

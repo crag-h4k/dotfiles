@@ -7,6 +7,25 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 # shellcheck source=common.sh
 source "$SCRIPT_DIR/common.sh"
 
+# Show an existing gitconfig file (if present), then prompt to create/replace
+# it from the repo example.
+_setup_gitconfig_file() {
+    local target="$1" example="$2" label="$3"
+    if [[ -f "$target" ]]; then
+        info "existing $target:"
+        cat "$target"
+        printf '\n%s already exists. Replace with repo example? [y/N] ' "$target"
+    else
+        printf 'No %s found. Create from repo example? [y/N] ' "$target"
+    fi
+    local resp
+    read -r resp
+    if [[ "$resp" =~ ^[Yy]$ ]]; then
+        cp "$example" "$target"
+        info "copied $label -> $target"
+    fi
+}
+
 main() {
     local os
     os=$(os_detect)
@@ -40,6 +59,9 @@ main() {
     bash "$SCRIPT_DIR/install-zsh.sh"
     bash "$SCRIPT_DIR/install-tmux.sh"
     bash "$SCRIPT_DIR/install-neovim.sh"
+
+    _setup_gitconfig_file "$HOME/.gitconfig"          "$SCRIPT_DIR/../gitconfig.example"          "gitconfig.example"
+    _setup_gitconfig_file "$HOME/.gitconfig.personal" "$SCRIPT_DIR/../gitconfig.personal.example" "gitconfig.personal.example"
 
     info "all done. Open a new shell (zsh) and tmux/nvim to verify."
 }

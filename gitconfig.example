@@ -1,0 +1,44 @@
+[core]
+    excludesfile = ~/.gitignore_global
+    editor = nvim
+[diff]
+    tool = nvimdiff
+[init]
+    defaultBranch = main
+
+[pull]
+    rebase = false
+
+[push]
+    autoSetupRemote = true
+    default = current
+
+[alias]
+    showtrackedignored = ls-files -i --exclude-standard
+
+[color]
+    branch = auto
+    diff = auto
+    interactive = auto
+    status = auto
+
+[user]
+    useConfigOnly = true
+
+# Personal identity by default. Fill in ~/.gitconfig.personal on each host.
+[include]
+    path = ~/.gitconfig.personal
+
+# Per-context override. Uncomment and adapt as needed.
+# [includeIf "gitdir:~/work/**"]
+#     path = ~/.gitconfig.work
+
+# GitHub CLI credential helper.
+# macOS (Homebrew):  !/opt/homebrew/bin/gh auth git-credential
+# Linux (apt):       !/usr/bin/gh auth git-credential
+[credential "https://github.com"]
+	helper =
+	helper = !/opt/homebrew/bin/gh auth git-credential
+[credential "https://gist.github.com"]
+	helper =
+	helper = !/opt/homebrew/bin/gh auth git-credential
