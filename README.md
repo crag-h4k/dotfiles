@@ -81,9 +81,10 @@ Note: chezmoi externals (oh-my-zsh, tmux plugins, etc.) are fetched by
 - **Content I author** (configs, custom functions, install scripts, docs)
   lives in this repo as regular files following chezmoi naming conventions
   (`dot_zshrc` → `~/.zshrc`, `dot_zsh/aliases` → `~/.zsh/aliases`, etc.).
-- **Upstream plugins** I don't author are declared in `.chezmoiexternal.toml`.
-  chezmoi clones each at apply time and refreshes weekly. No git submodules,
-  no vendoring.
+- **Upstream plugins** are cloned by the per-app install scripts
+  (`install-zsh.sh`, `install-tmux.sh`) using `git clone --depth=1`. They are
+  only fetched for the components you select. Re-running an install script
+  pulls updates (`git pull --ff-only`).
 - **System packages** (zsh, neovim, tmux, fzf, gh, zoxide, etc.) are installed
   by `scripts/install-*.sh` on first apply. One script per app plus a
   platform-aware orchestrator.
@@ -116,7 +117,7 @@ Note: chezmoi externals (oh-my-zsh, tmux plugins, etc.) are fetched by
 | `gitconfig.personal.example` | reference only | seed for `~/.gitconfig.personal`; fill in name/email |
 | `dot_gitignore_global` | `~/.gitignore_global` | global ignore patterns |
 | `dot_profile` | `~/.profile` | minimal login shim (sources cargo env) |
-| `.chezmoiexternal.toml` | (external clones) | 11 upstream plugins |
+| `.chezmoiexternal.toml` | (no managed externals) | plugins cloned by install scripts |
 
 ## Daily operation
 

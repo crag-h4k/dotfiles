@@ -1,7 +1,5 @@
 #!/usr/bin/env bash
-# Install binaries zsh and its OMZ plugins need.
-# OMZ itself + zsh-{completions,autosuggestions,syntax-highlighting} come
-# from chezmoi externals, not package managers. Don't install those here.
+# Install zsh, its packages, and OMZ + plugins.
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 # shellcheck source-path=SCRIPTDIR
@@ -26,6 +24,11 @@ main() {
             die "unsupported OS for install-zsh"
             ;;
     esac
+
+    clone_plugin "https://github.com/ohmyzsh/ohmyzsh.git"                       ".zsh/ohmyzsh"
+    clone_plugin "https://github.com/zsh-users/zsh-autosuggestions.git"         ".zsh/custom/plugins/zsh-autosuggestions"
+    clone_plugin "https://github.com/zsh-users/zsh-syntax-highlighting.git"     ".zsh/custom/plugins/zsh-syntax-highlighting"
+    clone_plugin "https://github.com/zsh-users/zsh-completions.git"             ".zsh/custom/plugins/zsh-completions"
 
     # Set zsh as the login shell if it isn't already.
     local zsh_bin

@@ -1,6 +1,5 @@
 #!/usr/bin/env bash
-# Install tmux + the platform-specific clipboard bridge. TPM and the
-# tmux-* plugins come from chezmoi externals; don't install them here.
+# Install tmux, the platform-specific clipboard bridge, and tmux plugins.
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 # shellcheck source-path=SCRIPTDIR
@@ -24,7 +23,12 @@ main() {
             ;;
     esac
 
-    info "TPM plugins install inside tmux via: prefix + I  (capital i)"
+    clone_plugin "https://github.com/tmux-plugins/tpm.git"            ".tmux/plugins/tpm"
+    clone_plugin "https://github.com/tmux-plugins/tmux-sensible.git"  ".tmux/plugins/tmux-sensible"
+    clone_plugin "https://github.com/tmux-plugins/tmux-yank.git"      ".tmux/plugins/tmux-yank"
+    clone_plugin "https://github.com/tmux-plugins/tmux-cpu.git"       ".tmux/plugins/tmux-cpu"
+    clone_plugin "https://github.com/tmux-plugins/tmux-net-speed.git" ".tmux/plugins/tmux-net-speed"
+    clone_plugin "https://github.com/tmux-plugins/tmux-resurrect.git" ".tmux/plugins/tmux-resurrect"
 }
 
 main "$@"

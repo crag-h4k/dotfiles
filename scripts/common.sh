@@ -128,6 +128,20 @@ install_neovim_debian() {
     info "neovim ${tag} installed: $(nvim --version 2>/dev/null | head -1)"
 }
 
+# Clone a plugin repo at --depth=1, or pull --ff-only if already present.
+# Usage: clone_plugin <url> <relative-path-from-HOME>
+clone_plugin() {
+    local url="$1" dest="$HOME/$2"
+    if [[ -d "$dest/.git" ]]; then
+        info "updating plugin: $2"
+        git -C "$dest" pull --ff-only
+    else
+        info "cloning plugin: $2"
+        mkdir -p "$(dirname "$dest")"
+        git clone --depth=1 "$url" "$dest"
+    fi
+}
+
 # Platform-aware package install wrapper.
 # Usage: pkg_install pkg1 pkg2 ...
 pkg_install() {
