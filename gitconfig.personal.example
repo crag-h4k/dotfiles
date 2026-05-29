@@ -1,0 +1,12 @@
+# Fill in before first use on a new host.
+[user]
+    name = ""
+    email = ""
+
+# Optional. Dedicated SSH key for git pushes:
+# [core]
+#     sshCommand = "ssh -i ~/.ssh/your-key-name"
+
+# Optional. GitHub username (used by some tools):
+# [github]
+#     user = ""

@@ -11,6 +11,7 @@ vendored and plugins refresh on their own.
 ## Table of Contents
 
 - [Quick start (new host)](#quick-start-new-host)
+- [Selective install](#selective-install)
 - [How it works](#how-it-works)
 - [What lives where](#what-lives-where)
 - [Daily operation](#daily-operation)
@@ -46,6 +47,34 @@ This one line:
 
 When it finishes, open a new terminal. `zsh` should be your login shell
 already; if not, `sudo chsh -s "$(command -v zsh)" "$USER"`.
+
+## Selective install
+
+Run `scripts/install.sh` directly to choose which components to install:
+
+```sh
+bash ~/dotfiles/scripts/install.sh
+```
+
+You are prompted to pick any combination:
+
+```text
+Components to install:
+  1) zsh       oh-my-zsh, plugins, custom functions, aliases
+  2) tmux      tmux + plugins (tpm, resurrect, sensible, yank)
+  3) neovim    neovim, lazy.nvim, language servers, linters
+  4) gitconfig copy ~/.gitconfig* from repo examples
+
+Enter numbers (e.g. "1 3") or press Enter for all:
+```
+
+Type space-separated numbers for the components you want, or press Enter to
+install everything. Running non-interactively (via `chezmoi apply` or a pipe)
+installs all components automatically.
+
+Note: chezmoi externals (oh-my-zsh, tmux plugins, etc.) are fetched by
+`chezmoi apply` regardless of which components you install here. This script
+only controls system package installation.
 
 ## How it works
 
@@ -83,9 +112,8 @@ already; if not, `sudo chsh -s "$(command -v zsh)" "$USER"`.
 | `dot_config/symlink_yamllint` | `~/.config/yamllint` (symlink) | → `nvim/linter-configs/yamllint` (dir) |
 | **System-level tool configs** | | |
 | `dot_tfswitch.toml` | `~/.tfswitch.toml` | terraform version switcher |
-| `dot_gitconfig` | `~/.gitconfig` | git main; includes the per-context configs below |
-| `dot_gitconfig.personal` | `~/.gitconfig.personal` | personal identity (default) |
-| `dot_gitconfig.work` | `~/.gitconfig.work` | work identity (loaded inside `~/work/**`) |
+| `gitconfig.example` | reference only | seed for `~/.gitconfig`; install.sh prompts to copy |
+| `gitconfig.personal.example` | reference only | seed for `~/.gitconfig.personal`; install.sh prompts to copy |
 | `dot_gitignore_global` | `~/.gitignore_global` | global ignore patterns |
 | `dot_profile` | `~/.profile` | minimal login shim (sources cargo env) |
 | `.chezmoiexternal.toml` | (external clones) | 11 upstream plugins |
@@ -95,26 +123,25 @@ already; if not, `sudo chsh -s "$(command -v zsh)" "$USER"`.
 ```sh
 # Edit a config file via chezmoi (so the source tree stays the source of truth):
 chezmoi edit ~/.zshrc
-chezmoi apply                      # materialize the edit into $HOME
+ca                                 # alias for: chezmoi apply
 
-# Or edit the source tree directly and then apply (~/dotfiles is a symlink to
-# ~/.local/share/chezmoi, created by scripts/install.sh):
-cd ~/dotfiles
+# Or edit the source tree directly:
+cdd                                # alias for: cd ~/dotfiles
 $EDITOR dot_zshrc
-chezmoi apply
+ca
 
 # Pull upstream plugins now instead of waiting for weekly refresh:
-chezmoi apply --refresh-externals
+cre                                # alias for: chezmoi apply --refresh-externals
 
 # Re-run the install scripts (e.g. after updating packages):
 chezmoi state delete-bucket --bucket=scriptState
-chezmoi apply
+ca
 
 # Inspect what chezmoi thinks should change:
-chezmoi diff
+cdiff                              # alias for: chezmoi diff
 
 # Sync chezmoi source with this repo's origin:
-chezmoi update                     # git pull in source + apply
+cu                                 # alias for: chezmoi update (git pull + apply)
 ```
 
 ## Supported platforms
