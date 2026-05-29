@@ -65,13 +65,13 @@ Components to install:
   3) neovim    neovim, lazy.nvim, language servers, linters
   4) gitconfig copy ~/.gitconfig* from repo examples
 
-Enter numbers (e.g. "1 3"), or press Enter for default (1 2 3):
+Enter numbers (e.g. "1 3"), all, all+, or press Enter for default (1 2 3):
 ```
 
-Type space-separated numbers for the components you want. Press Enter to take
-the default (zsh, tmux, neovim). Only packages for the chosen components are
-installed. When run non-interactively (via `chezmoi apply` or a pipe) the
-default set is used automatically.
+Type space-separated numbers for a custom set, `all` for zsh+tmux+neovim, or
+`all+` to also include gitconfig. Press Enter for the default (same as `all`).
+Only packages for the chosen components are installed. When run
+non-interactively (via `chezmoi apply` or a pipe) the default set is used.
 
 Note: chezmoi externals (oh-my-zsh, tmux plugins, etc.) are fetched by
 `chezmoi apply` regardless of which components you install here.

@@ -21,11 +21,15 @@ _select_components() {
     printf '  2) tmux      tmux + plugins (tpm, resurrect, sensible, yank)\n'
     printf '  3) neovim    neovim, lazy.nvim, language servers, linters\n'
     printf '  4) gitconfig copy ~/.gitconfig* from repo examples\n'
-    printf '\nEnter numbers (e.g. "1 3"), or press Enter for default (1 2 3): '
+    printf '\nEnter numbers (e.g. "1 3"), all, all+, or press Enter for default (1 2 3): '
 
     local resp c
     read -r resp
     [[ -z "$resp" || "$resp" == "all" ]] && return
+    if [[ "$resp" == "all+" ]]; then
+        INSTALL_GITCONFIG=true
+        return
+    fi
 
     INSTALL_ZSH=false
     INSTALL_TMUX=false
