@@ -6,4 +6,3 @@ LICENSE
 .markdownlint.yaml
 scripts
 *.example
-*.ig

@@ -1,27 +1,27 @@
 #!/usr/bin/env bash
-# Top-level installer. Invokes the three per-application scripts in order,
-# after ensuring the base toolchain (git, make, curl) is present.
+# Top-level installer. Prompts for component selection first, then installs
+# only the packages needed for the chosen components.
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 # shellcheck source-path=SCRIPTDIR
 # shellcheck source=common.sh
 source "$SCRIPT_DIR/common.sh"
 
-# Component flags - all enabled by default.
+# Component flags. Defaults: everything on except gitconfig.
 INSTALL_ZSH=true
 INSTALL_TMUX=true
 INSTALL_NEOVIM=true
-INSTALL_GITCONFIG=true
+INSTALL_GITCONFIG=false
 
-# Show a numbered menu and let the user pick which components to install.
-# Modifies the INSTALL_* globals. Only called when stdin is a tty.
+# Numbered menu - lets the user pick any combination of components.
+# Only called when stdin is a tty; non-interactive runs keep the defaults.
 _select_components() {
     printf '\nComponents to install:\n'
     printf '  1) zsh       oh-my-zsh, plugins, custom functions, aliases\n'
     printf '  2) tmux      tmux + plugins (tpm, resurrect, sensible, yank)\n'
     printf '  3) neovim    neovim, lazy.nvim, language servers, linters\n'
     printf '  4) gitconfig copy ~/.gitconfig* from repo examples\n'
-    printf '\nEnter numbers (e.g. "1 3") or press Enter for all: '
+    printf '\nEnter numbers (e.g. "1 3"), or press Enter for default (1 2 3): '
 
     local resp c
     read -r resp
@@ -66,13 +66,13 @@ main() {
     os=$(os_detect)
     info "dotfiles installer: platform=$os"
 
-    # Prompt for component selection when running interactively.
-    # Non-interactive runs (chezmoi apply, CI) install everything.
+    # Selection happens before any package installs so nothing unneeded is pulled in.
+    # Non-interactive runs (chezmoi apply, CI) keep the defaults.
     if [[ -t 0 ]]; then
         _select_components
     fi
 
-    # Prereqs required by the per-app scripts themselves.
+    # Base toolchain - required by all per-app scripts and by ensure_chezmoi.
     case "$os" in
         macos)
             require_cmd brew
