@@ -56,7 +56,7 @@ Run `scripts/install.sh` directly to choose which components to install:
 bash ~/dotfiles/scripts/install.sh
 ```
 
-You are prompted to pick any combination:
+You are prompted before any packages are installed:
 
 ```text
 Components to install:
@@ -65,16 +65,16 @@ Components to install:
   3) neovim    neovim, lazy.nvim, language servers, linters
   4) gitconfig copy ~/.gitconfig* from repo examples
 
-Enter numbers (e.g. "1 3") or press Enter for all:
+Enter numbers (e.g. "1 3"), or press Enter for default (1 2 3):
 ```
 
-Type space-separated numbers for the components you want, or press Enter to
-install everything. Running non-interactively (via `chezmoi apply` or a pipe)
-installs all components automatically.
+Type space-separated numbers for the components you want. Press Enter to take
+the default (zsh, tmux, neovim). Only packages for the chosen components are
+installed. When run non-interactively (via `chezmoi apply` or a pipe) the
+default set is used automatically.
 
 Note: chezmoi externals (oh-my-zsh, tmux plugins, etc.) are fetched by
-`chezmoi apply` regardless of which components you install here. This script
-only controls system package installation.
+`chezmoi apply` regardless of which components you install here.
 
 ## How it works
 
@@ -113,7 +113,7 @@ only controls system package installation.
 | **System-level tool configs** | | |
 | `dot_tfswitch.toml` | `~/.tfswitch.toml` | terraform version switcher |
 | `gitconfig.example` | reference only | seed for `~/.gitconfig`; install.sh prompts to copy |
-| `gitconfig.personal.example` | reference only | seed for `~/.gitconfig.personal`; install.sh prompts to copy |
+| `gitconfig.personal.example` | reference only | seed for `~/.gitconfig.personal`; fill in name/email |
 | `dot_gitignore_global` | `~/.gitignore_global` | global ignore patterns |
 | `dot_profile` | `~/.profile` | minimal login shim (sources cargo env) |
 | `.chezmoiexternal.toml` | (external clones) | 11 upstream plugins |
@@ -123,25 +123,26 @@ only controls system package installation.
 ```sh
 # Edit a config file via chezmoi (so the source tree stays the source of truth):
 chezmoi edit ~/.zshrc
-ca                                 # alias for: chezmoi apply
+chezmoi apply                      # materialize the edit into $HOME
 
-# Or edit the source tree directly:
-cdd                                # alias for: cd ~/dotfiles
+# Or edit the source tree directly and then apply (~/dotfiles is a symlink to
+# ~/.local/share/chezmoi, created by scripts/install.sh):
+cd ~/dotfiles
 $EDITOR dot_zshrc
-ca
+chezmoi apply
 
 # Pull upstream plugins now instead of waiting for weekly refresh:
-cre                                # alias for: chezmoi apply --refresh-externals
+chezmoi apply --refresh-externals
 
 # Re-run the install scripts (e.g. after updating packages):
 chezmoi state delete-bucket --bucket=scriptState
-ca
+chezmoi apply
 
 # Inspect what chezmoi thinks should change:
-cdiff                              # alias for: chezmoi diff
+chezmoi diff
 
 # Sync chezmoi source with this repo's origin:
-cu                                 # alias for: chezmoi update (git pull + apply)
+chezmoi update                     # git pull in source + apply
 ```
 
 ## Supported platforms
