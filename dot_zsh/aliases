@@ -40,6 +40,12 @@ alias "grepp"="grep  --color=always -rnwe"
 alias "teelog"="2>&1 | tee"
 alias "tws"="terraform workspace select"
 alias "twl"="terraform workspace list"
+# chezmoi workflow
+alias "ca"="chezmoi apply"
+alias "cdiff"="chezmoi diff"
+alias "cu"="chezmoi update"
+alias "cre"="chezmoi apply --refresh-externals"
+alias "cdd"="cd ~/dotfiles"
 # Docker - only define if docker is available
 if command -v docker &>/dev/null; then
   # Stop all containers:
