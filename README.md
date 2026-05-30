@@ -154,7 +154,6 @@ is left in place rather than deleted, so back it up first if you want it gone.
 | `dot_tmux.conf` | `~/.tmux.conf` | real file |
 | `dot_tmux/conf.d/*.conf` | `~/.tmux/conf.d/*.conf` | |
 | `dot_config/nvim/init.lua` | `~/.config/nvim/init.lua` | lazy.nvim entrypoint |
-| `dot_config/nvim/lazy-lock.json` | `~/.config/nvim/lazy-lock.json` | plugin version lock |
 | `dot_config/nvim/lua/statusline.lua` | `~/.config/nvim/lua/statusline.lua` | |
 | **Linter configs (base, each at its own path)** | | |
 | `dot_darglint` | `~/.darglint` | docstring style |

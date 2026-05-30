@@ -6,6 +6,10 @@ LICENSE
 scripts
 *.example
 *.ig
+# lazy.nvim rewrites lazy-lock.json at runtime (:Lazy sync/update). Let it own
+# the file per-machine instead of fighting chezmoi over it. init.lua reproduces
+# the plugin set on any host; we just don't pin exact commits across machines.
+.config/nvim/lazy-lock.json
 {{ if not (dig "components" "zsh" true .) -}}
 .zshrc
 .zshenv
