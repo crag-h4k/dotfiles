@@ -8,10 +8,16 @@ Consolidates my zsh, tmux, and Neovim configuration (formerly split across
 (oh-my-zsh, tpm, `tmux-*`, `zsh-*`) come from chezmoi externals, so nothing is
 vendored and plugins refresh on their own.
 
+chezmoi owns component selection. You pick zsh, tmux, neovim, and gitconfig once
+at `chezmoi init`. The choice persists in `~/.config/chezmoi/chezmoi.toml`.
+`chezmoi apply` then writes only the selected components' files and keeps them
+current. No wrapper script and no path juggling.
+
 ## Table of Contents
 
 - [Quick start (new host)](#quick-start-new-host)
-- [Selective install](#selective-install)
+- [Choosing components](#choosing-components)
+- [Changing components later](#changing-components-later)
 - [How it works](#how-it-works)
 - [What lives where](#what-lives-where)
 - [Daily operation](#daily-operation)
@@ -28,66 +34,90 @@ This one line:
 
 1. Installs `chezmoi` if missing.
 1. Clones this repo into `~/.local/share/chezmoi/`.
+1. Prompts for the four components (see below) and saves the answers to
+   `~/.config/chezmoi/chezmoi.toml`.
 1. Runs `chezmoi apply`, which:
-   - Fetches every upstream plugin declared in `.chezmoiexternal.toml` and
-     drops them under `~/.zsh/ohmyzsh`, `~/.zsh/custom/plugins/*`,
-     `~/.tmux/plugins/*`.
-   - Places `~/.zshrc`, `~/.zshenv`, `~/.tmux.conf` as real files and
-     populates `~/.zsh/`, `~/.tmux/`, `~/.config/nvim/` with the tracked
-     config.
-   - Creates `~/.darglint` and `~/.config/yamllint` symlinks into the shared
-     linter-configs.
+   - Fetches the upstream plugins declared in `.chezmoiexternal.toml` for the
+     selected components and drops them under `~/.zsh/ohmyzsh`,
+     `~/.zsh/custom/plugins/*`, `~/.tmux/plugins/*`.
+   - Places the selected components' files: `~/.zshrc`, `~/.zshenv`,
+     `~/.tmux.conf` as real files and populates `~/.zsh/`, `~/.tmux/`,
+     `~/.config/nvim/` with the tracked config.
+   - Creates the neovim linter symlinks (`~/.darglint`, `~/.flake8`,
+     `~/.tflint.hcl`, `~/.config/yamllint`) into the shared linter-configs.
    - Runs `run_before_00-backup.sh` first, which snapshots every currently
      managed file that already exists into `~/.dotfiles-backup/<timestamp>/`
      before anything is overwritten. Runs on every apply (installs and updates).
-   - Runs `run_once_after_00-install.sh`, which calls `scripts/install.sh` to
-     install chezmoi (to `~/.local/bin` if not already in PATH), brew/apt
-     packages, pre-warm the Neovim plugin cache, and create a convenience
-     symlink `~/dotfiles -> ~/.local/share/chezmoi`.
+   - Runs `run_once_after_00-install.sh`, which exports the component selection
+     as `INSTALL_*` env vars and calls `scripts/install.sh` to install brew/apt
+     packages for the selected components, pre-warm the Neovim plugin cache, and
+     create a convenience symlink `~/dotfiles -> ~/.local/share/chezmoi`.
 
 When it finishes, open a new terminal. `zsh` should be your login shell
 already; if not, `sudo chsh -s "$(command -v zsh)" "$USER"`.
 
-## Selective install
-
-Run `scripts/install.sh` directly to choose which components to install:
+To answer the prompts before applying, split the steps:
 
 ```sh
-bash ~/dotfiles/scripts/install.sh
+chezmoi init crag-h4k      # clone + prompt for components
+chezmoi apply              # write only the selected components
 ```
 
-You are prompted before any packages are installed:
+## Choosing components
 
-```text
-Components to install:
-  1) zsh       oh-my-zsh, plugins, custom functions, aliases
-  2) tmux      tmux + plugins (tpm, resurrect, sensible, yank)
-  3) neovim    neovim, lazy.nvim, language servers, linters
-  4) gitconfig copy ~/.gitconfig* from repo examples
+`chezmoi init` asks one yes/no question per component:
 
-Enter numbers (e.g. "1 3"), all, all+, or press Enter for default (1 2 3):
-```
+- `Install zsh (oh-my-zsh, plugins, functions, aliases)` - default yes
+- `Install tmux (config + plugins)` - default yes
+- `Install neovim (lazy.nvim, LSPs, linters)` - default yes
+- `Install gitconfig from examples` - default no
 
-Type space-separated numbers for a custom set, `all` for zsh+tmux+neovim, or
-`all+` to also include gitconfig. Press Enter for the default (same as `all`).
-Only packages for the chosen components are installed. When run
-non-interactively (via `chezmoi apply` or a pipe) the default set is used.
+A component that is off is excluded two ways: its target files are added to
+`.chezmoiignore` so `chezmoi apply` never writes them, and its plugin externals
+are dropped from `.chezmoiexternal.toml` so they are never fetched. The base
+files (`~/.profile`, `~/.gitignore_global`, `~/.tfswitch.toml`) install
+regardless of selection.
 
-Note: chezmoi externals (oh-my-zsh, tmux plugins, etc.) are fetched by
-`chezmoi apply` regardless of which components you install here.
+The answers are stored under `[data.components]` in
+`~/.config/chezmoi/chezmoi.toml` and reused on every subsequent `chezmoi apply`.
+
+## Changing components later
+
+Two ways:
+
+- Re-run `chezmoi init` and answer the prompts again.
+- Edit `~/.config/chezmoi/chezmoi.toml` directly:
+
+  ```toml
+  [data.components]
+      zsh = true
+      tmux = false
+      neovim = true
+      gitconfig = false
+  ```
+
+Then run `chezmoi apply`. Turning a component off removes its files on the next
+apply (its targets are now ignored); turning one on writes them and fetches its
+plugins. Unmodified managed files are removed cleanly. A file you edited locally
+is left in place rather than deleted, so back it up first if you want it gone.
 
 ## How it works
 
 - **Content I author** (configs, custom functions, install scripts, docs)
   lives in this repo as regular files following chezmoi naming conventions
-  (`dot_zshrc` → `~/.zshrc`, `dot_zsh/aliases` → `~/.zsh/aliases`, etc.).
-- **Upstream plugins** are cloned by the per-app install scripts
-  (`install-zsh.sh`, `install-tmux.sh`) using `git clone --depth=1`. They are
-  only fetched for the components you select. Re-running an install script
-  pulls updates (`git pull --ff-only`).
+  (`dot_zshrc` -> `~/.zshrc`, `dot_zsh/aliases` -> `~/.zsh/aliases`, etc.).
+- **Component selection** is a chezmoi-native concern. `.chezmoi.toml.tmpl`
+  prompts once with `promptBoolOnce` and writes `[data.components]` into the
+  per-host config. `.chezmoiignore` and `.chezmoiexternal.toml` are both
+  templated off `.components.*`: an off component's targets are ignored and its
+  externals are skipped.
+- **Upstream plugins** are chezmoi externals (`.chezmoiexternal.toml`), fetched
+  and refreshed by `chezmoi apply` on a weekly `refreshPeriod`. Only the
+  selected components' externals are declared.
 - **System packages** (zsh, neovim, tmux, fzf, gh, zoxide, etc.) are installed
-  by `scripts/install-*.sh` on first apply. One script per app plus a
-  platform-aware orchestrator.
+  by `scripts/install-*.sh` on first apply. `run_once_after_00-install.sh`
+  drives `scripts/install.sh` with the component selection passed as `INSTALL_*`
+  env vars. One script per app plus a platform-aware orchestrator.
 
 ## What lives where
 
@@ -109,15 +139,19 @@ Note: chezmoi externals (oh-my-zsh, tmux plugins, etc.) are fetched by
 | `dot_config/nvim/linter-configs/tflint.hcl` | `~/.config/nvim/linter-configs/tflint.hcl` | terraform lint rules |
 | `dot_config/nvim/linter-configs/markdownlint.yaml` | `~/.config/nvim/linter-configs/markdownlint.yaml` | used by nvim-lint for markdown files |
 | `dot_config/nvim/linter-configs/yamllint/config` | `~/.config/nvim/linter-configs/yamllint/config` | |
-| `symlink_dot_darglint` | `~/.darglint` (symlink) | → `.config/nvim/linter-configs/darglint` |
-| `dot_config/symlink_yamllint` | `~/.config/yamllint` (symlink) | → `nvim/linter-configs/yamllint` (dir) |
+| `symlink_dot_darglint` | `~/.darglint` (symlink) | -> `.config/nvim/linter-configs/darglint` |
+| `symlink_dot_flake8` | `~/.flake8` (symlink) | -> `.config/nvim/linter-configs/flake8` |
+| `symlink_dot_tflint.hcl` | `~/.tflint.hcl` (symlink) | -> `.config/nvim/linter-configs/tflint.hcl` |
+| `dot_config/symlink_yamllint` | `~/.config/yamllint` (symlink) | -> `nvim/linter-configs/yamllint` (dir) |
 | **System-level tool configs** | | |
 | `dot_tfswitch.toml` | `~/.tfswitch.toml` | terraform version switcher |
 | `gitconfig.example` | reference only | seed for `~/.gitconfig`; install.sh prompts to copy |
 | `gitconfig.personal.example` | reference only | seed for `~/.gitconfig.personal`; fill in name/email |
 | `dot_gitignore_global` | `~/.gitignore_global` | global ignore patterns |
 | `dot_profile` | `~/.profile` | minimal login shim (sources cargo env) |
-| `.chezmoiexternal.toml` | (no managed externals) | plugins cloned by install scripts |
+| `.chezmoi.toml.tmpl` | `~/.config/chezmoi/chezmoi.toml` | prompts for components at init; stores `[data.components]` |
+| `.chezmoiignore` | (templated) | ignores an off component's target paths |
+| `.chezmoiexternal.toml` | (templated externals) | plugins gated by `.components.zsh` / `.components.tmux` |
 
 ## Daily operation
 
@@ -158,6 +192,9 @@ config is distro-agnostic.
 
 ```sh
 chezmoi purge          # removes chezmoi source and state
-rm -rf ~/.zsh ~/.tmux ~/.config/nvim
-rm ~/.zshrc ~/.zshenv ~/.tmux.conf ~/.darglint ~/.config/yamllint
+rm -rf ~/.zsh ~/.tmux ~/.config/nvim ~/.config/yamllint
+rm -f ~/.zshrc ~/.zshenv ~/.tmux.conf
+rm -f ~/.darglint ~/.flake8 ~/.tflint.hcl
+rm -f ~/.profile ~/.gitignore_global ~/.tfswitch.toml
+rm -f ~/dotfiles    # convenience symlink created by install.sh
 ```

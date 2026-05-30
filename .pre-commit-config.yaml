@@ -9,6 +9,9 @@ repos:
       - id: end-of-file-fixer
       - id: check-yaml
       - id: check-toml
+        # .chezmoiexternal.toml is a chezmoi Go template (gated by component),
+        # not raw TOML, so it does not parse until chezmoi renders it.
+        exclude: ^\.chezmoiexternal\.toml$
       - id: check-json
       - id: check-added-large-files
         args: [--maxkb=1024]
@@ -47,3 +50,15 @@ repos:
     hooks:
       - id: markdownlint
         args: [--config=.markdownlint.yaml]
+
+  # Render the component-gated chezmoi templates across combinations and parse
+  # the result. check-toml skips .chezmoiexternal.toml (it is a Go template), so
+  # this is what actually validates the rendered TOML before it reaches a host.
+  - repo: local
+    hooks:
+      - id: validate-chezmoi-templates
+        name: validate chezmoi templates render and parse
+        entry: scripts/validate-templates.sh
+        language: script
+        pass_filenames: false
+        files: ^(\.chezmoiexternal\.toml|\.chezmoi\.toml\.tmpl|scripts/validate-templates\.sh)$

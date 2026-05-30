@@ -1,5 +1,7 @@
 #!/usr/bin/env bash
-# Install zsh, its packages, and OMZ + plugins.
+# Install zsh and its packages, then set zsh as the login shell.
+# oh-my-zsh and the zsh-users plugins are NOT cloned here: they are chezmoi
+# externals (see .chezmoiexternal.toml) fetched and refreshed by chezmoi apply.
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 # shellcheck source-path=SCRIPTDIR
@@ -24,11 +26,6 @@ main() {
             die "unsupported OS for install-zsh"
             ;;
     esac
-
-    clone_plugin "https://github.com/ohmyzsh/ohmyzsh.git"                       ".zsh/ohmyzsh"
-    clone_plugin "https://github.com/zsh-users/zsh-autosuggestions.git"         ".zsh/custom/plugins/zsh-autosuggestions"
-    clone_plugin "https://github.com/zsh-users/zsh-syntax-highlighting.git"     ".zsh/custom/plugins/zsh-syntax-highlighting"
-    clone_plugin "https://github.com/zsh-users/zsh-completions.git"             ".zsh/custom/plugins/zsh-completions"
 
     # Set zsh as the login shell if it isn't already.
     local zsh_bin

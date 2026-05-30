@@ -1,51 +1,26 @@
 #!/usr/bin/env bash
-# Top-level installer. Prompts for component selection first, then installs
-# only the packages needed for the chosen components.
+# Top-level installer. Driven by chezmoi: run_once_after_00-install.sh exports
+# the component selection (made at `chezmoi init`) as INSTALL_* env vars and
+# then calls this script. It installs only the packages for the selected
+# components. It does NOT call `chezmoi apply` - chezmoi invokes this script,
+# so applying again would recurse.
+#
+# Standalone use is supported too: the INSTALL_* vars default to zsh+tmux+neovim
+# on, gitconfig off, when unset.
+
+set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 # shellcheck source-path=SCRIPTDIR
 # shellcheck source=common.sh
 source "$SCRIPT_DIR/common.sh"
 
-# Component flags. Defaults: everything on except gitconfig.
-INSTALL_ZSH=true
-INSTALL_TMUX=true
-INSTALL_NEOVIM=true
-INSTALL_GITCONFIG=false
-
-# Numbered menu - lets the user pick any combination of components.
-# Only called when stdin is a tty; non-interactive runs keep the defaults.
-_select_components() {
-    printf '\nComponents to install:\n'
-    printf '  1) zsh       oh-my-zsh, plugins, custom functions, aliases\n'
-    printf '  2) tmux      tmux + plugins (tpm, resurrect, sensible, yank)\n'
-    printf '  3) neovim    neovim, lazy.nvim, language servers, linters\n'
-    printf '  4) gitconfig copy ~/.gitconfig* from repo examples\n'
-    printf '\nEnter numbers (e.g. "1 3"), all, all+, or press Enter for default (1 2 3): '
-
-    local resp c
-    read -r resp
-    [[ -z "$resp" || "$resp" == "all" ]] && return
-    if [[ "$resp" == "all+" ]]; then
-        INSTALL_GITCONFIG=true
-        return
-    fi
-
-    INSTALL_ZSH=false
-    INSTALL_TMUX=false
-    INSTALL_NEOVIM=false
-    INSTALL_GITCONFIG=false
-
-    for c in $resp; do
-        case "$c" in
-            1) INSTALL_ZSH=true ;;
-            2) INSTALL_TMUX=true ;;
-            3) INSTALL_NEOVIM=true ;;
-            4) INSTALL_GITCONFIG=true ;;
-            *) info "unknown component '$c' - ignored" ;;
-        esac
-    done
-}
+# Component flags, read from the environment (set by chezmoi via
+# run_once_after_00-install.sh). Defaults apply only for standalone runs.
+INSTALL_ZSH="${INSTALL_ZSH:-true}"
+INSTALL_TMUX="${INSTALL_TMUX:-true}"
+INSTALL_NEOVIM="${INSTALL_NEOVIM:-true}"
+INSTALL_GITCONFIG="${INSTALL_GITCONFIG:-false}"
 
 # Show an existing gitconfig file then prompt to create/replace from repo example.
 _setup_gitconfig_file() {
@@ -69,12 +44,7 @@ main() {
     local os
     os=$(os_detect)
     info "dotfiles installer: platform=$os"
-
-    # Selection happens before any package installs so nothing unneeded is pulled in.
-    # Non-interactive runs (chezmoi apply, CI) keep the defaults.
-    if [[ -t 0 ]]; then
-        _select_components
-    fi
+    info "components: zsh=$INSTALL_ZSH tmux=$INSTALL_TMUX neovim=$INSTALL_NEOVIM gitconfig=$INSTALL_GITCONFIG"
 
     # Base toolchain - required by all per-app scripts and by ensure_chezmoi.
     case "$os" in

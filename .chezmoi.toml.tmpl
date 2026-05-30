@@ -1,0 +1,12 @@
+{{- /* Component selection. Asked once at `chezmoi init` and persisted into */ -}}
+{{- /* ~/.config/chezmoi/chezmoi.toml. Re-run `chezmoi init` to change them. */ -}}
+{{- $zsh := promptBoolOnce . "components.zsh" "Install zsh (oh-my-zsh, plugins, functions, aliases)" true -}}
+{{- $tmux := promptBoolOnce . "components.tmux" "Install tmux (config + plugins)" true -}}
+{{- $neovim := promptBoolOnce . "components.neovim" "Install neovim (lazy.nvim, LSPs, linters)" true -}}
+{{- $gitconfig := promptBoolOnce . "components.gitconfig" "Install gitconfig from examples" false -}}
+
+[data.components]
+    zsh = {{ $zsh }}
+    tmux = {{ $tmux }}
+    neovim = {{ $neovim }}
+    gitconfig = {{ $gitconfig }}

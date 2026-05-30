@@ -1,5 +1,7 @@
 #!/usr/bin/env bash
-# Install tmux, the platform-specific clipboard bridge, and tmux plugins.
+# Install tmux and the platform-specific clipboard bridge.
+# tpm and the tmux-plugins are NOT cloned here: they are chezmoi externals
+# (see .chezmoiexternal.toml) fetched and refreshed by chezmoi apply.
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 # shellcheck source-path=SCRIPTDIR
@@ -22,13 +24,6 @@ main() {
             die "unsupported OS for install-tmux"
             ;;
     esac
-
-    clone_plugin "https://github.com/tmux-plugins/tpm.git"            ".tmux/plugins/tpm"
-    clone_plugin "https://github.com/tmux-plugins/tmux-sensible.git"  ".tmux/plugins/tmux-sensible"
-    clone_plugin "https://github.com/tmux-plugins/tmux-yank.git"      ".tmux/plugins/tmux-yank"
-    clone_plugin "https://github.com/tmux-plugins/tmux-cpu.git"       ".tmux/plugins/tmux-cpu"
-    clone_plugin "https://github.com/tmux-plugins/tmux-net-speed.git" ".tmux/plugins/tmux-net-speed"
-    clone_plugin "https://github.com/tmux-plugins/tmux-resurrect.git" ".tmux/plugins/tmux-resurrect"
 }
 
 main "$@"

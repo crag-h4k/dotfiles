@@ -6,3 +6,19 @@ LICENSE
 .markdownlint.yaml
 scripts
 *.example
+{{ if not (dig "components" "zsh" true .) -}}
+.zshrc
+.zshenv
+.zsh
+{{ end -}}
+{{ if not (dig "components" "tmux" true .) -}}
+.tmux.conf
+.tmux
+{{ end -}}
+{{ if not (dig "components" "neovim" true .) -}}
+.config/nvim
+.darglint
+.flake8
+.tflint.hcl
+.config/yamllint
+{{ end -}}

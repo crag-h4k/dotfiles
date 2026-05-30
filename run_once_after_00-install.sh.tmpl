@@ -1,8 +1,12 @@
 #!/usr/bin/env bash
-# chezmoi runs this once on first apply, and re-runs any time the file's
-# hash changes (e.g. you update one of the scripts). Delegates to
-# scripts/install.sh so the same flow works from chezmoi or the CLI.
-
+# chezmoi runs this once on first apply, and re-runs any time the rendered
+# content changes (e.g. you flip a component or update a script). Exports the
+# selected components as INSTALL_* env vars, then delegates to install.sh.
 set -euo pipefail
+
+export INSTALL_ZSH={{ dig "components" "zsh" true . }}
+export INSTALL_TMUX={{ dig "components" "tmux" true . }}
+export INSTALL_NEOVIM={{ dig "components" "neovim" true . }}
+export INSTALL_GITCONFIG={{ dig "components" "gitconfig" false . }}
 
 bash "{{ .chezmoi.sourceDir }}/scripts/install.sh"
