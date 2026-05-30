@@ -1,17 +1,11 @@
 #!/usr/bin/env zsh
-# Print the LAN IP of the interface carrying the default route.
-# Fresh on every call (not cached at shell start), so it stays correct
-# across network changes.
+# Print the LAN IPv4 of the primary physical interface: wired preferred, then
+# wireless. Excludes loopback, VPN tunnels, and virtual bridges. Fresh on every
+# call (not cached), so it tracks network changes. Interface-detection helpers
+# live in mywanip.zsh (all custom functions are sourced before first use).
 function myip() {
     local iface ip
-    case "$OSTYPE" in
-        darwin*)
-            iface=$(route -n get default 2>/dev/null | awk '/interface:/{print $2}')
-            [[ -n "$iface" ]] && ip=$(ipconfig getifaddr "$iface" 2>/dev/null)
-            ;;
-        linux*)
-            ip=$(ip -4 route get 1 2>/dev/null | awk '/src/ {for (i=1;i<=NF;i++) if ($i=="src") {print $(i+1); exit}}')
-            ;;
-    esac
+    iface=$(_net_lan_iface)
+    [[ -n "$iface" ]] && ip=$(_net_iface_ip4 "$iface")
     echo "${ip:-<offline>}"
 }

@@ -15,12 +15,12 @@ main() {
 
     case "$os" in
         macos)
-            pkg_install zsh fzf gh zoxide gnupg geoip
+            pkg_install zsh fzf gh zoxide gnupg
             ;;
         debian)
             ensure_gh_apt_repo
             # command-not-found on apt gives OMZ's plugin something to hook.
-            pkg_install zsh fzf gh zoxide gnupg command-not-found geoip-bin
+            pkg_install zsh fzf gh zoxide gnupg command-not-found
             ;;
         *)
             die "unsupported OS for install-zsh"

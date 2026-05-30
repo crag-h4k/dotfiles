@@ -12,8 +12,9 @@ export MODULAR_HOME=$HOME/.modular
 export PATH=$MAX_PATH/bin:$PATH
 
 export LANG="en_US.UTF-8"
-export GPG_TTY=$(tty)
-export TERM=xterm-256color
+# GPG_TTY moved to .zshrc (interactive only): $(tty) is meaningless for the
+# non-interactive shells that also source .zshenv. TERM is left to the
+# terminal emulator / tmux to negotiate (tmux.conf sets tmux-256color).
 export UPDATE_ZSH_DAYS=7
 export HISTTIMEFORMAT="%d-%b-%y %*"
 export ARCH="$(arch)"
@@ -44,11 +45,20 @@ case "$OSTYPE" in
         esac
         ;;
     linux*)
+        # CONDA_PATH is consumed by the conda init block in
+        # custom/functions/conda_env.zsh, which activates conda correctly via
+        # its conda.sh hook. Do NOT add $CONDA_PATH to PYTHONPATH: the root dir
+        # is not a site-packages path, so it makes nothing importable and just
+        # pollutes every (including non-interactive) python invocation.
         export CONDA_PATH=/opt/miniconda3
         export PATH=/snap/bin:$PATH
         export PATH=/opt/bin:$PATH
         export PATH=/opt/miniconda3/bin:$PATH
         export PATH=/usr/local/go/bin:$PATH
-        export PYTHONPATH=${PYTHONPATH}:$CONDA_PATH
         ;;
 esac
+
+# Collapse duplicate PATH entries (keeps first occurrence). Prevents bloat from
+# re-sourcing (`sourcez`) and stops a stray snap/conda binary from shadowing one
+# installed to /usr/local/bin.
+typeset -U path PATH

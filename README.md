@@ -128,10 +128,10 @@ is left in place rather than deleted, so back it up first if you want it gone.
   lives in this repo as regular files following chezmoi naming conventions
   (`dot_zshrc` -> `~/.zshrc`, `dot_zsh/aliases` -> `~/.zsh/aliases`, etc.).
 - **Component selection** is a chezmoi-native concern. `.chezmoi.toml.tmpl`
-  prompts once with `promptBoolOnce` and writes `[data.components]` into the
-  per-host config. `.chezmoiignore` and `.chezmoiexternal.toml` are both
-  templated off `.components.*`: an off component's targets are ignored and its
-  externals are skipped.
+  prompts once with a `promptStringOnce` numbered menu, parses the answer, and
+  writes `[data.components]` into the per-host config. `.chezmoiignore` and
+  `.chezmoiexternal.toml` are both templated off `.components.*`: an off
+  component's targets are ignored and its externals are skipped.
 - **Upstream plugins** are chezmoi externals (`.chezmoiexternal.toml`), fetched
   and refreshed by `chezmoi apply` on a weekly `refreshPeriod`. Only the
   selected components' externals are declared.
@@ -209,7 +209,7 @@ config is distro-agnostic.
 
 ```sh
 chezmoi purge          # removes chezmoi source and state
-rm -rf ~/.zsh ~/.tmux ~/.config/nvim ~/.config/yamllint
+rm -rf ~/.zsh ~/.tmux ~/.config/nvim ~/.config/yamllint ~/.local/share/nvim-venv
 rm -f ~/.zshrc ~/.zshenv ~/.tmux.conf
 rm -f ~/.darglint ~/.flake8 ~/.tflint.hcl ~/.markdownlint.yaml
 rm -f ~/.gitignore_global ~/.tfswitch.toml

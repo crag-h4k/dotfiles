@@ -1,5 +1,12 @@
 #!/usr/bin/env zsh
+# Public IP + geolocation. Uses ipinfo.io rather than the EOL legacy GeoIP DB
+# that geoiplookup needs (no local database to install or keep current).
 daytime=$(date +%d-%b-%Y_%H:%M)
-mypubip=$(curl http://icanhazip.com --silent);
-echo "Public IP: $mypubip at $daytime";
-geoiplookup $mypubip;
+mypubip=$(curl -s -4 https://icanhazip.com | tr -d '[:space:]')
+echo "Public IP: ${mypubip:-<offline>} at $daytime"
+[[ -n "$mypubip" ]] || exit 0
+# Pull a few human-readable fields without needing jq.
+curl -s "https://ipinfo.io/${mypubip}/json" 2>/dev/null \
+    | grep -oE '"(city|region|country|org|postal|timezone)": "[^"]*"' \
+    | sed 's/"//g' \
+    || echo "(geo lookup unavailable)"

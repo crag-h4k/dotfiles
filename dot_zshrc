@@ -2,6 +2,9 @@
 #
 ZSH_DISABLE_COMPFIX=true
 ZSH_THEME="gud"
+# Interactive-only: GPG pinentry needs the controlling tty. (Moved here from
+# .zshenv, where $(tty) is meaningless for non-interactive shells.)
+export GPG_TTY=$(tty)
 # check for private variable file, create one if it doesn't exist
 if [[ ! -a $HOME/.zsh_private ]]; then
     echo "Creating a private file at $HOME/.zsh_private";
@@ -74,8 +77,9 @@ case "$OSTYPE" in
     plugins+=(macos brew)
   ;;
   linux*)
+    # The ssh-agent OMZ plugin loads keys; `ssh-add -A` is a macOS-keychain
+    # flag and errors on Linux OpenSSH, so it is not used here.
     plugins+=(ssh-agent)
-    ssh-add -A >/dev/null 2>&1;
   ;;
 esac
 #
@@ -87,9 +91,10 @@ for function in $ZSH_CUSTOM/functions/*.zsh; do
     source $function
 done
 
-# Login-shell banner: current primary LAN IP (fresh per shell) +
-# public WAN IP (cached, see MYWANIP_TTL in custom/functions/mywanip.zsh).
-[[ -o login ]] && print -P "%F{cyan}LAN:%f $(myip)   %F{cyan}WAN:%f $(mywanip)"
+# Login-shell banner: LAN interface IP (wired preferred), the physical link's
+# public WAN IP, and - only when a VPN is up - the VPN's public IP. WAN values
+# are cached (MYWANIP_TTL). See custom/functions/mywanip.zsh.
+[[ -o login ]] && netbanner
 
 # Enable zsh history backups, see custom/functions/zsh_history_backup.zsh
 export ZSH_HISTORY_BACKUP_DIR=$ZSH_BASE/zsh_history_backups

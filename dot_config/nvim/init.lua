@@ -81,9 +81,11 @@ vim.opt.wildmode = { "list:longest", "full" }
 vim.g.python_highlight_all = 1
 vim.g.pymode_indent = 0
 
--- Python providers (Neovim mainly uses python3, but keep both for parity)
-vim.g.python_host_prog = vim.fn.expand("$HOME/.config/nvim/venv/bin/python")
-vim.g.python3_host_prog = vim.fn.expand("$HOME/.config/nvim/venv/bin/python3")
+-- Python providers (Neovim mainly uses python3, but keep both for parity).
+-- Venv lives in ~/.local/share (created by scripts/install-neovim.sh), kept out
+-- of the chezmoi-managed ~/.config/nvim tree.
+vim.g.python_host_prog = vim.fn.expand("$HOME/.local/share/nvim-venv/bin/python")
+vim.g.python3_host_prog = vim.fn.expand("$HOME/.local/share/nvim-venv/bin/python3")
 
 -- Filetype overrides / additions (ported from vimrc autocmds)
 local ft_group = vim.api.nvim_create_augroup("UserFiletypeOverrides", { clear = true })

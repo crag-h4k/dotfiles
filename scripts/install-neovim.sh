@@ -37,6 +37,8 @@ main() {
             ;;
         debian)
             pkg_install \
+                build-essential \
+                cmake \
                 golang \
                 jq \
                 nodejs \
@@ -59,19 +61,18 @@ main() {
             ;;
     esac
 
-    # Create the Python venv used as the py3 provider.
+    # Python venv used as the py3 provider. Kept OUTSIDE the chezmoi-managed
+    # ~/.config/nvim tree so `chezmoi apply`/purge never collides with it, and
+    # created unconditionally (init.lua points python3_host_prog here).
     local nvim_dir="$HOME/.config/nvim"
-    if [[ -d "$nvim_dir" ]]; then
-        if [[ ! -d "$nvim_dir/venv" ]]; then
-            info "creating $nvim_dir/venv and installing pynvim"
-            python3 -m venv "$nvim_dir/venv"
-            "$nvim_dir/venv/bin/pip" install --quiet --upgrade pip
-            "$nvim_dir/venv/bin/pip" install --quiet pynvim neovim
-        else
-            info "$nvim_dir/venv already exists"
-        fi
+    local nvim_venv="$HOME/.local/share/nvim-venv"
+    if [[ ! -d "$nvim_venv" ]]; then
+        info "creating $nvim_venv and installing pynvim"
+        python3 -m venv "$nvim_venv"
+        "$nvim_venv/bin/pip" install --quiet --upgrade pip
+        "$nvim_venv/bin/pip" install --quiet pynvim neovim
     else
-        warn "$nvim_dir not found yet (chezmoi apply hasn't placed it); skipping venv setup"
+        info "$nvim_venv already exists"
     fi
 
     # Pre-warm lazy.nvim plugins (non-fatal if it fails, e.g. no network).
