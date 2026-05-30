@@ -77,7 +77,8 @@ Components to install:
 Enter numbers (e.g. "1 3"), all, all+, or press Enter for default (1 2 3):
 ```
 
-- Numbers: any subset, space-separated (e.g. `1 3` for zsh + neovim).
+- Numbers: any subset (e.g. `1 3` for zsh + neovim). Spacing and order do not
+  matter - `1 3`, `13`, and `3 1` are equivalent.
 - Enter: the default, `1 2 3` (zsh + tmux + neovim, no gitconfig).
 - `all`: zsh + tmux + neovim.
 - `all+`: everything including gitconfig.
