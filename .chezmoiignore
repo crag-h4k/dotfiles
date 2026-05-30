@@ -3,9 +3,9 @@ TODO.md
 LICENSE
 .github
 .pre-commit-config.yaml
-.markdownlint.yaml
 scripts
 *.example
+*.ig
 {{ if not (dig "components" "zsh" true .) -}}
 .zshrc
 .zshenv
@@ -17,8 +17,4 @@ scripts
 {{ end -}}
 {{ if not (dig "components" "neovim" true .) -}}
 .config/nvim
-.darglint
-.flake8
-.tflint.hcl
-.config/yamllint
 {{ end -}}

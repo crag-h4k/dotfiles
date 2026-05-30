@@ -248,7 +248,6 @@ local servers = {
   "lua_ls",
   "marksman",
   "pyright",
-  "rust_analyzer",
   "terraformls",
   "yamlls",
   "gh_actions_ls"
@@ -451,7 +450,7 @@ require("lazy").setup({
       lint.linters_by_ft = { markdown = { "markdownlint-cli2" } }
       lint.linters["markdownlint-cli2"].args = {
         "--config",
-        vim.fn.expand("~/.config/nvim/linter-configs/markdownlint.yaml"),
+        vim.fn.expand("~/.markdownlint.yaml"),
       }
       vim.api.nvim_create_autocmd({ "BufReadPost", "BufWritePost", "InsertLeave" }, {
         callback = function() lint.try_lint() end,

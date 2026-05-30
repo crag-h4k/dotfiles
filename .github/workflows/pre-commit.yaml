@@ -1,0 +1,32 @@
+---
+name: pre-commit
+
+# Enforce the same hooks that run locally - including validate-templates.sh,
+# which renders the component-gated chezmoi templates and parses the result.
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  pre-commit:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      # validate-templates.sh needs chezmoi to render the templates.
+      - name: Install chezmoi
+        run: sh -c "$(curl -fsLS get.chezmoi.io)" -- -b "$HOME/.local/bin"
+
+      - name: Add chezmoi to PATH
+        run: echo "$HOME/.local/bin" >> "$GITHUB_PATH"
+
+      - name: Run pre-commit
+        uses: pre-commit/action@v3.0.1

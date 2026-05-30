@@ -1,9 +1,23 @@
-{{- /* Component selection. Asked once at `chezmoi init` and persisted into */ -}}
-{{- /* ~/.config/chezmoi/chezmoi.toml. Re-run `chezmoi init` to change them. */ -}}
-{{- $zsh := promptBoolOnce . "components.zsh" "Install zsh (oh-my-zsh, plugins, functions, aliases)" true -}}
-{{- $tmux := promptBoolOnce . "components.tmux" "Install tmux (config + plugins)" true -}}
-{{- $neovim := promptBoolOnce . "components.neovim" "Install neovim (lazy.nvim, LSPs, linters)" true -}}
-{{- $gitconfig := promptBoolOnce . "components.gitconfig" "Install gitconfig from examples" false -}}
+{{- /* Component selection. Asked once at `chezmoi init` and persisted into   */ -}}
+{{- /* ~/.config/chezmoi/chezmoi.toml. apply/update read the stored choice and */ -}}
+{{- /* never re-prompt; re-run `chezmoi init` (or edit [data.components]) to   */ -}}
+{{- /* change it. Parsed into booleans below so the rest of the repo can gate  */ -}}
+{{- /* on .components.* (see .chezmoiignore, .chezmoiexternal.toml).            */ -}}
+{{- $menu := "Components to install:\n  1) zsh       oh-my-zsh, plugins, custom functions, aliases\n  2) tmux      tmux + plugins (tpm, resurrect, sensible, yank)\n  3) neovim    neovim, lazy.nvim, language servers, linters\n  4) gitconfig copy ~/.gitconfig* from repo examples\n\nEnter numbers (e.g. \"1 3\"), all, all+, or press Enter for default (1 2 3)" -}}
+{{- $sel := trim (promptStringOnce . "componentSelection" $menu) -}}
+{{- /* Empty = pressed Enter. A value starting with the menu text means a    */ -}}
+{{- /* non-interactive init (no tty) echoed the prompt back; both fall to the */ -}}
+{{- /* default so a piped/CI install never persists a garbage selection.      */ -}}
+{{- if or (eq $sel "") (hasPrefix "Components to install" $sel) }}{{- $sel = "1 2 3" }}{{- end -}}
+{{- $t := splitList " " $sel -}}
+{{- $all := or (has "all" $t) (has "all+" $t) -}}
+{{- $zsh := or $all (has "1" $t) -}}
+{{- $tmux := or $all (has "2" $t) -}}
+{{- $neovim := or $all (has "3" $t) -}}
+{{- $gitconfig := or (has "all+" $t) (has "4" $t) -}}
+
+[data]
+    componentSelection = {{ $sel | quote }}
 
 [data.components]
     zsh = {{ $zsh }}

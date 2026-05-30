@@ -57,16 +57,23 @@ for combo in "${combos[@]}"; do
     rm -rf "$cfgdir"
 done
 
-# Render .chezmoi.toml.tmpl and confirm it parses as TOML. --init makes the
-# promptBoolOnce function available; it returns its defaults non-interactively.
-if ! out=$(chezmoi execute-template --init <"$CONFIG_TMPL" 2>&1); then
-    echo "validate-templates: render FAILED for .chezmoi.toml.tmpl:" >&2
-    echo "$out" >&2
-    fail=1
-elif ! printf '%s' "$out" | parse_toml; then
-    echo "validate-templates: rendered .chezmoi.toml.tmpl is not valid TOML" >&2
-    fail=1
-fi
+# Render .chezmoi.toml.tmpl across selection strings and confirm each parses as
+# TOML. --init makes promptStringOnce available; pre-seeding componentSelection
+# in the config makes it return that value instead of prompting, so we exercise
+# the menu-string parser deterministically.
+for selection in "1 3" "all+" "2" "1 2 3 4"; do
+    cfgdir=$(mktemp -d)
+    printf '[data]\n    componentSelection = "%s"\n' "$selection" >"$cfgdir/chezmoi.toml"
+    if ! out=$(chezmoi execute-template --init --config "$cfgdir/chezmoi.toml" <"$CONFIG_TMPL" 2>&1); then
+        echo "validate-templates: render FAILED for .chezmoi.toml.tmpl (sel='$selection'):" >&2
+        echo "$out" >&2
+        fail=1
+    elif ! printf '%s' "$out" | parse_toml; then
+        echo "validate-templates: rendered .chezmoi.toml.tmpl (sel='$selection') is not valid TOML" >&2
+        fail=1
+    fi
+    rm -rf "$cfgdir"
+done
 
 if (( fail )); then
     exit 1
