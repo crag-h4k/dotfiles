@@ -442,15 +442,23 @@ require("lazy").setup({
     dependencies = {
       "nvim-lua/plenary.nvim",
       -- render-markdown needs the markdown treesitter parsers to render the chat.
-      -- Pin master: nvim-treesitter's default branch is now the `main` rewrite,
-      -- which drops the `nvim-treesitter.configs` setup API used here.
+      -- Pin master, but stay branch-proof: nvim-treesitter's default branch is now
+      -- the `main` rewrite (no `nvim-treesitter.configs`). Support whichever branch
+      -- lazy actually has checked out, and never hard-error if neither matches.
       {
         "nvim-treesitter/nvim-treesitter",
         branch = "master",
         build = ":TSUpdate",
-        opts = { ensure_installed = { "markdown", "markdown_inline" } },
-        config = function(_, opts)
-          require("nvim-treesitter.configs").setup(opts)
+        config = function()
+          local parsers = { "markdown", "markdown_inline" }
+          local ok, configs = pcall(require, "nvim-treesitter.configs")
+          if ok then
+            configs.setup({ ensure_installed = parsers }) -- master branch API
+          else
+            pcall(function()
+              require("nvim-treesitter").install(parsers) -- main branch API
+            end)
+          end
         end,
       },
       -- Pretty chat buffer: render markdown in the `codecompanion` filetype, not

@@ -91,10 +91,11 @@ default set and in `all`) so nothing AI-related installs unless you ask for it.
 `codecompanion` ships buffer contents to an LLM, so selecting it provisions a
 sentinel file (`~/.config/nvim/.codecompanion-enabled`) that `init.lua` checks at
 startup; you can `touch`/`rm` that file to flip it per-host without re-running
-`init`. On an enabled host the plugin also needs the Claude Code ACP bridge on
-PATH (`npm i -g @agentclientprotocol/claude-agent-acp`) and a Claude Code login
-(`claude setup-token`, or `CLAUDE_CODE_OAUTH_TOKEN`). It needs `neovim`: selected
-without it, the sentinel is not created.
+`init`. Selecting the component also installs the Claude Code ACP bridge
+(`claude-agent-acp`, via npm into `~/.local/bin`), which the chat adapter spawns;
+you still need a Claude Code login (`claude setup-token`, or
+`CLAUDE_CODE_OAUTH_TOKEN`). It needs `neovim`: selected without it, the sentinel
+is not created and nothing is installed.
 
 `claude-squad` installs the `cs` tool (parallel Claude Code agents, each in its
 own tmux session and git worktree) and adds tmux bindings: `prefix C` opens the
