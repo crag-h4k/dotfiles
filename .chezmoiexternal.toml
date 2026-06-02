@@ -1,78 +1,77 @@
-# Upstream plugins. chezmoi clones each at apply time and refreshes weekly.
-# These are NOT repos I maintain - they're pointers to upstream projects.
-
-# ---- zsh ----
-
+# Upstream plugins, fetched and refreshed by chezmoi. Gated by component:
+# the zsh block only renders when components.zsh is true, the tmux block when
+# components.tmux is true. Selection lives in ~/.config/chezmoi/chezmoi.toml.
+# `dig` defaults a missing component to its install-by-default value so an
+# un-init'd config degrades to "install everything" instead of erroring.
+{{ if dig "components" "zsh" true . -}}
 [".zsh/ohmyzsh"]
-  type = "git-repo"
-  url = "https://github.com/ohmyzsh/ohmyzsh.git"
-  refreshPeriod = "168h"
-  [".zsh/ohmyzsh".clone]
-    args = ["--depth=1"]
-  [".zsh/ohmyzsh".pull]
-    args = ["--ff-only"]
+    type = "git-repo"
+    url = "https://github.com/ohmyzsh/ohmyzsh.git"
+    refreshPeriod = "168h"
+    [".zsh/ohmyzsh".pull]
+        args = ["--ff-only"]
 
 [".zsh/custom/plugins/zsh-autosuggestions"]
-  type = "git-repo"
-  url = "https://github.com/zsh-users/zsh-autosuggestions.git"
-  refreshPeriod = "168h"
-  [".zsh/custom/plugins/zsh-autosuggestions".clone]
-    args = ["--depth=1"]
+    type = "git-repo"
+    url = "https://github.com/zsh-users/zsh-autosuggestions.git"
+    refreshPeriod = "168h"
+    [".zsh/custom/plugins/zsh-autosuggestions".clone]
+        args = ["--depth=1"]
 
 [".zsh/custom/plugins/zsh-syntax-highlighting"]
-  type = "git-repo"
-  url = "https://github.com/zsh-users/zsh-syntax-highlighting.git"
-  refreshPeriod = "168h"
-  [".zsh/custom/plugins/zsh-syntax-highlighting".clone]
-    args = ["--depth=1"]
+    type = "git-repo"
+    url = "https://github.com/zsh-users/zsh-syntax-highlighting.git"
+    refreshPeriod = "168h"
+    [".zsh/custom/plugins/zsh-syntax-highlighting".clone]
+        args = ["--depth=1"]
 
 [".zsh/custom/plugins/zsh-completions"]
-  type = "git-repo"
-  url = "https://github.com/zsh-users/zsh-completions.git"
-  refreshPeriod = "168h"
-  [".zsh/custom/plugins/zsh-completions".clone]
-    args = ["--depth=1"]
-
-# ---- tmux ----
-
+    type = "git-repo"
+    url = "https://github.com/zsh-users/zsh-completions.git"
+    refreshPeriod = "168h"
+    [".zsh/custom/plugins/zsh-completions".clone]
+        args = ["--depth=1"]
+{{ end -}}
+{{ if dig "components" "tmux" true . -}}
 [".tmux/plugins/tpm"]
-  type = "git-repo"
-  url = "https://github.com/tmux-plugins/tpm.git"
-  refreshPeriod = "168h"
-  [".tmux/plugins/tpm".clone]
-    args = ["--depth=1"]
+    type = "git-repo"
+    url = "https://github.com/tmux-plugins/tpm.git"
+    refreshPeriod = "168h"
+    [".tmux/plugins/tpm".clone]
+        args = ["--depth=1"]
 
 [".tmux/plugins/tmux-sensible"]
-  type = "git-repo"
-  url = "https://github.com/tmux-plugins/tmux-sensible.git"
-  refreshPeriod = "168h"
-  [".tmux/plugins/tmux-sensible".clone]
-    args = ["--depth=1"]
+    type = "git-repo"
+    url = "https://github.com/tmux-plugins/tmux-sensible.git"
+    refreshPeriod = "168h"
+    [".tmux/plugins/tmux-sensible".clone]
+        args = ["--depth=1"]
 
 [".tmux/plugins/tmux-yank"]
-  type = "git-repo"
-  url = "https://github.com/tmux-plugins/tmux-yank.git"
-  refreshPeriod = "168h"
-  [".tmux/plugins/tmux-yank".clone]
-    args = ["--depth=1"]
+    type = "git-repo"
+    url = "https://github.com/tmux-plugins/tmux-yank.git"
+    refreshPeriod = "168h"
+    [".tmux/plugins/tmux-yank".clone]
+        args = ["--depth=1"]
 
 [".tmux/plugins/tmux-cpu"]
-  type = "git-repo"
-  url = "https://github.com/tmux-plugins/tmux-cpu.git"
-  refreshPeriod = "168h"
-  [".tmux/plugins/tmux-cpu".clone]
-    args = ["--depth=1"]
+    type = "git-repo"
+    url = "https://github.com/tmux-plugins/tmux-cpu.git"
+    refreshPeriod = "168h"
+    [".tmux/plugins/tmux-cpu".clone]
+        args = ["--depth=1"]
 
 [".tmux/plugins/tmux-net-speed"]
-  type = "git-repo"
-  url = "https://github.com/tmux-plugins/tmux-net-speed.git"
-  refreshPeriod = "168h"
-  [".tmux/plugins/tmux-net-speed".clone]
-    args = ["--depth=1"]
+    type = "git-repo"
+    url = "https://github.com/tmux-plugins/tmux-net-speed.git"
+    refreshPeriod = "168h"
+    [".tmux/plugins/tmux-net-speed".clone]
+        args = ["--depth=1"]
 
 [".tmux/plugins/tmux-resurrect"]
-  type = "git-repo"
-  url = "https://github.com/tmux-plugins/tmux-resurrect.git"
-  refreshPeriod = "168h"
-  [".tmux/plugins/tmux-resurrect".clone]
-    args = ["--depth=1"]
+    type = "git-repo"
+    url = "https://github.com/tmux-plugins/tmux-resurrect.git"
+    refreshPeriod = "168h"
+    [".tmux/plugins/tmux-resurrect".clone]
+        args = ["--depth=1"]
+{{ end -}}

@@ -1,0 +1,63 @@
+{{- /* Component selection. Asked once at `chezmoi init` and persisted into   */ -}}
+{{- /* ~/.config/chezmoi/chezmoi.toml. apply/update read the stored choice and */ -}}
+{{- /* never re-prompt; re-run `chezmoi init` (or edit [data.components]) to   */ -}}
+{{- /* change it. Parsed into booleans below so the rest of the repo can gate  */ -}}
+{{- /* on .components.* (see .chezmoiignore, .chezmoiexternal.toml).            */ -}}
+{{- /*                                                                          */ -}}
+{{- /* Single source of truth: add/remove a component by editing this list.    */ -}}
+{{- /* Each record is:                                                          */ -}}
+{{- /*   num   the menu number the user types to select it (string).           */ -}}
+{{- /*   key   the [data.components] boolean key it sets.                       */ -}}
+{{- /*   label short name shown in the menu, padded for alignment.             */ -}}
+{{- /*   desc  one-line description shown in the menu.                          */ -}}
+{{- /*   all   whether `all` (the default-on set) includes it. `all+` always   */ -}}
+{{- /*         includes everything regardless of this flag.                     */ -}}
+{{- /* The menu text, the per-component parse, and the [data.components] block  */ -}}
+{{- /* are all derived from this list, so a new component is a one-line add.    */ -}}
+{{- $components := list
+    (dict "num" "1" "key" "zsh"       "label" "zsh"       "desc" "oh-my-zsh, plugins, custom functions, aliases" "all" true)
+    (dict "num" "2" "key" "tmux"      "label" "tmux"      "desc" "tmux + plugins (tpm, resurrect, sensible, yank)" "all" true)
+    (dict "num" "3" "key" "neovim"    "label" "neovim"    "desc" "neovim, lazy.nvim, language servers, linters"    "all" true)
+    (dict "num" "4" "key" "gitconfig" "label" "gitconfig" "desc" "copy ~/.gitconfig* from repo examples"           "all" false)
+-}}
+{{- /* Build the numbered menu text from the list. labels are padded to the    */ -}}
+{{- /* width of the widest label so descriptions line up.                       */ -}}
+{{- $labelWidth := 0 -}}
+{{- range $components }}{{- $labelWidth = max $labelWidth (len .label) }}{{- end -}}
+{{- $lines := list "Components to install:" -}}
+{{- range $components -}}
+{{- $lines = append $lines (printf "  %s) %s %s" .num (printf "%-*s" (int $labelWidth) .label) .desc) -}}
+{{- end -}}
+{{- /* Default = the numbers in the `all` set, space-joined (e.g. "1 2 3").     */ -}}
+{{- /* Extras = labels NOT in the `all` set, which is what `all+` adds on top.  */ -}}
+{{- $defaultNums := list -}}
+{{- $extraLabels := list -}}
+{{- range $components }}{{- if .all }}{{- $defaultNums = append $defaultNums .num }}{{- else }}{{- $extraLabels = append $extraLabels .label }}{{- end }}{{- end -}}
+{{- $default := join " " $defaultNums -}}
+{{- $extras := join ", " $extraLabels -}}
+{{- $menu := join "\n" $lines -}}
+{{- $menu = printf "%s\n\n  all   the default set (%s)\n  all+  everything, adds %s\n\nEnter numbers (e.g. \"1 3\"), a keyword above, or press Enter for default (%s)" $menu $default $extras $default -}}
+{{- $sel := trim (promptStringOnce . "componentSelection" $menu) -}}
+{{- /* Empty = pressed Enter. A value starting with the menu text means a    */ -}}
+{{- /* non-interactive init (no tty) echoed the prompt back; both fall to the */ -}}
+{{- /* default so a piped/CI install never persists a garbage selection.      */ -}}
+{{- if or (eq $sel "") (hasPrefix "Components to install" $sel) }}{{- $sel = $default }}{{- end -}}
+{{- /* Keyword flags. `all+` implies everything; `all` implies the all-set.    */ -}}
+{{- $allPlus := contains "all+" $sel -}}
+{{- $all := contains "all" $sel -}}
+{{- /* Resolve each component to a boolean by the same rule the old hardcoded  */ -}}
+{{- /* parser used: selected if all+, or (all and in-all-set), or its number   */ -}}
+{{- /* appears anywhere in the string. `contains` keeps spacing/order/commas   */ -}}
+{{- /* irrelevant: "1 3", "13", "3 1", "1,3" are all equivalent.               */ -}}
+{{- $resolved := dict -}}
+{{- range $components -}}
+{{- $on := or $allPlus (and $all .all) (contains .num $sel) -}}
+{{- $resolved = set $resolved .key $on -}}
+{{- end -}}
+
+[data]
+    componentSelection = {{ $sel | quote }}
+
+[data.components]
+{{ range $components }}    {{ .key }} = {{ get $resolved .key }}
+{{ end -}}

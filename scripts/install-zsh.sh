@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
-# Install binaries zsh and its OMZ plugins need.
-# OMZ itself + zsh-{completions,autosuggestions,syntax-highlighting} come
-# from chezmoi externals, not package managers. Don't install those here.
+# Install zsh and its packages, then set zsh as the login shell.
+# oh-my-zsh and the zsh-users plugins are NOT cloned here: they are chezmoi
+# externals (see .chezmoiexternal.toml) fetched and refreshed by chezmoi apply.
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 # shellcheck source-path=SCRIPTDIR
@@ -15,12 +15,12 @@ main() {
 
     case "$os" in
         macos)
-            pkg_install zsh fzf gh zoxide gnupg geoip
+            pkg_install zsh fzf gh zoxide gnupg
             ;;
         debian)
             ensure_gh_apt_repo
             # command-not-found on apt gives OMZ's plugin something to hook.
-            pkg_install zsh fzf gh zoxide gnupg command-not-found geoip-bin
+            pkg_install zsh fzf gh zoxide gnupg command-not-found
             ;;
         *)
             die "unsupported OS for install-zsh"

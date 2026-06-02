@@ -33,12 +33,11 @@
 # [includeIf "gitdir:~/work/**"]
 #     path = ~/.gitconfig.work
 
-# GitHub CLI credential helper.
-# macOS (Homebrew):  !/opt/homebrew/bin/gh auth git-credential
-# Linux (apt):       !/usr/bin/gh auth git-credential
+# GitHub CLI credential helper. PATH-relative so it works on macOS (Homebrew),
+# Intel Macs, and Debian alike - wherever `gh` resolves on PATH.
 [credential "https://github.com"]
 	helper =
-	helper = !/opt/homebrew/bin/gh auth git-credential
+	helper = !gh auth git-credential
 [credential "https://gist.github.com"]
 	helper =
-	helper = !/opt/homebrew/bin/gh auth git-credential
+	helper = !gh auth git-credential

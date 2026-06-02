@@ -1,6 +1,7 @@
 #!/usr/bin/env bash
-# Install tmux + the platform-specific clipboard bridge. TPM and the
-# tmux-* plugins come from chezmoi externals; don't install them here.
+# Install tmux and the platform-specific clipboard bridge.
+# tpm and the tmux-plugins are NOT cloned here: they are chezmoi externals
+# (see .chezmoiexternal.toml) fetched and refreshed by chezmoi apply.
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 # shellcheck source-path=SCRIPTDIR
@@ -23,8 +24,6 @@ main() {
             die "unsupported OS for install-tmux"
             ;;
     esac
-
-    info "TPM plugins install inside tmux via: prefix + I  (capital i)"
 }
 
 main "$@"

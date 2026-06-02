@@ -81,9 +81,11 @@ vim.opt.wildmode = { "list:longest", "full" }
 vim.g.python_highlight_all = 1
 vim.g.pymode_indent = 0
 
--- Python providers (Neovim mainly uses python3, but keep both for parity)
-vim.g.python_host_prog = vim.fn.expand("$HOME/.config/nvim/venv/bin/python")
-vim.g.python3_host_prog = vim.fn.expand("$HOME/.config/nvim/venv/bin/python3")
+-- Python providers (Neovim mainly uses python3, but keep both for parity).
+-- Venv lives in ~/.local/share (created by scripts/install-neovim.sh), kept out
+-- of the chezmoi-managed ~/.config/nvim tree.
+vim.g.python_host_prog = vim.fn.expand("$HOME/.local/share/nvim-venv/bin/python")
+vim.g.python3_host_prog = vim.fn.expand("$HOME/.local/share/nvim-venv/bin/python3")
 
 -- Filetype overrides / additions (ported from vimrc autocmds)
 local ft_group = vim.api.nvim_create_augroup("UserFiletypeOverrides", { clear = true })
@@ -200,8 +202,9 @@ vim.api.nvim_create_autocmd({ "CursorMoved", "CursorMovedI" }, {
 vim.opt.foldmethod = "manual"
 vim.opt.foldlevelstart = 99
 
--- Silence LSP log - default level floods lsp.log with workspace-root errors
-vim.lsp.set_log_level("OFF")
+-- Silence LSP log - default level floods lsp.log with workspace-root errors.
+-- vim.lsp.set_log_level was deprecated; use vim.lsp.log.set_level.
+vim.lsp.log.set_level(vim.lsp.log.levels.OFF)
 
 -- Diagnostics
 vim.diagnostic.config({
@@ -248,7 +251,6 @@ local servers = {
   "lua_ls",
   "marksman",
   "pyright",
-  "rust_analyzer",
   "terraformls",
   "yamlls",
   "gh_actions_ls"
@@ -451,7 +453,7 @@ require("lazy").setup({
       lint.linters_by_ft = { markdown = { "markdownlint-cli2" } }
       lint.linters["markdownlint-cli2"].args = {
         "--config",
-        vim.fn.expand("~/.config/nvim/linter-configs/markdownlint.yaml"),
+        vim.fn.expand("~/.markdownlint.yaml"),
       }
       vim.api.nvim_create_autocmd({ "BufReadPost", "BufWritePost", "InsertLeave" }, {
         callback = function() lint.try_lint() end,

@@ -2,6 +2,12 @@
 # Install neovim + toolchains the LSPs/linters/formatters configured in
 # ~/.config/nvim/init.lua need. Neovim plugins themselves come from
 # lazy.nvim at first launch.
+#
+# Rust support is intentionally not installed here (the rustup/brew toolchain
+# was the slowest step and is only needed occasionally). To restore it: add
+# "rust_analyzer" back to the servers list in init.lua, and install the
+# toolchain (macOS: brew install rust rust-analyzer rustfmt; Debian:
+# curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh).
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 # shellcheck source-path=SCRIPTDIR
@@ -24,9 +30,6 @@ main() {
                 neovim \
                 node \
                 python3 \
-                rust \
-                rust-analyzer \
-                rustfmt \
                 shellcheck \
                 yamllint
             # Need to install taps seperately
@@ -34,6 +37,8 @@ main() {
             ;;
         debian)
             pkg_install \
+                build-essential \
+                cmake \
                 golang \
                 jq \
                 nodejs \
@@ -43,17 +48,6 @@ main() {
                 python3-venv \
                 shellcheck \
                 yamllint
-            # Install Rust toolchain via rustup (apt cargo is too old and lacks rust-analyzer).
-            if ! command -v rustup >/dev/null 2>&1; then
-                require_cmd curl
-                info "installing rustup"
-                curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs \
-                    | sh -s -- -y --no-modify-path
-            fi
-            # Source cargo env so rustup commands are available in this script.
-            # shellcheck source=/dev/null
-            [[ -f "$HOME/.cargo/env" ]] && source "$HOME/.cargo/env"
-            rustup component add rust-analyzer 2>/dev/null || warn "rust-analyzer component not available yet; run: rustup component add rust-analyzer"
             # tflint / hadolint are not reliably in apt;
             # install via their own installers if present, else skip.
             warn "tflint and hadolint not installed on Debian by this script; install separately if needed"
@@ -67,19 +61,18 @@ main() {
             ;;
     esac
 
-    # Create the Python venv used as the py3 provider.
+    # Python venv used as the py3 provider. Kept OUTSIDE the chezmoi-managed
+    # ~/.config/nvim tree so `chezmoi apply`/purge never collides with it, and
+    # created unconditionally (init.lua points python3_host_prog here).
     local nvim_dir="$HOME/.config/nvim"
-    if [[ -d "$nvim_dir" ]]; then
-        if [[ ! -d "$nvim_dir/venv" ]]; then
-            info "creating $nvim_dir/venv and installing pynvim"
-            python3 -m venv "$nvim_dir/venv"
-            "$nvim_dir/venv/bin/pip" install --quiet --upgrade pip
-            "$nvim_dir/venv/bin/pip" install --quiet pynvim neovim
-        else
-            info "$nvim_dir/venv already exists"
-        fi
+    local nvim_venv="$HOME/.local/share/nvim-venv"
+    if [[ ! -d "$nvim_venv" ]]; then
+        info "creating $nvim_venv and installing pynvim"
+        python3 -m venv "$nvim_venv"
+        "$nvim_venv/bin/pip" install --quiet --upgrade pip
+        "$nvim_venv/bin/pip" install --quiet pynvim neovim
     else
-        warn "$nvim_dir not found yet (chezmoi apply hasn't placed it); skipping venv setup"
+        info "$nvim_venv already exists"
     fi
 
     # Pre-warm lazy.nvim plugins (non-fatal if it fails, e.g. no network).
