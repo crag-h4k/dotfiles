@@ -74,24 +74,33 @@ Components to install:
   3) neovim        neovim, lazy.nvim, language servers, linters
   4) gitconfig     copy ~/.gitconfig* from repo examples
   5) codecompanion CodeCompanion.nvim AI assistant, opt-in (needs neovim)
+  6) claude-squad  claude-squad: parallel Claude Code agents, opt-in (needs tmux)
 
 Enter numbers (e.g. "1 3"), all, all+, or press Enter for default (1 2 3):
 ```
 
 - Numbers: any subset (e.g. `1 3` for zsh + neovim). Spacing and order do not
   matter - `1 3`, `13`, and `3 1` are equivalent.
-- Enter: the default, `1 2 3` (zsh + tmux + neovim, no gitconfig, no codecompanion).
+- Enter: the default, `1 2 3` (zsh + tmux + neovim; no gitconfig, no AI tools).
 - `all`: zsh + tmux + neovim.
-- `all+`: everything including gitconfig and codecompanion.
+- `all+`: everything including gitconfig and the AI tools.
 
-`codecompanion` is opt-in (off in the default set and in `all`) because the
-assistant ships buffer contents to an LLM. Selecting it provisions a sentinel
-file (`~/.config/nvim/.codecompanion-enabled`) that `init.lua` checks at startup;
-you can `touch`/`rm` that file to flip it per-host without re-running `init`. On
-an enabled host the plugin also needs the Claude Code ACP bridge on PATH
-(`npm i -g @agentclientprotocol/claude-agent-acp`) and a Claude Code login
+The AI tools (`codecompanion`, `claude-squad`) are each opt-in (off in the
+default set and in `all`) so nothing AI-related installs unless you ask for it.
+
+`codecompanion` ships buffer contents to an LLM, so selecting it provisions a
+sentinel file (`~/.config/nvim/.codecompanion-enabled`) that `init.lua` checks at
+startup; you can `touch`/`rm` that file to flip it per-host without re-running
+`init`. On an enabled host the plugin also needs the Claude Code ACP bridge on
+PATH (`npm i -g @agentclientprotocol/claude-agent-acp`) and a Claude Code login
 (`claude setup-token`, or `CLAUDE_CODE_OAUTH_TOKEN`). It needs `neovim`: selected
 without it, the sentinel is not created.
+
+`claude-squad` installs the `cs` tool (parallel Claude Code agents, each in its
+own tmux session and git worktree) and adds tmux bindings: `prefix C` opens the
+claude-squad launcher/overview in a popup, `prefix J` jumps between agent
+sessions, `prefix g` toggles a scratch Claude popup. It needs `tmux`: selected
+without it, nothing is installed.
 
 A component that is off is excluded two ways: its target files are added to
 `.chezmoiignore` so `chezmoi apply` never writes them, and its plugin externals
@@ -119,6 +128,7 @@ Two ways:
       neovim = true
       gitconfig = false
       codecompanion = false
+      claudesquad = false
   ```
 
 - Or re-run the menu. `chezmoi init` will not re-prompt while

@@ -441,14 +441,33 @@ require("lazy").setup({
     },
     dependencies = {
       "nvim-lua/plenary.nvim",
-      "nvim-treesitter/nvim-treesitter",
-      "MeanderingProgrammer/render-markdown.nvim",
+      -- render-markdown needs the markdown treesitter parsers to render the chat.
+      -- Pin master: nvim-treesitter's default branch is now the `main` rewrite,
+      -- which drops the `nvim-treesitter.configs` setup API used here.
+      {
+        "nvim-treesitter/nvim-treesitter",
+        branch = "master",
+        build = ":TSUpdate",
+        opts = { ensure_installed = { "markdown", "markdown_inline" } },
+        config = function(_, opts)
+          require("nvim-treesitter.configs").setup(opts)
+        end,
+      },
+      -- Pretty chat buffer: render markdown in the `codecompanion` filetype, not
+      -- just plain `markdown` files. This is what makes the chat look like the
+      -- CodeCompanion screenshots (needs a Nerd Font in the terminal for icons).
+      {
+        "MeanderingProgrammer/render-markdown.nvim",
+        ft = { "markdown", "codecompanion" },
+        opts = { file_types = { "markdown", "codecompanion" } },
+      },
     },
     opts = {
+      -- The Claude Code ACP adapter only supports the chat strategy. Inline and
+      -- cmd interactions require an HTTP adapter (API key), so leave them at their
+      -- defaults and drive everything through the chat buffer.
       interactions = {
         chat = { adapter = "claude_code" },
-        inline = { adapter = "claude_code" },
-        cmd = { adapter = "claude_code" },
       },
     },
     config = function(_, opts)
@@ -482,9 +501,10 @@ vim.cmd("silent! colorscheme dracula")
 -- Replace NERDTree's old <C-n> toggle with Oil
 vim.keymap.set("n", "<C-n>", "<CMD>Oil<CR>", { desc = "Oil: file explorer" })
 
--- CodeCompanion command alias: ":cc <prompt>" expands to ":CodeCompanion <prompt>"
--- for quick inline prompts, without shadowing anything else (only fires when the
--- whole command line is exactly "cc"). Chat toggle lives on <space>cc.
+-- CodeCompanion command alias: ":cc" expands to ":CodeCompanionChat" (opens the
+-- chat), without shadowing anything else (only fires when the whole command line
+-- is exactly "cc"). The Claude Code ACP adapter is chat-only, so the alias points
+-- at the chat rather than the inline ":CodeCompanion" command. <space>cc toggles.
 if codecompanion_enabled then
-  vim.cmd([[cnoreabbrev <expr> cc (getcmdtype() ==# ':' && getcmdline() ==# 'cc') ? 'CodeCompanion' : 'cc']])
+  vim.cmd([[cnoreabbrev <expr> cc (getcmdtype() ==# ':' && getcmdline() ==# 'cc') ? 'CodeCompanionChat' : 'cc']])
 end

@@ -9,5 +9,6 @@ export INSTALL_TMUX={{ dig "components" "tmux" true . }}
 export INSTALL_NEOVIM={{ dig "components" "neovim" true . }}
 export INSTALL_GITCONFIG={{ dig "components" "gitconfig" false . }}
 export INSTALL_CODECOMPANION={{ dig "components" "codecompanion" false . }}
+export INSTALL_CLAUDESQUAD={{ dig "components" "claudesquad" false . }}
 
 bash "{{ .chezmoi.sourceDir }}/scripts/install.sh"
