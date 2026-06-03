@@ -8,8 +8,8 @@
 # built against lua@5.4. The pre-commit hook runs it as language:system. StyLua
 # needs nothing here: its hook (stylua-github) downloads its own prebuilt binary.
 #
-# When the `codecompanion` component is selected (exported as INSTALL_CODECOMPANION
-# by run_once_after_00-install.sh), the Claude Code ACP bridge `claude-agent-acp`
+# When the `ai` component is selected (exported as INSTALL_AI by
+# run_once_after_00-install.sh), the Claude Code ACP bridge `claude-agent-acp`
 # is installed too - CodeCompanion's chat adapter spawns it.
 #
 # Rust support is intentionally not installed here (the rustup/brew toolchain
@@ -24,7 +24,7 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 source "$SCRIPT_DIR/common.sh"
 
 # Off by default (and for standalone runs); turned on by the configure menu.
-INSTALL_CODECOMPANION="${INSTALL_CODECOMPANION:-false}"
+INSTALL_AI="${INSTALL_AI:-false}"
 
 main() {
     local os
@@ -113,8 +113,8 @@ main() {
 
     # CodeCompanion's Claude Code ACP adapter spawns `claude-agent-acp`. Install
     # it (npm comes from the node install above) to ~/.local/bin so no sudo is
-    # needed and it lands on PATH. Gated on the codecompanion component.
-    if [[ "$INSTALL_CODECOMPANION" == true ]] && ! command -v claude-agent-acp >/dev/null 2>&1; then
+    # needed and it lands on PATH. Gated on the ai component.
+    if [[ "$INSTALL_AI" == true ]] && ! command -v claude-agent-acp >/dev/null 2>&1; then
         info "installing claude-agent-acp (CodeCompanion ACP bridge)"
         npm install -g --prefix "$HOME/.local" @agentclientprotocol/claude-agent-acp
     fi

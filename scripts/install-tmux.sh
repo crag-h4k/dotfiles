@@ -4,8 +4,8 @@
 # (see .chezmoiexternal.toml) fetched and refreshed by chezmoi apply.
 #
 # claude-squad (parallel Claude Code agents in tmux + git worktrees) is opt-in:
-# installed only when the `claudesquad` chezmoi component is selected, exported
-# here as INSTALL_CLAUDESQUAD by run_once_after_00-install.sh.
+# installed only when the `ai` chezmoi component is selected, exported here as
+# INSTALL_AI by run_once_after_00-install.sh.
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 # shellcheck source-path=SCRIPTDIR
@@ -13,7 +13,7 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 source "$SCRIPT_DIR/common.sh"
 
 # Off by default (and for standalone runs); turned on by the configure menu.
-INSTALL_CLAUDESQUAD="${INSTALL_CLAUDESQUAD:-false}"
+INSTALL_AI="${INSTALL_AI:-false}"
 
 # Install claude-squad and expose it as `cs` on PATH, idempotently.
 install_claude_squad() {
@@ -40,7 +40,7 @@ install_claude_squad() {
 main() {
     local os
     os=$(os_detect)
-    info "install-tmux: $os (claudesquad=$INSTALL_CLAUDESQUAD)"
+    info "install-tmux: $os (ai=$INSTALL_AI)"
 
     case "$os" in
         macos)
@@ -54,7 +54,7 @@ main() {
             ;;
     esac
 
-    if [[ "$INSTALL_CLAUDESQUAD" == true ]]; then
+    if [[ "$INSTALL_AI" == true ]]; then
         install_claude_squad "$os"
     fi
 }

@@ -21,6 +21,7 @@ current. No wrapper script and no path juggling.
 - [How it works](#how-it-works)
 - [What lives where](#what-lives-where)
 - [Daily operation](#daily-operation)
+- [Done notifications](#done-notifications)
 - [Supported platforms](#supported-platforms)
 - [Uninstall](#uninstall)
 
@@ -69,12 +70,11 @@ chezmoi apply              # write only the selected components
 
 ```text
 Components to install:
-  1) zsh           oh-my-zsh, plugins, custom functions, aliases
-  2) tmux          tmux + plugins (tpm, resurrect, sensible, yank)
-  3) neovim        neovim, lazy.nvim, language servers, linters
-  4) gitconfig     copy ~/.gitconfig* from repo examples
-  5) codecompanion CodeCompanion.nvim AI assistant, opt-in (needs neovim)
-  6) claude-squad  claude-squad: parallel Claude Code agents, opt-in (needs tmux)
+  1) zsh       oh-my-zsh, plugins, custom functions, aliases
+  2) tmux      tmux + plugins (tpm, resurrect, sensible, yank)
+  3) neovim    neovim, lazy.nvim, language servers, linters
+  4) gitconfig copy ~/.gitconfig* from repo examples
+  5) ai        AI tools: CodeCompanion (needs neovim) + claude-squad (needs tmux)
 
 Enter numbers (e.g. "1 3"), all, all+, or press Enter for default (1 2 3):
 ```
@@ -85,23 +85,20 @@ Enter numbers (e.g. "1 3"), all, all+, or press Enter for default (1 2 3):
 - `all`: zsh + tmux + neovim.
 - `all+`: everything including gitconfig and the AI tools.
 
-The AI tools (`codecompanion`, `claude-squad`) are each opt-in (off in the
-default set and in `all`) so nothing AI-related installs unless you ask for it.
+The `ai` component bundles all AI tooling into one opt-in toggle (off in the
+default set and in `all`), so nothing AI-related installs unless you ask for it.
+When on, each tool is enabled for whichever base component you also selected:
 
-`codecompanion` ships buffer contents to an LLM, so selecting it provisions a
-sentinel file (`~/.config/nvim/.codecompanion-enabled`) that `init.lua` checks at
-startup; you can `touch`/`rm` that file to flip it per-host without re-running
-`init`. Selecting the component also installs the Claude Code ACP bridge
-(`claude-agent-acp`, via npm into `~/.local/bin`), which the chat adapter spawns;
-you still need a Claude Code login (`claude setup-token`, or
-`CLAUDE_CODE_OAUTH_TOKEN`). It needs `neovim`: selected without it, the sentinel
-is not created and nothing is installed.
+- With `neovim`: CodeCompanion. It ships buffer contents to an LLM, so a sentinel
+  file (`~/.config/nvim/.codecompanion-enabled`) gates the plugin at startup; you
+  can `touch`/`rm` it to flip per-host without re-running `init`. The Claude Code
+  ACP bridge (`claude-agent-acp`) is installed via npm into `~/.local/bin`. The
+  chat reuses your existing `claude` login (no token to store).
+- With `tmux`: claude-squad (the `cs` tool - parallel Claude Code agents, each in
+  its own tmux session and git worktree) plus tmux bindings - `prefix C` launcher/
+  overview popup, `prefix J` jump between agents, `prefix g` scratch Claude popup.
 
-`claude-squad` installs the `cs` tool (parallel Claude Code agents, each in its
-own tmux session and git worktree) and adds tmux bindings: `prefix C` opens the
-claude-squad launcher/overview in a popup, `prefix J` jumps between agent
-sessions, `prefix g` toggles a scratch Claude popup. It needs `tmux`: selected
-without it, nothing is installed.
+If `ai` is on but the matching base component is off, that half is simply a no-op.
 
 A component that is off is excluded two ways: its target files are added to
 `.chezmoiignore` so `chezmoi apply` never writes them, and its plugin externals
@@ -128,8 +125,7 @@ Two ways:
       tmux = false
       neovim = true
       gitconfig = false
-      codecompanion = false
-      claudesquad = false
+      ai = false
   ```
 
 - Or re-run the menu. `chezmoi init` will not re-prompt while
@@ -144,6 +140,22 @@ Then run `chezmoi apply`. Turning a component off removes its files on the next
 apply (its targets are now ignored); turning one on writes them and fetches its
 plugins. Unmodified managed files are removed cleanly. A file you edited locally
 is left in place rather than deleted, so back it up first if you want it gone.
+
+Enabling a component that installs packages (e.g. `ai`) also re-runs the
+installer automatically: `run_once_after_00-install.sh` embeds the component
+booleans, so flipping one changes the script's rendered content and chezmoi
+re-runs it on the next apply, installing the newly selected tools. If it does not
+re-run for some reason, force it:
+
+```sh
+chezmoi state delete-bucket --bucket=scriptState
+chezmoi apply
+```
+
+So to enable the AI tools after the fact: set `ai = true` in
+`~/.config/chezmoi/chezmoi.toml` (or re-run the menu and include `5`), then
+`chezmoi apply`. That writes the tmux bindings, installs claude-squad and the ACP
+bridge, and provisions the CodeCompanion sentinel - no full reinstall needed.
 
 ## How it works
 
@@ -218,6 +230,33 @@ chezmoi diff
 # Sync chezmoi source with this repo's origin:
 chezmoi update                     # git pull in source + apply
 ```
+
+## Done notifications
+
+A visual signal when a command finishes or an interactive agent (Claude, Codex)
+goes idle and waits for you. Visual only - no audible bell, no desktop popups,
+and no dependence on the terminal emulator or OS. Two halves, each gated on its
+component:
+
+- zsh (`dot_zsh/custom/functions/pane_notify.zsh`): `preexec`/`precmd` hooks. When
+  a command runs longer than the threshold it fires the configured channels:
+  terminal title (OSC 2), background recolor (OSC 11), and an inline `✓ done in
+  Ns` line. Works without tmux.
+- tmux (`dot_tmux/conf.d/notify.conf`): adds a pane-border "done" marker and a
+  window-status flag, and uses `monitor-silence` to catch interactive agents that
+  go quiet mid-session (the one part that needs tmux - a plain shell can't see an
+  agent idle while it is still running).
+
+Acknowledge by running a command, pressing Enter at an empty prompt, or focusing
+the pane in tmux. Configure via env vars (set in `~/.zsh_private`):
+
+- `PANE_NOTIFY_MIN` (default 10) - min command seconds before flagging completion.
+- `PANE_NOTIFY_IDLE` (default 15) - tmux: seconds of output silence before the
+  idle flag.
+- `PANE_NOTIFY_CHANNELS` (default `"title bg banner tmux"`) - which channels fire.
+- `PANE_NOTIFY_BG` (default `#5b1a1a`) - alert background color.
+- `PANE_NOTIFY_REPEAT` (default 0 = one-shot) - re-assert the visual every N
+  seconds until acknowledged. `PANE_NOTIFY_REPEAT_MAX` caps the repeats.
 
 ## Supported platforms
 
