@@ -22,6 +22,3 @@ scripts
 {{ if not (dig "components" "neovim" true .) -}}
 .config/nvim
 {{ end -}}
-{{ if not (and (dig "components" "tmux" true .) (dig "components" "ai" false .)) -}}
-.tmux/conf.d/claude.conf
-{{ end -}}

@@ -21,11 +21,9 @@ INSTALL_ZSH="${INSTALL_ZSH:-true}"
 INSTALL_TMUX="${INSTALL_TMUX:-true}"
 INSTALL_NEOVIM="${INSTALL_NEOVIM:-true}"
 INSTALL_GITCONFIG="${INSTALL_GITCONFIG:-false}"
-# AI tools (CodeCompanion + claude-squad) are bundled into one opt-in flag, off
-# by default. When on, each tool is enabled for whichever base component is also
-# selected: CodeCompanion with neovim, claude-squad with tmux. For CodeCompanion
-# that means provisioning the runtime sentinel init.lua checks (touch/rm per-host
-# afterwards still works).
+# AI tooling, one opt-in flag, off by default. When on with neovim it enables
+# CodeCompanion: install-neovim.sh installs the claude-agent-acp bridge and we
+# provision the runtime sentinel init.lua checks (touch/rm per-host still works).
 INSTALL_AI="${INSTALL_AI:-false}"
 
 # Show an existing gitconfig file then prompt to create/replace from repo example.

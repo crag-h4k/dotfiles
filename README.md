@@ -74,7 +74,7 @@ Components to install:
   2) tmux      tmux + plugins (tpm, resurrect, sensible, yank)
   3) neovim    neovim, lazy.nvim, language servers, linters
   4) gitconfig copy ~/.gitconfig* from repo examples
-  5) ai        AI tools: CodeCompanion (needs neovim) + claude-squad (needs tmux)
+  5) ai        AI tools: CodeCompanion.nvim assistant (needs neovim)
 
 Enter numbers (e.g. "1 3"), all, all+, or press Enter for default (1 2 3):
 ```
@@ -85,20 +85,14 @@ Enter numbers (e.g. "1 3"), all, all+, or press Enter for default (1 2 3):
 - `all`: zsh + tmux + neovim.
 - `all+`: everything including gitconfig and the AI tools.
 
-The `ai` component bundles all AI tooling into one opt-in toggle (off in the
-default set and in `all`), so nothing AI-related installs unless you ask for it.
-When on, each tool is enabled for whichever base component you also selected:
-
-- With `neovim`: CodeCompanion. It ships buffer contents to an LLM, so a sentinel
-  file (`~/.config/nvim/.codecompanion-enabled`) gates the plugin at startup; you
-  can `touch`/`rm` it to flip per-host without re-running `init`. The Claude Code
-  ACP bridge (`claude-agent-acp`) is installed via npm into `~/.local/bin`. The
-  chat reuses your existing `claude` login (no token to store).
-- With `tmux`: claude-squad (the `cs` tool - parallel Claude Code agents, each in
-  its own tmux session and git worktree) plus tmux bindings - `prefix C` launcher/
-  overview popup, `prefix J` jump between agents, `prefix g` scratch Claude popup.
-
-If `ai` is on but the matching base component is off, that half is simply a no-op.
+The `ai` component is one opt-in toggle for AI tooling (off in the default set and
+in `all`), so nothing AI-related installs unless you ask for it. With `neovim` it
+enables CodeCompanion: the assistant ships buffer contents to an LLM, so a sentinel
+file (`~/.config/nvim/.codecompanion-enabled`) gates the plugin at startup; you can
+`touch`/`rm` it to flip per-host without re-running `init`. The Claude Code ACP
+bridge (`claude-agent-acp`) is installed via npm into `~/.local/bin`, and the chat
+reuses your existing `claude` login (no token to store). Selected without `neovim`,
+it is a no-op.
 
 A component that is off is excluded two ways: its target files are added to
 `.chezmoiignore` so `chezmoi apply` never writes them, and its plugin externals
@@ -154,8 +148,8 @@ chezmoi apply
 
 So to enable the AI tools after the fact: set `ai = true` in
 `~/.config/chezmoi/chezmoi.toml` (or re-run the menu and include `5`), then
-`chezmoi apply`. That writes the tmux bindings, installs claude-squad and the ACP
-bridge, and provisions the CodeCompanion sentinel - no full reinstall needed.
+`chezmoi apply`. That installs the Claude Code ACP bridge and provisions the
+CodeCompanion sentinel - no full reinstall needed.
 
 ## How it works
 
