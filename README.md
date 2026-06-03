@@ -227,26 +227,31 @@ chezmoi update                     # git pull in source + apply
 
 ## Done notifications
 
-A visual signal when a command finishes or an interactive agent (Claude, Codex)
-goes idle and waits for you. Visual only - no audible bell, no desktop popups,
-and no dependence on the terminal emulator or OS. Two halves, each gated on its
-component:
+A visual signal for two kinds of "done". Visual only - no audible bell, no
+desktop popups, and no dependence on the terminal emulator or OS. Two halves,
+each gated on its component:
 
-- zsh (`dot_zsh/custom/functions/pane_notify.zsh`): `preexec`/`precmd` hooks. When
-  a command runs longer than the threshold it fires the configured channels:
-  terminal title (OSC 2), background recolor (OSC 11), and an inline `✓ done in
-  Ns` line. Works without tmux.
-- tmux (`dot_tmux/conf.d/notify.conf`): adds a pane-border "done" marker and a
-  window-status flag, and uses `monitor-silence` to catch interactive agents that
-  go quiet mid-session (the one part that needs tmux - a plain shell can't see an
-  agent idle while it is still running).
+- zsh (`dot_zsh/custom/functions/pane_notify.zsh`): `preexec`/`precmd` hooks.
+  - Batch commands (make, pytest, ...) that ran longer than the threshold flag on
+    completion via the configured channels: terminal title (OSC 2), background
+    recolor (OSC 11), and an inline `✓ done in Ns` line. Works without tmux.
+  - Interactive agents (`PANE_NOTIFY_AGENTS`, default `claude codex`) are flagged
+    when they go IDLE (done processing a message), not on exit - exiting the agent
+    is not flagged, since you are already looking at the pane.
+- tmux (`dot_tmux/conf.d/notify.conf`): the pane-border "done" marker and the
+  window flag, plus `monitor-silence` (armed only while an agent runs) to detect
+  the idle state. This idle detection is the one part that needs tmux - a plain
+  shell can't see an agent go idle while it is still running.
 
 Acknowledge by running a command, pressing Enter at an empty prompt, or focusing
 the pane in tmux. Configure via env vars (set in `~/.zsh_private`):
 
 - `PANE_NOTIFY_MIN` (default 10) - min command seconds before flagging completion.
-- `PANE_NOTIFY_IDLE` (default 15) - tmux: seconds of output silence before the
-  idle flag.
+- `PANE_NOTIFY_IDLE` (default 15) - tmux: seconds of agent output silence before
+  the idle flag. Lower it for a snappier "done" at the risk of flagging long
+  think/tool pauses.
+- `PANE_NOTIFY_AGENTS` (default `"claude codex"`) - commands flagged on idle
+  instead of on exit.
 - `PANE_NOTIFY_CHANNELS` (default `"title bg banner tmux"`) - which channels fire.
 - `PANE_NOTIFY_BG` (default `#5b1a1a`) - alert background color.
 - `PANE_NOTIFY_REPEAT` (default 0 = one-shot) - re-assert the visual every N

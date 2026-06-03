@@ -1,15 +1,21 @@
 # pane_notify.zsh - visual "done" notifications, no audio.
 #
-# Flags when a command finishes (ran longer than PANE_NOTIFY_MIN) or, inside
-# tmux, when an interactive agent (claude/codex) goes idle. Channels are visual
-# only: terminal title (OSC 2), background recolor (OSC 11), an inline banner
-# line, and inside tmux the pane border (@done) + window-status flag (@notify).
-# Acknowledge by running a command, pressing Enter at an empty prompt, or (tmux)
-# focusing the pane.
+# Two kinds of "done":
+#   - Batch commands (make, pytest, ...): flagged when they finish and return to
+#     the prompt, if they ran longer than PANE_NOTIFY_MIN.
+#   - Interactive agents (claude, codex - PANE_NOTIFY_AGENTS): flagged inside tmux
+#     when they go IDLE (done processing a message), via monitor-silence. They are
+#     deliberately NOT flagged on exit - exiting the agent is not an event worth a
+#     notification, and you are already looking at the pane.
+# Channels are visual only: terminal title (OSC 2), background recolor (OSC 11),
+# an inline banner line, and inside tmux the pane border (@done) + window flag
+# (@notify). Acknowledge by running a command, pressing Enter at an empty prompt,
+# or (tmux) focusing the pane.
 #
 # Config (override in ~/.zsh_private or before this loads):
 #   PANE_NOTIFY_MIN=10            min command seconds before flagging completion
 #   PANE_NOTIFY_IDLE=15           tmux: seconds of output silence -> idle flag
+#   PANE_NOTIFY_AGENTS="claude codex"  commands flagged on idle, not on exit
 #   PANE_NOTIFY_CHANNELS="title bg banner tmux"   channels to fire
 #   PANE_NOTIFY_BG="#5b1a1a"      alert background color (OSC 11)
 #   PANE_NOTIFY_REPEAT=0          re-assert every N seconds until ack; 0 = one-shot
@@ -19,6 +25,7 @@ autoload -Uz add-zsh-hook
 
 : ${PANE_NOTIFY_MIN:=10}
 : ${PANE_NOTIFY_IDLE:=15}
+: ${PANE_NOTIFY_AGENTS:="claude codex"}
 : ${PANE_NOTIFY_CHANNELS:="title bg banner tmux"}
 : ${PANE_NOTIFY_BG:="#5b1a1a"}
 : ${PANE_NOTIFY_REPEAT:=0}
@@ -27,10 +34,14 @@ autoload -Uz add-zsh-hook
 _pane_notify_dir="$HOME/.cache/pane-notify"
 _pane_notify_start=0
 _pane_notify_cmd=""
+_pane_notify_agent=0
 _pane_notify_active=0
 _pane_notify_watcher=0
 
 _pane_notify_has() { [[ " $PANE_NOTIFY_CHANNELS " == *" $1 "* ]] }
+
+# True if the command name (basename of its first word) is an interactive agent.
+_pane_notify_is_agent() { [[ " $PANE_NOTIFY_AGENTS " == *" ${1:t} "* ]] }
 
 _pane_notify_ackfile() {
   if [[ -n $TMUX ]]; then
@@ -109,16 +120,31 @@ _pane_notify_preexec() {
   _pane_notify_clear            # starting a command acknowledges any prior signal
   _pane_notify_start=$SECONDS
   _pane_notify_cmd="${1%% *}"
-  [[ -n $TMUX ]] && tmux setw monitor-silence "$PANE_NOTIFY_IDLE" 2>/dev/null
+  # Only watch for idle on interactive agents; batch commands flag on completion.
+  if [[ -n $TMUX ]] && _pane_notify_is_agent "$_pane_notify_cmd"; then
+    _pane_notify_agent=1
+    tmux setw monitor-silence "$PANE_NOTIFY_IDLE" 2>/dev/null
+  else
+    _pane_notify_agent=0
+  fi
 }
 
 _pane_notify_precmd() {
   local code=$?
-  [[ -n $TMUX ]] && tmux setw monitor-silence 0 2>/dev/null
+  # Back at the prompt = you are looking at this pane: stop watching and clear any
+  # idle flag (this is what suppresses the "red on claude exit").
+  if [[ -n $TMUX ]]; then
+    tmux setw monitor-silence 0 2>/dev/null
+    tmux set -p @done "" 2>/dev/null
+    tmux set -w @notify "" 2>/dev/null
+  fi
   if (( _pane_notify_start > 0 )); then
-    local dur=$(( SECONDS - _pane_notify_start ))
+    local dur=$(( SECONDS - _pane_notify_start )) was_agent=$_pane_notify_agent
     _pane_notify_start=0
-    (( dur >= PANE_NOTIFY_MIN )) && _pane_notify_fire "$dur" "$code"
+    _pane_notify_agent=0
+    # Agents are flagged on idle (while running), never on exit. Batch commands
+    # flag on completion if they ran long enough.
+    (( ! was_agent && dur >= PANE_NOTIFY_MIN )) && _pane_notify_fire "$dur" "$code"
   else
     _pane_notify_clear          # bare Enter at an idle prompt = acknowledge
   fi
