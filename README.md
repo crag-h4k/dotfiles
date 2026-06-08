@@ -21,7 +21,6 @@ current. No wrapper script and no path juggling.
 - [How it works](#how-it-works)
 - [What lives where](#what-lives-where)
 - [Daily operation](#daily-operation)
-- [Done notifications](#done-notifications)
 - [Supported platforms](#supported-platforms)
 - [Uninstall](#uninstall)
 
@@ -224,57 +223,6 @@ chezmoi diff
 # Sync chezmoi source with this repo's origin:
 chezmoi update                     # git pull in source + apply
 ```
-
-## Done notifications
-
-A visual signal for two kinds of "done". Visual only - no audible bell, no
-desktop popups, and no dependence on the terminal emulator or OS. Two halves,
-each gated on its component:
-
-- zsh (`dot_zsh/pane-notify.zsh`, sourced from `.zshrc`): `preexec`/`precmd` hooks.
-  - Allowlisted commands (`PANE_NOTIFY_ALLOW`, e.g. make, pytest, terraform) flag
-    on completion if they ran at least `PANE_NOTIFY_MIN` seconds. Anything not on
-    the allowlist is silent, so interactive programs you quit (vim, less, ssh)
-    never flag on exit. Matching is alias-aware: the typed command is
-    alias-resolved first, so `tf` matches `terraform`.
-  - Interactive agents (`PANE_NOTIFY_AGENTS`, default `claude codex`) are flagged
-    when they go IDLE (done processing a message), not on exit - exiting the agent
-    is not flagged, since you are already looking at the pane.
-  - Visuals: inside tmux the pane background recolors (`window-style`) plus a
-    pane-border marker and a window tab flag; outside tmux it is the terminal
-    title (OSC 2) + background recolor (OSC 11) + an inline `✓ done in Ns` line.
-- tmux (`dot_tmux/conf.d/notify.conf`): the pane recolor (`window-style` +
-  `window-active-style`) + border marker + window flag (custom `@notify` plus
-  tmux's native `~` silence flag via `#F`), driven by `monitor-silence` (armed
-  only while an agent runs, targeted at that pane).
-
-Idle detection caveat: `monitor-silence` is a **window** option and tmux only
-raises the alert for a **non-current** window. So the idle flag fires when claude
-is in its own window and you have switched to a different window - which is
-exactly the "I stepped away, tell me when it's done" case. The window's tab lights
-up (orange silence flag + red dot); switching to that window clears it. A split
-pane in the window you're already in will not trigger it. To also recolor the
-pane while it is the focused/current window, add `set -g silence-action any` (it
-only affects agent windows, since that's the only place monitor-silence is armed,
-but the recolor then stays until you switch away or run a command).
-
-Acknowledge by running a command, pressing Enter at an empty prompt, or focusing
-the pane in tmux. Configure via env vars (set in `~/.zsh_private`):
-
-- `PANE_NOTIFY_ALLOW` (default `make pytest tox go cargo npm pnpm yarn terraform
-  tf tofu ansible-playbook docker docker-compose rsync gradlew mvn brew gh
-  pre-commit`) - only these commands (alias-resolved) flag on completion;
-  everything else is silent.
-- `PANE_NOTIFY_MIN` (default 10) - min command seconds before flagging completion.
-- `PANE_NOTIFY_IDLE` (default 15) - tmux: seconds of agent output silence before
-  the idle flag. Lower it for a snappier "done" at the risk of flagging long
-  think/tool pauses.
-- `PANE_NOTIFY_AGENTS` (default `"claude codex"`) - commands flagged on idle
-  instead of on exit.
-- `PANE_NOTIFY_CHANNELS` (default `"title bg banner tmux"`) - which channels fire.
-- `PANE_NOTIFY_BG` (default `#5b1a1a`) - alert background color.
-- `PANE_NOTIFY_REPEAT` (default 0 = one-shot) - re-assert the visual every N
-  seconds until acknowledged. `PANE_NOTIFY_REPEAT_MAX` caps the repeats.
 
 ## Supported platforms
 
