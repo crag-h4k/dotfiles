@@ -91,6 +91,10 @@ for function in $ZSH_CUSTOM/functions/*.zsh; do
     source $function
 done
 
+# Visual "done" notifications (finished commands / idle agents). Config knobs are
+# the PANE_NOTIFY_* vars at the top of the file; tweak in ~/.zsh_private.
+source $ZSH_BASE/pane-notify.zsh
+
 # Login-shell banner: LAN interface IP (wired preferred), the physical link's
 # public WAN IP, and - only when a VPN is up - the VPN's public IP. WAN values
 # are cached (MYWANIP_TTL). See custom/functions/mywanip.zsh.
