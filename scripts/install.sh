@@ -21,6 +21,10 @@ INSTALL_ZSH="${INSTALL_ZSH:-true}"
 INSTALL_TMUX="${INSTALL_TMUX:-true}"
 INSTALL_NEOVIM="${INSTALL_NEOVIM:-true}"
 INSTALL_GITCONFIG="${INSTALL_GITCONFIG:-false}"
+# AI tooling, one opt-in flag, off by default. When on with neovim it enables
+# CodeCompanion: install-neovim.sh installs the claude-agent-acp bridge and we
+# provision the runtime sentinel init.lua checks (touch/rm per-host still works).
+INSTALL_AI="${INSTALL_AI:-false}"
 
 # Show an existing gitconfig file then prompt to create/replace from repo example.
 _setup_gitconfig_file() {
@@ -44,7 +48,7 @@ main() {
     local os
     os=$(os_detect)
     info "dotfiles installer: platform=$os"
-    info "components: zsh=$INSTALL_ZSH tmux=$INSTALL_TMUX neovim=$INSTALL_NEOVIM gitconfig=$INSTALL_GITCONFIG"
+    info "components: zsh=$INSTALL_ZSH tmux=$INSTALL_TMUX neovim=$INSTALL_NEOVIM gitconfig=$INSTALL_GITCONFIG ai=$INSTALL_AI"
 
     # Base toolchain - required by all per-app scripts and by ensure_chezmoi.
     case "$os" in
@@ -74,6 +78,15 @@ main() {
     [[ "$INSTALL_ZSH" == true ]]    && bash "$SCRIPT_DIR/install-zsh.sh"
     [[ "$INSTALL_TMUX" == true ]]   && bash "$SCRIPT_DIR/install-tmux.sh"
     [[ "$INSTALL_NEOVIM" == true ]] && bash "$SCRIPT_DIR/install-neovim.sh"
+
+    # Provision the CodeCompanion opt-in sentinel that init.lua checks at startup.
+    # Only meaningful with neovim. Done here (not as a chezmoi-managed file) so a
+    # later `chezmoi apply` never recreates it after you rm it to disable per-host.
+    if [[ "$INSTALL_NEOVIM" == true && "$INSTALL_AI" == true ]]; then
+        mkdir -p "$HOME/.config/nvim"
+        touch "$HOME/.config/nvim/.codecompanion-enabled"
+        info "CodeCompanion enabled (sentinel: ~/.config/nvim/.codecompanion-enabled)"
+    fi
 
     if [[ "$INSTALL_GITCONFIG" == true ]]; then
         _setup_gitconfig_file "$HOME/.gitconfig"          "$SCRIPT_DIR/../gitconfig.example"          "gitconfig.example"

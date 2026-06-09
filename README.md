@@ -73,15 +73,25 @@ Components to install:
   2) tmux      tmux + plugins (tpm, resurrect, sensible, yank)
   3) neovim    neovim, lazy.nvim, language servers, linters
   4) gitconfig copy ~/.gitconfig* from repo examples
+  5) ai        AI tools: CodeCompanion.nvim assistant (needs neovim)
 
 Enter numbers (e.g. "1 3"), all, all+, or press Enter for default (1 2 3):
 ```
 
 - Numbers: any subset (e.g. `1 3` for zsh + neovim). Spacing and order do not
   matter - `1 3`, `13`, and `3 1` are equivalent.
-- Enter: the default, `1 2 3` (zsh + tmux + neovim, no gitconfig).
+- Enter: the default, `1 2 3` (zsh + tmux + neovim; no gitconfig, no AI tools).
 - `all`: zsh + tmux + neovim.
-- `all+`: everything including gitconfig.
+- `all+`: everything including gitconfig and the AI tools.
+
+The `ai` component is one opt-in toggle for AI tooling (off in the default set and
+in `all`), so nothing AI-related installs unless you ask for it. With `neovim` it
+enables CodeCompanion: the assistant ships buffer contents to an LLM, so a sentinel
+file (`~/.config/nvim/.codecompanion-enabled`) gates the plugin at startup; you can
+`touch`/`rm` it to flip per-host without re-running `init`. The Claude Code ACP
+bridge (`claude-agent-acp`) is installed via npm into `~/.local/bin`, and the chat
+reuses your existing `claude` login (no token to store). Selected without `neovim`,
+it is a no-op.
 
 A component that is off is excluded two ways: its target files are added to
 `.chezmoiignore` so `chezmoi apply` never writes them, and its plugin externals
@@ -108,6 +118,7 @@ Two ways:
       tmux = false
       neovim = true
       gitconfig = false
+      ai = false
   ```
 
 - Or re-run the menu. `chezmoi init` will not re-prompt while
@@ -122,6 +133,22 @@ Then run `chezmoi apply`. Turning a component off removes its files on the next
 apply (its targets are now ignored); turning one on writes them and fetches its
 plugins. Unmodified managed files are removed cleanly. A file you edited locally
 is left in place rather than deleted, so back it up first if you want it gone.
+
+Enabling a component that installs packages (e.g. `ai`) also re-runs the
+installer automatically: `run_once_after_00-install.sh` embeds the component
+booleans, so flipping one changes the script's rendered content and chezmoi
+re-runs it on the next apply, installing the newly selected tools. If it does not
+re-run for some reason, force it:
+
+```sh
+chezmoi state delete-bucket --bucket=scriptState
+chezmoi apply
+```
+
+So to enable the AI tools after the fact: set `ai = true` in
+`~/.config/chezmoi/chezmoi.toml` (or re-run the menu and include `5`), then
+`chezmoi apply`. That installs the Claude Code ACP bridge and provisions the
+CodeCompanion sentinel - no full reinstall needed.
 
 ## How it works
 

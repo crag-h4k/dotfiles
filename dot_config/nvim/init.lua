@@ -209,15 +209,15 @@ vim.lsp.log.set_level(vim.lsp.log.levels.OFF)
 -- Diagnostics
 vim.diagnostic.config({
   signs = {
-      text = {
-          [vim.diagnostic.severity.ERROR] = '☠',
-          [vim.diagnostic.severity.WARN] = '⛧',
-          [vim.diagnostic.severity.INFO] = 'ℹ',
-          [vim.diagnostic.severity.HINT] = '☦',
-      },
-      numhl = {
-          [vim.diagnostic.severity.WARN] = 'WarningMsg',
-      },
+    text = {
+      [vim.diagnostic.severity.ERROR] = "☠",
+      [vim.diagnostic.severity.WARN] = "⛧",
+      [vim.diagnostic.severity.INFO] = "ℹ",
+      [vim.diagnostic.severity.HINT] = "☦",
+    },
+    numhl = {
+      [vim.diagnostic.severity.WARN] = "WarningMsg",
+    },
   },
   status = true,
   underline = true,
@@ -242,6 +242,13 @@ if not vim.loop.fs_stat(lazypath) then
 end
 vim.opt.rtp:prepend(lazypath)
 
+-- Per-host opt-in for the AI assistant. CodeCompanion ships your buffer contents
+-- to Claude, so it stays OFF by default and only loads on hosts that explicitly
+-- opt in by creating the sentinel file:
+--   touch ~/.config/nvim/.codecompanion-enabled
+-- A fresh clone on an unknown/sensitive host never loads it until you opt in.
+local codecompanion_enabled = (vim.uv or vim.loop).fs_stat(vim.fn.stdpath("config") .. "/.codecompanion-enabled") ~= nil
+
 local servers = {
   -- LSP server IDs (must match nvim-lspconfig names)
   "bashls",
@@ -253,7 +260,7 @@ local servers = {
   "pyright",
   "terraformls",
   "yamlls",
-  "gh_actions_ls"
+  "gh_actions_ls",
 }
 
 require("lazy").setup({
@@ -337,7 +344,6 @@ require("lazy").setup({
             desc = "Start LSP (" .. server .. ")",
           })
         end
-        ::continue::
       end
     end,
   },
@@ -362,7 +368,7 @@ require("lazy").setup({
       require("luasnip.loaders.from_vscode").lazy_load()
 
       local has_words_before = function()
-        local line, col = unpack(vim.api.nvim_win_get_cursor(0))
+        local _, col = unpack(vim.api.nvim_win_get_cursor(0))
         if col == 0 then
           return false
         end
@@ -413,35 +419,68 @@ require("lazy").setup({
     end,
   },
 
-  -- AI chat / coding assistant
+  -- AI chat / coding assistant (CodeCompanion). Gated by the sentinel file above,
+  -- so this whole spec is invisible to lazy.nvim on hosts that did not opt in.
+  --
+  -- Backed by the Claude Code ACP adapter: it reuses your existing Claude Code
+  -- login instead of a separate API key. Requirements on an enabled host:
+  --   1. claude-agent-acp on PATH:  npm i -g @agentclientprotocol/claude-agent-acp
+  --   2. auth: an existing `claude` login works, or run `claude setup-token` and
+  --      export CLAUDE_CODE_OAUTH_TOKEN.
+  -- Override the model per-host via env or by extending the acp adapter in opts.
   {
-    "yetone/avante.nvim",
-    event = "VeryLazy",
-    build = "make",
+    "olimorris/codecompanion.nvim",
+    enabled = codecompanion_enabled,
+    cmd = { "CodeCompanion", "CodeCompanionChat", "CodeCompanionActions", "CodeCompanionCmd" },
+    keys = {
+      -- Normal + visual: <space>cc opens/closes the chat (a "claude session").
+      { "<leader>cc", "<cmd>CodeCompanionChat Toggle<cr>", mode = { "n", "v" }, desc = "CodeCompanion: toggle chat" },
+      { "<leader>ca", "<cmd>CodeCompanionActions<cr>", mode = { "n", "v" }, desc = "CodeCompanion: actions palette" },
+      -- Visual: send the current selection into the chat buffer.
+      { "ga", "<cmd>CodeCompanionChat Add<cr>", mode = "v", desc = "CodeCompanion: add selection to chat" },
+    },
     dependencies = {
-      "nvim-treesitter/nvim-treesitter",
-      "stevearc/dressing.nvim",
       "nvim-lua/plenary.nvim",
-      "MunifTanjim/nui.nvim",
-      "nvim-tree/nvim-web-devicons",
-      "HakonHarnes/img-clip.nvim",
-      "MeanderingProgrammer/render-markdown.nvim",
+      -- render-markdown needs the markdown treesitter parsers to render the chat.
+      -- Pin master, but stay branch-proof: nvim-treesitter's default branch is now
+      -- the `main` rewrite (no `nvim-treesitter.configs`). Support whichever branch
+      -- lazy actually has checked out, and never hard-error if neither matches.
+      {
+        "nvim-treesitter/nvim-treesitter",
+        branch = "master",
+        build = ":TSUpdate",
+        config = function()
+          local parsers = { "markdown", "markdown_inline" }
+          local ok, configs = pcall(require, "nvim-treesitter.configs")
+          if ok then
+            configs.setup({ ensure_installed = parsers }) -- master branch API
+          else
+            pcall(function()
+              require("nvim-treesitter").install(parsers) -- main branch API
+            end)
+          end
+        end,
+      },
+      -- Pretty chat buffer: render markdown in the `codecompanion` filetype, not
+      -- just plain `markdown` files. This is what makes the chat look like the
+      -- CodeCompanion screenshots (needs a Nerd Font in the terminal for icons).
+      {
+        "MeanderingProgrammer/render-markdown.nvim",
+        ft = { "markdown", "codecompanion" },
+        opts = { file_types = { "markdown", "codecompanion" } },
+      },
     },
     opts = {
-      provider = "claude",
-      providers = {
-        claude = {
-          model = "claude-sonnet-4-7",
-        },
-        opus = {
-          __inherited_from = "claude",
-          model = "claude-opus-4-6",
-        },
-      },
-      selector = {
-        provider = "native",
+      -- The Claude Code ACP adapter only supports the chat strategy. Inline and
+      -- cmd interactions require an HTTP adapter (API key), so leave them at their
+      -- defaults and drive everything through the chat buffer.
+      interactions = {
+        chat = { adapter = "claude_code" },
       },
     },
+    config = function(_, opts)
+      require("codecompanion").setup(opts)
+    end,
   },
 
   -- Markdown linting via markdownlint-cli2
@@ -456,7 +495,9 @@ require("lazy").setup({
         vim.fn.expand("~/.markdownlint.yaml"),
       }
       vim.api.nvim_create_autocmd({ "BufReadPost", "BufWritePost", "InsertLeave" }, {
-        callback = function() lint.try_lint() end,
+        callback = function()
+          lint.try_lint()
+        end,
       })
     end,
   },
@@ -467,3 +508,11 @@ vim.cmd("silent! colorscheme dracula")
 
 -- Replace NERDTree's old <C-n> toggle with Oil
 vim.keymap.set("n", "<C-n>", "<CMD>Oil<CR>", { desc = "Oil: file explorer" })
+
+-- CodeCompanion command alias: ":cc" expands to ":CodeCompanionChat" (opens the
+-- chat), without shadowing anything else (only fires when the whole command line
+-- is exactly "cc"). The Claude Code ACP adapter is chat-only, so the alias points
+-- at the chat rather than the inline ":CodeCompanion" command. <space>cc toggles.
+if codecompanion_enabled then
+  vim.cmd([[cnoreabbrev <expr> cc (getcmdtype() ==# ':' && getcmdline() ==# 'cc') ? 'CodeCompanionChat' : 'cc']])
+end

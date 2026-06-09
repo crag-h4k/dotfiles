@@ -28,5 +28,13 @@ jobs:
       - name: Add chezmoi to PATH
         run: echo "$HOME/.local/bin" >> "$GITHUB_PATH"
 
+      # luacheck runs as a language:system pre-commit hook, so it must be on
+      # PATH. Ubuntu's luarocks pairs with a Lua that luacheck supports.
+      - name: Install luacheck
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y luarocks
+          sudo luarocks install luacheck
+
       - name: Run pre-commit
         uses: pre-commit/action@v3.0.1

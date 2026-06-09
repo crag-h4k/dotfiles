@@ -55,12 +55,13 @@ render_components() {
     # Pull the booleans out of the rendered [data.components] block. Order is
     # fixed by the template, but key off the name so reordering the list later
     # does not silently break the assertions.
-    local zsh tmux neovim gitconfig
+    local zsh tmux neovim gitconfig ai
     zsh=$(printf '%s\n' "$out" | sed -n 's/^[[:space:]]*zsh = \(.*\)$/\1/p')
     tmux=$(printf '%s\n' "$out" | sed -n 's/^[[:space:]]*tmux = \(.*\)$/\1/p')
     neovim=$(printf '%s\n' "$out" | sed -n 's/^[[:space:]]*neovim = \(.*\)$/\1/p')
     gitconfig=$(printf '%s\n' "$out" | sed -n 's/^[[:space:]]*gitconfig = \(.*\)$/\1/p')
-    printf '%s %s %s %s' "$zsh" "$tmux" "$neovim" "$gitconfig"
+    ai=$(printf '%s\n' "$out" | sed -n 's/^[[:space:]]*ai = \(.*\)$/\1/p')
+    printf '%s %s %s %s %s' "$zsh" "$tmux" "$neovim" "$gitconfig" "$ai"
 }
 
 # bool "1" if digit d (1..4) is present in the no-space numeric string, else "0"
@@ -72,9 +73,9 @@ has_digit() {
 }
 
 # Assert a selection string renders the expected booleans.
-# Args: selection expected_zsh expected_tmux expected_neovim expected_gitconfig
+# Args: selection expected_zsh expected_tmux expected_neovim expected_gitconfig expected_ai
 assert_case() {
-    local selection="$1" want="$2 $3 $4 $5" got
+    local selection="$1" want="$2 $3 $4 $5 $6" got
     got=$(render_components "$selection") || {
         echo "validate-templates: FAILED to render/parse (sel='$selection'): $got" >&2
         fail=1
@@ -82,52 +83,56 @@ assert_case() {
     }
     if [[ "$got" != "$want" ]]; then
         echo "validate-templates: MISMATCH (sel='$selection')" >&2
-        echo "  expected (zsh tmux neovim gitconfig): $want" >&2
-        echo "  got     (zsh tmux neovim gitconfig): $got" >&2
+        echo "  expected (zsh tmux neovim gitconfig ai): $want" >&2
+        echo "  got     (zsh tmux neovim gitconfig ai): $got" >&2
         fail=1
     fi
 }
 
 # --- .chezmoi.toml.tmpl: exhaustive numeric matrix -------------------------
-# All 16 on/off combinations of digits 1..4, expressed with NO spaces (e.g.
-# "134"). Expected booleans are derived from digit presence: number N present
+# All 32 on/off combinations of digits 1..5, expressed with NO spaces (e.g.
+# "135"). Expected booleans are derived from digit presence: number N present
 # => component N on. This is the ground truth the parser must match.
 ncases=0
-for d1 in 0 1; do for d2 in 0 1; do for d3 in 0 1; do for d4 in 0 1; do
+for d1 in 0 1; do for d2 in 0 1; do for d3 in 0 1; do for d4 in 0 1; do for d5 in 0 1; do
     sel=""
     (( d1 )) && sel+="1"
     (( d2 )) && sel+="2"
     (( d3 )) && sel+="3"
     (( d4 )) && sel+="4"
+    (( d5 )) && sel+="5"
     # Empty numeric string (no digits) would fall back to the default, which is
     # a different case; exercise it separately below. Skip it here.
     [[ -z "$sel" ]] && continue
     assert_case "$sel" \
         "$(has_digit 1 "$sel")" "$(has_digit 2 "$sel")" \
-        "$(has_digit 3 "$sel")" "$(has_digit 4 "$sel")"
+        "$(has_digit 3 "$sel")" "$(has_digit 4 "$sel")" \
+        "$(has_digit 5 "$sel")"
     ncases=$((ncases + 1))
-done; done; done; done
+done; done; done; done; done
 
 # --- keyword forms ---------------------------------------------------------
-# all  = default-on set (zsh tmux neovim), gitconfig off.
-assert_case "all"  true true true false
-# all+ = everything including gitconfig.
-assert_case "all+" true true true true
+# all  = default-on set (zsh tmux neovim); gitconfig + ai off.
+assert_case "all"  true true true false false
+# all+ = everything including gitconfig and ai.
+assert_case "all+" true true true true true
 
 # --- space / order independence -------------------------------------------
 # Same selections expressed with spaces and reordered must match the no-space
 # forms above. "3 1" == zsh+neovim; "421" == zsh+tmux+gitconfig (digits 4,2,1,
-# not 3); "1,3" proves comma separators are ignored too.
-assert_case "3 1"   true  false true  false
-assert_case "421"   true  true  false true
-assert_case "1,3"   true  false true  false
-assert_case "1 2 3" true  true  true  false
+# not 3); "1,3" proves comma separators are ignored too. "3 5" proves the ai
+# component (digit 5) parses alongside neovim.
+assert_case "3 1"   true  false true  false false
+assert_case "421"   true  true  false true  false
+assert_case "1,3"   true  false true  false false
+assert_case "1 2 3" true  true  true  false false
+assert_case "3 5"   false false true  false true
 
 # --- empty / echoed-prompt fallback to default (1 2 3) ---------------------
 # Empty string falls back to the default-on set. A value that begins with the
 # menu text (non-interactive init echoing the prompt) does too.
-assert_case ""                       true true true false
-assert_case "Components to install:" true true true false
+assert_case ""                       true true true false false
+assert_case "Components to install:" true true true false false
 
 # --- .chezmoiexternal.toml: render + parse under each component combo -------
 # The externals file only branches on zsh and tmux, so vary those two and pin

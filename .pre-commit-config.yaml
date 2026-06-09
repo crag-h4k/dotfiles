@@ -51,6 +51,25 @@ repos:
       - id: markdownlint
         args: [--config=.markdownlint.yaml]
 
+  # Lua formatting. stylua-github downloads a prebuilt binary, so no rust/cargo
+  # or system stylua is required. Config: .stylua.toml.
+  - repo: https://github.com/JohnnyMorganz/StyLua
+    rev: v2.5.2
+    hooks:
+      - id: stylua-github
+
+  # Lua linting (static analysis). Run as a system hook, not the hosted
+  # language:lua hook: luacheck 1.2.0 crashes on Lua 5.5 (Homebrew's default),
+  # so install-neovim.sh installs it against Lua 5.4 and puts it on PATH, and
+  # the CI workflow installs it via apt luarocks. Config: .luacheckrc.
+  - repo: local
+    hooks:
+      - id: luacheck
+        name: luacheck
+        entry: luacheck
+        language: system
+        types: [lua]
+
   # Render the component-gated chezmoi templates across combinations and parse
   # the result. check-toml skips .chezmoiexternal.toml (it is a Go template), so
   # this is what actually validates the rendered TOML before it reaches a host.
