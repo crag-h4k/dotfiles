@@ -103,7 +103,7 @@ main() {
                 ;;
             debian)
                 # apt luarocks pairs with a Lua that luacheck supports (<= 5.4).
-                luarocks install --local luacheck
+                luarocks install luacheck
                 ;;
         esac
         ln -sf "$HOME/.luarocks/bin/luacheck" "$HOME/.local/bin/luacheck"
