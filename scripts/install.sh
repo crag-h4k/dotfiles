@@ -65,6 +65,14 @@ main() {
             ;;
     esac
 
+    # gum powers the interactive component picker at `chezmoi init` (the `ccomp`
+    # alias re-opens it). Best-effort: the picker falls back to a typed menu when
+    # gum is absent, so a distro that does not package gum must not fail install.
+    case "$os" in
+        macos)  brew install gum || info "gum install skipped (picker falls back to typed menu)" ;;
+        debian) sudo apt-get install -y gum || info "gum install skipped (picker falls back to typed menu)" ;;
+    esac
+
     ensure_chezmoi
 
     # Convenience symlink: ~/dotfiles -> ~/.local/share/chezmoi

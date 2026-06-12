@@ -47,6 +47,7 @@ alias "cdiff"="chezmoi diff"
 alias "cu"="chezmoi update"
 alias "cre"="chezmoi apply --refresh-externals"
 alias "cdd"="cd ~/dotfiles"
+alias "ccomp"="chezmoi init --apply"
 # Docker - only define if docker is available
 if command -v docker &>/dev/null; then
   # Stop all containers:
