@@ -8,6 +8,10 @@
 COLOR=$(tmux show-option -gqv @notify_color 2>/dev/null)
 COLOR="${COLOR:-#5b1a1a}"
 SOUND=$(tmux show-option -gqv @notify_sound 2>/dev/null)
+SOUND="${SOUND/#\~/$HOME}"
+VOLUME=$(tmux show-option -gqv @notify_volume 2>/dev/null)
+VOLUME="${VOLUME:-75}"
+VOLUME_FLOAT=$(awk "BEGIN { printf \"%.2f\", $VOLUME/100 }")
 
 tmux set -p -t "$TMUX_PANE" @notify 1
 tmux set -p -t "$TMUX_PANE" window-style        "bg=$COLOR"
@@ -16,12 +20,12 @@ tmux set -w -t "$TMUX_PANE" @notify 1
 
 if [[ -n "$SOUND" && -f "$SOUND" ]]; then
   if [[ "$(uname)" == "Darwin" ]]; then
-    afplay "$SOUND" &
+    afplay -v "$VOLUME_FLOAT" "$SOUND" &
   elif command -v mpg123 &>/dev/null; then
-    mpg123 -q "$SOUND" &
-  elif command -v mpg321 &>/dev/null; then
-    mpg321 -q "$SOUND" &
+    # Linux preferred: apt install mpg123
+    mpg123 -q --volume "$VOLUME" "$SOUND" &
   elif command -v ffplay &>/dev/null; then
-    ffplay -nodisp -autoexit -loglevel quiet "$SOUND" &
+    # Linux fallback (ffmpeg): apt install ffmpeg
+    ffplay -nodisp -autoexit -loglevel quiet -volume "$VOLUME" "$SOUND" &
   fi
 fi

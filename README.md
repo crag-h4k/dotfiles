@@ -222,8 +222,12 @@ CodeCompanion sentinel - no full reinstall needed.
 | `dot_zsh/bin/executable_*` | `~/.zsh/bin/*` | exec bit preserved |
 | `dot_zsh/custom/functions/*.zsh` | `~/.zsh/custom/functions/*.zsh` | |
 | `dot_zsh/custom/themes/gud.zsh-theme` | `~/.zsh/custom/themes/gud.zsh-theme` | custom oh-my-zsh theme; `ZSH_THEME="gud"` |
-| `dot_tmux.conf` | `~/.tmux.conf` | real file |
+| `dot_tmux.conf` | `~/.tmux.conf` | real file; `@notify_*` settings at top |
 | `dot_tmux/conf.d/*.conf` | `~/.tmux/conf.d/*.conf` | |
+| `dot_tmux/sounds/*.mp3` | `~/.tmux/sounds/*.mp3` | notification audio files |
+| `dot_claude/hooks/notify-tmux.sh` | `~/.claude/hooks/notify-tmux.sh` | Claude Code `Stop` hook |
+| `dot_claude/hooks/notify-clear.sh` | `~/.claude/hooks/notify-clear.sh` | Claude Code `UserPromptSubmit` hook |
+| `dot_claude/settings.local.json` | `~/.claude/settings.local.json` | wires notify hooks into Claude Code |
 | `dot_config/nvim/init.lua` | `~/.config/nvim/init.lua` | lazy.nvim entrypoint |
 | `dot_config/nvim/lua/statusline.lua` | `~/.config/nvim/lua/statusline.lua` | |
 | **Linter configs (base, each at its own path)** | | |

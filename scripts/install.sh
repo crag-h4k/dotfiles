@@ -85,7 +85,7 @@ main() {
     }
     [[ "$INSTALL_TMUX" == true ]] && {
         macos_pkgs+=(tmux reattach-to-user-namespace)
-        debian_pkgs+=(tmux xclip wl-clipboard)
+        debian_pkgs+=(tmux xclip wl-clipboard mpg123)
     }
     [[ "$INSTALL_NEOVIM" == true ]] && {
         macos_pkgs+=(cmake go hadolint llvm lua@5.4 luarocks
