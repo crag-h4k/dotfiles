@@ -9,21 +9,9 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 source "$SCRIPT_DIR/common.sh"
 
 main() {
-    local os
-    os=$(os_detect)
-    info "install-tmux: $os"
-
-    case "$os" in
-        macos)
-            pkg_install tmux reattach-to-user-namespace
-            ;;
-        debian)
-            pkg_install tmux xclip wl-clipboard
-            ;;
-        *)
-            die "unsupported OS for install-tmux"
-            ;;
-    esac
+    # Packages are installed by the batched call in install.sh. Reserved for
+    # future post-install steps.
+    info "install-tmux: done"
 }
 
 main "$@"

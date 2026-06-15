@@ -11,9 +11,9 @@
 set -euo pipefail
 
 # Force the typed-menu path in .chezmoi.toml.tmpl so the parser is exercised
-# deterministically. Without this, a render on a machine that has gum and a
+# deterministically. Without this, a render on a machine that has fzf and a
 # controlling terminal would launch the interactive picker for every case.
-export DOTFILES_NO_GUM=1
+export DOTFILES_NO_TUI=1
 
 REPO_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 EXTERNAL="$REPO_DIR/.chezmoiexternal.toml"

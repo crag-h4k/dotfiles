@@ -26,15 +26,26 @@ current. No wrapper script and no path juggling.
 
 ## Quick start (new host)
 
+Install `gum` first so the component picker shows a checkbox TUI, then
+bootstrap chezmoi:
+
 ```sh
+# macOS
+command -v gum >/dev/null || brew install gum
+sh -c "$(curl -fsLS get.chezmoi.io)" -- init --apply crag-h4k
+
+# Debian (gum not in standard apt; skip or install from charm repo)
 sh -c "$(curl -fsLS get.chezmoi.io)" -- init --apply crag-h4k
 ```
 
-This one line:
+Without `gum` the picker falls back to a typed numbered menu - still works,
+just less interactive.
+
+The chezmoi bootstrap line:
 
 1. Installs `chezmoi` if missing.
 1. Clones this repo into `~/.local/share/chezmoi/`.
-1. Prompts for which components to install (numbered menu, see below) and saves
+1. Prompts for which components to install (fzf TUI or typed menu) and saves
    the answer to `~/.config/chezmoi/chezmoi.toml`.
 1. Runs `chezmoi apply`, which:
    - Fetches the upstream plugins declared in `.chezmoiexternal.toml` for the
@@ -59,20 +70,22 @@ already; if not, `sudo chsh -s "$(command -v zsh)" "$USER"`.
 To answer the prompts before applying, split the steps:
 
 ```sh
+command -v gum >/dev/null || brew install gum   # macOS; skip on Debian (typed fallback)
 chezmoi init crag-h4k      # clone + prompt for components
 chezmoi apply              # write only the selected components
 ```
 
 ## Choosing components
 
-With [`gum`](https://github.com/charmbracelet/gum) installed, `chezmoi init` shows
-a checkbox TUI: space toggles a component, enter confirms. On re-runs the header
-hints the current selection. `gum` is installed by `scripts/install.sh` on first
-apply, so the TUI is available from the second `chezmoi init` onward (see
+With [`gum`](https://github.com/charmbracelet/gum) installed, `chezmoi init` shows a
+checkbox TUI: space toggles a component, enter confirms, esc cancels. On re-runs
+the header hints the current selection. `gum` is installed as part of the macOS base
+toolchain on first apply (and is included in the bootstrap step above), so it is
+available from the second `chezmoi init` onward (see
 [Changing components later](#changing-components-later)).
 
-Without `gum` - notably the very first `chezmoi init` on a fresh host, before
-`install.sh` has run - it falls back to a typed numbered menu:
+Without `gum` - on Debian or if you skipped the bootstrap install - it falls back to a
+typed numbered menu:
 
 ```text
 Components to install:
@@ -96,7 +109,7 @@ Both paths resolve to the same `componentSelection` string and the same
 
 The component list is the single source of truth in `.chezmoi.toml.tmpl`; the gum
 options and the typed menu are both generated from it, so adding a component is a
-one-line edit there. Set `DOTFILES_NO_GUM=1` to force the typed menu even when gum
+one-line edit there. Set `DOTFILES_NO_TUI=1` to force the typed menu even when gum
 is installed.
 
 The `ai` component is one opt-in toggle for AI tooling (off in the default set and
@@ -131,7 +144,7 @@ Two ways:
   ccomp     # alias for: chezmoi init --apply
   ```
 
-  With `gum` installed (it is, after the first apply) this re-opens the checkbox
+  With `gum` installed (it is, after the first macOS apply) this re-opens the gum
   TUI with the current selection hinted, then applies. The gum picker is not
   gated by `promptStringOnce`, so it re-prompts every time - no need to clear
   `componentSelection` first. Cancelling the picker (Esc) keeps the current
@@ -184,8 +197,8 @@ CodeCompanion sentinel - no full reinstall needed.
   lives in this repo as regular files following chezmoi naming conventions
   (`dot_zshrc` -> `~/.zshrc`, `dot_zsh/aliases` -> `~/.zsh/aliases`, etc.).
 - **Component selection** is a chezmoi-native concern. `.chezmoi.toml.tmpl`
-  prompts at `chezmoi init` - a `gum` checkbox TUI when gum is on `PATH`, else a
-  typed `promptStringOnce` numbered menu - parses the answer, and writes
+  prompts at `chezmoi init` - a `gum` checkbox TUI when gum is on `PATH`,
+  else a typed `promptStringOnce` numbered menu - parses the answer, and writes
   `[data.components]` into the per-host config. Both the gum options and the typed
   menu are generated from one `$components` list in that file. `.chezmoiignore`
   and `.chezmoiexternal.toml` are both templated off `.components.*`: an off
@@ -193,10 +206,11 @@ CodeCompanion sentinel - no full reinstall needed.
 - **Upstream plugins** are chezmoi externals (`.chezmoiexternal.toml`), fetched
   and refreshed by `chezmoi apply` on a weekly `refreshPeriod`. Only the
   selected components' externals are declared.
-- **System packages** (zsh, neovim, tmux, fzf, gh, zoxide, etc.) are installed
-  by `scripts/install-*.sh` on first apply. `run_once_after_00-install.sh`
-  drives `scripts/install.sh` with the component selection passed as `INSTALL_*`
-  env vars. One script per app plus a platform-aware orchestrator.
+- **System packages** (zsh, neovim, tmux, fzf, gh, zoxide, gum, etc.) are installed
+  by `scripts/install.sh` on first apply. All packages for selected components
+  are batched into one `brew install` / `apt-get install -y` call per OS.
+  `run_once_after_00-install.sh` drives `install.sh` with the component selection
+  passed as `INSTALL_*` env vars.
 
 ## What lives where
 
