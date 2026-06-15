@@ -13,19 +13,8 @@ main() {
     os=$(os_detect)
     info "install-zsh: $os"
 
-    case "$os" in
-        macos)
-            pkg_install zsh fzf gh zoxide gnupg
-            ;;
-        debian)
-            ensure_gh_apt_repo
-            # command-not-found on apt gives OMZ's plugin something to hook.
-            pkg_install zsh fzf gh zoxide gnupg command-not-found
-            ;;
-        *)
-            die "unsupported OS for install-zsh"
-            ;;
-    esac
+    # Packages are installed by the batched call in install.sh. This script
+    # handles post-install steps only.
 
     # Set zsh as the login shell if it isn't already.
     local zsh_bin

@@ -31,50 +31,14 @@ main() {
     os=$(os_detect)
     info "install-neovim: $os"
 
-    case "$os" in
-        macos)
-            pkg_install \
-                cmake \
-                go \
-                hadolint \
-                llvm \
-                lua@5.4 \
-                luarocks \
-                markdownlint-cli2 \
-                neovim \
-                node \
-                python3 \
-                shellcheck \
-                yamllint
-            # Need to install taps seperately
-            pkg_install terraform-linters/tap/tflint
-            ;;
-        debian)
-            pkg_install \
-                build-essential \
-                cmake \
-                golang \
-                jq \
-                luarocks \
-                nodejs \
-                npm \
-                python3 \
-                python3-pip \
-                python3-venv \
-                shellcheck \
-                yamllint
-            # tflint / hadolint are not reliably in apt;
-            # install via their own installers if present, else skip.
-            warn "tflint and hadolint not installed on Debian by this script; install separately if needed"
-            # markdownlint-cli2 is not in apt; install via npm to ~/.local/bin (no sudo needed).
-            npm install -g --prefix "$HOME/.local" markdownlint-cli2
-            # apt neovim is typically <0.11; install from GitHub releases instead.
-            install_neovim_debian
-            ;;
-        *)
-            die "unsupported OS for install-neovim"
-            ;;
-    esac
+    # Packages are installed by the batched call in install.sh. tflint (macOS tap)
+    # and install_neovim_debian (Debian binary) are also called from install.sh.
+
+    # On Debian: markdownlint-cli2 is not in apt; install via npm.
+    if [[ "$os" == "debian" ]]; then
+        warn "tflint and hadolint not installed on Debian by this script; install separately if needed"
+        npm install -g --prefix "$HOME/.local" markdownlint-cli2
+    fi
 
     # Python venv used as the py3 provider. Kept OUTSIDE the chezmoi-managed
     # ~/.config/nvim tree so `chezmoi apply`/purge never collides with it, and

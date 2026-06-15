@@ -38,7 +38,36 @@
 {{- $extras := join ", " $extraLabels -}}
 {{- $menu := join "\n" $lines -}}
 {{- $menu = printf "%s\n\n  all   the default set (%s)\n  all+  everything, adds %s\n\nEnter numbers (e.g. \"1 3\"), a keyword above, or press Enter for default (%s)" $menu $default $extras $default -}}
-{{- $sel := trim (promptStringOnce . "componentSelection" $menu) -}}
+{{- /* Interactive selection. With gum installed, show a checkbox TUI built from */ -}}
+{{- /* the same $components list (a new component appears automatically).        */ -}}
+{{- /* gum choose --no-limit renders checkboxes; selected lines go to stdout.   */ -}}
+{{- /* Reading </dev/tty keeps it interactive under chezmoi, and `|| true` makes */ -}}
+{{- /* no-tty / Esc yield an empty pick. When gum is absent (e.g. the very      */ -}}
+{{- /* first apply on a fresh host before install.sh runs) or returns nothing,   */ -}}
+{{- /* fall through to the typed promptStringOnce menu below.                    */ -}}
+{{- /* DOTFILES_NO_TUI forces the typed menu (used by validate-templates.sh to  */ -}}
+{{- /* exercise the parser deterministically, and handy to bypass the TUI).      */ -}}
+{{- $sel := "" -}}
+{{- if and (lookPath "gum") (not (env "DOTFILES_NO_TUI")) -}}
+{{-   $opts := list -}}
+{{-   range $components }}{{- $opts = append $opts (printf "%s) %s - %s" .num .label .desc | squote) -}}{{- end -}}
+{{-   $hdr := "Components to install  (space toggles, enter confirms, esc cancels):" -}}
+{{- /* On re-init, hint the current selection in the header.                     */ -}}
+{{-   $prevSel := dig "componentSelection" "" . -}}
+{{-   if ne $prevSel "" -}}
+{{-     $curLabels := list -}}
+{{-     range $components }}{{- if contains .num $prevSel }}{{- $curLabels = append $curLabels .label -}}{{- end -}}{{- end -}}
+{{-     $hdr = printf "%s  [current: %s]" $hdr (join ", " $curLabels) -}}
+{{-   end -}}
+{{-   $cmd := printf "test -e /dev/tty && gum choose --no-limit --header %s %s </dev/tty 2>/dev/tty || true" ($hdr | squote) (join " " $opts) -}}
+{{- /* Each chosen line starts with "<num>)"; take the leading number, join.     */ -}}
+{{-   $nums := list -}}
+{{-   range (splitList "\n" (trim (output "sh" "-c" $cmd))) }}{{- if . }}{{- $nums = append $nums (first (splitList ")" .)) -}}{{- end -}}{{- end -}}
+{{-   $sel = trim (join " " $nums) -}}
+{{- end -}}
+{{- if eq $sel "" -}}
+{{-   $sel = trim (promptStringOnce . "componentSelection" $menu) -}}
+{{- end -}}
 {{- /* Empty = pressed Enter. A value starting with the menu text means a    */ -}}
 {{- /* non-interactive init (no tty) echoed the prompt back; both fall to the */ -}}
 {{- /* default so a piped/CI install never persists a garbage selection.      */ -}}

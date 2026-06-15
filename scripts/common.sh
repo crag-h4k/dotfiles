@@ -128,7 +128,8 @@ install_neovim_debian() {
     info "neovim ${tag} installed: $(nvim --version 2>/dev/null | head -1)"
 }
 
-# Platform-aware package install wrapper.
+# Platform-aware package install wrapper. Runs apt-get update before installing
+# on Debian. For batch installs across multiple components, prefer pkg_install_many.
 # Usage: pkg_install pkg1 pkg2 ...
 pkg_install() {
     local os
@@ -140,6 +141,26 @@ pkg_install() {
             ;;
         debian)
             sudo apt-get update
+            sudo apt-get install -y "$@"
+            ;;
+        *)
+            die "unsupported OS: $(uname -s)"
+            ;;
+    esac
+}
+
+# Like pkg_install but skips apt-get update. Use when the caller has already
+# run apt-get update (e.g. the batched install in install.sh).
+# Usage: pkg_install_many pkg1 pkg2 ...
+pkg_install_many() {
+    local os
+    os=$(os_detect)
+    case "$os" in
+        macos)
+            require_cmd brew
+            brew install "$@"
+            ;;
+        debian)
             sudo apt-get install -y "$@"
             ;;
         *)

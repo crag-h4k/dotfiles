@@ -51,10 +51,11 @@ main() {
     info "components: zsh=$INSTALL_ZSH tmux=$INSTALL_TMUX neovim=$INSTALL_NEOVIM gitconfig=$INSTALL_GITCONFIG ai=$INSTALL_AI"
 
     # Base toolchain - required by all per-app scripts and by ensure_chezmoi.
+    # gum is here (not in a component) so the ccomp re-picker always has it.
     case "$os" in
         macos)
             require_cmd brew
-            brew install git make curl
+            brew install git make curl gum
             ;;
         debian)
             sudo apt-get update
@@ -75,8 +76,43 @@ main() {
         info "created symlink $dotfiles_link -> $chezmoi_src"
     fi
 
+    # Build combined package lists for selected components and install in one call.
+    local -a macos_pkgs=() debian_pkgs=()
+
+    [[ "$INSTALL_ZSH" == true ]] && {
+        macos_pkgs+=(zsh gh zoxide gnupg fzf)
+        debian_pkgs+=(zsh gh zoxide gnupg command-not-found fzf)
+    }
+    [[ "$INSTALL_TMUX" == true ]] && {
+        macos_pkgs+=(tmux reattach-to-user-namespace)
+        debian_pkgs+=(tmux xclip wl-clipboard mpg123)
+    }
+    [[ "$INSTALL_NEOVIM" == true ]] && {
+        macos_pkgs+=(cmake go hadolint llvm lua@5.4 luarocks
+                     markdownlint-cli2 neovim node python3 shellcheck yamllint)
+        debian_pkgs+=(build-essential cmake golang jq luarocks nodejs npm
+                      python3 python3-pip python3-venv shellcheck yamllint)
+    }
+
+    case "$os" in
+        macos)
+            if [[ ${#macos_pkgs[@]} -gt 0 ]]; then
+                brew install "${macos_pkgs[@]}"
+            fi
+            [[ "$INSTALL_NEOVIM" == true ]] && brew install terraform-linters/tap/tflint
+            ;;
+        debian)
+            [[ "$INSTALL_ZSH" == true ]] && ensure_gh_apt_repo
+            if [[ ${#debian_pkgs[@]} -gt 0 ]]; then
+                sudo apt-get update
+                pkg_install_many "${debian_pkgs[@]}"
+            fi
+            [[ "$INSTALL_NEOVIM" == true ]] && install_neovim_debian
+            ;;
+    esac
+
+    # Post-install steps for each component (non-package work).
     [[ "$INSTALL_ZSH" == true ]]    && bash "$SCRIPT_DIR/install-zsh.sh"
-    [[ "$INSTALL_TMUX" == true ]]   && bash "$SCRIPT_DIR/install-tmux.sh"
     [[ "$INSTALL_NEOVIM" == true ]] && bash "$SCRIPT_DIR/install-neovim.sh"
 
     # Provision the CodeCompanion opt-in sentinel that init.lua checks at startup.
