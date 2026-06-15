@@ -113,7 +113,6 @@ main() {
 
     # Post-install steps for each component (non-package work).
     [[ "$INSTALL_ZSH" == true ]]    && bash "$SCRIPT_DIR/install-zsh.sh"
-    [[ "$INSTALL_TMUX" == true ]]   && bash "$SCRIPT_DIR/install-tmux.sh"
     [[ "$INSTALL_NEOVIM" == true ]] && bash "$SCRIPT_DIR/install-neovim.sh"
 
     # Provision the CodeCompanion opt-in sentinel that init.lua checks at startup.
