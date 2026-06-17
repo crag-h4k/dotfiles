@@ -14,12 +14,28 @@
 {{- /*         includes everything regardless of this flag.                     */ -}}
 {{- /* The menu text, the per-component parse, and the [data.components] block  */ -}}
 {{- /* are all derived from this list, so a new component is a one-line add.    */ -}}
+{{- /* Sub-feature lists for the components that have a nested submenu (git, ai). */ -}}
+{{- /* Same record shape as $components. Here `all` means "pre-selected in the    */ -}}
+{{- /* submenu by default", which is also the no-tty / Enter fallback selection.   */ -}}
+{{- $gitFeatures := list
+    (dict "num" "1" "key" "config"        "label" "config"        "desc" "~/.gitconfig"          "all" false)
+    (dict "num" "2" "key" "personal"      "label" "personal"      "desc" "~/.gitconfig.personal" "all" false)
+    (dict "num" "3" "key" "ignore_global" "label" "ignore_global" "desc" "~/.gitignore_global"   "all" true)
+-}}
+{{- $aiFeatures := list
+    (dict "num" "1" "key" "codecompanion" "label" "codecompanion" "desc" "CodeCompanion.nvim assistant (needs neovim)" "all" true)
+    (dict "num" "2" "key" "claude_hooks"  "label" "claude_hooks"  "desc" "Claude settings.json notify hooks"           "all" false)
+    (dict "num" "3" "key" "statusline"    "label" "statusline"    "desc" "Claude statusline slot (reserved)"           "all" false)
+-}}
+{{- /* Top-level components. git and ai carry a non-empty `sub` features list plus */ -}}
+{{- /* the submenu's persisted selection key and header; the rest have an empty    */ -}}
+{{- /* `sub` and are emitted as bare booleans under [data.components].             */ -}}
 {{- $components := list
-    (dict "num" "1" "key" "zsh"       "label" "zsh"       "desc" "oh-my-zsh, plugins, custom functions, aliases" "all" true)
-    (dict "num" "2" "key" "tmux"      "label" "tmux"      "desc" "tmux + plugins (tpm, resurrect, sensible, yank)" "all" true)
-    (dict "num" "3" "key" "neovim"    "label" "neovim"    "desc" "neovim, lazy.nvim, language servers, linters"    "all" true)
-    (dict "num" "4" "key" "gitconfig" "label" "gitconfig" "desc" "copy ~/.gitconfig* from repo examples"           "all" false)
-    (dict "num" "5" "key" "ai" "label" "ai" "desc" "AI tools: CodeCompanion.nvim assistant (needs neovim)" "all" false)
+    (dict "num" "1" "key" "zsh"    "label" "zsh"    "desc" "oh-my-zsh, plugins, custom functions, aliases"  "all" true  "sub" (list))
+    (dict "num" "2" "key" "tmux"   "label" "tmux"   "desc" "tmux + plugins (tpm, resurrect, sensible, yank)" "all" true  "sub" (list))
+    (dict "num" "3" "key" "neovim" "label" "neovim" "desc" "neovim, lazy.nvim, language servers, linters"    "all" true  "sub" (list))
+    (dict "num" "4" "key" "git"    "label" "git"    "desc" "git config files (config, personal, ignore_global)" "all" true  "sub" $gitFeatures "selKey" "gitSelection" "header" "git sub-features")
+    (dict "num" "5" "key" "ai"     "label" "ai"     "desc" "AI tools (codecompanion, claude_hooks, statusline)"  "all" false "sub" $aiFeatures  "selKey" "aiSelection"  "header" "AI sub-features")
 -}}
 {{- /* Build the numbered menu text from the list. labels are padded to the    */ -}}
 {{- /* width of the widest label so descriptions line up.                       */ -}}
@@ -84,10 +100,76 @@
 {{- $on := or $allPlus (and $all .all) (contains .num $sel) -}}
 {{- $resolved = set $resolved .key $on -}}
 {{- end -}}
+{{- /* Nested submenus. For each top-level component that is ON and has a `sub`  */ -}}
+{{- /* features list (git, ai), pick its sub-features. Mirrors the top menu: a    */ -}}
+{{- /* gum checkbox TUI when available, else a typed promptStringOnce; no-tty /    */ -}}
+{{- /* DOTFILES_NO_TUI / Enter falls back to the `all`-flagged sub-defaults. gum   */ -}}
+{{- /* uses --label-delimiter=: so options are key:Label and stdout returns the    */ -}}
+{{- /* key, and --selected= pre-checks the current/default keys on re-init. The    */ -}}
+{{- /* resolve accepts either keys (gum) or numbers (typed) via `contains`.        */ -}}
+{{- $subResolved := dict -}}
+{{- $subSelStore := dict -}}
+{{- /* range rebinds `.` to the element, so capture the root data for dig /     */ -}}
+{{- /* promptStringOnce (which must read the persisted [data] selection keys).   */ -}}
+{{- $root := . -}}
+{{- range $c := $components -}}
+{{-   if gt (len $c.sub) 0 -}}
+{{-     $feats := $c.sub -}}
+{{-     $subDefaultKeys := list -}}
+{{-     range $feats }}{{ if .all }}{{ $subDefaultKeys = append $subDefaultKeys .key }}{{ end }}{{ end -}}
+{{-     $subDefault := join " " $subDefaultKeys -}}
+{{-     $r := dict -}}
+{{-     $stored := "" -}}
+{{-     if get $resolved $c.key -}}
+{{-       $subSel := "" -}}
+{{- /* `all` / `all+` take the sub-defaults without prompting (the guard below   */ -}}
+{{- /* defaults an empty $subSel); only an explicit per-number selection prompts. */ -}}
+{{-       if not (or $all $allPlus) -}}
+{{-       if and (lookPath "gum") (not (env "DOTFILES_NO_TUI")) -}}
+{{-         $prevSub := dig $c.selKey "" $root -}}
+{{-         $seedKeys := list -}}
+{{-         if eq $prevSub "" -}}
+{{-           range $feats }}{{ if .all }}{{ $seedKeys = append $seedKeys .key }}{{ end }}{{ end -}}
+{{-         else -}}
+{{-           range $feats }}{{ if or (contains .key $prevSub) (contains .num $prevSub) }}{{ $seedKeys = append $seedKeys .key }}{{ end }}{{ end -}}
+{{-         end -}}
+{{-         $subOpts := list -}}
+{{-         range $feats }}{{ $subOpts = append $subOpts (printf "%s:%s - %s" .key .label .desc | squote) }}{{ end -}}
+{{-         $subHdr := printf "%s  (space toggles, enter confirms, esc cancels):" $c.header -}}
+{{-         $subCmd := printf "test -e /dev/tty && gum choose --no-limit --label-delimiter=: --selected=%s --header %s %s </dev/tty 2>/dev/tty || true" (join "," $seedKeys | squote) ($subHdr | squote) (join " " $subOpts) -}}
+{{-         $picked := list -}}
+{{-         range (splitList "\n" (trim (output "sh" "-c" $subCmd))) }}{{ if . }}{{ $picked = append $picked . }}{{ end }}{{ end -}}
+{{-         $subSel = trim (join " " $picked) -}}
+{{-       end -}}
+{{-       if eq $subSel "" -}}
+{{-         $subLines := list (printf "%s (enter numbers or keys):" $c.header) -}}
+{{-         range $feats }}{{ $subLines = append $subLines (printf "  %s) %s - %s" .num .label .desc) }}{{ end -}}
+{{-         $subPrompt := printf "%s\n\nEnter (e.g. \"1 3\"), or press Enter for default (%s)" (join "\n" $subLines) $subDefault -}}
+{{-         $subSel = trim (promptStringOnce $root $c.selKey $subPrompt) -}}
+{{-       end -}}
+{{-       end -}}
+{{-       if or (eq $subSel "") (hasPrefix $c.header $subSel) }}{{ $subSel = $subDefault }}{{ end -}}
+{{-       range $feats }}{{ $r = set $r .key (or (contains .key $subSel) (contains .num $subSel)) }}{{ end -}}
+{{-       $stored = $subSel -}}
+{{-     else -}}
+{{-       range $feats }}{{ $r = set $r .key false }}{{ end -}}
+{{-     end -}}
+{{-     $subResolved = set $subResolved $c.key $r -}}
+{{-     $subSelStore = set $subSelStore $c.key $stored -}}
+{{-   end -}}
+{{- end -}}
 
 [data]
     componentSelection = {{ $sel | quote }}
+    gitSelection = {{ get $subSelStore "git" | quote }}
+    aiSelection = {{ get $subSelStore "ai" | quote }}
 
 [data.components]
-{{ range $components }}    {{ .key }} = {{ get $resolved .key }}
+{{ range $components }}{{ if eq (len .sub) 0 }}    {{ .key }} = {{ get $resolved .key }}
+{{ end }}{{ end }}
+[data.components.git]
+{{ range $gitFeatures }}    {{ .key }} = {{ get (get $subResolved "git") .key }}
+{{ end }}
+[data.components.ai]
+{{ range $aiFeatures }}    {{ .key }} = {{ get (get $subResolved "ai") .key }}
 {{ end -}}

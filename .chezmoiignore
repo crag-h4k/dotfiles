@@ -26,3 +26,9 @@ scripts
 {{ if not (dig "components" "neovim" true .) -}}
 .config/nvim
 {{ end -}}
+{{ if not (dig "components" "git" "ignore_global" true .) -}}
+.gitignore_global
+{{ end -}}
+{{ if not (dig "components" "ai" "claude_hooks" false .) -}}
+.claude/settings.json
+{{ end -}}

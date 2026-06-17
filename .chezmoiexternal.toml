@@ -61,11 +61,11 @@
     [".tmux/plugins/tmux-cpu".clone]
         args = ["--depth=1"]
 
-[".tmux/plugins/tmux-net-speed"]
+[".tmux/plugins/tmux-network-bandwidth"]
     type = "git-repo"
-    url = "https://github.com/tmux-plugins/tmux-net-speed.git"
+    url = "https://github.com/xamut/tmux-network-bandwidth.git"
     refreshPeriod = "168h"
-    [".tmux/plugins/tmux-net-speed".clone]
+    [".tmux/plugins/tmux-network-bandwidth".clone]
         args = ["--depth=1"]
 
 [".tmux/plugins/tmux-resurrect"]

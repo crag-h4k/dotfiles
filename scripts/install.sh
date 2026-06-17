@@ -20,11 +20,16 @@ source "$SCRIPT_DIR/common.sh"
 INSTALL_ZSH="${INSTALL_ZSH:-true}"
 INSTALL_TMUX="${INSTALL_TMUX:-true}"
 INSTALL_NEOVIM="${INSTALL_NEOVIM:-true}"
-INSTALL_GITCONFIG="${INSTALL_GITCONFIG:-false}"
-# AI tooling, one opt-in flag, off by default. When on with neovim it enables
-# CodeCompanion: install-neovim.sh installs the claude-agent-acp bridge and we
-# provision the runtime sentinel init.lua checks (touch/rm per-host still works).
-INSTALL_AI="${INSTALL_AI:-false}"
+# git sub-features (default off): copy ~/.gitconfig / ~/.gitconfig.personal from
+# the repo examples. ~/.gitignore_global is chezmoi-managed (file-gated in
+# .chezmoiignore), not handled here.
+INSTALL_GIT_CONFIG="${INSTALL_GIT_CONFIG:-false}"
+INSTALL_GIT_PERSONAL="${INSTALL_GIT_PERSONAL:-false}"
+# AI tooling, opt-in and off by default. codecompanion (with neovim) installs the
+# claude-agent-acp bridge and provisions the runtime sentinel init.lua checks
+# (touch/rm per-host still works). The claude_hooks sub-feature is file-gated in
+# .chezmoiignore, not here.
+INSTALL_AI_CODECOMPANION="${INSTALL_AI_CODECOMPANION:-false}"
 
 # Show an existing gitconfig file then prompt to create/replace from repo example.
 _setup_gitconfig_file() {
@@ -48,7 +53,7 @@ main() {
     local os
     os=$(os_detect)
     info "dotfiles installer: platform=$os"
-    info "components: zsh=$INSTALL_ZSH tmux=$INSTALL_TMUX neovim=$INSTALL_NEOVIM gitconfig=$INSTALL_GITCONFIG ai=$INSTALL_AI"
+    info "components: zsh=$INSTALL_ZSH tmux=$INSTALL_TMUX neovim=$INSTALL_NEOVIM git.config=$INSTALL_GIT_CONFIG git.personal=$INSTALL_GIT_PERSONAL ai.codecompanion=$INSTALL_AI_CODECOMPANION"
 
     # Base toolchain - required by all per-app scripts and by ensure_chezmoi.
     # gum is here (not in a component) so the ccomp re-picker always has it.
@@ -84,8 +89,10 @@ main() {
         debian_pkgs+=(zsh gh zoxide gnupg command-not-found fzf)
     }
     [[ "$INSTALL_TMUX" == true ]] && {
-        macos_pkgs+=(tmux reattach-to-user-namespace)
-        debian_pkgs+=(tmux xclip wl-clipboard mpg123)
+        # coreutils/gawk + gawk/net-tools are runtime deps of the
+        # tmux-network-bandwidth status plugin (numfmt; 3-arg match(); netstat).
+        macos_pkgs+=(tmux reattach-to-user-namespace coreutils gawk)
+        debian_pkgs+=(tmux xclip wl-clipboard mpg123 gawk net-tools)
     }
     [[ "$INSTALL_NEOVIM" == true ]] && {
         macos_pkgs+=(cmake go hadolint llvm lua@5.4 luarocks
@@ -118,14 +125,16 @@ main() {
     # Provision the CodeCompanion opt-in sentinel that init.lua checks at startup.
     # Only meaningful with neovim. Done here (not as a chezmoi-managed file) so a
     # later `chezmoi apply` never recreates it after you rm it to disable per-host.
-    if [[ "$INSTALL_NEOVIM" == true && "$INSTALL_AI" == true ]]; then
+    if [[ "$INSTALL_NEOVIM" == true && "$INSTALL_AI_CODECOMPANION" == true ]]; then
         mkdir -p "$HOME/.config/nvim"
         touch "$HOME/.config/nvim/.codecompanion-enabled"
         info "CodeCompanion enabled (sentinel: ~/.config/nvim/.codecompanion-enabled)"
     fi
 
-    if [[ "$INSTALL_GITCONFIG" == true ]]; then
+    if [[ "$INSTALL_GIT_CONFIG" == true ]]; then
         _setup_gitconfig_file "$HOME/.gitconfig"          "$SCRIPT_DIR/../gitconfig.example"          "gitconfig.example"
+    fi
+    if [[ "$INSTALL_GIT_PERSONAL" == true ]]; then
         _setup_gitconfig_file "$HOME/.gitconfig.personal" "$SCRIPT_DIR/../gitconfig.personal.example" "gitconfig.personal.example"
     fi
 
