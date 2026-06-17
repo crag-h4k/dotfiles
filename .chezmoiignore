@@ -6,6 +6,10 @@ LICENSE
 scripts
 *.example
 *.ig
+# Python bytecode (e.g. from validating modify_*.json scripts). A cached
+# modify_*.pyc otherwise looks like a chezmoi modify_ script and gets exec'd.
+**/__pycache__
+**/*.pyc
 # lazy.nvim rewrites lazy-lock.json at runtime (:Lazy sync/update). Let it own
 # the file per-machine instead of fighting chezmoi over it. init.lua reproduces
 # the plugin set on any host; we just don't pin exact commits across machines.
