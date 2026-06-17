@@ -13,6 +13,10 @@ repos:
         # not raw TOML, so it does not parse until chezmoi renders it.
         exclude: ^\.chezmoiexternal\.toml$
       - id: check-json
+        # chezmoi modify_ scripts that target a *.json file are executable
+        # scripts (e.g. dot_claude/modify_settings.json is Python that merges
+        # hooks into ~/.claude/settings.json), not JSON documents.
+        exclude: (^|/)modify_[^/]*\.json$
       - id: check-added-large-files
         args: [--maxkb=1024]
       - id: check-merge-conflict

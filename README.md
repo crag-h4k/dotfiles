@@ -20,6 +20,7 @@ current. No wrapper script and no path juggling.
 - [Changing components later](#changing-components-later)
 - [How it works](#how-it-works)
 - [What lives where](#what-lives-where)
+- [Notifications](#notifications)
 - [Daily operation](#daily-operation)
 - [Supported platforms](#supported-platforms)
 - [Uninstall](#uninstall)
@@ -222,12 +223,13 @@ CodeCompanion sentinel - no full reinstall needed.
 | `dot_zsh/bin/executable_*` | `~/.zsh/bin/*` | exec bit preserved |
 | `dot_zsh/custom/functions/*.zsh` | `~/.zsh/custom/functions/*.zsh` | |
 | `dot_zsh/custom/themes/gud.zsh-theme` | `~/.zsh/custom/themes/gud.zsh-theme` | custom oh-my-zsh theme; `ZSH_THEME="gud"` |
-| `dot_tmux.conf` | `~/.tmux.conf` | real file; `@notify_*` settings at top |
-| `dot_tmux/conf.d/*.conf` | `~/.tmux/conf.d/*.conf` | |
+| `dot_tmux.conf` | `~/.tmux.conf` | real file; sources `notify.conf`; `@notify_volume` knob |
+| `dot_tmux/conf.d/*.conf` | `~/.tmux/conf.d/*.conf` | incl. `notify.conf` (status-bar flag + focus-clear) |
+| `dot_tmux/notify-lib.sh` | `~/.tmux/notify-lib.sh` | shared `notify_fire`/`notify_clear`/sound helpers |
 | `dot_tmux/sounds/*.mp3` | `~/.tmux/sounds/*.mp3` | notification audio files |
-| `dot_claude/hooks/notify-tmux.sh` | `~/.claude/hooks/notify-tmux.sh` | Claude Code `Stop` hook |
-| `dot_claude/hooks/notify-clear.sh` | `~/.claude/hooks/notify-clear.sh` | Claude Code `UserPromptSubmit` hook |
-| `dot_claude/settings.local.json` | `~/.claude/settings.local.json` | wires notify hooks into Claude Code |
+| `dot_claude/hooks/notify-tmux.sh` | `~/.claude/hooks/notify-tmux.sh` | Claude `Stop`+`Notification` hook (flags pane) |
+| `dot_claude/hooks/notify-clear.sh` | `~/.claude/hooks/notify-clear.sh` | Claude `UserPromptSubmit` hook (clears) |
+| `dot_claude/modify_settings.json` | `~/.claude/settings.json` (merge) | chezmoi `modify_` script: injects the notify hooks, preserves your other settings |
 | `dot_config/nvim/init.lua` | `~/.config/nvim/init.lua` | lazy.nvim entrypoint |
 | `dot_config/nvim/lua/statusline.lua` | `~/.config/nvim/lua/statusline.lua` | |
 | **Linter configs (base, each at its own path)** | | |
@@ -244,6 +246,15 @@ CodeCompanion sentinel - no full reinstall needed.
 | `.chezmoi.toml.tmpl` | `~/.config/chezmoi/chezmoi.toml` | prompts for components at init; stores `[data.components]` |
 | `.chezmoiignore` | (templated) | ignores an off component's target paths |
 | `.chezmoiexternal.toml` | (templated externals) | plugins gated by `.components.zsh` / `.components.tmux` |
+
+## Notifications
+
+Terminal-native attention cues when a long process finishes or Claude/Codex needs you. Visual cue always; sound optional per group (empty sound = silent). No notification-center popups.
+
+- **Config + rendering.** `~/.zsh/custom/functions/notify-process.zsh` holds the config as zsh associative arrays (palette, group to bg/accent/sound, binary to group, ignore-list) and publishes each group to `@notify_<group>_*` tmux options on shell init. Edit those arrays, then run `notify-reload`. `~/.tmux/conf.d/notify.conf` renders the status-bar flag and clears it when you return focus to the pane.
+- **Process attention.** zsh `preexec`/`precmd` (same file) flag the pane when a named binary (terraform, brew, ...) finishes, or when any command runs past `NOTIFY_THRESHOLD` seconds.
+- **AI attention.** The Claude Code `Stop` and `Notification` events call `notify-tmux.sh`, registered globally in `~/.claude/settings.json` (the user-scope file Claude Code loads in every directory). Because Claude Code also writes that file (model, effort, plugins), chezmoi manages it with a `modify_` script (`dot_claude/modify_settings.json`) that merges the hooks in on each `chezmoi apply` without clobbering those keys. Two things that do **not** work for global hooks: `~/.claude/settings.local.json` is never loaded, and `.claude` settings do not merge up the directory tree. The corporate-managed file is `~/.claude.json` (a different file), left untouched. A fresh `claude` session picks up the hooks.
+- **Shared logic.** `~/.tmux/notify-lib.sh` (array-free POSIX, sourced by both the zsh notifier and the bash hooks) does the actual recolor and sound. It locates tmux even under a stripped PATH and bypasses the oh-my-zsh tmux wrapper.
 
 ## Daily operation
 

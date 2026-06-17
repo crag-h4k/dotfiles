@@ -1,0 +1,34 @@
+#!/usr/bin/env python3
+# chezmoi modify_ script for ~/.claude/settings.json.
+# Ensures the tmux attention-notification hooks are present WITHOUT clobbering
+# model / effortLevel / enabledPlugins / editorMode or anything else Claude Code
+# writes to this file dynamically. chezmoi passes the current file on stdin; this
+# emits the merged result on stdout. Idempotent (re-adding an existing hook is a
+# no-op), so it is stable across `chezmoi apply` runs.
+import json
+import sys
+
+try:
+    data = json.load(sys.stdin)
+    if not isinstance(data, dict):
+        data = {}
+except Exception:
+    data = {}
+
+hooks = data.setdefault("hooks", {})
+
+
+def ensure(event, command):
+    entries = hooks.setdefault(event, [])
+    for group in entries:
+        for h in group.get("hooks", []):
+            if h.get("command") == command:
+                return
+    entries.append({"hooks": [{"type": "command", "command": command}]})
+
+
+ensure("Stop", "~/.claude/hooks/notify-tmux.sh")
+ensure("Notification", "~/.claude/hooks/notify-tmux.sh")
+ensure("UserPromptSubmit", "~/.claude/hooks/notify-clear.sh")
+
+sys.stdout.write(json.dumps(data, indent=2) + "\n")
