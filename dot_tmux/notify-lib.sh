@@ -26,6 +26,18 @@ _notify_tmux() {
   fi
 }
 
+_notify_color() {
+  # Resolve a palette name (e.g. dark_cyan) to its @palette_<name> hex. Pass an
+  # empty value, a literal #hex, or 'default'/'terminal'/unknown name through
+  # unchanged (so raw colors and tmux color names still work).
+  case "$1" in
+    ''|\#*|default|terminal) printf '%s' "$1"; return ;;
+  esac
+  local hex
+  hex=$(_notify_tmux show-option -gqv "@palette_$1" 2>/dev/null)
+  printf '%s' "${hex:-$1}"
+}
+
 notify_play() {
   # $1 = sound basename in ~/.tmux/sounds (e.g. funk.mp3). Empty/missing = silent.
   [ -n "$1" ] || return 0
@@ -46,9 +58,9 @@ notify_fire() {
   # $1 = pane id, $2 = group name
   local pane="$1" grp="$2" bg accent snd
   [ -n "$pane" ] || return 0
-  bg=$(_notify_tmux show-option -gqv "@notify_${grp}_bg" 2>/dev/null)
+  bg=$(_notify_color "$(_notify_tmux show-option -gqv "@notify_${grp}_bg" 2>/dev/null)")
   [ -n "$bg" ] || bg='#5b1a1a'
-  accent=$(_notify_tmux show-option -gqv "@notify_${grp}_accent" 2>/dev/null)
+  accent=$(_notify_color "$(_notify_tmux show-option -gqv "@notify_${grp}_accent" 2>/dev/null)")
   [ -n "$accent" ] || accent='#ff5555'
   snd=$(_notify_tmux show-option -gqv "@notify_${grp}_sound" 2>/dev/null)
   # @notify drives the status-bar flag (pane + window scope); window-style
