@@ -1,8 +1,9 @@
 # ~/.zsh/custom/functions/notify-process.zsh
 # Process-completion attention notifications, unified with the Claude/Codex
-# hooks via ~/.tmux/notify-lib.sh. This file is the single editable source of
-# truth for the color/sound/group tables; on the first shell in a tmux server it
-# publishes them to @notify_<group>_* tmux options for the (array-free) hooks.
+# hooks via ~/.tmux/notify-lib.sh. Owns only the detection logic: which binaries
+# map to which notification group, and which to ignore. The per-group colors and
+# sounds live in ~/.tmux.conf (@notify_<group>_bg|accent|sound); notify_fire
+# reads them from there.
 
 autoload -Uz add-zsh-hook add-zle-hook-widget
 zmodload zsh/datetime 2>/dev/null
@@ -11,46 +12,6 @@ zmodload zsh/datetime 2>/dev/null
 if ! typeset -f notify_fire >/dev/null 2>&1; then
   [[ -r ~/.tmux/notify-lib.sh ]] && source ~/.tmux/notify-lib.sh
 fi
-
-# --- Palette: name -> hex (Dracula-derived dark backgrounds) ---
-typeset -gA NOTIFY_PALETTE=(
-  dark_red    '#5b1a1a'
-  dark_purple '#3d1a5b'
-  dark_green  '#1a3d1a'
-  dark_orange '#3d2a10'
-  dark_cyan   '#10303d'
-  theme_bg    'default'    # terminal/theme default bg - adapts to any theme
-)
-
-# --- Group -> dark background (pane recolor) ---
-typeset -gA NOTIFY_BG=(
-  claude  $NOTIFY_PALETTE[dark_cyan]
-  codex   $NOTIFY_PALETTE[dark_purple]
-  iac     $NOTIFY_PALETTE[dark_orange]
-  pkg     $NOTIFY_PALETTE[dark_green]
-  error   $NOTIFY_PALETTE[dark_red]
-  default $NOTIFY_PALETTE[dark_red]
-)
-
-# --- Group -> bright accent (border/tab dot) ---
-typeset -gA NOTIFY_ACCENT=(
-  claude  '#8be9fd'
-  codex   '#bd93f9'
-  iac     '#ffb86c'
-  pkg     '#50fa7b'
-  error   '#ff5555'
-  default '#ff5555'
-)
-
-# --- Group -> sound basename in ~/.tmux/sounds ('' = visual only) ---
-typeset -gA NOTIFY_SOUND=(
-  claude  funk.mp3
-  codex   glass.mp3
-  iac     ''
-  pkg     ''
-  error   sosumi.mp3
-  default submarine.mp3
-)
 
 # --- Binary -> group. Named binaries fire on completion regardless of duration.
 #     `sleep` -> default for easy testing (sleep 2 flashes immediately). ---
@@ -69,27 +30,6 @@ typeset -ga NOTIFY_IGNORE=(
 
 # Catch-all: any other command running at least this many seconds fires `default`.
 : ${NOTIFY_THRESHOLD:=30}
-
-# Publish the group table to @notify_<group>_* tmux options (read by the
-# array-free hooks and notify_fire). One-time per server via the @notify_synced
-# sentinel; `notify-reload` forces a re-sync after editing the table above.
-_notify_sync() {
-  [[ -n "$TMUX" ]] || return
-  local g
-  for g in ${(k)NOTIFY_BG}; do
-    _notify_tmux \
-      set-option -g "@notify_${g}_bg"     "${NOTIFY_BG[$g]}" \; \
-      set-option -g "@notify_${g}_accent" "${NOTIFY_ACCENT[$g]}" \; \
-      set-option -g "@notify_${g}_sound"  "${NOTIFY_SOUND[$g]}"
-  done
-  _notify_tmux set-option -g @notify_synced 1
-}
-
-notify-reload() {
-  _notify_tmux set-option -gu @notify_synced 2>/dev/null
-  _notify_sync
-  print -r -- "notify: re-synced group table to tmux options"
-}
 
 # Sets REPLY to the first "significant" word of "$@", skipping VAR=val
 # assignments, command wrappers, and flags. No subshell (returns via REPLY).
@@ -186,7 +126,6 @@ _notify_zle_clear() {
 
 # Only wire up when the shared helpers actually loaded.
 if typeset -f notify_fire >/dev/null 2>&1; then
-  [[ -n "$TMUX" && "$(_notify_tmux show-option -gqv @notify_synced 2>/dev/null)" != 1 ]] && _notify_sync
   add-zsh-hook preexec _notify_preexec
   add-zsh-hook precmd  _notify_precmd
   add-zle-hook-widget line-pre-redraw _notify_zle_clear
