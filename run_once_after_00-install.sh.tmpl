@@ -7,7 +7,10 @@ set -euo pipefail
 export INSTALL_ZSH={{ dig "components" "zsh" true . }}
 export INSTALL_TMUX={{ dig "components" "tmux" true . }}
 export INSTALL_NEOVIM={{ dig "components" "neovim" true . }}
-export INSTALL_GITCONFIG={{ dig "components" "gitconfig" false . }}
-export INSTALL_AI={{ dig "components" "ai" false . }}
+{{/* Nested sub-feature flags (ai/git are tables, not bools). ignore_global */ -}}
+{{- /* and claude_hooks are file-gated in .chezmoiignore, so need no env here. */ -}}
+export INSTALL_AI_CODECOMPANION={{ dig "components" "ai" "codecompanion" false . }}
+export INSTALL_GIT_CONFIG={{ dig "components" "git" "config" false . }}
+export INSTALL_GIT_PERSONAL={{ dig "components" "git" "personal" false . }}
 
 bash "{{ .chezmoi.sourceDir }}/scripts/install.sh"
