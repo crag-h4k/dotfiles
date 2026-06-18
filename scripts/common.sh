@@ -128,6 +128,52 @@ install_neovim_debian() {
     info "neovim ${tag} installed: $(nvim --version 2>/dev/null | head -1)"
 }
 
+# Install mikefarah/yq (the Go build) to ~/.local/bin on Debian. The apt 'yq'
+# package is a different tool (python kislyuk/yq) with incompatible syntax, so we
+# fetch the official binary directly - the same approach as neovim. No-op if a
+# mikefarah yq is already in PATH.
+install_yq_debian() {
+    # The `if`-condition placement is what makes this pipefail-safe: errexit is
+    # suppressed inside an `if`, so `grep -qi` finding no match (or SIGPIPE-ing
+    # the upstream yq) does not abort the script. Keep this in the conditional.
+    if command -v yq >/dev/null 2>&1 && yq --version 2>/dev/null | grep -qi mikefarah; then
+        info "mikefarah yq already present: $(yq --version 2>/dev/null)"
+        return 0
+    fi
+    local arch
+    case "$(uname -m)" in
+        x86_64)        arch="amd64" ;;
+        aarch64|arm64) arch="arm64" ;;
+        *)
+            warn "unsupported arch $(uname -m) for prebuilt yq; install manually"
+            return 1
+            ;;
+    esac
+    require_cmd curl
+    mkdir -p "$HOME/.local/bin"
+    # Download to a temp file and verify it is a working mikefarah binary BEFORE
+    # moving it into place - so a proxy/transient failure (curl -o truncates on
+    # open, even with --fail) or a wrong-arch download never leaves a broken
+    # executable live at ~/.local/bin/yq. Mirrors install_neovim_debian.
+    local tmp
+    tmp=$(mktemp)
+    info "fetching mikefarah yq (${arch})"
+    if ! curl -fsSL --fail -o "$tmp" \
+        "https://github.com/mikefarah/yq/releases/latest/download/yq_linux_${arch}"; then
+        warn "yq download failed; install manually from https://github.com/mikefarah/yq"
+        rm -f "$tmp"
+        return 1
+    fi
+    chmod +x "$tmp"
+    if ! "$tmp" --version 2>/dev/null | grep -qi mikefarah; then
+        warn "downloaded yq is not a working mikefarah binary; leaving existing yq untouched"
+        rm -f "$tmp"
+        return 1
+    fi
+    mv -f "$tmp" "$HOME/.local/bin/yq"
+    info "yq installed: $("$HOME/.local/bin/yq" --version 2>/dev/null)"
+}
+
 # Platform-aware package install wrapper. Runs apt-get update before installing
 # on Debian. For batch installs across multiple components, prefer pkg_install_many.
 # Usage: pkg_install pkg1 pkg2 ...

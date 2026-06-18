@@ -253,7 +253,7 @@ sentinel - no full reinstall needed.
 - **Upstream plugins** are chezmoi externals (`.chezmoiexternal.toml`), fetched
   and refreshed by `chezmoi apply` on a weekly `refreshPeriod`. Only the
   selected components' externals are declared.
-- **System packages** (zsh, neovim, tmux, fzf, gh, zoxide, gum, etc.) are installed
+- **System packages** (zsh, neovim, tmux, fzf, gh, zoxide, gum, yq, etc.) are installed
   by `scripts/install.sh` on first apply. All packages for selected components
   are batched into one `brew install` / `apt-get install -y` call per OS.
   `run_once_after_00-install.sh` drives `install.sh` with the component selection
@@ -274,12 +274,13 @@ sentinel - no full reinstall needed.
 | `dot_zsh/bin/executable_*` | `~/.zsh/bin/*` | exec bit preserved |
 | `dot_zsh/custom/functions/*.zsh` | `~/.zsh/custom/functions/*.zsh` | |
 | `dot_zsh/custom/themes/gud.zsh-theme` | `~/.zsh/custom/themes/gud.zsh-theme` | custom oh-my-zsh theme; `ZSH_THEME="gud"` |
-| `dot_tmux.conf` | `~/.tmux.conf` | real file; sources `notify.conf`; `@notify_volume` knob |
+| `dot_tmux.conf` | `~/.tmux.conf` | real file; sources `notify.conf` (notify config moved to `notify.yaml`) |
 | `dot_tmux/conf.d/*.conf` | `~/.tmux/conf.d/*.conf` | incl. `notify.conf` (status-bar flag + focus-clear) |
-| `dot_tmux/notify-lib.sh` | `~/.tmux/notify-lib.sh` | shared `notify_fire`/`notify_clear`/sound helpers |
 | `dot_tmux/sounds/*.mp3` | `~/.tmux/sounds/*.mp3` | notification audio files |
-| `dot_claude/hooks/notify-tmux.sh` | `~/.claude/hooks/notify-tmux.sh` | Claude `Stop`+`Notification` hook (flags pane) |
-| `dot_claude/hooks/notify-clear.sh` | `~/.claude/hooks/notify-clear.sh` | Claude `UserPromptSubmit` hook (clears) |
+| `dot_config/notify/notify.yaml` | `~/.config/notify/notify.yaml` | single notify config: palette, groups, sounds, volume, thresholds, binary map; gated on `zsh`/`tmux` |
+| `dot_config/notify/lib.sh` | `~/.config/notify/lib.sh` | shared `notify_fire`/`notify_clear`/`notify_play` + yq reader (array-free POSIX) |
+| `dot_claude/hooks/notify-tmux.sh` | `~/.claude/hooks/notify-tmux.sh` | Claude `Stop`/`Notification`/`PreToolUse:AskUserQuestion` hook; gated on `ai > claude_hooks` |
+| `dot_claude/hooks/notify-clear.sh` | `~/.claude/hooks/notify-clear.sh` | Claude `UserPromptSubmit` hook (clears); gated on `ai > claude_hooks` |
 | `dot_claude/modify_settings.json` | `~/.claude/settings.json` (merge) | chezmoi `modify_` script: injects the notify hooks, preserves your other settings; gated on `ai > claude_hooks` |
 | `dot_config/nvim/init.lua` | `~/.config/nvim/init.lua` | lazy.nvim entrypoint |
 | `dot_config/nvim/lua/statusline.lua` | `~/.config/nvim/lua/statusline.lua` | |
@@ -302,11 +303,13 @@ sentinel - no full reinstall needed.
 
 Terminal-native attention cues when a long process finishes or Claude/Codex needs you. Visual cue always; sound optional per group (empty sound = silent). No notification-center popups.
 
-- **Appearance.** A named palette in `~/.tmux.conf` (`@palette_<name>` = hex) is referenced by the per-group `@notify_<group>_bg|accent` (names, not raw hex), alongside `@notify_<group>_sound` and `@notify_volume`. `notify_fire` resolves a name to its `@palette_<name>` hex (passes `default`/raw `#hex` through). Edit there and reload with `tmux source-file ~/.tmux.conf`. `~/.tmux/conf.d/notify.conf` renders the status-bar flag and clears it when you return focus to the pane.
-- **Detection.** `~/.zsh/custom/functions/notify-process.zsh` owns only the binary-to-group mapping and the ignore-list (zsh associative arrays), plus the `preexec`/`precmd` hooks. No colors, no sync step.
-- **Process attention.** zsh `preexec`/`precmd` (same file) flag the pane when a named binary (terraform, brew, ...) finishes, or when any command runs past `NOTIFY_THRESHOLD` seconds.
-- **AI attention.** The Claude Code `Stop` and `Notification` events call `notify-tmux.sh`, registered globally in `~/.claude/settings.json` (the user-scope file Claude Code loads in every directory). Because Claude Code also writes that file (model, effort, plugins), chezmoi manages it with a `modify_` script (`dot_claude/modify_settings.json`) that merges the hooks in on each `chezmoi apply` without clobbering those keys. Two things that do **not** work for global hooks: `~/.claude/settings.local.json` is never loaded, and `.claude` settings do not merge up the directory tree. The corporate-managed file is `~/.claude.json` (a different file), left untouched. A fresh `claude` session picks up the hooks.
-- **Shared logic.** `~/.tmux/notify-lib.sh` (array-free POSIX, sourced by both the zsh notifier and the bash hooks) does the actual recolor and sound. It locates tmux even under a stripped PATH and bypasses the oh-my-zsh tmux wrapper.
+- **Config (one file).** Everything - the color palette, per-group `bg`/`accent`/`sound`, default and per-group `volume`/`threshold`, the binary-to-group map, the ignore-list, and debug logging - lives in `~/.config/notify/notify.yaml`, read via [`yq`](https://github.com/mikefarah/yq) (mikefarah, v4). `groups` are triggered by a finished command's binary; `integrations` (claude/codex) are triggered by an event hook and are auto-added to the ignore-list (so launching the CLI never fires the command path). Palette names resolve to hex; a raw `#hex` or `default` passes through. Edit the YAML (new shells re-read it; `tmux source-file ~/.tmux.conf` reloads the renderer).
+- **Shared logic.** `~/.config/notify/lib.sh` (array-free POSIX, sourced by both the zsh notifier and the bash hooks) reads the config and does the recolor + sound. It resolves a mikefarah `yq` even under a stripped PATH (preferring `~/.local/bin/yq`, ignoring a stray apt/kislyuk `yq`) and locates tmux the same way, bypassing the oh-my-zsh tmux wrapper.
+- **Rendering.** `~/.tmux/conf.d/notify.conf` renders the status-bar flag (per-group accent) and pane tint, and clears them when you return focus to the pane. tmux is the only surface that draws; outside tmux the system is inert by design.
+- **Detection.** `~/.zsh/custom/functions/notify-process.zsh` builds its binary-to-group map, per-group thresholds, and ignore-list once at shell init (a single `yq` call), then `preexec`/`precmd` flag the pane when a named binary (terraform, brew, ...) finishes at/above its group's threshold, or any command runs past the catch-all `default` threshold. A nonzero exit uses the `error` group.
+- **AI attention.** The Claude Code `Stop`, `Notification`, and `PreToolUse:AskUserQuestion` events call `notify-tmux.sh`, registered in `~/.claude/settings.json` via the `modify_` script (`dot_claude/modify_settings.json`) that merges the hooks on each `chezmoi apply` without clobbering model/effort/plugins. Matcher-less `Notification` covers permission prompts and idle; `PreToolUse:AskUserQuestion` covers the question tool (which emits no `Notification` event). `~/.claude/settings.local.json` is never loaded and `.claude` settings do not merge up the directory tree; the corporate-managed `~/.claude.json` is left untouched. A fresh `claude` session picks up the hooks.
+- **Debug.** Off by default. Set `settings.debug: true` (or `export NOTIFY_DEBUG=1`) to trace fires to `settings.log` (default `~/.config/notify/notify.log`); the log self-caps at ~1 MB.
+- **yq dependency.** Installed with the `zsh` or `tmux` component: `brew install yq` on macOS, the mikefarah binary fetched to `~/.local/bin` on Debian. Do **not** `apt install yq` on Debian - that is a different (python/kislyuk) tool with incompatible syntax, which the system detects and ignores.
 
 ## Daily operation
 

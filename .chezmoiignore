@@ -23,6 +23,11 @@ scripts
 .tmux.conf
 .tmux
 {{ end -}}
+{{/* notify subsystem (config + shared lib) is read by both the zsh process
+     notifier and the tmux/Claude hooks; install it when either is selected. */}}
+{{ if and (not (dig "components" "zsh" true .)) (not (dig "components" "tmux" true .)) -}}
+.config/notify
+{{ end -}}
 {{ if not (dig "components" "neovim" true .) -}}
 .config/nvim
 {{ end -}}
@@ -31,4 +36,6 @@ scripts
 {{ end -}}
 {{ if not (dig "components" "ai" "claude_hooks" false .) -}}
 .claude/settings.json
+.claude/hooks/notify-tmux.sh
+.claude/hooks/notify-clear.sh
 {{ end -}}
