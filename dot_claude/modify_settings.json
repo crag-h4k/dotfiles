@@ -18,17 +18,31 @@ except Exception:
 hooks = data.setdefault("hooks", {})
 
 
-def ensure(event, command):
+def ensure(event, command, matcher=None):
+    """Add a command hook under `event`, optionally scoped to `matcher`.
+
+    Idempotent: a no-op if a group already carries this command (for the same
+    matcher, when one is given). A Notification hook with no matcher matches
+    every notification type (permission prompt, idle, MCP elicitation).
+    """
     entries = hooks.setdefault(event, [])
     for group in entries:
+        if matcher is not None and group.get("matcher") != matcher:
+            continue
         for h in group.get("hooks", []):
             if h.get("command") == command:
                 return
-    entries.append({"hooks": [{"type": "command", "command": command}]})
+    group = {"hooks": [{"type": "command", "command": command}]}
+    if matcher is not None:
+        group = {"matcher": matcher,
+                 "hooks": [{"type": "command", "command": command}]}
+    entries.append(group)
 
 
 ensure("Stop", "~/.claude/hooks/notify-tmux.sh")
 ensure("Notification", "~/.claude/hooks/notify-tmux.sh")
+# AskUserQuestion emits no Notification event, so flag it via its tool call.
+ensure("PreToolUse", "~/.claude/hooks/notify-tmux.sh", matcher="AskUserQuestion")
 ensure("UserPromptSubmit", "~/.claude/hooks/notify-clear.sh")
 
 sys.stdout.write(json.dumps(data, indent=2) + "\n")

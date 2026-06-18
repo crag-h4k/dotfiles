@@ -100,6 +100,12 @@ main() {
         debian_pkgs+=(build-essential cmake golang jq luarocks nodejs npm
                       python3 python3-pip python3-venv shellcheck yamllint)
     }
+    # yq powers the attention-notification config (~/.config/notify/notify.yaml),
+    # read by BOTH the zsh process notifier and the tmux/Claude hooks - so it is
+    # required whenever zsh or tmux is selected. On Debian the apt 'yq' is a
+    # different tool (python kislyuk/yq) with incompatible syntax, so macOS uses
+    # brew here and Debian fetches the mikefarah binary below (install_yq_debian).
+    [[ "$INSTALL_ZSH" == true || "$INSTALL_TMUX" == true ]] && macos_pkgs+=(yq)
 
     case "$os" in
         macos)
@@ -115,6 +121,7 @@ main() {
                 pkg_install_many "${debian_pkgs[@]}"
             fi
             [[ "$INSTALL_NEOVIM" == true ]] && install_neovim_debian
+            [[ "$INSTALL_ZSH" == true || "$INSTALL_TMUX" == true ]] && install_yq_debian
             ;;
     esac
 

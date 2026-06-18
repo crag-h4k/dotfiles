@@ -1,0 +1,3 @@
+{{/* Files chezmoi should delete from the target on apply. */}}
+{{/* notify-lib.sh moved to ~/.config/notify/lib.sh (single-config refactor). */}}
+.tmux/notify-lib.sh
