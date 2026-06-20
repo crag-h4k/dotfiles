@@ -85,3 +85,18 @@ repos:
         language: script
         pass_filenames: false
         files: ^(\.chezmoiexternal\.toml|\.chezmoi\.toml\.tmpl|scripts/validate-templates\.sh)$
+
+      - id: pytest-notify
+        name: pytest notify (modify_settings.json)
+        entry: uv run --with pytest pytest tests/test_merge_settings.py -v
+        language: system
+        pass_filenames: false
+        files: ^(dot_claude/modify_settings\.json|tests/test_merge_settings\.py)$
+
+      - id: bats-notify
+        name: bats notify (lib + process)
+        entry: bats
+        args: [tests/test_lib.bats, tests/test_process.bats]
+        language: system
+        pass_filenames: false
+        files: ^(dot_config/notify/lib\.sh|dot_zsh/custom/functions/notify-process\.zsh|tests/test_(lib|process)\.bats|tests/fixtures/)$

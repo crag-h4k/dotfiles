@@ -276,7 +276,7 @@ sentinel - no full reinstall needed.
 | `dot_zsh/custom/themes/gud.zsh-theme` | `~/.zsh/custom/themes/gud.zsh-theme` | custom oh-my-zsh theme; `ZSH_THEME="gud"` |
 | `dot_tmux.conf` | `~/.tmux.conf` | real file; sources `notify.conf` (notify config moved to `notify.yaml`) |
 | `dot_tmux/conf.d/*.conf` | `~/.tmux/conf.d/*.conf` | incl. `notify.conf` (status-bar flag + focus-clear) |
-| `dot_tmux/sounds/*.mp3` | `~/.tmux/sounds/*.mp3` | notification audio files |
+| `dot_config/notify/sounds/*.mp3` | `~/.config/notify/sounds/*.mp3` | notification audio files |
 | `dot_config/notify/notify.yaml` | `~/.config/notify/notify.yaml` | single notify config: palette, groups, sounds, volume, thresholds, binary map; gated on `zsh`/`tmux` |
 | `dot_config/notify/lib.sh` | `~/.config/notify/lib.sh` | shared `notify_fire`/`notify_clear`/`notify_play` + yq reader (array-free POSIX) |
 | `dot_claude/hooks/notify-tmux.sh` | `~/.claude/hooks/notify-tmux.sh` | Claude `Stop`/`Notification`/`PreToolUse:AskUserQuestion` hook; gated on `ai > claude_hooks` |
@@ -310,6 +310,26 @@ Terminal-native attention cues when a long process finishes or Claude/Codex need
 - **AI attention.** The Claude Code `Stop`, `Notification`, and `PreToolUse:AskUserQuestion` events call `notify-tmux.sh`, registered in `~/.claude/settings.json` via the `modify_` script (`dot_claude/modify_settings.json`) that merges the hooks on each `chezmoi apply` without clobbering model/effort/plugins. Matcher-less `Notification` covers permission prompts and idle; `PreToolUse:AskUserQuestion` covers the question tool (which emits no `Notification` event). `~/.claude/settings.local.json` is never loaded and `.claude` settings do not merge up the directory tree; the corporate-managed `~/.claude.json` is left untouched. A fresh `claude` session picks up the hooks.
 - **Debug.** Off by default. Set `settings.debug: true` (or `export NOTIFY_DEBUG=1`) to trace fires to `settings.log` (default `~/.config/notify/notify.log`); the log self-caps at ~1 MB.
 - **yq dependency.** Installed with the `zsh` or `tmux` component: `brew install yq` on macOS, the mikefarah binary fetched to `~/.local/bin` on Debian. Do **not** `apt install yq` on Debian - that is a different (python/kislyuk) tool with incompatible syntax, which the system detects and ignores.
+
+### Standalone install (no chezmoi)
+
+To install only the notify subsystem on a machine that does not use the full chezmoi dotfiles, run the standalone installer from a checkout of this repo:
+
+```sh
+scripts/install-notify.sh          # --force to overwrite an existing notify.yaml
+```
+
+It copies the same files into `~/.config/notify/` (including `sounds/`), `~/.tmux/conf.d/`, and `~/.claude/hooks/`, installs mikefarah `yq` (brew on macOS, binary to `~/.local/bin` on Debian), and wires `~/.zshrc`, `~/.tmux.conf`, and `~/.claude/settings.json`. It is idempotent. If you use `chezmoi apply`, notify is already installed - do **not** also run this (the zsh notifier would load twice); the script refuses unless you pass `--force`. This is the same layout the beholder coworker package installs.
+
+Manual equivalent, if you prefer not to run the script:
+
+1. `mkdir -p ~/.config/notify/sounds ~/.tmux/conf.d ~/.claude/hooks`
+2. Copy `dot_config/notify/notify.yaml`, `dot_config/notify/lib.sh`, and `dot_config/notify/sounds/*.mp3` to `~/.config/notify/` (sounds go in `~/.config/notify/sounds/`); `dot_zsh/custom/functions/notify-process.zsh` to `~/.config/notify/notify-process.zsh`; `dot_tmux/conf.d/notify.conf` to `~/.tmux/conf.d/`; and `dot_claude/hooks/executable_notify-tmux.sh` / `executable_notify-clear.sh` to `~/.claude/hooks/notify-tmux.sh` / `notify-clear.sh` (then `chmod +x` both).
+3. Install mikefarah `yq`: `brew install yq` (macOS) or fetch the `yq_linux_<arch>` binary to `~/.local/bin` (Debian; do **not** `apt install yq` - that is a different tool).
+4. Add to `~/.zshrc`: `[ -f ~/.config/notify/notify-process.zsh ] && source ~/.config/notify/notify-process.zsh`
+5. Add to `~/.tmux.conf`: `source-file ~/.tmux/conf.d/notify.conf` (this overrides `window-status-format` / `pane-border-format` - reconcile with your status bar).
+6. Register the Claude hooks: `python3 dot_claude/modify_settings.json < ~/.claude/settings.json > /tmp/s && mv /tmp/s ~/.claude/settings.json` (the merge preserves your existing settings).
+7. Reload: `tmux source-file ~/.tmux.conf`, open a new shell, restart Claude Code.
 
 ## Daily operation
 

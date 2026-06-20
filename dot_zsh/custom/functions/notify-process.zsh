@@ -52,7 +52,7 @@ _notify_load_config() {
     ( (.settings.threshold // 0) as $d | .groups | to_entries[] | "G " + .key + " " + ((.value.threshold // $d) | tostring) )
   ' $cfg 2>/dev/null)
 }
-_notify_load_config
+[[ -n ${NOTIFY_TEST:-} ]] || _notify_load_config
 
 # Sets REPLY to the first "significant" word of "$@", skipping VAR=val
 # assignments, command wrappers, and flags. No subshell (returns via REPLY).

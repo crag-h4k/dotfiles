@@ -128,19 +128,22 @@ install_neovim_debian() {
     info "neovim ${tag} installed: $(nvim --version 2>/dev/null | head -1)"
 }
 
-# Install mikefarah/yq (the Go build) to ~/.local/bin on Debian. The apt 'yq'
-# package is a different tool (python kislyuk/yq) with incompatible syntax, so we
-# fetch the official binary directly - the same approach as neovim. No-op if a
-# mikefarah yq is already in PATH.
-install_yq_debian() {
-    # The `if`-condition placement is what makes this pipefail-safe: errexit is
-    # suppressed inside an `if`, so `grep -qi` finding no match (or SIGPIPE-ing
-    # the upstream yq) does not abort the script. Keep this in the conditional.
-    if command -v yq >/dev/null 2>&1 && yq --version 2>/dev/null | grep -qi mikefarah; then
-        info "mikefarah yq already present: $(yq --version 2>/dev/null)"
-        return 0
-    fi
-    local arch
+# True if a mikefarah yq is already on PATH. The `if`-condition placement is what
+# keeps callers pipefail-safe: errexit is suppressed inside an `if`, so `grep -qi`
+# finding no match (or SIGPIPE-ing the upstream yq) does not abort. Keep callers
+# using this inside a conditional.
+have_mikefarah_yq() {
+    command -v yq >/dev/null 2>&1 && yq --version 2>/dev/null | grep -qi mikefarah
+}
+
+# Fetch the mikefarah/yq binary for <os> (linux|darwin) into ~/.local/bin. apt's
+# 'yq' is a different tool (python kislyuk/yq) with incompatible syntax, so we
+# fetch the official binary directly - the same approach as neovim. Downloads to
+# a temp file and verifies it is a working mikefarah build BEFORE moving it live,
+# so a proxy/transient failure (curl -o truncates on open, even with --fail) or a
+# wrong-arch download never leaves a broken executable at ~/.local/bin/yq.
+fetch_yq() {
+    local os="$1" arch tmp
     case "$(uname -m)" in
         x86_64)        arch="amd64" ;;
         aarch64|arm64) arch="arm64" ;;
@@ -151,15 +154,10 @@ install_yq_debian() {
     esac
     require_cmd curl
     mkdir -p "$HOME/.local/bin"
-    # Download to a temp file and verify it is a working mikefarah binary BEFORE
-    # moving it into place - so a proxy/transient failure (curl -o truncates on
-    # open, even with --fail) or a wrong-arch download never leaves a broken
-    # executable live at ~/.local/bin/yq. Mirrors install_neovim_debian.
-    local tmp
     tmp=$(mktemp)
-    info "fetching mikefarah yq (${arch})"
+    info "fetching mikefarah yq (${os}/${arch})"
     if ! curl -fsSL --fail -o "$tmp" \
-        "https://github.com/mikefarah/yq/releases/latest/download/yq_linux_${arch}"; then
+        "https://github.com/mikefarah/yq/releases/latest/download/yq_${os}_${arch}"; then
         warn "yq download failed; install manually from https://github.com/mikefarah/yq"
         rm -f "$tmp"
         return 1
@@ -172,6 +170,55 @@ install_yq_debian() {
     fi
     mv -f "$tmp" "$HOME/.local/bin/yq"
     info "yq installed: $("$HOME/.local/bin/yq" --version 2>/dev/null)"
+}
+
+# Debian: ensure mikefarah yq (binary fetch). No-op if already present. Called by
+# install.sh for the tmux/zsh components.
+install_yq_debian() {
+    if have_mikefarah_yq; then
+        info "mikefarah yq already present: $(yq --version 2>/dev/null)"
+        return 0
+    fi
+    fetch_yq linux
+}
+
+# Ensure a mikefarah yq for the current platform: brew on macOS (binary fallback
+# when Homebrew is absent), binary fetch on Debian. No-op if already present.
+# Used by the standalone notify installer (scripts/install-notify.sh).
+ensure_yq() {
+    if have_mikefarah_yq; then
+        info "mikefarah yq already present: $(yq --version 2>/dev/null)"
+        return 0
+    fi
+    case "$(os_detect)" in
+        macos)
+            if command -v brew >/dev/null 2>&1; then
+                info "installing yq via brew"
+                brew install yq
+            else
+                warn "Homebrew not found; fetching the yq binary to ~/.local/bin instead"
+                fetch_yq darwin || warn "no yq: notifications fall back to built-in default colors until yq is installed"
+            fi
+            ;;
+        debian)
+            fetch_yq linux || warn "no yq: notifications fall back to built-in default colors until yq is installed"
+            ;;
+        *)
+            warn "unsupported OS for automatic yq install; install mikefarah yq manually"
+            ;;
+    esac
+}
+
+# Append a line to a file once (idempotent; creates the file if missing).
+ensure_line() {
+    local line="$1" file="$2"
+    [ -f "$file" ] || touch "$file"
+    if grep -qF -- "$line" "$file"; then
+        info "already present in $file"
+    else
+        printf '%s\n' "$line" >> "$file"
+        info "added to $file"
+    fi
 }
 
 # Platform-aware package install wrapper. Runs apt-get update before installing
