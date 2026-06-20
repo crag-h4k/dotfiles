@@ -131,7 +131,7 @@ _notify_fire_attrs() (
 # notify_play <sound-basename> <volume 0-100>. Empty/missing sound = silent.
 notify_play() {
   [ -n "$1" ] || return 0
-  local f="$HOME/.tmux/sounds/$1" vol="$2"
+  local f="$HOME/.config/notify/sounds/$1" vol="$2"
   [ -f "$f" ] || return 0
   # Sanitize volume to an integer 0-100. It is a config value that flows into an
   # awk program / player args, so reject anything non-numeric (fall back to 75)

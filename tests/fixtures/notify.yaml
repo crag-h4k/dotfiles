@@ -1,0 +1,34 @@
+---
+settings:
+  volume: 75
+  threshold: 0
+  debug: false
+  log: /tmp/notify-test.log
+
+palette:
+  dark_red: "#5b1a1a"
+  bright_red: "#ff5555"
+  dark_pink: "#4d1a38"
+  bright_pink: "#ff79c6"
+
+groups:
+  iac:
+    bg: dark_red
+    accent: bright_red
+    sound: ""
+    binaries: [terraform]
+  default:
+    bg: dark_red
+    accent: bright_red
+    sound: ""
+    threshold: 30
+  error:
+    bg: dark_red
+    accent: bright_red
+    sound: ""
+
+integrations:
+  claude:
+    bg: dark_pink
+    accent: bright_pink
+    sound: ""

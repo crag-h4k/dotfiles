@@ -40,7 +40,7 @@ palette:
 
 # Command-completion groups: a finished command whose binary is listed fires this
 # group if it ran >= its threshold. bg tints the pane, accent is the status-bar
-# dot, sound is a file in ~/.tmux/sounds ('' = silent).
+# dot, sound is a file in ~/.config/notify/sounds ('' = silent).
 groups:
   iac:
     bg: dark_orange
@@ -81,8 +81,17 @@ integrations:
   claude:             # Claude Code Stop / Notification / AskUserQuestion (PreToolUse) hooks
     bg: dark_pink
     accent: bright_pink
-    sound: funk.mp3
+    sound: whip.mp3
   codex:              # reserved - wire a hook to fire this
     bg: dark_purple
     accent: bright_purple
     sound: glass.mp3
+# funk.mp3
+# glass.mp3
+# smoke-detector-chirp.mp3
+# sosumi.mp3
+# submarine.mp3
+# swoosh.mp3
+# sword.mp3
+# toot.mp3
+# whip.mp3
