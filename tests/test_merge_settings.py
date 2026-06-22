@@ -1,4 +1,3 @@
-#!/usr/bin/env python3
 # tests/test_merge_settings.py
 """Tests for dot_claude/modify_settings.json (chezmoi modify_ script).
 
