@@ -81,7 +81,7 @@ integrations:
   claude:             # Claude Code Stop / Notification / AskUserQuestion (PreToolUse) hooks
     bg: dark_pink
     accent: bright_pink
-    sound: chirp.mp3
+    sound: funk.mp3
   codex:              # reserved - wire a hook to fire this
     bg: dark_purple
     accent: bright_purple
