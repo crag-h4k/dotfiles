@@ -15,11 +15,13 @@ jobs:
   pre-commit:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7
 
-      - uses: actions/setup-python@v5
+      - uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065 # v5
         with:
           python-version: "3.12"
+
+      - uses: astral-sh/setup-uv@d0cc045d04ccac9d8b7881df0226f9e82c39688e # v6
 
       # validate-templates.sh needs chezmoi to render the templates.
       - name: Install chezmoi
@@ -28,13 +30,13 @@ jobs:
       - name: Add chezmoi to PATH
         run: echo "$HOME/.local/bin" >> "$GITHUB_PATH"
 
-      # luacheck runs as a language:system pre-commit hook, so it must be on
-      # PATH. Ubuntu's luarocks pairs with a Lua that luacheck supports.
-      - name: Install luacheck
+      # luacheck runs as a language:system pre-commit hook, so it must be on PATH.
+      # bats-core runs the notify shell-function tests.
+      - name: Install luacheck and bats-core
         run: |
           sudo apt-get update
-          sudo apt-get install -y luarocks
+          sudo apt-get install -y luarocks bats
           sudo luarocks install luacheck
 
       - name: Run pre-commit
-        uses: pre-commit/action@v3.0.1
+        uses: pre-commit/action@2c7b3805fd2a0fd8c1884dcaebf91fc102a13ecd # v3.0.1
