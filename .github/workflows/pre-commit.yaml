@@ -30,12 +30,13 @@ jobs:
       - name: Add chezmoi to PATH
         run: echo "$HOME/.local/bin" >> "$GITHUB_PATH"
 
-      # luacheck runs as a language:system pre-commit hook, so it must be on PATH.
-      # bats-core runs the notify shell-function tests.
-      - name: Install luacheck and bats-core
+      # luacheck and bats run as language:system pre-commit hooks, so they must
+      # be on PATH. zsh is required by test_process.bats (_notify_resolve_bin
+      # uses zsh-specific syntax and is tested via `zsh -c`).
+      - name: Install luacheck, bats-core, and zsh
         run: |
           sudo apt-get update
-          sudo apt-get install -y luarocks bats
+          sudo apt-get install -y luarocks bats zsh
           sudo luarocks install luacheck
 
       - name: Run pre-commit
