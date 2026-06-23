@@ -9,9 +9,17 @@ repos:
       - id: end-of-file-fixer
       - id: check-yaml
       - id: check-toml
-        # .chezmoiexternal.toml is a chezmoi Go template (gated by component),
-        # not raw TOML, so it does not parse until chezmoi renders it.
-        exclude: ^\.chezmoiexternal\.toml$
+        # Skip files that are not raw TOML documents:
+        #   .chezmoiexternal.toml - a chezmoi Go template (gated by component),
+        #     so it does not parse until chezmoi renders it.
+        #   modify_*.toml - chezmoi modify_ scripts (e.g.
+        #     dot_codex/modify_private_config.toml is Python that merges `notify`
+        #     into ~/.codex/config.toml), not TOML documents.
+        exclude: |
+          (?x)(
+            ^\.chezmoiexternal\.toml$|
+            (^|/)modify_[^/]*\.toml$
+          )
       - id: check-json
         # chezmoi modify_ scripts that target a *.json file are executable
         # scripts (e.g. dot_claude/modify_settings.json is Python that merges
@@ -92,6 +100,13 @@ repos:
         language: system
         pass_filenames: false
         files: ^(dot_claude/modify_settings\.json|tests/test_merge_settings\.py)$
+
+      - id: pytest-notify-codex
+        name: pytest notify (modify_private_config.toml)
+        entry: uv run --with pytest pytest tests/test_merge_codex_config.py -v
+        language: system
+        pass_filenames: false
+        files: ^(dot_codex/modify_private_config\.toml|tests/test_merge_codex_config\.py)$
 
       - id: bats-notify
         name: bats notify (lib + process)

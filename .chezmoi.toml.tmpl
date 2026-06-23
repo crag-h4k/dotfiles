@@ -25,7 +25,8 @@
 {{- $aiFeatures := list
     (dict "num" "1" "key" "codecompanion" "label" "codecompanion" "desc" "CodeCompanion.nvim assistant (needs neovim)" "all" true)
     (dict "num" "2" "key" "claude_hooks"  "label" "claude_hooks"  "desc" "Claude settings.json notify hooks"           "all" false)
-    (dict "num" "3" "key" "statusline"    "label" "statusline"    "desc" "Claude statusline slot (reserved)"           "all" false)
+    (dict "num" "3" "key" "codex_hooks"   "label" "codex_hooks"   "desc" "Codex config.toml notify hook"               "all" false)
+    (dict "num" "4" "key" "statusline"    "label" "statusline"    "desc" "Claude statusline slot (reserved)"           "all" false)
 -}}
 {{- /* Top-level components. git and ai carry a non-empty `sub` features list plus */ -}}
 {{- /* the submenu's persisted selection key and header; the rest have an empty    */ -}}
