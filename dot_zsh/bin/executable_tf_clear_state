@@ -1,19 +1,24 @@
 #!/usr/bin/env zsh
+# Remove every resource from the current terraform state, with confirmation.
 tf_resources=($(terraform state list))
-echo "Will removing the following resources from terraform state"
+if (( ${#tf_resources[@]} == 0 )); then
+    echo "No resources in terraform state (or not a terraform directory)."
+    exit 0
+fi
+echo "Will remove the following resources from terraform state:"
 for resource in "${tf_resources[@]}"; do
     echo "\033[94m${resource}\033[0m"
 done
 echo "Continue? (y/n)"
 read -k 1
 if [[ $REPLY != "y" ]]; then
-        echo "Exiting..."
-        exit 1
+    echo "\nExiting..."
+    exit 1
 fi
 
 echo "\nRemoving..."
 
-for resource in "$tf_resources[@]"; do
+for resource in "${tf_resources[@]}"; do
     terraform state rm "$resource"
     sleep 1
 done
