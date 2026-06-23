@@ -31,7 +31,7 @@ setopt HIST_ALLOW_CLOBBER          # Add ‘|’ to output redirections in the h
 setopt HIST_NO_STORE               # Don't store history commands
 # setopt HIST_EXPIRE_DUPS_FIRST    # Expire duplicate entries first when trimming history.
 # setopt HIST_FIND_NO_DUPS         # Do not display a line previously found.
-logcheck=10                        # every 15 seconds
+LOGCHECK=10                        # poll for login/logout every 10s (watch=all, below)
 watch=all                          # watch all logins
 # vim keybindings
 # bindkey -v

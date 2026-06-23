@@ -38,7 +38,8 @@ main() {
     # On Debian: markdownlint-cli2 is not in apt; install via npm.
     if [[ "$os" == "debian" ]]; then
         warn "tflint and hadolint not installed on Debian by this script; install separately if needed"
-        npm install -g --prefix "$HOME/.local" markdownlint-cli2
+        npm install -g --prefix "$HOME/.local" markdownlint-cli2 \
+            || warn "markdownlint-cli2 npm install failed; continuing"
     fi
 
     # Python venv used as the py3 provider. Kept OUTSIDE the chezmoi-managed
@@ -49,8 +50,9 @@ main() {
     if [[ ! -d "$nvim_venv" ]]; then
         info "creating $nvim_venv and installing pynvim"
         python3 -m venv "$nvim_venv"
-        "$nvim_venv/bin/pip" install --quiet --upgrade pip
-        "$nvim_venv/bin/pip" install --quiet pynvim neovim
+        "$nvim_venv/bin/pip" install --quiet --upgrade pip || warn "pip self-upgrade failed; continuing"
+        "$nvim_venv/bin/pip" install --quiet pynvim neovim \
+            || warn "pynvim install failed; :checkhealth will flag the missing py3 provider"
     else
         info "$nvim_venv already exists"
     fi
@@ -64,14 +66,17 @@ main() {
         mkdir -p "$HOME/.local/bin"
         case "$os" in
             macos)
-                luarocks --lua-version=5.4 --lua-dir "$(brew --prefix lua@5.4)" install --local luacheck
+                luarocks --lua-version=5.4 --lua-dir "$(brew --prefix lua@5.4)" install --local luacheck \
+                    || warn "luacheck install failed; the lua pre-commit hook will not run until it is on PATH"
                 ;;
             debian)
                 # apt luarocks pairs with a Lua that luacheck supports (<= 5.4).
-                luarocks install luacheck
+                luarocks install luacheck \
+                    || warn "luacheck install failed; the lua pre-commit hook will not run until it is on PATH"
                 ;;
         esac
-        ln -sf "$HOME/.luarocks/bin/luacheck" "$HOME/.local/bin/luacheck"
+        # Only symlink if the rock actually installed (guards against a dangling link).
+        [[ -e "$HOME/.luarocks/bin/luacheck" ]] && ln -sf "$HOME/.luarocks/bin/luacheck" "$HOME/.local/bin/luacheck"
     else
         info "luacheck already on PATH: $(command -v luacheck)"
     fi
@@ -81,7 +86,8 @@ main() {
     # needed and it lands on PATH. Gated on the ai > codecompanion sub-feature.
     if [[ "$INSTALL_AI_CODECOMPANION" == true ]] && ! command -v claude-agent-acp >/dev/null 2>&1; then
         info "installing claude-agent-acp (CodeCompanion ACP bridge)"
-        npm install -g --prefix "$HOME/.local" @agentclientprotocol/claude-agent-acp
+        npm install -g --prefix "$HOME/.local" @agentclientprotocol/claude-agent-acp \
+            || warn "claude-agent-acp install failed; CodeCompanion chat will not start until it is on PATH"
     fi
 
     # Pre-warm lazy.nvim plugins (non-fatal if it fails, e.g. no network).

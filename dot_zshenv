@@ -31,18 +31,8 @@ case "$OSTYPE" in
         export OLLAMA_ORIGINS="app://obsidian.md*"
         # export PATH=/opt/homebrew/opt/openjdk/bin:$PATH
         # export CPPFLAGS="-I/opt/homebrew/opt/openjdk/include"
-        case "$ARCH" in
-            arm64*)
-                alias "act"="act --container-architecture linux/amd64"
-                ;;
-            86*)
-                export PATH=/usr/local/sbin:$PATH
-                export PATH=/usr/local/opt:$PATH
-                export PATH=/usr/local/opt/gettext/bin:$PATH
-                export PATH=/usr/local/opt/bison/bin:$PATH
-                export PATH=/usr/local/opt/llvm/bin:$PATH
-                ;;
-        esac
+        # macOS is arm64-only here (no Intel Macs in use); run act with amd64 images.
+        alias "act"="act --container-architecture linux/amd64"
         ;;
     linux*)
         # CONDA_PATH is consumed by the conda init block in

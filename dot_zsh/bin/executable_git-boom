@@ -1,3 +1,5 @@
 #!/usr/bin/env bash
 # Fuzzy-select branches in an fzf multi-select and delete them locally.
-git branch --no-color | fzf -m | xargs -I {} git branch -D '{}'
+# --format gives clean short names (no `* ` current-branch marker / leading
+# spaces), so the piped names delete cleanly.
+git branch --no-color --format='%(refname:short)' | fzf -m | xargs -I {} git branch -D {}

@@ -78,3 +78,31 @@ def test_replaces_stale_keys_without_duplicating():
     # Unrelated top-level keys and tables are preserved.
     assert data["other"] == 1
     assert data["projects"]["/p"]["x"] is True
+
+
+def test_bare_tui_table_stays_valid_toml():
+    # A bare [tui] header must not collide with a top-level `tui.notifications`
+    # dotted key (that would define table `tui` twice and make the file
+    # unparseable). notifications must be folded INTO the [tui] table instead.
+    existing = "[tui]\n" 'theme = "dark"\n'
+    result = run_script(existing)
+    assert result.returncode == 0
+    data = tomllib.loads(result.stdout)  # must round-trip
+    assert data["notify"] == [HOOK]
+    assert data["tui"]["notifications"] == NOTIFS
+    assert data["tui"]["theme"] == "dark"
+    # Folded in, not emitted as a top-level dotted key.
+    assert "tui.notifications" not in result.stdout
+
+
+def test_bare_tui_idempotent_and_replaces_stale_notifications():
+    existing = "[tui]\n" 'notifications = ["agent-turn-complete"]\n' 'theme = "dark"\n'
+    first = run_script(existing).stdout
+    data = tomllib.loads(first)
+    assert data["tui"]["notifications"] == NOTIFS
+    assert data["tui"]["theme"] == "dark"
+    # Stale value replaced, not duplicated.
+    assert first.count("notifications =") == 1
+    # Re-running is a no-op.
+    second = run_script(first).stdout
+    assert first == second

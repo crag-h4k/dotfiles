@@ -36,7 +36,7 @@
     (dict "num" "2" "key" "tmux"   "label" "tmux"   "desc" "tmux + plugins (tpm, resurrect, sensible, yank)" "all" true  "sub" (list))
     (dict "num" "3" "key" "neovim" "label" "neovim" "desc" "neovim, lazy.nvim, language servers, linters"    "all" true  "sub" (list))
     (dict "num" "4" "key" "git"    "label" "git"    "desc" "git config files (config, personal, ignore_global)" "all" true  "sub" $gitFeatures "selKey" "gitSelection" "header" "git sub-features")
-    (dict "num" "5" "key" "ai"     "label" "ai"     "desc" "AI tools (codecompanion, claude_hooks, statusline)"  "all" false "sub" $aiFeatures  "selKey" "aiSelection"  "header" "AI sub-features")
+    (dict "num" "5" "key" "ai"     "label" "ai"     "desc" "AI tools (codecompanion, claude_hooks, codex_hooks, statusline)"  "all" false "sub" $aiFeatures  "selKey" "aiSelection"  "header" "AI sub-features")
 -}}
 {{- /* Build the numbered menu text from the list. labels are padded to the    */ -}}
 {{- /* width of the widest label so descriptions line up.                       */ -}}
@@ -92,13 +92,30 @@
 {{- /* Keyword flags. `all+` implies everything; `all` implies the all-set.    */ -}}
 {{- $allPlus := contains "all+" $sel -}}
 {{- $all := contains "all" $sel -}}
-{{- /* Resolve each component to a boolean by the same rule the old hardcoded  */ -}}
-{{- /* parser used: selected if all+, or (all and in-all-set), or its number   */ -}}
-{{- /* appears anywhere in the string. `contains` keeps spacing/order/commas   */ -}}
-{{- /* irrelevant: "1 3", "13", "3 1", "1,3" are all equivalent.               */ -}}
+{{- /* Build the SET of selected component numbers from $sel. Split on          */ -}}
+{{- /* whitespace and commas into tokens; a token that exactly matches a         */ -}}
+{{- /* component number selects that component. A pure-digit token that is NOT   */ -}}
+{{- /* itself a component number expands into its individual digits, so the      */ -}}
+{{- /* no-space shorthand "13" still means 1 and 3 - while a real two-digit      */ -}}
+{{- /* number ("10", once a 10th component exists) matches component 10 instead  */ -}}
+{{- /* of substring-matching component 1. Spacing/order/commas stay irrelevant:  */ -}}
+{{- /* "1 3", "13", "3 1", "1,3" are equivalent.                                 */ -}}
+{{- $compNums := list -}}
+{{- range $components }}{{- $compNums = append $compNums .num -}}{{- end -}}
+{{- $selSet := dict -}}
+{{- range (splitList " " (trim (replace "," " " $sel))) -}}
+{{-   if ne . "" -}}
+{{-     if has . $compNums -}}
+{{-       $selSet = set $selSet . true -}}
+{{-     else if regexMatch "^[0-9]+$" . -}}
+{{-       range (splitList "" .) }}{{- $selSet = set $selSet . true -}}{{- end -}}
+{{-     end -}}
+{{-   end -}}
+{{- end -}}
+{{- /* Resolve each component: on if all+, or (all and in-all-set), or selected. */ -}}
 {{- $resolved := dict -}}
 {{- range $components -}}
-{{- $on := or $allPlus (and $all .all) (contains .num $sel) -}}
+{{- $on := or $allPlus (and $all .all) (hasKey $selSet .num) -}}
 {{- $resolved = set $resolved .key $on -}}
 {{- end -}}
 {{- /* Nested submenus. For each top-level component that is ON and has a `sub`  */ -}}

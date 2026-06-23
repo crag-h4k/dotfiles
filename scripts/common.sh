@@ -101,7 +101,13 @@ install_neovim_debian() {
     local tag
     local tmp_json
     tmp_json=$(mktemp)
-    curl -fsSL -o "$tmp_json" "https://api.github.com/repos/neovim/neovim/releases/latest"
+    # Guarded (not bare) so a 403/offline does not trip set -e before the
+    # graceful return below; the unauthenticated GitHub API is 60 req/hr/IP.
+    if ! curl -fsSL -o "$tmp_json" "https://api.github.com/repos/neovim/neovim/releases/latest"; then
+        warn "could not reach the GitHub API for the latest neovim release"
+        rm -f "$tmp_json"
+        return 1
+    fi
     tag=$(awk -F'"' '/tag_name/{print $4; exit}' "$tmp_json")
     rm -f "$tmp_json"
     [[ -n "$tag" ]] || { warn "could not determine latest neovim release tag"; return 1; }
@@ -109,8 +115,12 @@ install_neovim_debian() {
 
     local tmp_dir
     tmp_dir=$(mktemp -d)
-    curl -L --fail -o "$tmp_dir/nvim.tar.gz" \
-        "https://github.com/neovim/neovim/releases/download/${tag}/nvim-linux-${arch}.tar.gz"
+    if ! curl -fSL -o "$tmp_dir/nvim.tar.gz" \
+        "https://github.com/neovim/neovim/releases/download/${tag}/nvim-linux-${arch}.tar.gz"; then
+        warn "neovim ${tag} download failed; leaving the existing neovim in place"
+        rm -rf "$tmp_dir"
+        return 1
+    fi
 
     # Extract directly into /usr/local (strip the top-level nvim-linux-<arch>/ prefix).
     # This puts the binary at /usr/local/bin/nvim and the runtime at
