@@ -8,7 +8,7 @@
 settings:
   # Defaults for every group; any group may override them.
   volume: 75          # sound playback 0-100
-  threshold: 0        # min seconds a matched command must run before it fires.
+  threshold: 0        # minimum seconds a matched command must run before it fires.
                       # 0 = fire as soon as it finishes. The catch-all 'default'
                       # group raises its own so random short commands stay quiet.
   debug: false        # append a timestamped trace to the log below (self-caps
@@ -18,8 +18,27 @@ settings:
   # Interactive / long-lived programs: never fire the command-completion path
   # when these exit. Integration names (below) are added automatically, so you
   # do NOT list claude/codex here.
-  ignore: [vim, nvim, vi, nano, emacs, less, more, man, ssh, htop, top, btop,
-           watch, tmux, fzf, tail, bat, w3m, lynx]
+  ignore: [
+    bat,
+    btop,
+    emacs,
+    fzf,
+    htop,
+    less,
+    lynx,
+    man,
+    more,
+    nano,
+    nvim,
+    ssh,
+    tail,
+    tmux,
+    top,
+    vi,
+    vim,
+    w3m,
+    watch
+  ]
 
 # Color names -> hex. Groups reference names (bg: dark_pink), not raw hex. A
 # value that is not a palette name (a raw #hex, or 'default'/'terminal') passes
@@ -70,8 +89,8 @@ groups:
   error:              # any tracked/long command that exited nonzero
     bg: dark_red
     accent: bright_red
-    sound: sosumi.mp3
-    volume: 90        # louder than the default
+    sound: alert.mp3
+    volume: 30        # louder than the default
 
 # Integration groups: fired by an event hook, NOT by running a command. Names
 # here are auto-added to ignore, so launching the CLI never fires the
@@ -82,13 +101,16 @@ integrations:
     bg: dark_pink
     accent: bright_pink
     sound: funk.mp3
-  codex:              # reserved - wire a hook to fire this
+  codex:              # Codex CLI agent-turn-complete hook (config.toml notify)
     bg: dark_purple
     accent: bright_purple
     sound: glass.mp3
+# alert.mp3
+# boom.mp3
+# chirp.mp3
 # funk.mp3
 # glass.mp3
-# chirp.mp3
+# return-by-death.mp3
 # sosumi.mp3
 # submarine.mp3
 # swoosh.mp3

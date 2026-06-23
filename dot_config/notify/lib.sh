@@ -128,22 +128,44 @@ _notify_fire_attrs() (
   '
 )
 
+# _notify_find <name> <abs fallback...> -> first runnable path, or empty. Mirrors
+# _notify_tmux: an event hook (e.g. Codex's notify program) runs with a stripped
+# PATH, so `command -v afplay` alone misses /usr/bin/afplay even though tmux still
+# resolves via its own fallback - which is why the pane recolors but stays silent.
+_notify_find() {
+  local name="$1" p
+  shift
+  p=$(command -v "$name" 2>/dev/null)
+  if [ -n "$p" ]; then printf '%s' "$p"; return 0; fi
+  for p in "$@"; do
+    if [ -x "$p" ]; then printf '%s' "$p"; return 0; fi
+  done
+}
+
 # notify_play <sound-basename> <volume 0-100>. Empty/missing sound = silent.
 notify_play() {
   [ -n "$1" ] || return 0
-  local f="$HOME/.config/notify/sounds/$1" vol="$2"
+  local f="$HOME/.config/notify/sounds/$1" vol="$2" afplay_bin mpg123_bin ffplay_bin
   [ -f "$f" ] || return 0
   # Sanitize volume to an integer 0-100. It is a config value that flows into an
   # awk program / player args, so reject anything non-numeric (fall back to 75)
   # and clamp the range. Pass it to awk as DATA (-v), never as program text.
   case "$vol" in ''|*[!0-9]*) vol=75 ;; esac
   [ "$vol" -gt 100 ] 2>/dev/null && vol=100
-  if command -v afplay >/dev/null 2>&1; then
-    ( afplay -v "$(awk -v v="$vol" 'BEGIN { printf "%.2f", v/100 }')" "$f" & ) >/dev/null 2>&1
-  elif command -v mpg123 >/dev/null 2>&1; then
-    ( mpg123 -q --volume "$vol" "$f" & ) >/dev/null 2>&1
-  elif command -v ffplay >/dev/null 2>&1; then
-    ( ffplay -nodisp -autoexit -loglevel quiet -volume "$vol" "$f" & ) >/dev/null 2>&1
+  afplay_bin=$(_notify_find afplay /usr/bin/afplay)
+  mpg123_bin=$(_notify_find mpg123 /opt/homebrew/bin/mpg123 /usr/local/bin/mpg123 /usr/bin/mpg123)
+  ffplay_bin=$(_notify_find ffplay /opt/homebrew/bin/ffplay /usr/local/bin/ffplay /usr/bin/ffplay)
+  if [ -n "$afplay_bin" ]; then
+    ( "$afplay_bin" -v "$(awk -v v="$vol" 'BEGIN { printf "%.2f", v/100 }')" "$f" & ) >/dev/null 2>&1
+    notify_log "play via $afplay_bin vol=$vol sound=$1"
+  elif [ -n "$mpg123_bin" ]; then
+    ( "$mpg123_bin" -q --volume "$vol" "$f" & ) >/dev/null 2>&1
+    notify_log "play via $mpg123_bin vol=$vol sound=$1"
+  elif [ -n "$ffplay_bin" ]; then
+    ( "$ffplay_bin" -nodisp -autoexit -loglevel quiet -volume "$vol" "$f" & ) >/dev/null 2>&1
+    notify_log "play via $ffplay_bin vol=$vol sound=$1"
+  else
+    notify_log "play NO-PLAYER-FOUND sound=$1 PATH=$PATH"
   fi
 }
 

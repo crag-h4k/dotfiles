@@ -40,7 +40,7 @@ parse_toml() {
 # Render .chezmoi.toml.tmpl with componentSelection (and optionally gitSelection
 # / aiSelection) pre-seeded, then echo the nine component booleans in the fixed
 # column order:
-#   zsh tmux neovim  git.config git.personal git.ignore_global  ai.codecompanion ai.claude_hooks ai.statusline
+#   zsh tmux neovim  git.config git.personal git.ignore_global  ai.codecompanion ai.claude_hooks ai.codex_hooks ai.statusline
 # zsh/tmux/neovim are bare [data.components] bools; the rest live in the nested
 # [data.components.git] / [data.components.ai] tables. Pre-seeding makes
 # promptStringOnce return the value instead of prompting, so the parser is
@@ -67,7 +67,7 @@ render_components() {
     fi
     # Pull the booleans out by key name (each is unique across the rendered
     # config), so reordering the lists later does not silently break assertions.
-    local zsh tmux neovim gconfig gpersonal gignore aicc aihooks aistatus
+    local zsh tmux neovim gconfig gpersonal gignore aicc aihooks aicodex aistatus
     zsh=$(printf '%s\n' "$out" | sed -n 's/^[[:space:]]*zsh = \(.*\)$/\1/p')
     tmux=$(printf '%s\n' "$out" | sed -n 's/^[[:space:]]*tmux = \(.*\)$/\1/p')
     neovim=$(printf '%s\n' "$out" | sed -n 's/^[[:space:]]*neovim = \(.*\)$/\1/p')
@@ -76,9 +76,10 @@ render_components() {
     gignore=$(printf '%s\n' "$out" | sed -n 's/^[[:space:]]*ignore_global = \(.*\)$/\1/p')
     aicc=$(printf '%s\n' "$out" | sed -n 's/^[[:space:]]*codecompanion = \(.*\)$/\1/p')
     aihooks=$(printf '%s\n' "$out" | sed -n 's/^[[:space:]]*claude_hooks = \(.*\)$/\1/p')
+    aicodex=$(printf '%s\n' "$out" | sed -n 's/^[[:space:]]*codex_hooks = \(.*\)$/\1/p')
     aistatus=$(printf '%s\n' "$out" | sed -n 's/^[[:space:]]*statusline = \(.*\)$/\1/p')
-    printf '%s %s %s %s %s %s %s %s %s' \
-        "$zsh" "$tmux" "$neovim" "$gconfig" "$gpersonal" "$gignore" "$aicc" "$aihooks" "$aistatus"
+    printf '%s %s %s %s %s %s %s %s %s %s' \
+        "$zsh" "$tmux" "$neovim" "$gconfig" "$gpersonal" "$gignore" "$aicc" "$aihooks" "$aicodex" "$aistatus"
 }
 
 # bool "true" if digit d (1..5) is present in the numeric string, else "false".
@@ -89,15 +90,15 @@ has_digit() {
     esac
 }
 
-COLS="zsh tmux neovim git.config git.personal git.ignore_global ai.codecompanion ai.claude_hooks ai.statusline"
+COLS="zsh tmux neovim git.config git.personal git.ignore_global ai.codecompanion ai.claude_hooks ai.codex_hooks ai.statusline"
 
 # Assert a selection WITHOUT a sub-seed renders the expected top-level state.
 # The git/ai PARENTS map to their default sub-feature (git.ignore_global /
 # ai.codecompanion); the opt-in sub-features (config, personal, claude_hooks,
-# statusline) stay off unless explicitly selected.
+# codex_hooks, statusline) stay off unless explicitly selected.
 # Args: selection ezsh etmux eneovim egit eai
 assert_top() {
-    local selection="$1" want="$2 $3 $4 false false $5 $6 false false" got
+    local selection="$1" want="$2 $3 $4 false false $5 $6 false false false" got
     got=$(render_components "$selection") || {
         echo "validate-templates: FAILED to render/parse (sel='$selection'): $got" >&2
         fail=1
@@ -113,11 +114,11 @@ assert_top() {
 }
 
 # Assert a selection WITH explicit sub-selections renders the expected nine
-# booleans. Args: selection gitSel aiSel  e1..e9 (in COLS order)
+# booleans. Args: selection gitSel aiSel  e1..e10 (in COLS order)
 assert_sub() {
     local selection="$1" gitsel="$2" aisel="$3"
     shift 3
-    local want="$1 $2 $3 $4 $5 $6 $7 $8 $9" got
+    local want="$1 $2 $3 $4 $5 $6 $7 $8 $9 ${10}" got
     got=$(render_components "$selection" "$gitsel" "$aisel") || {
         echo "validate-templates: FAILED to render/parse (sel='$selection' git='$gitsel' ai='$aisel'): $got" >&2
         fail=1
@@ -182,12 +183,13 @@ assert_top "Components to install:" true true true true false
 # --- nested submenu sub-selections -----------------------------------------
 # git parent on (4) with explicit sub-selection, by key and by number; overrides
 # the ignore_global default. ai parent on (5) likewise. Columns are
-# (zsh tmux neovim  git.config git.personal git.ignore_global  ai.cc ai.hooks ai.statusline).
-assert_sub "4"   "config personal" "" false false false  true  true  false  false false false
-assert_sub "4"   "1 3"             "" false false false  true  false true   false false false
-assert_sub "3 5" "" "codecompanion claude_hooks"  false false true  false false false  true  true  false
-assert_sub "3 5" "" "statusline"                  false false true  false false false  false false true
-assert_sub "4 5" "config" "claude_hooks"          false false false  true  false false  false true  false
+# (zsh tmux neovim  git.config git.personal git.ignore_global  ai.cc ai.claude ai.codex ai.statusline).
+assert_sub "4"   "config personal" "" false false false  true  true  false  false false false false
+assert_sub "4"   "1 3"             "" false false false  true  false true   false false false false
+assert_sub "3 5" "" "codecompanion claude_hooks"  false false true  false false false  true  true  false false
+assert_sub "3 5" "" "codecompanion codex_hooks"   false false true  false false false  true  false true  false
+assert_sub "3 5" "" "statusline"                  false false true  false false false  false false false true
+assert_sub "4 5" "config" "claude_hooks"          false false false  true  false false  false true  false false
 
 # --- .chezmoiexternal.toml: render + parse under each component combo -------
 # The externals file only branches on zsh and tmux, so vary those two and pin

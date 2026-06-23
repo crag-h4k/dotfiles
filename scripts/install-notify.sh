@@ -10,7 +10,8 @@
 #   ~/.config/notify/{notify.yaml,lib.sh,notify-process.zsh,sounds/*.mp3}
 #   ~/.tmux/conf.d/notify.conf
 #   ~/.claude/hooks/notify-{tmux,clear}.sh
-# and wires ~/.zshrc, ~/.tmux.conf, ~/.claude/settings.json.
+#   ~/.codex/hooks/notify-tmux.sh        (only when the codex CLI is present)
+# and wires ~/.zshrc, ~/.tmux.conf, ~/.claude/settings.json, ~/.codex/config.toml.
 set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -87,12 +88,49 @@ else
     fi
 fi
 
+# --- Codex hook + config merge (only when the codex CLI is present) ------------
+# Codex's external notify program only ever receives agent-turn-complete, so this
+# is the turn-complete color+sound flag. The merge also adds tui.notifications
+# (Codex's built-in approval alert; a no-op under tmux today per openai/codex#16855,
+# active once that lands). config.toml is merged, not overwritten, so Codex's
+# [projects.*] trust and [tui.*] entries survive; mode stays 600.
+if command -v codex >/dev/null 2>&1; then
+    mkdir -p "$HOME/.codex/hooks"
+    cp "$REPO/dot_codex/hooks/executable_notify-tmux.sh" "$HOME/.codex/hooks/notify-tmux.sh"
+    chmod +x "$HOME/.codex/hooks/notify-tmux.sh"
+    info "installed codex notify hook (~/.codex/hooks/notify-tmux.sh)"
+    CODEX_CFG="$HOME/.codex/config.toml"
+    CODEX_MERGE="$REPO/dot_codex/modify_private_config.toml"
+    if ! command -v python3 >/dev/null 2>&1; then
+        warn "python3 not found; skipped Codex config merge. Run later: python3 $CODEX_MERGE < $CODEX_CFG"
+    else
+        tmpc=$(mktemp)
+        if [[ -f "$CODEX_CFG" ]]; then
+            ok=$(python3 "$CODEX_MERGE" < "$CODEX_CFG" > "$tmpc" && echo 1 || echo 0)
+        else
+            ok=$(python3 "$CODEX_MERGE" < /dev/null > "$tmpc" && echo 1 || echo 0)
+        fi
+        if [[ "$ok" == 1 ]]; then
+            [[ -f "$CODEX_CFG" ]] && cp "$CODEX_CFG" "$CODEX_CFG.bak"
+            mv "$tmpc" "$CODEX_CFG"
+            chmod 600 "$CODEX_CFG"
+            info "merged notify + tui.notifications into ~/.codex/config.toml (mode 600)"
+        else
+            rm -f "$tmpc"
+            warn "codex config merge failed; left ~/.codex/config.toml unchanged"
+        fi
+    fi
+else
+    info "codex CLI not found; skipped Codex notify wiring"
+fi
+
 cat <<'EOF'
 
 Done. Next steps:
   - Reload tmux:        tmux source-file ~/.tmux.conf
   - Open a new shell    (so the zsh notifier loads its tables)
   - Restart Claude Code (so it re-reads ~/.claude/settings.json)
+  - Restart Codex      (so it re-reads ~/.codex/config.toml), if installed
 
 Notes:
   - tmux-only by design: notifications fire only inside a tmux session.

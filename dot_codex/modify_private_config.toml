@@ -1,0 +1,69 @@
+#!/usr/bin/env python3
+# chezmoi modify_ script for ~/.codex/config.toml.
+# Ensures Codex's notification settings are present WITHOUT clobbering the
+# [projects.*] trust and [tui.*] entries Codex writes to this file at runtime.
+# chezmoi passes the current file on stdin; this emits the merged result on
+# stdout. Idempotent (re-running is a no-op), so it is stable across
+# `chezmoi apply` runs. Mirrors dot_claude/modify_settings.json.
+#
+# Two keys are injected as top-level entries (TOML requires bare/dotted top-level
+# keys before any [table] header, so they land above the [projects.*]/[tui.*]
+# tables Codex owns):
+#   notify              - runs the tmux attention hook. Codex only ever sends the
+#                         external notify program the `agent-turn-complete` event,
+#                         so this is the "done / your turn" flag (color + sound).
+#                         Codex execs it directly (no shell, no ~ expansion), so
+#                         the path is absolute and computed here at apply time.
+#   tui.notifications   - Codex's built-in alert for the events the external notify
+#                         program never receives, notably `approval-requested`
+#                         (permission prompts). This is a terminal/OS notification,
+#                         a different surface from the tmux flag, and may be
+#                         swallowed by tmux depending on terminal support.
+import os
+import re
+import sys
+
+HOOK = os.path.expanduser("~/.codex/hooks/notify-tmux.sh")
+DESIRED = [
+    ("notify", 'notify = ["%s"]' % HOOK),
+    (
+        "tui.notifications",
+        'tui.notifications = ["agent-turn-complete", "approval-requested"]',
+    ),
+]
+DESIRED_KEYS = {k for k, _ in DESIRED}
+key_re = re.compile(r'^\s*([A-Za-z0-9_."-]+)\s*=')
+table_re = re.compile(r"^\s*\[")
+
+lines = sys.stdin.read().splitlines()
+
+# Partition into the leading top-level section (before the first table header)
+# and the rest (tables onward), which we never touch.
+head, rest, in_rest = [], [], False
+for line in lines:
+    if not in_rest and table_re.match(line):
+        in_rest = True
+    (rest if in_rest else head).append(line)
+
+# Drop existing occurrences of our keys from the head; we re-add them canonically.
+kept = []
+for line in head:
+    m = key_re.match(line)
+    if m and m.group(1) in DESIRED_KEYS:
+        continue
+    kept.append(line)
+while kept and kept[0].strip() == "":
+    kept.pop(0)
+while kept and kept[-1].strip() == "":
+    kept.pop()
+
+out = [line for _, line in DESIRED]
+if kept:
+    out.append("")
+    out.extend(kept)
+if rest:
+    if out[-1].strip() != "":
+        out.append("")
+    out.extend(rest)
+
+sys.stdout.write("\n".join(out) + "\n")

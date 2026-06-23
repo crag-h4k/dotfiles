@@ -39,3 +39,7 @@ scripts
 .claude/hooks/notify-tmux.sh
 .claude/hooks/notify-clear.sh
 {{ end -}}
+{{ if not (dig "components" "ai" "codex_hooks" false .) -}}
+.codex/config.toml
+.codex/hooks/notify-tmux.sh
+{{ end -}}
