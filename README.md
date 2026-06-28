@@ -35,7 +35,8 @@ bootstrap chezmoi:
 command -v gum >/dev/null || brew install gum
 sh -c "$(curl -fsLS get.chezmoi.io)" -- init --apply crag-h4k
 
-# Debian (gum not in standard apt; skip or install from charm repo)
+# Debian Trixie
+command -v gum >/dev/null || { sudo apt-get update && sudo apt-get install -y gum; }
 sh -c "$(curl -fsLS get.chezmoi.io)" -- init --apply crag-h4k
 ```
 
@@ -71,7 +72,12 @@ already; if not, `sudo chsh -s "$(command -v zsh)" "$USER"`.
 To answer the prompts before applying, split the steps:
 
 ```sh
-command -v gum >/dev/null || brew install gum   # macOS; skip on Debian (typed fallback)
+# macOS
+command -v gum >/dev/null || brew install gum
+
+# Debian Trixie
+command -v gum >/dev/null || { sudo apt-get update && sudo apt-get install -y gum; }
+
 chezmoi init crag-h4k      # clone + prompt for components
 chezmoi apply              # write only the selected components
 ```
@@ -81,11 +87,12 @@ chezmoi apply              # write only the selected components
 With [`gum`](https://github.com/charmbracelet/gum) installed, `chezmoi init` shows a
 checkbox TUI: space toggles a component, enter confirms, esc cancels. On re-runs
 the header hints the current selection. `gum` is installed as part of the macOS base
-toolchain on first apply (and is included in the bootstrap step above), so it is
+toolchain and Debian base package set on first apply (and is included in the
+bootstrap step above), so it is
 available from the second `chezmoi init` onward (see
 [Changing components later](#changing-components-later)).
 
-Without `gum` - on Debian or if you skipped the bootstrap install - it falls back to a
+Without `gum` - if you skipped the bootstrap install - it falls back to a
 typed numbered menu:
 
 ```text
@@ -256,8 +263,10 @@ sentinel - no full reinstall needed.
   and refreshed by `chezmoi apply` on a weekly `refreshPeriod`. Only the
   selected components' externals are declared.
 - **System packages** (zsh, neovim, tmux, fzf, gh, zoxide, gum, yq, etc.) are installed
-  by `scripts/install.sh` on first apply. All packages for selected components
-  are batched into one `brew install` / `apt-get install -y` call per OS.
+  by `scripts/install.sh` on first apply. The small base toolchain (`git`,
+  `make`, `curl`, `gum`, etc.) installs first; packages for selected components
+  are then deduped and batched into one `brew install` / `apt-get install -y`
+  call per OS.
   `run_once_after_00-install.sh` drives `install.sh` with the component selection
   passed as `INSTALL_*` env vars.
 - **Status-bar network indicator.** The `↓ • ↑` throughput in the tmux status bar

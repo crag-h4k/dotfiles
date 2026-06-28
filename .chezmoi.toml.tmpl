@@ -122,9 +122,10 @@
 {{- /* features list (git, ai), pick its sub-features. Mirrors the top menu: a    */ -}}
 {{- /* gum checkbox TUI when available, else a typed promptStringOnce; no-tty /    */ -}}
 {{- /* DOTFILES_NO_TUI / Enter falls back to the `all`-flagged sub-defaults. gum   */ -}}
-{{- /* uses --label-delimiter=: so options are key:Label and stdout returns the    */ -}}
-{{- /* key, and --selected= pre-checks the current/default keys on re-init. The    */ -}}
-{{- /* resolve accepts either keys (gum) or numbers (typed) via `contains`.        */ -}}
+{{- /* submenu options start with the feature key and avoid newer flags such as    */ -}}
+{{- /* --label-delimiter, so Debian-packaged gum builds work too. --selected gets */ -}}
+{{- /* full option strings; stdout is parsed back to the leading key. The resolve  */ -}}
+{{- /* accepts either keys (gum) or numbers (typed) via `contains`.                */ -}}
 {{- $subResolved := dict -}}
 {{- $subSelStore := dict -}}
 {{- /* range rebinds `.` to the element, so capture the root data for dig /     */ -}}
@@ -145,18 +146,18 @@
 {{-       if not (or $all $allPlus) -}}
 {{-       if and (lookPath "gum") (not (env "DOTFILES_NO_TUI")) -}}
 {{-         $prevSub := dig $c.selKey "" $root -}}
-{{-         $seedKeys := list -}}
+{{-         $seedOpts := list -}}
 {{-         if eq $prevSub "" -}}
-{{-           range $feats }}{{ if .all }}{{ $seedKeys = append $seedKeys .key }}{{ end }}{{ end -}}
+{{-           range $feats }}{{ if .all }}{{ $seedOpts = append $seedOpts (printf "%s - %s" .key .desc) }}{{ end }}{{ end -}}
 {{-         else -}}
-{{-           range $feats }}{{ if or (contains .key $prevSub) (contains .num $prevSub) }}{{ $seedKeys = append $seedKeys .key }}{{ end }}{{ end -}}
+{{-           range $feats }}{{ if or (contains .key $prevSub) (contains .num $prevSub) }}{{ $seedOpts = append $seedOpts (printf "%s - %s" .key .desc) }}{{ end }}{{ end -}}
 {{-         end -}}
 {{-         $subOpts := list -}}
-{{-         range $feats }}{{ $subOpts = append $subOpts (printf "%s:%s - %s" .key .label .desc | squote) }}{{ end -}}
+{{-         range $feats }}{{ $subOpts = append $subOpts (printf "%s - %s" .key .desc | squote) }}{{ end -}}
 {{-         $subHdr := printf "%s  (space toggles, enter confirms, esc cancels):" $c.header -}}
-{{-         $subCmd := printf "test -e /dev/tty && gum choose --no-limit --label-delimiter=: --selected=%s --header %s %s </dev/tty 2>/dev/tty || true" (join "," $seedKeys | squote) ($subHdr | squote) (join " " $subOpts) -}}
+{{-         $subCmd := printf "test -e /dev/tty && gum choose --no-limit --selected=%s --header %s %s </dev/tty 2>/dev/tty || true" (join "," $seedOpts | squote) ($subHdr | squote) (join " " $subOpts) -}}
 {{-         $picked := list -}}
-{{-         range (splitList "\n" (trim (output "sh" "-c" $subCmd))) }}{{ if . }}{{ $picked = append $picked . }}{{ end }}{{ end -}}
+{{-         range (splitList "\n" (trim (output "sh" "-c" $subCmd))) }}{{ if . }}{{ $picked = append $picked (first (splitList " " .)) }}{{ end }}{{ end -}}
 {{-         $subSel = trim (join " " $picked) -}}
 {{-       end -}}
 {{-       if eq $subSel "" -}}
