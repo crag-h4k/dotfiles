@@ -26,18 +26,51 @@ require_cmd() {
     command -v "$1" >/dev/null 2>&1 || die "required command not found: $1"
 }
 
+apt_deb822_repo_configured() {
+    local wanted_uri="$1" file
+    for file in /etc/apt/sources.list.d/*.sources; do
+        [[ -r "$file" ]] || continue
+        awk -v wanted_uri="$wanted_uri" '
+            /^[[:space:]]*#/ { next }
+            /^[[:space:]]*URIs:[[:space:]]*/ {
+                sub(/^[[:space:]]*URIs:[[:space:]]*/, "")
+                for (i = 1; i <= NF; i++) {
+                    uri = $i
+                    sub(/\/$/, "", uri)
+                    if (uri == wanted_uri) {
+                        found = 1
+                    }
+                }
+            }
+            END { exit found ? 0 : 1 }
+        ' "$file" && return 0
+    done
+    return 1
+}
+
 # Add the GitHub CLI apt repo on Debian if gh is not already installed.
-# Safe to call multiple times; no-ops if gh is already in PATH.
+# Safe to call multiple times; no-ops if gh is already in PATH. The caller
+# owns apt-get update so package installs can stay batched.
 ensure_gh_apt_repo() {
     command -v gh >/dev/null 2>&1 && return 0
     require_cmd curl
+    local repo_uri="https://cli.github.com/packages"
+    if apt_deb822_repo_configured "$repo_uri"; then
+        info "GitHub CLI apt repo already configured"
+        return 0
+    fi
     info "adding GitHub CLI apt repo"
     curl -fsSL https://cli.github.com/packages/githubcli-archive-keyring.gpg \
         | sudo dd of=/usr/share/keyrings/githubcli-archive-keyring.gpg
     sudo chmod go+r /usr/share/keyrings/githubcli-archive-keyring.gpg
-    echo "deb [arch=$(dpkg --print-architecture) signed-by=/usr/share/keyrings/githubcli-archive-keyring.gpg] https://cli.github.com/packages stable main" \
-        | sudo tee /etc/apt/sources.list.d/github-cli.list >/dev/null
-    sudo apt-get update
+    {
+        printf 'Types: deb\n'
+        printf 'URIs: %s\n' "$repo_uri"
+        printf 'Suites: stable\n'
+        printf 'Components: main\n'
+        printf 'Architectures: %s\n' "$(dpkg --print-architecture)"
+        printf 'Signed-By: /usr/share/keyrings/githubcli-archive-keyring.gpg\n'
+    } | sudo tee /etc/apt/sources.list.d/github-cli.sources >/dev/null
 }
 
 # Install chezmoi to ~/.local/bin if it is not already in PATH.

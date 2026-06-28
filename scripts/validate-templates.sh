@@ -190,6 +190,10 @@ assert_sub "3 5" "" "codecompanion claude_hooks"  false false true  false false 
 assert_sub "3 5" "" "codecompanion codex_hooks"   false false true  false false false  true  false true  false
 assert_sub "3 5" "" "statusline"                  false false true  false false false  false false false true
 assert_sub "4 5" "config" "claude_hooks"          false false false  true  false false  false true  false false
+# gum submenu output is stored as the leading key plus visible label text on
+# older-compatible gum builds, so resolving by key containment must keep working.
+assert_sub "4 5" "config - ~/.gitconfig" "codecompanion - CodeCompanion.nvim assistant (needs neovim)" \
+    false false false  true false false  true false false false
 
 # --- .chezmoiexternal.toml: render + parse under each component combo -------
 # The externals file only branches on zsh and tmux, so vary those two and pin

@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # Top-level installer. Driven by chezmoi: run_once_after_00-install.sh exports
 # the component selection (made at `chezmoi init`) as INSTALL_* env vars and
-# then calls this script. It installs only the packages for the selected
+# then calls this script. It installs base tools plus packages for the selected
 # components. It does NOT call `chezmoi apply` - chezmoi invokes this script,
 # so applying again would recurse.
 #
@@ -30,6 +30,22 @@ INSTALL_GIT_PERSONAL="${INSTALL_GIT_PERSONAL:-false}"
 # (touch/rm per-host still works). The claude_hooks sub-feature is file-gated in
 # .chezmoiignore, not here.
 INSTALL_AI_CODECOMPANION="${INSTALL_AI_CODECOMPANION:-false}"
+
+_deduped_pkgs() {
+    local -a unique=()
+    local pkg existing found
+    for pkg in "$@"; do
+        found=0
+        for existing in "${unique[@]}"; do
+            if [[ "$pkg" == "$existing" ]]; then
+                found=1
+                break
+            fi
+        done
+        (( found )) || unique+=("$pkg")
+    done
+    printf '%s\n' "${unique[@]}"
+}
 
 # Show an existing gitconfig file then prompt to create/replace from repo example.
 _setup_gitconfig_file() {
@@ -60,33 +76,25 @@ main() {
     info "dotfiles installer: platform=$os"
     info "components: zsh=$INSTALL_ZSH tmux=$INSTALL_TMUX neovim=$INSTALL_NEOVIM git.config=$INSTALL_GIT_CONFIG git.personal=$INSTALL_GIT_PERSONAL ai.codecompanion=$INSTALL_AI_CODECOMPANION"
 
-    # Base toolchain - required by all per-app scripts and by ensure_chezmoi.
-    # gum is here (not in a component) so the ccomp re-picker always has it.
+    # Base toolchain required by the installer itself and by reconfigure flows.
+    # This intentionally runs before selected component packages so helpers such
+    # as ensure_gh_apt_repo can rely on curl being present.
     case "$os" in
         macos)
             require_cmd brew
-            brew install git make curl gum
+            brew install git make curl gum chezmoi
             ;;
         debian)
             sudo apt-get update
-            sudo apt-get install -y git make curl ca-certificates
+            pkg_install_many git make curl ca-certificates gum
             ;;
         *)
             die "unsupported OS: $(uname -s)"
             ;;
     esac
 
-    ensure_chezmoi
-
-    # Convenience symlink: ~/dotfiles -> ~/.local/share/chezmoi
-    local chezmoi_src="$HOME/.local/share/chezmoi"
-    local dotfiles_link="$HOME/dotfiles"
-    if [[ -d "$chezmoi_src" && ! -e "$dotfiles_link" ]]; then
-        ln -s "$chezmoi_src" "$dotfiles_link"
-        info "created symlink $dotfiles_link -> $chezmoi_src"
-    fi
-
-    # Build combined package lists for selected components and install in one call.
+    # Build package lists for selected components and install them in one later
+    # package-manager call per platform.
     local -a macos_pkgs=() debian_pkgs=()
 
     [[ "$INSTALL_ZSH" == true ]] && {
@@ -111,16 +119,18 @@ main() {
     # different tool (python kislyuk/yq) with incompatible syntax, so macOS uses
     # brew here and Debian fetches the mikefarah binary below (install_yq_debian).
     [[ "$INSTALL_ZSH" == true || "$INSTALL_TMUX" == true ]] && macos_pkgs+=(yq)
+    [[ "$INSTALL_NEOVIM" == true ]] && macos_pkgs+=(terraform-linters/tap/tflint)
 
     case "$os" in
         macos)
+            macos_pkgs=($(_deduped_pkgs "${macos_pkgs[@]}"))
             if [[ ${#macos_pkgs[@]} -gt 0 ]]; then
                 brew install "${macos_pkgs[@]}"
             fi
-            [[ "$INSTALL_NEOVIM" == true ]] && brew install terraform-linters/tap/tflint
             ;;
         debian)
             [[ "$INSTALL_ZSH" == true ]] && ensure_gh_apt_repo
+            debian_pkgs=($(_deduped_pkgs "${debian_pkgs[@]}"))
             if [[ ${#debian_pkgs[@]} -gt 0 ]]; then
                 sudo apt-get update
                 pkg_install_many "${debian_pkgs[@]}"
@@ -132,6 +142,16 @@ main() {
             [[ "$INSTALL_ZSH" == true || "$INSTALL_TMUX" == true ]] && { install_yq_debian || warn "yq install failed; notifications fall back to built-in default colors until yq is installed"; }
             ;;
     esac
+
+    ensure_chezmoi
+
+    # Convenience symlink: ~/dotfiles -> ~/.local/share/chezmoi
+    local chezmoi_src="$HOME/.local/share/chezmoi"
+    local dotfiles_link="$HOME/dotfiles"
+    if [[ -d "$chezmoi_src" && ! -e "$dotfiles_link" ]]; then
+        ln -s "$chezmoi_src" "$dotfiles_link"
+        info "created symlink $dotfiles_link -> $chezmoi_src"
+    fi
 
     # Post-install steps for each component (non-package work).
     [[ "$INSTALL_ZSH" == true ]]    && bash "$SCRIPT_DIR/install-zsh.sh"
