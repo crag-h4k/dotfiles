@@ -65,6 +65,22 @@ STUB
   [ "$status" -eq 0 ]
 }
 
+@test "config resolves under a stripped PATH (grep/yq fallback hardening)" {
+  # Needs a real mikefarah yq to read the fixture; skip where it is absent.
+  command -v yq >/dev/null 2>&1 && yq --version 2>/dev/null | grep -qi mikefarah || skip "mikefarah yq not installed"
+  run bash -c "
+    export PATH=''
+    export NOTIFY_CONFIG='${FIXTURES}/notify.yaml'
+    source '${NOTIFY_LIB}'
+    _notify_fire_attrs claude
+  "
+  [ "$status" -eq 0 ]
+  # dark_pink (#4d1a38) is the fixture's 'claude' integration bg, NOT the built-in
+  # #5b1a1a fallback - so resolving it proves _notify_yq_resolve found grep + yq
+  # despite the empty PATH. Without the _NOTIFY_SYSPATH augmentation this is empty.
+  [[ "$output" == *"#4d1a38"* ]]
+}
+
 @test "notify_debug_on returns false when config has debug: false" {
   run bash -c "
     export NOTIFY_CONFIG='${FIXTURES}/notify.yaml'

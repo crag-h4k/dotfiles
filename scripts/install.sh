@@ -41,8 +41,13 @@ _setup_gitconfig_file() {
     else
         printf 'No %s found. Create from repo example? [y/N] ' "$target"
     fi
-    local resp
-    read -r resp
+    local resp=""
+    # Non-fatal under `set -e`: a non-interactive apply (piped bootstrap, CI) has
+    # no tty, so read would hit EOF and return non-zero, aborting the installer.
+    # Default to "no" in that case rather than prompting into the void.
+    if [[ -t 0 ]]; then
+        read -r resp || resp=""
+    fi
     if [[ "$resp" =~ ^[Yy]$ ]]; then
         cp "$example" "$target"
         info "copied $label -> $target"
@@ -120,8 +125,11 @@ main() {
                 sudo apt-get update
                 pkg_install_many "${debian_pkgs[@]}"
             fi
-            [[ "$INSTALL_NEOVIM" == true ]] && install_neovim_debian
-            [[ "$INSTALL_ZSH" == true || "$INSTALL_TMUX" == true ]] && install_yq_debian
+            # Soft-fail: these fetch binaries over the network (GitHub releases),
+            # so a rate-limit/proxy/offline blip must warn and continue, not abort
+            # the whole install via set -e on the && call site.
+            [[ "$INSTALL_NEOVIM" == true ]] && { install_neovim_debian || warn "neovim install failed; continuing without a neovim upgrade"; }
+            [[ "$INSTALL_ZSH" == true || "$INSTALL_TMUX" == true ]] && { install_yq_debian || warn "yq install failed; notifications fall back to built-in default colors until yq is installed"; }
             ;;
     esac
 

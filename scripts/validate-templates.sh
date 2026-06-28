@@ -11,7 +11,7 @@
 set -euo pipefail
 
 # Force the typed-menu path in .chezmoi.toml.tmpl so the parser is exercised
-# deterministically. Without this, a render on a machine that has fzf and a
+# deterministically. Without this, a render on a machine that has gum and a
 # controlling terminal would launch the interactive picker for every case.
 export DOTFILES_NO_TUI=1
 

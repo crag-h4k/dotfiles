@@ -46,7 +46,7 @@ The chezmoi bootstrap line:
 
 1. Installs `chezmoi` if missing.
 1. Clones this repo into `~/.local/share/chezmoi/`.
-1. Prompts for which components to install (fzf TUI or typed menu) and saves
+1. Prompts for which components to install (gum TUI or typed menu) and saves
    the answer to `~/.config/chezmoi/chezmoi.toml`.
 1. Runs `chezmoi apply`, which:
    - Fetches the upstream plugins declared in `.chezmoiexternal.toml` for the
@@ -94,7 +94,7 @@ Components to install:
   2) tmux   tmux + plugins (tpm, resurrect, sensible, yank)
   3) neovim neovim, lazy.nvim, language servers, linters
   4) git    git config files (config, personal, ignore_global)
-  5) ai     AI tools (codecompanion, claude_hooks, statusline)
+  5) ai     AI tools (codecompanion, claude_hooks, codex_hooks, statusline)
 
   all   the default set (1 2 3 4)
   all+  everything, adds ai
@@ -128,8 +128,9 @@ sub-features (so they are stored as the nested tables `[data.components.git]` an
   `~/.gitignore_global` and not `~/.gitconfig` (identical to the old behavior).
 - `ai`: `codecompanion` (CodeCompanion.nvim + the `claude-agent-acp` bridge),
   `claude_hooks` (merges the Claude notify hooks into `~/.claude/settings.json`),
-  `statusline` (reserved placeholder, gates nothing yet). `ai` stays off by
-  default; if picked, the submenu defaults to `codecompanion`.
+  `codex_hooks` (merges the Codex notify hook + `tui.notifications` into
+  `~/.codex/config.toml`), `statusline` (reserved placeholder, gates nothing yet).
+  `ai` stays off by default; if picked, the submenu defaults to `codecompanion`.
 
 With `gum` the submenu is a nested checkbox seeded with your current/default
 sub-features; without it (or under `DOTFILES_NO_TUI`) it falls back to a typed
@@ -147,8 +148,9 @@ A component (or sub-feature) that is off is excluded two ways: its target files
 are added to `.chezmoiignore` so `chezmoi apply` never writes them, and its plugin
 externals are dropped from `.chezmoiexternal.toml` so they are never fetched.
 `~/.gitignore_global` follows the `git > ignore_global` sub-feature (on by
-default) and `~/.claude/settings.json` follows `ai > claude_hooks` (off by
-default). The base files install regardless of selection: `~/.tfswitch.toml` and
+default), `~/.claude/settings.json` follows `ai > claude_hooks` (off by default),
+and `~/.codex/config.toml` follows `ai > codex_hooks` (off by default). The base
+files install regardless of selection: `~/.tfswitch.toml` and
 the tool linter configs (`~/.darglint`, `~/.flake8`, `~/.tflint.hcl`,
 `~/.markdownlint.yaml`, `~/.config/yamllint/config`). Those linter configs are
 plain tool configs, not neovim's, so they live at each tool's own path and

@@ -1,7 +1,9 @@
-# set terraform env vars and log level
+# Terraform helpers. Sourced into the interactive shell, so error paths use
+# `return` (never `exit`, which would kill the shell).
+
+# Set terraform log level + log file via env vars.
 function tf_log() {
     local log_level="DEBUG"
-    local log_provider="DEBUG"
     local log_file="$PWD/terraform-$(date +%d-%b-%Y_%H%M).log"
 
     if [ $# -gt 0 ]; then
@@ -22,11 +24,11 @@ function tf_log() {
     export TF_LOG_CORE="$log_level"
     export TF_LOG_PROVIDER="$log_level"
     export TF_LOG_PATH="$log_file"
-    touch $log_file
+    touch "$log_file"
     echo "Terraform log level set to $log_level. Log file: $log_file"
 }
 
-# Create a terrafrom state list file
+# Create a terraform state list file.
 function tfstatelist() {
     local tfstatelist="$(terraform workspace show)-$(date +%d-%b-%Y_%H%M).tfstate.list"
 
@@ -34,14 +36,14 @@ function tfstatelist() {
         tfstatelist=$1
     fi
     echo "Listing terraform state resources in $tfstatelist"
-    terraform state list > $tfstatelist
+    terraform state list > "$tfstatelist"
     if [ ! -f "$tfstatelist" ]; then
         echo "Error: Terraform state list $tfstatelist not created."
-        exit 1
+        return 1
     fi
 }
 
-# Pull terraform state into a .tfstate file
+# Pull terraform state into a .tfstate file.
 function tfstatepull() {
     local tfstatefile="$(terraform workspace show)-$(date +%d-%b-%Y_%H%M).tfstate"
 
@@ -49,25 +51,24 @@ function tfstatepull() {
         tfstatefile=$1
     fi
     echo "Pulling terraform state to $tfstatefile"
-    terraform state pull > $tfstatefile
+    terraform state pull > "$tfstatefile"
     if [ ! -f "$tfstatefile" ]; then
         echo "Error: Terraform state file $tfstatefile not created."
-        exit 1
+        return 1
     fi
 }
 
-function tfshowdel(){
-    #local tfplanfile="tfplan"
+# Show the resources a local plan file will delete.
+function tfshowdel() {
     local tfplanfile=$1
-    #if [ $# -gt 0 ]; then
-    #    tfstatefile=$1
-    #fi
     if [ ! -f "$tfplanfile" ]; then
-        echo "Error: Terraform plan file \'$tfplanfile\' does not exist."
+        echo "Error: Terraform plan file '$tfplanfile' does not exist."
         echo "You need to generate a local .tfplan file."
-        exit 1
+        return 1
     fi
-    planned_deleted_resources="$(terraform show -json $tfplanfile | jq -r '.resource_changes[] | select(.change.actions | contains(["delete"])) | .address'\n)"
+    local planned_deleted_resources
+    planned_deleted_resources="$(terraform show -json "$tfplanfile" \
+        | jq -r '.resource_changes[] | select(.change.actions | contains(["delete"])) | .address')"
     echo "Resources planned to be deleted:"
     echo "$planned_deleted_resources"
 }

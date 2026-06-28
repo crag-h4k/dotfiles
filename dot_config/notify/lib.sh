@@ -14,6 +14,15 @@
 # caches, populated lazily. Targets macOS /bin/bash (3.2), Debian dash, and zsh:
 # no arrays, no bashisms beyond `local` (which all three support).
 
+# Standard system locations, appended (not prepended) to PATH inside the few
+# functions that call external tools (grep, date, wc, ...). An event hook - e.g.
+# Codex's notify program - can run with a stripped PATH; appending keeps the
+# user's own tools first while still guaranteeing the base tools resolve. Scoped
+# via `local PATH` per function so the interactive zsh that sources this is never
+# affected. This is the same intent as the absolute fallbacks in _notify_tmux /
+# _notify_yq_resolve / notify_play, generalized to the coreutils they rely on.
+_NOTIFY_SYSPATH='/usr/bin:/bin:/usr/sbin:/sbin:/opt/homebrew/bin:/usr/local/bin'
+
 _notify_config() {
   printf '%s' "${NOTIFY_CONFIG:-$HOME/.config/notify/notify.yaml}"
 }
@@ -27,7 +36,9 @@ _notify_yq_resolve() {
   [ -n "${_NOTIFY_YQ_READY:-}" ] && return 0
   _NOTIFY_YQ_READY=1
   _NOTIFY_YQ=''
-  local c path_yq
+  # Augment PATH so `command -v yq` and the `grep` validation below resolve even
+  # when the caller (e.g. a Codex hook) runs with a stripped PATH.
+  local c path_yq PATH="$PATH:$_NOTIFY_SYSPATH"
   path_yq=$(command -v yq 2>/dev/null)
   for c in "$HOME/.local/bin/yq" "$path_yq" /opt/homebrew/bin/yq /usr/local/bin/yq /usr/bin/yq; do
     [ -n "$c" ] || continue
@@ -98,7 +109,8 @@ notify_debug_on() {
 notify_log() {
   _notify_log_init
   case "$_NOTIFY_DEBUG" in 1|true|yes|on|TRUE|True) ;; *) return 0 ;; esac
-  local f="$_NOTIFY_LOGFILE" sz d
+  # Resolve wc/tr/mv/dirname/mkdir/date under a possibly-stripped hook PATH.
+  local f="$_NOTIFY_LOGFILE" sz d PATH="$PATH:$_NOTIFY_SYSPATH"
   if [ -f "$f" ]; then
     sz=$(wc -c < "$f" 2>/dev/null | tr -d ' ')
     [ -n "$sz" ] && [ "$sz" -gt 1048576 ] && mv -f "$f" "$f.old" 2>/dev/null
@@ -145,18 +157,20 @@ _notify_find() {
 # notify_play <sound-basename> <volume 0-100>. Empty/missing sound = silent.
 notify_play() {
   [ -n "$1" ] || return 0
-  local f="$HOME/.config/notify/sounds/$1" vol="$2" afplay_bin mpg123_bin ffplay_bin
+  local f="$HOME/.config/notify/sounds/$1" vol="$2" afplay_bin mpg123_bin ffplay_bin vfrac
   [ -f "$f" ] || return 0
-  # Sanitize volume to an integer 0-100. It is a config value that flows into an
-  # awk program / player args, so reject anything non-numeric (fall back to 75)
-  # and clamp the range. Pass it to awk as DATA (-v), never as program text.
+  # Sanitize volume to an integer 0-100: reject anything non-numeric (fall back
+  # to 75) and clamp the range.
   case "$vol" in ''|*[!0-9]*) vol=75 ;; esac
   [ "$vol" -gt 100 ] 2>/dev/null && vol=100
+  # afplay wants a 0.0-1.0 gain. Compute it with shell arithmetic + the printf
+  # builtin so notify_play needs no external (awk) on a stripped hook PATH.
+  vfrac=$(printf '%d.%02d' "$((vol / 100))" "$((vol % 100))")
   afplay_bin=$(_notify_find afplay /usr/bin/afplay)
   mpg123_bin=$(_notify_find mpg123 /opt/homebrew/bin/mpg123 /usr/local/bin/mpg123 /usr/bin/mpg123)
   ffplay_bin=$(_notify_find ffplay /opt/homebrew/bin/ffplay /usr/local/bin/ffplay /usr/bin/ffplay)
   if [ -n "$afplay_bin" ]; then
-    ( "$afplay_bin" -v "$(awk -v v="$vol" 'BEGIN { printf "%.2f", v/100 }')" "$f" & ) >/dev/null 2>&1
+    ( "$afplay_bin" -v "$vfrac" "$f" & ) >/dev/null 2>&1
     notify_log "play via $afplay_bin vol=$vol sound=$1"
   elif [ -n "$mpg123_bin" ]; then
     ( "$mpg123_bin" -q --volume "$vol" "$f" & ) >/dev/null 2>&1

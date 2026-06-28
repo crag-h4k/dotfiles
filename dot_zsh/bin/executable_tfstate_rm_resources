@@ -1,16 +1,18 @@
 #!/usr/bin/env zsh
+# Remove terraform state resources listed in a file (one address per line).
+# -d does a dry run (print what would be removed).
 
 # Default values
 dry_run=false
 
 # Parse command-line arguments
-while getopts ":d,h" opt; do
+while getopts ":dh" opt; do
   case "$opt" in
     d)
       dry_run=true
       ;;
     h)
-      echo "Usage: ./remove_resources.zsh <input_file> [-d]"
+      echo "Usage: tfstate_rm_resources <input_file> [-d]"
       exit 0
       ;;
     \?)
@@ -38,15 +40,14 @@ if [[ ! -f "$1" ]]; then
   exit 1
 fi
 
-# Iterate through each line in the input file
+# Iterate through each line (one resource address per line) in the input file
 while IFS= read -r line; do
+  [[ -z "$line" ]] && continue
   if $dry_run; then
     echo "Dry run: Would remove resource: $line"
   else
-    # Use terraform state rm to remove the resource
-    terraform state rm -name "$line"
-    # Check if the command was successful.  If not, print an error and continue.
-    if [[ $? -ne 0 ]]; then
+    # `terraform state rm` takes the address directly (there is no -name flag).
+    if ! terraform state rm "$line"; then
       echo "Error removing resource: $line"
     fi
   fi

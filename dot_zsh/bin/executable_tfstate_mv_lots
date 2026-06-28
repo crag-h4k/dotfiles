@@ -1,20 +1,30 @@
 #!/usr/bin/env zsh
-# $file - should be a " " delimited file with.
-# Terraform object addresses as follows
-# old.tf.obj new.tf.obj
-# One pair per line
+# Bulk `terraform state mv`. Pass a file of space-delimited address pairs:
+#   old.tf.obj new.tf.obj
+# one pair per line.
 file=$1
-total=$(wc -l < "$file" | xargs)
+if [[ -z "$file" || ! -f "$file" ]]; then
+  echo "Usage: tfstate_mv_lots <file>  (lines of: old.addr new.addr)" >&2
+  exit 1
+fi
+
+# Count valid pairs (awk counts a final unterminated line too; avoids the
+# wc -l undercount and the resulting divide-by-zero on a 0/1-line file).
+total=$(awk 'NF>=2{n++} END{print n+0}' "$file")
+if (( total == 0 )); then
+  echo "No 'old new' address pairs found in $file." >&2
+  exit 1
+fi
 
 count=0
 start_time=$SECONDS
-start_minutes=$MINUTES
 echo "$total total resources will be moved."
 while read -r old new; do
+  [[ -z "$old" || -z "$new" ]] && continue
   count=$((count + 1))
   terraform state mv "$old" "$new"
   elapsed_seconds=$((SECONDS - start_time))
   elapsed_minutes=$((elapsed_seconds / 60))
   percent=$((count * 100 / total))
-  echo -e "\e[31m$count\e[0m/$total ($percent%) — ${elapsed_minutes}min ${elapsed_seconds}sec elapsed..."
-done < $file
+  echo -e "\e[31m$count\e[0m/$total ($percent%) - ${elapsed_minutes}min ${elapsed_seconds}sec elapsed..."
+done < "$file"

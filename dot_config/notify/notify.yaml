@@ -101,6 +101,7 @@ integrations:
     bg: dark_pink
     accent: bright_pink
     sound: funk.mp3
+
   codex:              # Codex CLI agent-turn-complete hook (config.toml notify)
     bg: dark_purple
     accent: bright_purple
