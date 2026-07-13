@@ -36,15 +36,23 @@ _deduped_pkgs() {
     local pkg existing found
     for pkg in "$@"; do
         found=0
-        for existing in "${unique[@]}"; do
-            if [[ "$pkg" == "$existing" ]]; then
-                found=1
-                break
-            fi
-        done
+        # Guarded: expanding "${unique[@]}" while unique has zero elements trips
+        # "unbound variable" under bash 3.2 (macOS system bash) with set -u -
+        # array-empty is indistinguishable from unset there, fixed only in bash 4.4+.
+        if (( ${#unique[@]} > 0 )); then
+            for existing in "${unique[@]}"; do
+                if [[ "$pkg" == "$existing" ]]; then
+                    found=1
+                    break
+                fi
+            done
+        fi
         (( found )) || unique+=("$pkg")
     done
-    printf '%s\n' "${unique[@]}"
+    # Single space-joined line (not one-per-line) so callers can rebuild the
+    # array with `read -a`, which - unlike mapfile/readarray - works on bash 3.2.
+    (( ${#unique[@]} > 0 )) && printf '%s\n' "${unique[*]}"
+    return 0
 }
 
 # Show an existing gitconfig file then prompt to create/replace from repo example.
@@ -123,14 +131,22 @@ main() {
 
     case "$os" in
         macos)
-            macos_pkgs=($(_deduped_pkgs "${macos_pkgs[@]}"))
+            # Same unbound-variable guard as inside _deduped_pkgs: skip the call
+            # entirely when there is nothing to dedup (bash 3.2 + set -u would
+            # otherwise choke expanding "${macos_pkgs[@]}" for a zero-element array).
+            # read -a (not mapfile - bash 4+ only) rebuilds the array.
+            if (( ${#macos_pkgs[@]} > 0 )); then
+                read -r -a macos_pkgs <<< "$(_deduped_pkgs "${macos_pkgs[@]}")"
+            fi
             if [[ ${#macos_pkgs[@]} -gt 0 ]]; then
                 brew install "${macos_pkgs[@]}"
             fi
             ;;
         debian)
             [[ "$INSTALL_ZSH" == true ]] && ensure_gh_apt_repo
-            debian_pkgs=($(_deduped_pkgs "${debian_pkgs[@]}"))
+            if (( ${#debian_pkgs[@]} > 0 )); then
+                read -r -a debian_pkgs <<< "$(_deduped_pkgs "${debian_pkgs[@]}")"
+            fi
             if [[ ${#debian_pkgs[@]} -gt 0 ]]; then
                 sudo apt-get update
                 pkg_install_many "${debian_pkgs[@]}"
