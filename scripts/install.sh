@@ -30,6 +30,9 @@ INSTALL_GIT_PERSONAL="${INSTALL_GIT_PERSONAL:-false}"
 # (touch/rm per-host still works). The claude_hooks sub-feature is file-gated in
 # .chezmoiignore, not here.
 INSTALL_AI_CODECOMPANION="${INSTALL_AI_CODECOMPANION:-false}"
+# iterm2 (macOS-only, opt-in): installs the iTerm2 cask and points it at the
+# chezmoi-managed custom prefs folder. No-op on non-macOS.
+INSTALL_ITERM2="${INSTALL_ITERM2:-false}"
 
 _deduped_pkgs() {
     local -a unique=()
@@ -82,7 +85,7 @@ main() {
     local os
     os=$(os_detect)
     info "dotfiles installer: platform=$os"
-    info "components: zsh=$INSTALL_ZSH tmux=$INSTALL_TMUX neovim=$INSTALL_NEOVIM git.config=$INSTALL_GIT_CONFIG git.personal=$INSTALL_GIT_PERSONAL ai.codecompanion=$INSTALL_AI_CODECOMPANION"
+    info "components: zsh=$INSTALL_ZSH tmux=$INSTALL_TMUX neovim=$INSTALL_NEOVIM git.config=$INSTALL_GIT_CONFIG git.personal=$INSTALL_GIT_PERSONAL ai.codecompanion=$INSTALL_AI_CODECOMPANION iterm2=$INSTALL_ITERM2"
 
     # Base toolchain required by the installer itself and by reconfigure flows.
     # This intentionally runs before selected component packages so helpers such
@@ -141,6 +144,13 @@ main() {
             if [[ ${#macos_pkgs[@]} -gt 0 ]]; then
                 brew install "${macos_pkgs[@]}"
             fi
+            # iTerm2 is a cask, not a formula, so it installs separately. Guard
+            # for idempotency (brew --cask errors if already installed) and
+            # soft-fail so a download blip does not abort the whole install.
+            if [[ "$INSTALL_ITERM2" == true ]]; then
+                brew list --cask iterm2 >/dev/null 2>&1 || brew install --cask iterm2 \
+                    || warn "iterm2 cask install failed; continuing"
+            fi
             ;;
         debian)
             [[ "$INSTALL_ZSH" == true ]] && ensure_gh_apt_repo
@@ -172,6 +182,7 @@ main() {
     # Post-install steps for each component (non-package work).
     [[ "$INSTALL_ZSH" == true ]]    && bash "$SCRIPT_DIR/install-zsh.sh"
     [[ "$INSTALL_NEOVIM" == true ]] && bash "$SCRIPT_DIR/install-neovim.sh"
+    [[ "$INSTALL_ITERM2" == true ]] && bash "$SCRIPT_DIR/install-iterm2.sh"
 
     # Provision the CodeCompanion opt-in sentinel that init.lua checks at startup.
     # Only meaningful with neovim. Done here (not as a chezmoi-managed file) so a

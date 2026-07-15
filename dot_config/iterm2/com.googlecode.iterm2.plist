@@ -1,0 +1,1410 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+	<key>AIFeatureFunctionCalling</key>
+	<true/>
+	<key>AIFeatureHostedCodeInterpeter</key>
+	<false/>
+	<key>AIFeatureHostedFileSearch</key>
+	<false/>
+	<key>AIFeatureHostedWebSearch</key>
+	<false/>
+	<key>AIFeatureStreamingResponses</key>
+	<true/>
+	<key>AITermAPI</key>
+	<integer>7</integer>
+	<key>AIVectorStore</key>
+	<integer>0</integer>
+	<key>AIVendor</key>
+	<integer>4</integer>
+	<key>AboutToPasteTabsWithCancel</key>
+	<true/>
+	<key>AboutToPasteTabsWithCancel_selection</key>
+	<integer>0</integer>
+	<key>AiMaxTokens</key>
+	<integer>200000</integer>
+	<key>AiModel</key>
+	<string>claude-opus-4-8</string>
+	<key>AiResponseMaxTokens</key>
+	<integer>128000</integer>
+	<key>AitermURL</key>
+	<string>https://api.anthropic.com/v1/messages</string>
+	<key>AllowClipboardAccess</key>
+	<true/>
+	<key>AlternateMouseScroll</key>
+	<true/>
+	<key>AppleAntiAliasingThreshold</key>
+	<integer>1</integer>
+	<key>ApplePressAndHoldEnabled</key>
+	<false/>
+	<key>AppleScrollAnimationEnabled</key>
+	<integer>0</integer>
+	<key>AppleSmoothFixedFontsSizeThreshold</key>
+	<integer>1</integer>
+	<key>AppleWindowTabbingMode</key>
+	<string>manual</string>
+	<key>Default Bookmark Guid</key>
+	<string>58E4D01C-7B00-45E1-B664-D7345AB03B24</string>
+	<key>DefaultTabBarHeight</key>
+	<real>28.0</real>
+	<key>HapticFeedbackForEsc</key>
+	<false/>
+	<key>HotkeyMigratedFromSingleToMulti</key>
+	<true/>
+	<key>NSAutoFillHeuristicControllerEnabled</key>
+	<false/>
+	<key>NSNavPanelExpandedSizeForOpenMode</key>
+	<string>{800, 448}</string>
+	<key>NSOSPLastRootDirectory</key>
+	<data>
+	Ym9va+ACAAAAAAQQMAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAuAEA
+	AAQAAAADAwAAAAQAAAUAAAABAQAAVXNlcnMAAAAEAAAAAQEAAGRhbmUEAAAAAQEAAGNv
+	ZGUMAAAAAQYAABAAAAAgAAAALAAAAAgAAAAEAwAAmjgAAAAAAAAIAAAABAMAAC9CBAAA
+	AAAACAAAAAQDAADyckwCAAAAAAwAAAABBgAATAAAAFwAAABsAAAACAAAAAAEAABBxRk9
+	j40ErRgAAAABAgAAAgAAAAAAAAAfAgAAAAAAAB8CAAAAAAAAAAAAAAEFAAAIAAAABAMA
+	AAEAAAAAAAAABAAAAAMDAAD3AQAACAAAAAEJAABmaWxlOi8vLwwAAAABAQAATWFjaW50
+	b3NoIEhECAAAAAQDAAAAkIKW5wAAAAgAAAAABAAAQcc4BdKAAAAkAAAAAQEAAEM0M0Q1
+	OEE5LTdFQTMtNEFFQy04QUVELTgxQ0UyNDBCQTVBNxgAAAABAgAAgQAAAAEAAADvEwAA
+	AQAAAO8TAAABAAAAAQAAAAEBAAAvAAAAMAAAAAECAABkbmliAAAAAAEAAAAAAAAAAAAA
+	AAAAAAAAAAAAAAAAAAAAAAByZGxmAgAAAAAAAADwAAAA/v///wEAAAAAAAAAEwAAAAQQ
+	AAA4AAAAAAAAAAUQAAB8AAAAAAAAABAQAACgAAAAAAAAAEAQAACQAAAAAAAAAAIgAAB0
+	AQAAAAAAAAUgAADkAAAAAAAAABAgAAD0AAAAAAAAABEgAAAoAQAAAAAAABIgAAAIAQAA
+	AAAAABMgAAAYAQAAAAAAACAgAABUAQAAAAAAADAgAADAAAAAAAAAAAHAAADIAAAAAAAA
+	ABHAAAAgAAAAAAAAABLAAADYAAAAAAAAAAHQAADAAAAAAAAAABDQAAAEAAAAAAAAABfw
+	AAAsAAAAAAAAACLwAACAAQAAAAAAAA==
+	</data>
+	<key>NSOverlayScrollersFallBackForAccessoryViews</key>
+	<false/>
+	<key>NSQuotedKeystrokeBinding</key>
+	<string></string>
+	<key>NSRepeatCountBinding</key>
+	<string></string>
+	<key>NSScrollAnimationEnabled</key>
+	<false/>
+	<key>NSScrollViewShouldScrollUnderTitlebar</key>
+	<false/>
+	<key>NSSplitView Subview Frames NSColorPanelSplitView</key>
+	<array>
+		<string>0.000000, 0.000000, 230.000000, 281.000000, NO, NO</string>
+		<string>0.000000, 282.000000, 230.000000, 48.000000, NO, NO</string>
+	</array>
+	<key>NSToolbar Configuration com.apple.NSColorPanel</key>
+	<dict>
+		<key>TB Is Shown</key>
+		<integer>1</integer>
+	</dict>
+	<key>NSWindow Frame NSColorPanel</key>
+	<string>0 107 250 316 0 0 1728 1084 </string>
+	<key>NSWindow Frame NSNavPanelAutosaveName</key>
+	<string>560 442 370 182 0 0 1728 1083 </string>
+	<key>NSWindow Frame ProfilesPanel</key>
+	<string>344 540 735 392 0 0 3840 1590 </string>
+	<key>NSWindow Frame SUStatusFrame</key>
+	<string>1720 1080 400 135 0 0 3840 1575 </string>
+	<key>NSWindow Frame SUUpdateAlert</key>
+	<string>1570 710 700 628 0 0 3840 1575 </string>
+	<key>NSWindow Frame iTerm Window 0</key>
+	<string>358 0 1370 1084 0 0 1728 1084 </string>
+	<key>NSWindow Frame iTerm Window 1</key>
+	<string>0 0 1510 1084 0 0 1728 1084 </string>
+	<key>NSWindow Frame iTerm Window 10</key>
+	<string>0 1057 827 533 0 0 3840 1590 </string>
+	<key>NSWindow Frame iTerm Window 11</key>
+	<string>0 0 1920 1590 0 0 3840 1590 </string>
+	<key>NSWindow Frame iTerm Window 12</key>
+	<string>1920 0 1920 1590 0 0 3840 1590 </string>
+	<key>NSWindow Frame iTerm Window 13</key>
+	<string>582 327 810 533 0 0 1728 1084 </string>
+	<key>NSWindow Frame iTerm Window 14</key>
+	<string>1920 0 1920 1590 0 0 3840 1590 </string>
+	<key>NSWindow Frame iTerm Window 15</key>
+	<string>864 0 864 1084 0 0 1728 1084 </string>
+	<key>NSWindow Frame iTerm Window 16</key>
+	<string>0 0 1920 1590 0 0 3840 1590 </string>
+	<key>NSWindow Frame iTerm Window 17</key>
+	<string>1382 541 810 529 0 0 3840 1589 </string>
+	<key>NSWindow Frame iTerm Window 18</key>
+	<string>1411 512 810 529 0 0 3840 1589 </string>
+	<key>NSWindow Frame iTerm Window 19</key>
+	<string>1440 483 810 529 0 0 3840 1589 </string>
+	<key>NSWindow Frame iTerm Window 2</key>
+	<string>0 266 780 818 0 0 1728 1084 </string>
+	<key>NSWindow Frame iTerm Window 20</key>
+	<string>1469 454 810 529 0 0 3840 1589 </string>
+	<key>NSWindow Frame iTerm Window 21</key>
+	<string>1920 0 1920 1589 0 0 3840 1589 </string>
+	<key>NSWindow Frame iTerm Window 22</key>
+	<string>1527 397 810 529 0 0 3840 1589 </string>
+	<key>NSWindow Frame iTerm Window 23</key>
+	<string>1920 0 1920 1589 0 0 3840 1589 </string>
+	<key>NSWindow Frame iTerm Window 24</key>
+	<string>1920 528 1120 1061 0 0 3840 1589 </string>
+	<key>NSWindow Frame iTerm Window 25</key>
+	<string>1643 282 810 529 0 0 3840 1589 </string>
+	<key>NSWindow Frame iTerm Window 26</key>
+	<string>1266 640 810 529 0 0 3840 1575 </string>
+	<key>NSWindow Frame iTerm Window 3</key>
+	<string>0 528 802 520 0 0 1728 1084 </string>
+	<key>NSWindow Frame iTerm Window 4</key>
+	<string>0 270 820 533 0 0 1728 1084 </string>
+	<key>NSWindow Frame iTerm Window 5</key>
+	<string>0 551 790 533 0 0 1728 1084 </string>
+	<key>NSWindow Frame iTerm Window 6</key>
+	<string>0 2 1920 1046 0 0 1920 1050 </string>
+	<key>NSWindow Frame iTerm Window 7</key>
+	<string>576 551 790 533 0 0 1728 1084 </string>
+	<key>NSWindow Frame iTerm Window 8</key>
+	<string>0 551 810 533 0 0 1728 1084 </string>
+	<key>NSWindow Frame iTerm Window 9</key>
+	<string>574 551 827 533 0 0 1728 1084 </string>
+	<key>NeverWarnAboutShortLivedSessions_58E4D01C-7B00-45E1-B664-D7345AB03B24</key>
+	<true/>
+	<key>NeverWarnAboutShortLivedSessions_58E4D01C-7B00-45E1-B664-D7345AB03B24_selection</key>
+	<integer>0</integer>
+	<key>New Bookmarks</key>
+	<array>
+		<dict>
+			<key>ASCII Anti Aliased</key>
+			<true/>
+			<key>Ambiguous Double Width</key>
+			<false/>
+			<key>Ansi 0 Color</key>
+			<dict>
+				<key>Blue Component</key>
+				<integer>0</integer>
+				<key>Green Component</key>
+				<integer>0</integer>
+				<key>Red Component</key>
+				<integer>0</integer>
+			</dict>
+			<key>Ansi 1 Color</key>
+			<dict>
+				<key>Blue Component</key>
+				<real>0.3333333432674408</real>
+				<key>Green Component</key>
+				<real>0.3333333432674408</real>
+				<key>Red Component</key>
+				<integer>1</integer>
+			</dict>
+			<key>Ansi 10 Color</key>
+			<dict>
+				<key>Blue Component</key>
+				<real>0.4823529411764706</real>
+				<key>Green Component</key>
+				<real>0.9803921568627451</real>
+				<key>Red Component</key>
+				<real>0.3137254901960784</real>
+			</dict>
+			<key>Ansi 11 Color</key>
+			<dict>
+				<key>Blue Component</key>
+				<real>0.5490196078431373</real>
+				<key>Green Component</key>
+				<real>0.9803921568627451</real>
+				<key>Red Component</key>
+				<real>0.9450980392156862</real>
+			</dict>
+			<key>Ansi 12 Color</key>
+			<dict>
+				<key>Blue Component</key>
+				<real>0.9764705882352941</real>
+				<key>Green Component</key>
+				<real>0.5764705882352941</real>
+				<key>Red Component</key>
+				<real>0.7411764705882353</real>
+			</dict>
+			<key>Ansi 13 Color</key>
+			<dict>
+				<key>Blue Component</key>
+				<real>0.7764705882352941</real>
+				<key>Green Component</key>
+				<real>0.4745098039215686</real>
+				<key>Red Component</key>
+				<integer>1</integer>
+			</dict>
+			<key>Ansi 14 Color</key>
+			<dict>
+				<key>Blue Component</key>
+				<real>0.9921568627450981</real>
+				<key>Green Component</key>
+				<real>0.9137254901960784</real>
+				<key>Red Component</key>
+				<real>0.5450980392156862</real>
+			</dict>
+			<key>Ansi 15 Color</key>
+			<dict>
+				<key>Blue Component</key>
+				<integer>1</integer>
+				<key>Green Component</key>
+				<integer>1</integer>
+				<key>Red Component</key>
+				<integer>1</integer>
+			</dict>
+			<key>Ansi 2 Color</key>
+			<dict>
+				<key>Blue Component</key>
+				<real>0.4823529411764706</real>
+				<key>Green Component</key>
+				<real>0.9803921568627451</real>
+				<key>Red Component</key>
+				<real>0.3137254901960784</real>
+			</dict>
+			<key>Ansi 3 Color</key>
+			<dict>
+				<key>Blue Component</key>
+				<real>0.5490196078431373</real>
+				<key>Green Component</key>
+				<real>0.9803921568627451</real>
+				<key>Red Component</key>
+				<real>0.9450980392156862</real>
+			</dict>
+			<key>Ansi 4 Color</key>
+			<dict>
+				<key>Blue Component</key>
+				<real>0.9764705882352941</real>
+				<key>Green Component</key>
+				<real>0.5764705882352941</real>
+				<key>Red Component</key>
+				<real>0.7411764705882353</real>
+			</dict>
+			<key>Ansi 5 Color</key>
+			<dict>
+				<key>Blue Component</key>
+				<real>0.7764705882352941</real>
+				<key>Green Component</key>
+				<real>0.4745098039215686</real>
+				<key>Red Component</key>
+				<integer>1</integer>
+			</dict>
+			<key>Ansi 6 Color</key>
+			<dict>
+				<key>Blue Component</key>
+				<real>0.9921568627450981</real>
+				<key>Green Component</key>
+				<real>0.9137254901960784</real>
+				<key>Red Component</key>
+				<real>0.5450980392156862</real>
+			</dict>
+			<key>Ansi 7 Color</key>
+			<dict>
+				<key>Blue Component</key>
+				<real>0.7333333492279053</real>
+				<key>Green Component</key>
+				<real>0.7333333492279053</real>
+				<key>Red Component</key>
+				<real>0.7333333492279053</real>
+			</dict>
+			<key>Ansi 8 Color</key>
+			<dict>
+				<key>Blue Component</key>
+				<real>0.3333333333333333</real>
+				<key>Green Component</key>
+				<real>0.3333333333333333</real>
+				<key>Red Component</key>
+				<real>0.3333333333333333</real>
+			</dict>
+			<key>Ansi 9 Color</key>
+			<dict>
+				<key>Blue Component</key>
+				<real>0.3333333333333333</real>
+				<key>Green Component</key>
+				<real>0.3333333333333333</real>
+				<key>Red Component</key>
+				<integer>1</integer>
+			</dict>
+			<key>Application Keypad Allowed</key>
+			<false/>
+			<key>BM Growl</key>
+			<false/>
+			<key>Background Color</key>
+			<dict>
+				<key>Blue Component</key>
+				<real>0.15977837145328522</real>
+				<key>Green Component</key>
+				<real>0.12215272337198257</real>
+				<key>Red Component</key>
+				<real>0.1176581159234047</real>
+			</dict>
+			<key>Background Image Location</key>
+			<string></string>
+			<key>Badge Color</key>
+			<dict>
+				<key>Alpha Component</key>
+				<real>0.5</real>
+				<key>Blue Component</key>
+				<integer>0</integer>
+				<key>Color Space</key>
+				<string>sRGB</string>
+				<key>Green Component</key>
+				<real>0.1491314172744751</real>
+				<key>Red Component</key>
+				<integer>1</integer>
+			</dict>
+			<key>Blinking Cursor</key>
+			<true/>
+			<key>Blur</key>
+			<false/>
+			<key>Bold Color</key>
+			<dict>
+				<key>Blue Component</key>
+				<real>0.9023706912994385</real>
+				<key>Green Component</key>
+				<real>0.9023706912994385</real>
+				<key>Red Component</key>
+				<real>0.9023706912994385</real>
+			</dict>
+			<key>Character Encoding</key>
+			<integer>4</integer>
+			<key>Close Sessions On End</key>
+			<true/>
+			<key>Columns</key>
+			<integer>80</integer>
+			<key>Command</key>
+			<string></string>
+			<key>Cursor Color</key>
+			<dict>
+				<key>Blue Component</key>
+				<real>0.7333333492279053</real>
+				<key>Green Component</key>
+				<real>0.7333333492279053</real>
+				<key>Red Component</key>
+				<real>0.7333333492279053</real>
+			</dict>
+			<key>Cursor Guide Color</key>
+			<dict>
+				<key>Alpha Component</key>
+				<real>0.25</real>
+				<key>Blue Component</key>
+				<integer>1</integer>
+				<key>Color Space</key>
+				<string>sRGB</string>
+				<key>Green Component</key>
+				<real>0.9268307089805603</real>
+				<key>Red Component</key>
+				<real>0.7021318674087524</real>
+			</dict>
+			<key>Cursor Text Color</key>
+			<dict>
+				<key>Blue Component</key>
+				<integer>1</integer>
+				<key>Green Component</key>
+				<integer>1</integer>
+				<key>Red Component</key>
+				<integer>1</integer>
+			</dict>
+			<key>Cursor Type</key>
+			<integer>1</integer>
+			<key>Custom Command</key>
+			<string>No</string>
+			<key>Custom Directory</key>
+			<string>Recycle</string>
+			<key>Default Bookmark</key>
+			<string>No</string>
+			<key>Description</key>
+			<string>Default</string>
+			<key>Disable Window Resizing</key>
+			<false/>
+			<key>Faint Text Alpha</key>
+			<real>0.5137455778301887</real>
+			<key>Flashing Bell</key>
+			<false/>
+			<key>Foreground Color</key>
+			<dict>
+				<key>Blue Component</key>
+				<real>0.9003232717514038</real>
+				<key>Green Component</key>
+				<real>0.9003232717514038</real>
+				<key>Red Component</key>
+				<real>0.9003232717514038</real>
+			</dict>
+			<key>Guid</key>
+			<string>58E4D01C-7B00-45E1-B664-D7345AB03B24</string>
+			<key>Horizontal Spacing</key>
+			<real>1.0</real>
+			<key>Idle Code</key>
+			<integer>0</integer>
+			<key>Jobs to Ignore</key>
+			<array>
+				<string>rlogin</string>
+				<string>ssh</string>
+				<string>slogin</string>
+				<string>telnet</string>
+			</array>
+			<key>Keyboard Map</key>
+			<dict/>
+			<key>Link Color</key>
+			<dict>
+				<key>Alpha Component</key>
+				<integer>1</integer>
+				<key>Blue Component</key>
+				<real>0.734233021736145</real>
+				<key>Color Space</key>
+				<string>sRGB</string>
+				<key>Green Component</key>
+				<real>0.3591606020927429</real>
+				<key>Red Component</key>
+				<integer>0</integer>
+			</dict>
+			<key>Minimum Contrast</key>
+			<real>0.5</real>
+			<key>Mouse Reporting</key>
+			<true/>
+			<key>Name</key>
+			<string>gud theme</string>
+			<key>Non Ascii Font</key>
+			<string>Monaco 12</string>
+			<key>Non-ASCII Anti Aliased</key>
+			<true/>
+			<key>Normal Font</key>
+			<string>Hack-Regular 16</string>
+			<key>Option Key Sends</key>
+			<integer>0</integer>
+			<key>Prompt Before Closing 2</key>
+			<false/>
+			<key>Right Option Key Sends</key>
+			<integer>0</integer>
+			<key>Rows</key>
+			<integer>25</integer>
+			<key>Screen</key>
+			<integer>-1</integer>
+			<key>Scrollback Lines</key>
+			<integer>0</integer>
+			<key>Selected Text Color</key>
+			<dict>
+				<key>Blue Component</key>
+				<integer>1</integer>
+				<key>Green Component</key>
+				<integer>1</integer>
+				<key>Red Component</key>
+				<integer>1</integer>
+			</dict>
+			<key>Selection Color</key>
+			<dict>
+				<key>Blue Component</key>
+				<real>0.3529411852359772</real>
+				<key>Green Component</key>
+				<real>0.27843138575553894</real>
+				<key>Red Component</key>
+				<real>0.2666666805744171</real>
+			</dict>
+			<key>Send Code When Idle</key>
+			<false/>
+			<key>Shortcut</key>
+			<string></string>
+			<key>Show Mark Indicators</key>
+			<false/>
+			<key>Show Status Bar</key>
+			<true/>
+			<key>Silence Bell</key>
+			<false/>
+			<key>Status Bar Layout</key>
+			<dict>
+				<key>advanced configuration</key>
+				<dict>
+					<key>algorithm</key>
+					<integer>0</integer>
+					<key>font</key>
+					<string>.AppleSystemUIFont 12</string>
+				</dict>
+				<key>components</key>
+				<array>
+					<dict>
+						<key>class</key>
+						<string>iTermStatusBarFixedSpacerComponent</string>
+						<key>configuration</key>
+						<dict>
+							<key>knobs</key>
+							<dict>
+								<key>base: compression resistance</key>
+								<integer>1</integer>
+								<key>base: priority</key>
+								<integer>5</integer>
+								<key>iTermStatusBarFixedSpacerComponentWidthKnob</key>
+								<integer>5</integer>
+							</dict>
+							<key>layout advanced configuration dictionary value</key>
+							<dict>
+								<key>algorithm</key>
+								<integer>0</integer>
+							</dict>
+						</dict>
+					</dict>
+					<dict>
+						<key>class</key>
+						<string>iTermStatusBarFixedSpacerComponent</string>
+						<key>configuration</key>
+						<dict>
+							<key>knobs</key>
+							<dict>
+								<key>base: compression resistance</key>
+								<integer>1</integer>
+								<key>base: priority</key>
+								<integer>5</integer>
+								<key>iTermStatusBarFixedSpacerComponentWidthKnob</key>
+								<integer>5</integer>
+							</dict>
+							<key>layout advanced configuration dictionary value</key>
+							<dict>
+								<key>algorithm</key>
+								<integer>0</integer>
+							</dict>
+						</dict>
+					</dict>
+					<dict>
+						<key>class</key>
+						<string>iTermStatusBarFixedSpacerComponent</string>
+						<key>configuration</key>
+						<dict>
+							<key>knobs</key>
+							<dict>
+								<key>base: compression resistance</key>
+								<integer>1</integer>
+								<key>base: priority</key>
+								<integer>5</integer>
+								<key>iTermStatusBarFixedSpacerComponentWidthKnob</key>
+								<integer>5</integer>
+								<key>shared text color</key>
+								<dict>
+									<key>Alpha Component</key>
+									<integer>1</integer>
+									<key>Blue Component</key>
+									<real>0.63</real>
+									<key>Color Space</key>
+									<string>sRGB</string>
+									<key>Green Component</key>
+									<real>0.9</real>
+									<key>Red Component</key>
+									<real>0.9</real>
+								</dict>
+							</dict>
+							<key>layout advanced configuration dictionary value</key>
+							<dict>
+								<key>algorithm</key>
+								<integer>0</integer>
+							</dict>
+						</dict>
+					</dict>
+					<dict>
+						<key>class</key>
+						<string>iTermStatusBarFixedSpacerComponent</string>
+						<key>configuration</key>
+						<dict>
+							<key>knobs</key>
+							<dict>
+								<key>base: compression resistance</key>
+								<integer>1</integer>
+								<key>base: priority</key>
+								<integer>5</integer>
+								<key>iTermStatusBarFixedSpacerComponentWidthKnob</key>
+								<integer>5</integer>
+								<key>shared text color</key>
+								<dict>
+									<key>Alpha Component</key>
+									<integer>1</integer>
+									<key>Blue Component</key>
+									<real>0.63</real>
+									<key>Color Space</key>
+									<string>sRGB</string>
+									<key>Green Component</key>
+									<real>0.9</real>
+									<key>Red Component</key>
+									<real>0.63</real>
+								</dict>
+							</dict>
+							<key>layout advanced configuration dictionary value</key>
+							<dict>
+								<key>algorithm</key>
+								<integer>0</integer>
+							</dict>
+						</dict>
+					</dict>
+					<dict>
+						<key>class</key>
+						<string>iTermStatusBarNetworkUtilizationComponent</string>
+						<key>configuration</key>
+						<dict>
+							<key>knobs</key>
+							<dict>
+								<key>base: priority</key>
+								<integer>5</integer>
+								<key>shared text color</key>
+								<dict>
+									<key>Alpha Component</key>
+									<integer>1</integer>
+									<key>Blue Component</key>
+									<real>0.9</real>
+									<key>Color Space</key>
+									<string>sRGB</string>
+									<key>Green Component</key>
+									<real>0.9</real>
+									<key>Red Component</key>
+									<real>0.63</real>
+								</dict>
+							</dict>
+							<key>layout advanced configuration dictionary value</key>
+							<dict>
+								<key>algorithm</key>
+								<integer>0</integer>
+								<key>font</key>
+								<string>.AppleSystemUIFont 12</string>
+							</dict>
+						</dict>
+					</dict>
+					<dict>
+						<key>class</key>
+						<string>iTermStatusBarCPUUtilizationComponent</string>
+						<key>configuration</key>
+						<dict>
+							<key>knobs</key>
+							<dict>
+								<key>base: compression resistance</key>
+								<integer>1</integer>
+								<key>base: priority</key>
+								<integer>5</integer>
+								<key>shared text color</key>
+								<dict>
+									<key>Alpha Component</key>
+									<integer>1</integer>
+									<key>Blue Component</key>
+									<real>0.9</real>
+									<key>Color Space</key>
+									<string>sRGB</string>
+									<key>Green Component</key>
+									<real>0.63</real>
+									<key>Red Component</key>
+									<real>0.63</real>
+								</dict>
+							</dict>
+							<key>layout advanced configuration dictionary value</key>
+							<dict>
+								<key>algorithm</key>
+								<integer>0</integer>
+								<key>font</key>
+								<string>.AppleSystemUIFont 12</string>
+							</dict>
+						</dict>
+					</dict>
+					<dict>
+						<key>class</key>
+						<string>iTermStatusBarMemoryUtilizationComponent</string>
+						<key>configuration</key>
+						<dict>
+							<key>knobs</key>
+							<dict>
+								<key>base: compression resistance</key>
+								<integer>1</integer>
+								<key>base: priority</key>
+								<integer>5</integer>
+								<key>shared text color</key>
+								<dict>
+									<key>Alpha Component</key>
+									<integer>1</integer>
+									<key>Blue Component</key>
+									<real>0.9</real>
+									<key>Color Space</key>
+									<string>sRGB</string>
+									<key>Green Component</key>
+									<real>0.63</real>
+									<key>Red Component</key>
+									<real>0.9</real>
+								</dict>
+							</dict>
+							<key>layout advanced configuration dictionary value</key>
+							<dict>
+								<key>algorithm</key>
+								<integer>0</integer>
+								<key>font</key>
+								<string>.AppleSystemUIFont 12</string>
+							</dict>
+						</dict>
+					</dict>
+				</array>
+			</dict>
+			<key>Sync Title</key>
+			<false/>
+			<key>Tags</key>
+			<array>
+				<string>linux</string>
+				<string>macos</string>
+				<string>zsh</string>
+				<string>vim</string>
+				<string>tmux</string>
+			</array>
+			<key>Terminal Type</key>
+			<string>xterm-256color</string>
+			<key>Transparency</key>
+			<real>0.16</real>
+			<key>Unlimited Scrollback</key>
+			<true/>
+			<key>Use Bold Font</key>
+			<true/>
+			<key>Use Bright Bold</key>
+			<true/>
+			<key>Use Italic Font</key>
+			<true/>
+			<key>Use Non-ASCII Font</key>
+			<false/>
+			<key>Use libtickit protocol</key>
+			<false/>
+			<key>Vertical Spacing</key>
+			<real>1.0</real>
+			<key>Visual Bell</key>
+			<false/>
+			<key>Window Type</key>
+			<integer>0</integer>
+			<key>Working Directory</key>
+			<string>/Users/damorgan</string>
+		</dict>
+		<dict>
+			<key>ASCII Anti Aliased</key>
+			<true/>
+			<key>Ambiguous Double Width</key>
+			<false/>
+			<key>Ansi 0 Color</key>
+			<dict>
+				<key>Blue Component</key>
+				<real>0.15002617239952087</real>
+				<key>Green Component</key>
+				<real>0.12602922320365906</real>
+				<key>Red Component</key>
+				<real>0.004777240101248026</real>
+			</dict>
+			<key>Ansi 1 Color</key>
+			<dict>
+				<key>Blue Component</key>
+				<real>0.17550970613956451</real>
+				<key>Green Component</key>
+				<real>0.18702366948127747</real>
+				<key>Red Component</key>
+				<real>0.6973497271537781</real>
+			</dict>
+			<key>Ansi 10 Color</key>
+			<dict>
+				<key>Blue Component</key>
+				<real>0.36875495314598083</real>
+				<key>Green Component</key>
+				<real>0.9193827509880066</real>
+				<key>Red Component</key>
+				<real>0.1647729128599167</real>
+			</dict>
+			<key>Ansi 11 Color</key>
+			<dict>
+				<key>Blue Component</key>
+				<real>0.9933649897575378</real>
+				<key>Green Component</key>
+				<real>0.8312216997146606</real>
+				<key>Red Component</key>
+				<real>0.5561054348945618</real>
+			</dict>
+			<key>Ansi 12 Color</key>
+			<dict>
+				<key>Blue Component</key>
+				<real>0.7294076681137085</real>
+				<key>Green Component</key>
+				<real>0.8336012363433838</real>
+				<key>Red Component</key>
+				<real>0.38056889176368713</real>
+			</dict>
+			<key>Ansi 13 Color</key>
+			<dict>
+				<key>Blue Component</key>
+				<integer>1</integer>
+				<key>Green Component</key>
+				<real>0.5972168445587158</real>
+				<key>Red Component</key>
+				<real>0.07240890711545944</real>
+			</dict>
+			<key>Ansi 14 Color</key>
+			<dict>
+				<key>Blue Component</key>
+				<real>0.15753474831581116</real>
+				<key>Green Component</key>
+				<real>0.8153744339942932</real>
+				<key>Red Component</key>
+				<real>0.5967191457748413</real>
+			</dict>
+			<key>Ansi 15 Color</key>
+			<dict>
+				<key>Blue Component</key>
+				<real>0.8394458889961243</real>
+				<key>Green Component</key>
+				<real>0.9838362336158752</real>
+				<key>Red Component</key>
+				<real>0.3466567397117615</real>
+			</dict>
+			<key>Ansi 2 Color</key>
+			<dict>
+				<key>Blue Component</key>
+				<real>0.254444420337677</real>
+				<key>Green Component</key>
+				<real>0.6641746163368225</real>
+				<key>Red Component</key>
+				<real>0.0012253891909494996</real>
+			</dict>
+			<key>Ansi 3 Color</key>
+			<dict>
+				<key>Blue Component</key>
+				<real>0.6655577421188354</real>
+				<key>Green Component</key>
+				<real>0.5442136526107788</real>
+				<key>Red Component</key>
+				<real>0.36770719289779663</real>
+			</dict>
+			<key>Ansi 4 Color</key>
+			<dict>
+				<key>Blue Component</key>
+				<real>0.5246845483779907</real>
+				<key>Green Component</key>
+				<real>0.6022914052009583</real>
+				<key>Red Component</key>
+				<real>0.2680908441543579</real>
+			</dict>
+			<key>Ansi 5 Color</key>
+			<dict>
+				<key>Blue Component</key>
+				<real>0.614888608455658</real>
+				<key>Green Component</key>
+				<real>0.350477933883667</real>
+				<key>Red Component</key>
+				<real>0.001213683863170445</real>
+			</dict>
+			<key>Ansi 6 Color</key>
+			<dict>
+				<key>Blue Component</key>
+				<real>0.09999674558639529</real>
+				<key>Green Component</key>
+				<real>0.4944424331188202</real>
+				<key>Red Component</key>
+				<real>0.3641780912876129</real>
+			</dict>
+			<key>Ansi 7 Color</key>
+			<dict>
+				<key>Blue Component</key>
+				<real>0.3332267105579376</real>
+				<key>Green Component</key>
+				<real>0.33484840393066406</real>
+				<key>Red Component</key>
+				<real>0.2520591616630554</real>
+			</dict>
+			<key>Ansi 8 Color</key>
+			<dict>
+				<key>Blue Component</key>
+				<real>0.3159576952457428</real>
+				<key>Green Component</key>
+				<real>0.2654241919517517</real>
+				<key>Red Component</key>
+				<real>0.21881616115570068</real>
+			</dict>
+			<key>Ansi 9 Color</key>
+			<dict>
+				<key>Blue Component</key>
+				<real>0.25925925374031067</real>
+				<key>Green Component</key>
+				<real>0.25925925374031067</real>
+				<key>Red Component</key>
+				<integer>1</integer>
+			</dict>
+			<key>BM Growl</key>
+			<false/>
+			<key>Background Color</key>
+			<dict>
+				<key>Blue Component</key>
+				<real>0.08051827549934387</real>
+				<key>Green Component</key>
+				<real>0.06339803338050842</real>
+				<key>Red Component</key>
+				<integer>0</integer>
+			</dict>
+			<key>Background Image Location</key>
+			<string></string>
+			<key>Badge Color</key>
+			<dict>
+				<key>Alpha Component</key>
+				<real>0.5</real>
+				<key>Blue Component</key>
+				<integer>0</integer>
+				<key>Color Space</key>
+				<string>sRGB</string>
+				<key>Green Component</key>
+				<real>0.1491314172744751</real>
+				<key>Red Component</key>
+				<integer>1</integer>
+			</dict>
+			<key>Blend</key>
+			<real>0.4291086098582474</real>
+			<key>Blinking Cursor</key>
+			<true/>
+			<key>Blur</key>
+			<false/>
+			<key>Bold Color</key>
+			<dict>
+				<key>Blue Component</key>
+				<real>0.8394291996955872</real>
+				<key>Green Component</key>
+				<real>0.9840108752250671</real>
+				<key>Red Component</key>
+				<real>0.326591819524765</real>
+			</dict>
+			<key>Bound Hosts</key>
+			<array/>
+			<key>Character Encoding</key>
+			<integer>4</integer>
+			<key>Close Sessions On End</key>
+			<true/>
+			<key>Columns</key>
+			<integer>80</integer>
+			<key>Command</key>
+			<string></string>
+			<key>Cursor Color</key>
+			<dict>
+				<key>Blue Component</key>
+				<real>0.8389928936958313</real>
+				<key>Green Component</key>
+				<real>0.9889687895774841</real>
+				<key>Red Component</key>
+				<real>0.2883050739765167</real>
+			</dict>
+			<key>Cursor Guide Color</key>
+			<dict>
+				<key>Alpha Component</key>
+				<real>0.25</real>
+				<key>Blue Component</key>
+				<integer>1</integer>
+				<key>Color Space</key>
+				<string>sRGB</string>
+				<key>Green Component</key>
+				<real>0.9268307089805603</real>
+				<key>Red Component</key>
+				<real>0.7021318674087524</real>
+			</dict>
+			<key>Cursor Text Color</key>
+			<dict>
+				<key>Blue Component</key>
+				<real>0.07357006520032883</real>
+				<key>Green Component</key>
+				<real>0.07982639968395236</real>
+				<key>Red Component</key>
+				<real>0.013667856343090534</real>
+			</dict>
+			<key>Cursor Type</key>
+			<integer>2</integer>
+			<key>Custom Command</key>
+			<string>No</string>
+			<key>Custom Directory</key>
+			<string>Recycle</string>
+			<key>Default Bookmark</key>
+			<string>No</string>
+			<key>Description</key>
+			<string>Default</string>
+			<key>Disable Window Resizing</key>
+			<true/>
+			<key>Flashing Bell</key>
+			<false/>
+			<key>Foreground Color</key>
+			<dict>
+				<key>Blue Component</key>
+				<real>0.3348524868488312</real>
+				<key>Green Component</key>
+				<real>0.33366119861602783</real>
+				<key>Red Component</key>
+				<real>0.25261959433555603</real>
+			</dict>
+			<key>Guid</key>
+			<string>83FC371C-E744-409C-9F20-A3CF6C127810</string>
+			<key>Horizontal Spacing</key>
+			<integer>1</integer>
+			<key>Idle Code</key>
+			<integer>0</integer>
+			<key>Jobs to Ignore</key>
+			<array>
+				<string>rlogin</string>
+				<string>ssh</string>
+				<string>slogin</string>
+				<string>telnet</string>
+			</array>
+			<key>Keyboard Map</key>
+			<dict/>
+			<key>Link Color</key>
+			<dict>
+				<key>Alpha Component</key>
+				<integer>1</integer>
+				<key>Blue Component</key>
+				<real>0.734233021736145</real>
+				<key>Color Space</key>
+				<string>sRGB</string>
+				<key>Green Component</key>
+				<real>0.3591606020927429</real>
+				<key>Red Component</key>
+				<integer>0</integer>
+			</dict>
+			<key>Mouse Reporting</key>
+			<true/>
+			<key>Name</key>
+			<string>opaq</string>
+			<key>Non Ascii Font</key>
+			<string>Monaco 12</string>
+			<key>Non-ASCII Anti Aliased</key>
+			<true/>
+			<key>Normal Font</key>
+			<string>Hack-Regular 14</string>
+			<key>Option Key Sends</key>
+			<integer>0</integer>
+			<key>Prompt Before Closing 2</key>
+			<false/>
+			<key>Right Option Key Sends</key>
+			<integer>0</integer>
+			<key>Rows</key>
+			<integer>25</integer>
+			<key>Screen</key>
+			<integer>-1</integer>
+			<key>Scrollback Lines</key>
+			<integer>0</integer>
+			<key>Selected Text Color</key>
+			<dict>
+				<key>Blue Component</key>
+				<real>0.8394431471824646</real>
+				<key>Green Component</key>
+				<real>0.9786489605903625</real>
+				<key>Red Component</key>
+				<real>0.35316696763038635</real>
+			</dict>
+			<key>Selection Color</key>
+			<dict>
+				<key>Blue Component</key>
+				<real>0.3332314193248749</real>
+				<key>Green Component</key>
+				<real>0.33479252457618713</real>
+				<key>Red Component</key>
+				<real>0.2554554343223572</real>
+			</dict>
+			<key>Send Code When Idle</key>
+			<false/>
+			<key>Shortcut</key>
+			<string></string>
+			<key>Show Status Bar</key>
+			<true/>
+			<key>Silence Bell</key>
+			<true/>
+			<key>Status Bar Layout</key>
+			<dict>
+				<key>advanced configuration</key>
+				<dict>
+					<key>algorithm</key>
+					<integer>0</integer>
+					<key>font</key>
+					<string>.AppleSystemUIFont 12</string>
+				</dict>
+				<key>components</key>
+				<array>
+					<dict>
+						<key>class</key>
+						<string>iTermStatusBarFixedSpacerComponent</string>
+						<key>configuration</key>
+						<dict>
+							<key>knobs</key>
+							<dict>
+								<key>base: compression resistance</key>
+								<integer>1</integer>
+								<key>base: priority</key>
+								<integer>5</integer>
+								<key>iTermStatusBarFixedSpacerComponentWidthKnob</key>
+								<integer>5</integer>
+							</dict>
+							<key>layout advanced configuration dictionary value</key>
+							<dict>
+								<key>algorithm</key>
+								<integer>0</integer>
+							</dict>
+						</dict>
+					</dict>
+					<dict>
+						<key>class</key>
+						<string>iTermStatusBarFixedSpacerComponent</string>
+						<key>configuration</key>
+						<dict>
+							<key>knobs</key>
+							<dict>
+								<key>base: compression resistance</key>
+								<integer>1</integer>
+								<key>base: priority</key>
+								<integer>5</integer>
+								<key>iTermStatusBarFixedSpacerComponentWidthKnob</key>
+								<integer>5</integer>
+							</dict>
+							<key>layout advanced configuration dictionary value</key>
+							<dict>
+								<key>algorithm</key>
+								<integer>0</integer>
+							</dict>
+						</dict>
+					</dict>
+					<dict>
+						<key>class</key>
+						<string>iTermStatusBarFixedSpacerComponent</string>
+						<key>configuration</key>
+						<dict>
+							<key>knobs</key>
+							<dict>
+								<key>base: compression resistance</key>
+								<integer>1</integer>
+								<key>base: priority</key>
+								<integer>5</integer>
+								<key>iTermStatusBarFixedSpacerComponentWidthKnob</key>
+								<integer>5</integer>
+								<key>shared text color</key>
+								<dict>
+									<key>Alpha Component</key>
+									<integer>1</integer>
+									<key>Blue Component</key>
+									<real>0.63</real>
+									<key>Color Space</key>
+									<string>sRGB</string>
+									<key>Green Component</key>
+									<real>0.9</real>
+									<key>Red Component</key>
+									<real>0.9</real>
+								</dict>
+							</dict>
+							<key>layout advanced configuration dictionary value</key>
+							<dict>
+								<key>algorithm</key>
+								<integer>0</integer>
+							</dict>
+						</dict>
+					</dict>
+					<dict>
+						<key>class</key>
+						<string>iTermStatusBarFixedSpacerComponent</string>
+						<key>configuration</key>
+						<dict>
+							<key>knobs</key>
+							<dict>
+								<key>base: compression resistance</key>
+								<integer>1</integer>
+								<key>base: priority</key>
+								<integer>5</integer>
+								<key>iTermStatusBarFixedSpacerComponentWidthKnob</key>
+								<integer>5</integer>
+								<key>shared text color</key>
+								<dict>
+									<key>Alpha Component</key>
+									<integer>1</integer>
+									<key>Blue Component</key>
+									<real>0.63</real>
+									<key>Color Space</key>
+									<string>sRGB</string>
+									<key>Green Component</key>
+									<real>0.9</real>
+									<key>Red Component</key>
+									<real>0.63</real>
+								</dict>
+							</dict>
+							<key>layout advanced configuration dictionary value</key>
+							<dict>
+								<key>algorithm</key>
+								<integer>0</integer>
+							</dict>
+						</dict>
+					</dict>
+					<dict>
+						<key>class</key>
+						<string>iTermStatusBarNetworkUtilizationComponent</string>
+						<key>configuration</key>
+						<dict>
+							<key>knobs</key>
+							<dict>
+								<key>base: priority</key>
+								<integer>5</integer>
+								<key>shared text color</key>
+								<dict>
+									<key>Alpha Component</key>
+									<integer>1</integer>
+									<key>Blue Component</key>
+									<real>0.9</real>
+									<key>Color Space</key>
+									<string>sRGB</string>
+									<key>Green Component</key>
+									<real>0.9</real>
+									<key>Red Component</key>
+									<real>0.63</real>
+								</dict>
+							</dict>
+							<key>layout advanced configuration dictionary value</key>
+							<dict>
+								<key>algorithm</key>
+								<integer>0</integer>
+								<key>font</key>
+								<string>.AppleSystemUIFont 12</string>
+							</dict>
+						</dict>
+					</dict>
+					<dict>
+						<key>class</key>
+						<string>iTermStatusBarCPUUtilizationComponent</string>
+						<key>configuration</key>
+						<dict>
+							<key>knobs</key>
+							<dict>
+								<key>base: compression resistance</key>
+								<integer>1</integer>
+								<key>base: priority</key>
+								<integer>5</integer>
+								<key>shared text color</key>
+								<dict>
+									<key>Alpha Component</key>
+									<integer>1</integer>
+									<key>Blue Component</key>
+									<real>0.9</real>
+									<key>Color Space</key>
+									<string>sRGB</string>
+									<key>Green Component</key>
+									<real>0.63</real>
+									<key>Red Component</key>
+									<real>0.63</real>
+								</dict>
+							</dict>
+							<key>layout advanced configuration dictionary value</key>
+							<dict>
+								<key>algorithm</key>
+								<integer>0</integer>
+								<key>font</key>
+								<string>.AppleSystemUIFont 12</string>
+							</dict>
+						</dict>
+					</dict>
+					<dict>
+						<key>class</key>
+						<string>iTermStatusBarMemoryUtilizationComponent</string>
+						<key>configuration</key>
+						<dict>
+							<key>knobs</key>
+							<dict>
+								<key>base: compression resistance</key>
+								<integer>1</integer>
+								<key>base: priority</key>
+								<integer>5</integer>
+								<key>shared text color</key>
+								<dict>
+									<key>Alpha Component</key>
+									<integer>1</integer>
+									<key>Blue Component</key>
+									<real>0.9</real>
+									<key>Color Space</key>
+									<string>sRGB</string>
+									<key>Green Component</key>
+									<real>0.63</real>
+									<key>Red Component</key>
+									<real>0.9</real>
+								</dict>
+							</dict>
+							<key>layout advanced configuration dictionary value</key>
+							<dict>
+								<key>algorithm</key>
+								<integer>0</integer>
+								<key>font</key>
+								<string>.AppleSystemUIFont 12</string>
+							</dict>
+						</dict>
+					</dict>
+				</array>
+			</dict>
+			<key>Sync Title</key>
+			<false/>
+			<key>Tags</key>
+			<array/>
+			<key>Terminal Type</key>
+			<string>rxvt</string>
+			<key>Transparency</key>
+			<integer>0</integer>
+			<key>Unlimited Scrollback</key>
+			<true/>
+			<key>Use Bold Font</key>
+			<true/>
+			<key>Use Bright Bold</key>
+			<true/>
+			<key>Use Italic Font</key>
+			<true/>
+			<key>Use Non-ASCII Font</key>
+			<false/>
+			<key>Vertical Spacing</key>
+			<integer>1</integer>
+			<key>Visual Bell</key>
+			<false/>
+			<key>Window Type</key>
+			<integer>0</integer>
+			<key>Working Directory</key>
+			<string>/Users/damorgan</string>
+		</dict>
+	</array>
+	<key>PointerActions</key>
+	<dict>
+		<key>Button,1,1,,</key>
+		<dict>
+			<key>Action</key>
+			<string>kContextMenuPointerAction</string>
+		</dict>
+		<key>Button,2,1,,</key>
+		<dict>
+			<key>Action</key>
+			<string>kPasteFromClipboardPointerAction</string>
+		</dict>
+		<key>Gesture,ThreeFingerSwipeDown,,</key>
+		<dict>
+			<key>Action</key>
+			<string>kPrevWindowPointerAction</string>
+		</dict>
+		<key>Gesture,ThreeFingerSwipeLeft,,</key>
+		<dict>
+			<key>Action</key>
+			<string>kPrevTabPointerAction</string>
+		</dict>
+		<key>Gesture,ThreeFingerSwipeRight,,</key>
+		<dict>
+			<key>Action</key>
+			<string>kNextTabPointerAction</string>
+		</dict>
+		<key>Gesture,ThreeFingerSwipeUp,,</key>
+		<dict>
+			<key>Action</key>
+			<string>kNextWindowPointerAction</string>
+		</dict>
+	</dict>
+	<key>PreventEscapeSequenceFromClearingHistory</key>
+	<false/>
+	<key>Print In Black And White</key>
+	<true/>
+	<key>QuitWhenAllWindowsClosed</key>
+	<true/>
+	<key>SUAutomaticallyUpdate</key>
+	<true/>
+	<key>SUEnableAutomaticChecks</key>
+	<true/>
+	<key>SUFeedAlternateAppNameKey</key>
+	<string>iTerm</string>
+	<key>SUFeedURL</key>
+	<string>https://iterm2.com/appcasts/final_modern.xml?shard=38</string>
+	<key>SUHasLaunchedBefore</key>
+	<true/>
+	<key>SULastCheckTime</key>
+	<date>2026-07-14T20:48:39Z</date>
+	<key>SUSendProfileInfo</key>
+	<false/>
+	<key>SUUpdateGroupIdentifier</key>
+	<integer>1233353980</integer>
+	<key>SUUpdateRelaunchingMarker</key>
+	<false/>
+	<key>ShowFullScreenTabBar</key>
+	<true/>
+	<key>SoundForEsc</key>
+	<false/>
+	<key>UseRecommendedAIModel</key>
+	<true/>
+	<key>VisualIndicatorForEsc</key>
+	<false/>
+	<key>findMode_iTerm</key>
+	<integer>0</integer>
+	<key>iTerm Version</key>
+	<string>3.6.11</string>
+</dict>
+</plist>

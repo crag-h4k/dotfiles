@@ -58,9 +58,14 @@ The chezmoi bootstrap line:
      `~/.config/nvim/` with the tracked config.
    - Places the linter configs at their own conventional paths (`~/.darglint`,
      `~/.flake8`, `~/.tflint.hcl`, `~/.markdownlint.yaml`, `~/.config/yamllint`).
-   - Runs `run_before_00-backup.sh` first, which snapshots every currently
-     managed file that already exists into `~/.dotfiles-backup/<timestamp>/`
-     before anything is overwritten. Runs on every apply (installs and updates).
+   - Runs `run_before_00-backup.sh` first, which snapshots the previous
+     (pre-apply) version of your configs into `~/.dotfiles-backup/<timestamp>/`
+     before anything is overwritten - every managed file plus colocated
+     non-managed state / local additions (e.g. `lazy-lock.json`, a hand-added
+     `~/.tmux/conf.d/*.conf`). Re-fetchable git externals (oh-my-zsh, tmux/zsh
+     plugins) and app-state dirs with secrets/logs (`~/.claude`, `~/.codex`) are
+     skipped. Runs on every apply; keeps the most recent `DOTFILES_BACKUP_KEEP`
+     (default 20) snapshots.
    - Runs `run_once_after_00-install.sh`, which exports the component selection
      as `INSTALL_*` env vars and calls `scripts/install.sh` to install brew/apt
      packages for the selected components, pre-warm the Neovim plugin cache, and
@@ -101,10 +106,11 @@ Components to install:
   2) tmux   tmux + plugins (tpm, resurrect, sensible, yank)
   3) neovim neovim, lazy.nvim, language servers, linters
   4) git    git config files (config, personal, ignore_global)
-  5) ai     AI tools (codecompanion, claude_hooks, codex_hooks, statusline)
+  5) ai     AI tools (claude_hooks, codex_hooks, statusline, codecompanion)
+  6) iterm2 iTerm2 prefs, macOS only (custom prefs folder)
 
   all   the default set (1 2 3 4)
-  all+  everything, adds ai
+  all+  everything, adds ai, iterm2
 
 Enter numbers (e.g. "1 3"), a keyword above, or press Enter for default (1 2 3 4)
 ```
@@ -116,7 +122,7 @@ Both paths resolve to the same `componentSelection` string and the same
   matter - `1 3`, `13`, and `3 1` are equivalent.
 - Enter: the default, `1 2 3 4` (zsh + tmux + neovim + git; no AI tools).
 - `all`: the default set (`1 2 3 4`).
-- `all+`: everything, adding the AI tools.
+- `all+`: everything, adding the AI tools and (on macOS) iTerm2.
 
 The component list is the single source of truth in `.chezmoi.toml.tmpl`; the gum
 options and the typed menu are both generated from it, so adding a component is a
@@ -133,11 +139,13 @@ sub-features (so they are stored as the nested tables `[data.components.git]` an
   `ignore_global` (`~/.gitignore_global`). `git` is in the default set, but the
   submenu pre-selects only `ignore_global` - so by default you get
   `~/.gitignore_global` and not `~/.gitconfig` (identical to the old behavior).
-- `ai`: `codecompanion` (CodeCompanion.nvim + the `claude-agent-acp` bridge),
-  `claude_hooks` (merges the Claude notify hooks into `~/.claude/settings.json`),
+- `ai`: `claude_hooks` (merges the Claude notify hooks into `~/.claude/settings.json`),
   `codex_hooks` (merges the Codex notify hook + `tui.notifications` into
-  `~/.codex/config.toml`), `statusline` (reserved placeholder, gates nothing yet).
-  `ai` stays off by default; if picked, the submenu defaults to `codecompanion`.
+  `~/.codex/config.toml`), `statusline` (reserved placeholder, gates nothing yet),
+  `codecompanion` (CodeCompanion.nvim + the `claude-agent-acp` bridge). `codecompanion`
+  is listed last because it is the heaviest sub-feature - it pulls in node, npm, and
+  the npm-installed bridge. `ai` stays off by default; if picked, the submenu still
+  defaults to `codecompanion`.
 
 With `gum` the submenu is a nested checkbox seeded with your current/default
 sub-features; without it (or under `DOTFILES_NO_TUI`) it falls back to a typed
@@ -166,6 +174,34 @@ install even without the neovim component.
 The raw answer is stored as `componentSelection` and parsed into
 `[data.components]` booleans in `~/.config/chezmoi/chezmoi.toml`, reused on every
 subsequent `chezmoi apply` without re-prompting.
+
+### iterm2 (macOS only)
+
+`iterm2` is a plain bare-bool component and opt-in (not in the default set). It
+only takes effect on macOS: the config is gated on `.chezmoi.os == "darwin"` in
+`.chezmoiignore`, and the cask install runs only in the macOS arm of
+`scripts/install.sh`. Selecting it on Debian is a harmless no-op.
+
+When selected on a Mac, `chezmoi apply` installs the iTerm2 cask
+(`brew install --cask iterm2`), writes
+`~/.config/iterm2/com.googlecode.iterm2.plist`, and runs
+`scripts/install-iterm2.sh`, which points iTerm2 at that folder
+(`PrefsCustomFolder` + `LoadPrefsFromCustomFolder`). Restart iTerm2 to load it.
+
+The load is read-only: the repo stays the source of truth. To update the
+committed prefs after changing settings in the iTerm2 UI, re-export and
+re-normalize to XML, then commit:
+
+```bash
+defaults export com.googlecode.iterm2 \
+  ~/.local/share/chezmoi/dot_config/iterm2/com.googlecode.iterm2.plist
+plutil -convert xml1 \
+  ~/.local/share/chezmoi/dot_config/iterm2/com.googlecode.iterm2.plist
+```
+
+The committed baseline has `NoSync*` keys (per-machine ephemeral state) pruned;
+iTerm2 excludes those from a custom folder anyway, so drop them again after a
+re-export to keep the diff clean.
 
 ## Changing components later
 

@@ -43,3 +43,8 @@ scripts
 .codex/config.toml
 .codex/hooks/notify-tmux.sh
 {{ end -}}
+{{/* iterm2 prefs are macOS-only (com.googlecode.iterm2 defaults) and opt-in.
+     Ignore the config unless we are on darwin AND the component is selected. */}}
+{{ if or (ne .chezmoi.os "darwin") (not (dig "components" "iterm2" false .)) -}}
+.config/iterm2
+{{ end -}}

@@ -38,10 +38,10 @@ parse_toml() {
 }
 
 # Render .chezmoi.toml.tmpl with componentSelection (and optionally gitSelection
-# / aiSelection) pre-seeded, then echo the nine component booleans in the fixed
+# / aiSelection) pre-seeded, then echo the component booleans in the fixed
 # column order:
-#   zsh tmux neovim  git.config git.personal git.ignore_global  ai.codecompanion ai.claude_hooks ai.codex_hooks ai.statusline
-# zsh/tmux/neovim are bare [data.components] bools; the rest live in the nested
+#   zsh tmux neovim  git.config git.personal git.ignore_global  ai.codecompanion ai.claude_hooks ai.codex_hooks ai.statusline  iterm2
+# zsh/tmux/neovim/iterm2 are bare [data.components] bools; the rest live in the nested
 # [data.components.git] / [data.components.ai] tables. Pre-seeding makes
 # promptStringOnce return the value instead of prompting, so the parser is
 # exercised deterministically. --init makes promptStringOnce available.
@@ -67,7 +67,7 @@ render_components() {
     fi
     # Pull the booleans out by key name (each is unique across the rendered
     # config), so reordering the lists later does not silently break assertions.
-    local zsh tmux neovim gconfig gpersonal gignore aicc aihooks aicodex aistatus
+    local zsh tmux neovim gconfig gpersonal gignore aicc aihooks aicodex aistatus iterm2
     zsh=$(printf '%s\n' "$out" | sed -n 's/^[[:space:]]*zsh = \(.*\)$/\1/p')
     tmux=$(printf '%s\n' "$out" | sed -n 's/^[[:space:]]*tmux = \(.*\)$/\1/p')
     neovim=$(printf '%s\n' "$out" | sed -n 's/^[[:space:]]*neovim = \(.*\)$/\1/p')
@@ -78,8 +78,9 @@ render_components() {
     aihooks=$(printf '%s\n' "$out" | sed -n 's/^[[:space:]]*claude_hooks = \(.*\)$/\1/p')
     aicodex=$(printf '%s\n' "$out" | sed -n 's/^[[:space:]]*codex_hooks = \(.*\)$/\1/p')
     aistatus=$(printf '%s\n' "$out" | sed -n 's/^[[:space:]]*statusline = \(.*\)$/\1/p')
-    printf '%s %s %s %s %s %s %s %s %s %s' \
-        "$zsh" "$tmux" "$neovim" "$gconfig" "$gpersonal" "$gignore" "$aicc" "$aihooks" "$aicodex" "$aistatus"
+    iterm2=$(printf '%s\n' "$out" | sed -n 's/^[[:space:]]*iterm2 = \(.*\)$/\1/p')
+    printf '%s %s %s %s %s %s %s %s %s %s %s' \
+        "$zsh" "$tmux" "$neovim" "$gconfig" "$gpersonal" "$gignore" "$aicc" "$aihooks" "$aicodex" "$aistatus" "$iterm2"
 }
 
 # bool "true" if digit d (1..5) is present in the numeric string, else "false".
@@ -90,15 +91,15 @@ has_digit() {
     esac
 }
 
-COLS="zsh tmux neovim git.config git.personal git.ignore_global ai.codecompanion ai.claude_hooks ai.codex_hooks ai.statusline"
+COLS="zsh tmux neovim git.config git.personal git.ignore_global ai.codecompanion ai.claude_hooks ai.codex_hooks ai.statusline iterm2"
 
 # Assert a selection WITHOUT a sub-seed renders the expected top-level state.
 # The git/ai PARENTS map to their default sub-feature (git.ignore_global /
 # ai.codecompanion); the opt-in sub-features (config, personal, claude_hooks,
 # codex_hooks, statusline) stay off unless explicitly selected.
-# Args: selection ezsh etmux eneovim egit eai
+# Args: selection ezsh etmux eneovim egit eai eiterm2
 assert_top() {
-    local selection="$1" want="$2 $3 $4 false false $5 $6 false false false" got
+    local selection="$1" want="$2 $3 $4 false false $5 $6 false false false $7" got
     got=$(render_components "$selection") || {
         echo "validate-templates: FAILED to render/parse (sel='$selection'): $got" >&2
         fail=1
@@ -113,12 +114,13 @@ assert_top() {
     fi
 }
 
-# Assert a selection WITH explicit sub-selections renders the expected nine
-# booleans. Args: selection gitSel aiSel  e1..e10 (in COLS order)
+# Assert a selection WITH explicit sub-selections renders the expected
+# booleans. Args: selection gitSel aiSel  e1..e10 (in COLS order); iterm2 (the
+# trailing column) is always off in these sub-feature cases.
 assert_sub() {
     local selection="$1" gitsel="$2" aisel="$3"
     shift 3
-    local want="$1 $2 $3 $4 $5 $6 $7 $8 $9 ${10}" got
+    local want="$1 $2 $3 $4 $5 $6 $7 $8 $9 ${10} false" got
     got=$(render_components "$selection" "$gitsel" "$aisel") || {
         echo "validate-templates: FAILED to render/parse (sel='$selection' git='$gitsel' ai='$aisel'): $got" >&2
         fail=1
@@ -149,36 +151,44 @@ for d1 in 0 1; do for d2 in 0 1; do for d3 in 0 1; do for d4 in 0 1; do for d5 i
     # a different case; exercise it separately below. Skip it here.
     [[ -z "$sel" ]] && continue
     # No sub-seed: parent on (digit 4 / 5) maps to its default sub-feature.
+    # iterm2 (digit 6) is not part of this matrix, so it is always off here;
+    # its on-path is covered by the dedicated cases below.
     assert_top "$sel" \
         "$(has_digit 1 "$sel")" "$(has_digit 2 "$sel")" \
         "$(has_digit 3 "$sel")" "$(has_digit 4 "$sel")" \
-        "$(has_digit 5 "$sel")"
+        "$(has_digit 5 "$sel")" false
     ncases=$((ncases + 1))
 done; done; done; done; done
 
 # --- keyword forms ---------------------------------------------------------
 # all  = default-on set (zsh tmux neovim git); ai off. git defaults to its
 #        ignore_global sub-feature only.
-assert_top "all"  true true true true false
-# all+ = everything: both parents on, each at its default sub-feature.
-assert_top "all+" true true true true true
+assert_top "all"  true true true true false false
+# all+ = everything: both parents on, each at its default sub-feature, iterm2 on.
+assert_top "all+" true true true true true true
 
 # --- space / order independence -------------------------------------------
 # Same selections expressed with spaces and reordered must match the no-space
 # forms above. "3 1" == zsh+neovim; "421" == zsh+tmux+git (digits 4,2,1, not 3);
 # "1,3" proves comma separators are ignored too. "3 5" proves the ai parent
 # (digit 5) parses alongside neovim.
-assert_top "3 1"   true  false true  false false
-assert_top "421"   true  true  false true  false
-assert_top "1,3"   true  false true  false false
-assert_top "1 2 3" true  true  true  false false
-assert_top "3 5"   false false true  false true
+assert_top "3 1"   true  false true  false false false
+assert_top "421"   true  true  false true  false false
+assert_top "1,3"   true  false true  false false false
+assert_top "1 2 3" true  true  true  false false false
+assert_top "3 5"   false false true  false true  false
 
 # --- empty / echoed-prompt fallback to default (1 2 3 4) -------------------
 # Empty string falls back to the default-on set (now includes git). A value that
 # begins with the menu text (non-interactive init echoing the prompt) does too.
-assert_top ""                       true true true true false
-assert_top "Components to install:" true true true true false
+assert_top ""                       true true true true false false
+assert_top "Components to install:" true true true true false false
+
+# --- iterm2 (macOS-only bare-bool component, opt-in) -----------------------
+# Not in the default set (all=false), so it stays off for "all" and the default
+# fallback, and turns on only when digit 6 is selected or via all+.
+assert_top "6"   false false false false false true
+assert_top "1 6" true  false false false false true
 
 # --- nested submenu sub-selections -----------------------------------------
 # git parent on (4) with explicit sub-selection, by key and by number; overrides

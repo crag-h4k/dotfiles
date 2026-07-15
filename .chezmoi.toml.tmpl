@@ -22,11 +22,14 @@
     (dict "num" "2" "key" "personal"      "label" "personal"      "desc" "~/.gitconfig.personal" "all" false)
     (dict "num" "3" "key" "ignore_global" "label" "ignore_global" "desc" "~/.gitignore_global"   "all" true)
 -}}
+{{- /* codecompanion is listed last: it is the heaviest sub-feature (pulls in    */ -}}
+{{- /* node/npm and the npm-installed claude-agent-acp bridge), so keep it at the */ -}}
+{{- /* end of the submenu even though it stays the default (all=true) selection.  */ -}}
 {{- $aiFeatures := list
-    (dict "num" "1" "key" "codecompanion" "label" "codecompanion" "desc" "CodeCompanion.nvim assistant (needs neovim)" "all" true)
-    (dict "num" "2" "key" "claude_hooks"  "label" "claude_hooks"  "desc" "Claude settings.json notify hooks"           "all" false)
-    (dict "num" "3" "key" "codex_hooks"   "label" "codex_hooks"   "desc" "Codex config.toml notify hook"               "all" false)
-    (dict "num" "4" "key" "statusline"    "label" "statusline"    "desc" "Claude statusline slot (reserved)"           "all" false)
+    (dict "num" "1" "key" "claude_hooks"  "label" "claude_hooks"  "desc" "Claude settings.json notify hooks"           "all" false)
+    (dict "num" "2" "key" "codex_hooks"   "label" "codex_hooks"   "desc" "Codex config.toml notify hook"               "all" false)
+    (dict "num" "3" "key" "statusline"    "label" "statusline"    "desc" "Claude statusline slot (reserved)"           "all" false)
+    (dict "num" "4" "key" "codecompanion" "label" "codecompanion" "desc" "CodeCompanion.nvim assistant (needs neovim; pulls in node, npm + claude-agent-acp)" "all" true)
 -}}
 {{- /* Top-level components. git and ai carry a non-empty `sub` features list plus */ -}}
 {{- /* the submenu's persisted selection key and header; the rest have an empty    */ -}}
@@ -36,7 +39,8 @@
     (dict "num" "2" "key" "tmux"   "label" "tmux"   "desc" "tmux + plugins (tpm, resurrect, sensible, yank)" "all" true  "sub" (list))
     (dict "num" "3" "key" "neovim" "label" "neovim" "desc" "neovim, lazy.nvim, language servers, linters"    "all" true  "sub" (list))
     (dict "num" "4" "key" "git"    "label" "git"    "desc" "git config files (config, personal, ignore_global)" "all" true  "sub" $gitFeatures "selKey" "gitSelection" "header" "git sub-features")
-    (dict "num" "5" "key" "ai"     "label" "ai"     "desc" "AI tools (codecompanion, claude_hooks, codex_hooks, statusline)"  "all" false "sub" $aiFeatures  "selKey" "aiSelection"  "header" "AI sub-features")
+    (dict "num" "5" "key" "ai"     "label" "ai"     "desc" "AI tools (claude_hooks, codex_hooks, statusline, codecompanion)"  "all" false "sub" $aiFeatures  "selKey" "aiSelection"  "header" "AI sub-features")
+    (dict "num" "6" "key" "iterm2" "label" "iterm2" "desc" "iTerm2 prefs, macOS only (custom prefs folder)"  "all" false "sub" (list))
 -}}
 {{- /* Build the numbered menu text from the list. labels are padded to the    */ -}}
 {{- /* width of the widest label so descriptions line up.                       */ -}}
