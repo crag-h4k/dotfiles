@@ -308,6 +308,13 @@ require("lazy").setup({
         if server == "lua_ls" then
           opts.settings = lua_settings()
         end
+        -- gh-actions-language-server crashes at initialize if it receives no
+        -- initializationOptions (it reads options.sessionToken off undefined).
+        -- The deprecated lspconfig.configs.* table lacks the init_options shim
+        -- that the modern lsp/gh_actions_ls.lua spec carries, so add it here.
+        if server == "gh_actions_ls" then
+          opts.init_options = vim.empty_dict()
+        end
         -- Load the server config data directly without using the deprecated lspconfig framework
         local ok, config_def = pcall(require, "lspconfig.configs." .. server)
         if not ok or not config_def or not config_def.default_config then
@@ -331,6 +338,16 @@ require("lazy").setup({
             callback = function(event)
               if cfg.filetypes and #cfg.filetypes > 0 then
                 if not vim.tbl_contains(cfg.filetypes, vim.bo[event.buf].filetype) then
+                  return
+                end
+              end
+              -- gh_actions_ls attaches to the yaml filetype, but only GitHub
+              -- Actions workflow files are meaningful. Its deprecated function-form
+              -- root_dir is ignored by vim.lsp.start (which wants a string), so
+              -- gate the start on the path here instead.
+              if server == "gh_actions_ls" then
+                local name = vim.api.nvim_buf_get_name(event.buf)
+                if not name:match("[/\\]%.github[/\\]workflows[/\\]") then
                   return
                 end
               end

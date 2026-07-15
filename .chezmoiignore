@@ -43,3 +43,9 @@ scripts
 .codex/config.toml
 .codex/hooks/notify-tmux.sh
 {{ end -}}
+{{/* iterm2 Dynamic Profiles JSON (~/.config/iterm2, symlinked into ~/Library by
+     install-iterm2.sh) are macOS-only and opt-in. Ignore unless we are on darwin
+     AND the component is selected. */}}
+{{ if or (ne .chezmoi.os "darwin") (not (dig "components" "iterm2" false .)) -}}
+.config/iterm2
+{{ end -}}

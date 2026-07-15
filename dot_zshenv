@@ -52,3 +52,31 @@ esac
 # re-sourcing (`sourcez`) and stops a stray snap/conda binary from shadowing one
 # installed to /usr/local/bin.
 typeset -U path PATH
+
+# fpath resilience. When FPATH is present in the environment, zsh seeds fpath
+# from it and REPLACES (does not merge) its own function dirs. An exported FPATH
+# inherited from a long-lived parent - e.g. a tmux server started under a zsh
+# that Homebrew has since upgraded - then still points at the deleted
+# Cellar/zsh/<old>/functions dir and omits the running zsh's, so autoload of the
+# core functions (compinit, add-zsh-hook, is-at-least, colors, bashcompinit)
+# fails and floods every shell with "function definition file not found". Ensure
+# the running zsh's own functions dir is on fpath, de-dupe, and un-export FPATH so
+# child shells re-derive their own instead of inheriting a stale one. The loop is
+# idempotent - if the dir is already present, the prepend is collapsed by the
+# `typeset -U` below.
+() {
+    local d
+    for d in \
+        $HOMEBREW_PREFIX/share/zsh/functions(N) \
+        /usr/share/zsh/$ZSH_VERSION/functions(N) \
+        /usr/share/zsh/functions(N) \
+        ${${:-${commands[zsh]:A}}:h:h}/share/zsh/$ZSH_VERSION/functions(N)
+    do
+        if [[ -e $d/add-zsh-hook ]]; then
+            fpath=($d $fpath)
+            break
+        fi
+    done
+}
+typeset -U fpath
+typeset +x FPATH
