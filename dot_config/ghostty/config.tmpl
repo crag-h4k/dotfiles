@@ -1,0 +1,107 @@
+# ~/.config/ghostty/config
+#
+# Ghostty terminal config. Managed by chezmoi; source is
+# dot_config/ghostty/config.tmpl (templated so macOS-only keys and the
+# global-shortcut modifier are gated per OS). Ghostty runs on macOS and Linux.
+#
+# The palette is the single source of color truth in themes/gud-theme.conf: a
+# Dracula-family "gud" variant that matches the tmux status line and the nvim
+# colorscheme. Edit colors THERE, not here.
+
+# ---- Theme / palette --------------------------------------------------------
+theme = gud-theme.conf
+
+# ---- Font -------------------------------------------------------------------
+# Hack Nerd Font Mono: the patched, single-width Hack, so powerline separators
+# and Nerd Font glyphs in the tmux status line and prompt render in the primary
+# font with terminal-correct cell width. Ghostty's bundled Nerd Font symbol
+# fallback still covers any glyph the primary font is missing.
+font-family = "Hack Nerd Font Mono"
+font-size = 16
+# Bright bold (carried over from the old iTerm2 "Use Bright Bold") plus an
+# explicit bold color so bold text stays legible on the dark background.
+bold-is-bright = true
+bold-color = #e6e6e6
+
+# ---- Cursor -----------------------------------------------------------------
+cursor-style = block
+cursor-style-blink = true
+
+# ---- Window / chrome --------------------------------------------------------
+# A little breathing room around the grid; balance keeps the padding even when
+# the cell grid does not divide evenly into the window size.
+window-padding-x = 8
+window-padding-y = 6
+window-padding-balance = true
+# New splits, tabs, and windows open in the current pane's working directory.
+window-inherit-working-directory = true
+# Dim the inactive split slightly so the focused pane reads at a glance.
+unfocused-split-opacity = 0.85
+# Restore the previous window layout on relaunch.
+window-save-state = default
+# Translucent background (carried over from iTerm2: transparency 0.16 -> 0.84).
+background-opacity = 0.84
+background-blur = false
+scrollback-limit = 1000000
+{{ if eq .chezmoi.os "darwin" }}
+# ---- macOS-only chrome ------------------------------------------------------
+# Blend the titlebar into the window; keep native tabs.
+macos-titlebar-style = transparent
+{{ end -}}
+
+# ---- Behavior ---------------------------------------------------------------
+copy-on-select = true
+mouse-hide-while-typing = true
+# Don't prompt when closing a pane that is only running a shell.
+confirm-close-surface = false
+# Auto-detected shell integration keeps cwd reporting and prompt marks working.
+shell-integration = detect
+
+# ---- Quick terminal (Yakuake / Guake-style dropdown) ------------------------
+# One always-available dropdown terminal that slides down from the top of the
+# screen and auto-hides when it loses focus. There is NO default keybind for it;
+# the global toggle is defined in the keybinds section below.
+quick-terminal-position = top
+quick-terminal-size = 40%
+quick-terminal-animation-duration = 0.15
+quick-terminal-autohide = true
+{{ if eq .chezmoi.os "darwin" }}
+# macOS-only quick-terminal options.
+# Show the dropdown on whichever monitor the mouse is on.
+quick-terminal-screen = mouse
+# Keep the dropdown on the current Space when switching Spaces.
+quick-terminal-space-behavior = move
+{{ end -}}
+
+# ---- Keybinds ---------------------------------------------------------------
+# Splits, tabs, and pane navigation use Ghostty's built-in per-platform defaults
+# (cmd+... on macOS, ctrl+shift+... on Linux). Those already inherit the working
+# directory and use cmd/super, which never reaches tmux or nvim inside the
+# terminal, so there is no clash with the tmux prefix. The binds below only ADD
+# to those defaults.
+#
+# `global:` makes a keybind fire system-wide, even when Ghostty is NOT the
+# focused app. Same prefix on both OSes; the prerequisites differ:
+#   - macOS: Ghostty needs Accessibility permission (System Settings ->
+#     Privacy & Security -> Accessibility). Ghostty requests it on launch/reload;
+#     until granted, the global toggle does nothing.
+#   - Linux (GTK, since Ghostty 1.2.0): needs a desktop that implements the XDG
+#     GlobalShortcuts portal. KDE Plasma >= 5.27 and GNOME >= 48 work out of the
+#     box; Hyprland needs manual setup; wlroots/Sway do NOT support it.
+# A global keybind always consumes its trigger, so pick a chord the terminal
+# programs never use. A cmd/super chord is ideal (it does not reach tmux/nvim).
+{{ if eq .chezmoi.os "darwin" -}}
+# Cmd+` toggles the dropdown. (Overrides the macOS "cycle app windows" chord
+# globally; swap to cmd+shift+grave_accent if you want that back.)
+keybind = global:cmd+grave_accent=toggle_quick_terminal
+# Zoom the focused split to fill the window (tmux `prefix z` muscle memory).
+keybind = cmd+shift+enter=toggle_split_zoom
+# Even out split sizes.
+keybind = cmd+shift+e=equalize_splits
+{{ else -}}
+# super is usually grabbed by the Linux WM, so use ctrl for the global toggle;
+# adjust to your desktop's global-shortcut UI if it collides.
+keybind = global:ctrl+grave_accent=toggle_quick_terminal
+keybind = ctrl+shift+enter=toggle_split_zoom
+keybind = ctrl+shift+e=equalize_splits
+{{ end -}}

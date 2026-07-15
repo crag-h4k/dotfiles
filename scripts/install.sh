@@ -30,9 +30,15 @@ INSTALL_GIT_PERSONAL="${INSTALL_GIT_PERSONAL:-false}"
 # (touch/rm per-host still works). The claude_hooks sub-feature is file-gated in
 # .chezmoiignore, not here.
 INSTALL_AI_CODECOMPANION="${INSTALL_AI_CODECOMPANION:-false}"
-# iterm2 (macOS-only, opt-in): installs the iTerm2 cask and points it at the
-# chezmoi-managed custom prefs folder. No-op on non-macOS.
-INSTALL_ITERM2="${INSTALL_ITERM2:-false}"
+# terminal sub-features (opt-in). The CONFIG for each is file-gated in
+# .chezmoiignore; these vars gate only the BINARY install.
+# - ghostty: cask on macOS; no official Debian apt package, so config-only on
+#   Debian (see the debian arm below).
+# - iterm2: cask on macOS only; a no-op on non-macOS.
+# Standalone default false for both (opt-in), like the other GUI tooling; the
+# chezmoi run_once path sets them explicitly from the terminal submenu selection.
+INSTALL_TERMINAL_GHOSTTY="${INSTALL_TERMINAL_GHOSTTY:-false}"
+INSTALL_TERMINAL_ITERM2="${INSTALL_TERMINAL_ITERM2:-false}"
 
 _deduped_pkgs() {
     local -a unique=()
@@ -85,7 +91,7 @@ main() {
     local os
     os=$(os_detect)
     info "dotfiles installer: platform=$os"
-    info "components: zsh=$INSTALL_ZSH tmux=$INSTALL_TMUX neovim=$INSTALL_NEOVIM git.config=$INSTALL_GIT_CONFIG git.personal=$INSTALL_GIT_PERSONAL ai.codecompanion=$INSTALL_AI_CODECOMPANION iterm2=$INSTALL_ITERM2"
+    info "components: zsh=$INSTALL_ZSH tmux=$INSTALL_TMUX neovim=$INSTALL_NEOVIM git.config=$INSTALL_GIT_CONFIG git.personal=$INSTALL_GIT_PERSONAL ai.codecompanion=$INSTALL_AI_CODECOMPANION terminal.ghostty=$INSTALL_TERMINAL_GHOSTTY terminal.iterm2=$INSTALL_TERMINAL_ITERM2"
 
     # Base toolchain required by the installer itself and by reconfigure flows.
     # This intentionally runs before selected component packages so helpers such
@@ -147,9 +153,19 @@ main() {
             # iTerm2 is a cask, not a formula, so it installs separately. Guard
             # for idempotency (brew --cask errors if already installed) and
             # soft-fail so a download blip does not abort the whole install.
-            if [[ "$INSTALL_ITERM2" == true ]]; then
+            if [[ "$INSTALL_TERMINAL_ITERM2" == true ]]; then
                 brew list --cask iterm2 >/dev/null 2>&1 || brew install --cask iterm2 \
                     || warn "iterm2 cask install failed; continuing"
+            fi
+            # Ghostty is a cask too. Mirror the iterm2 guard, and also skip when
+            # /Applications/Ghostty.app already exists (installed outside brew) so
+            # we never collide with a manual .app. Soft-fail on a download blip.
+            if [[ "$INSTALL_TERMINAL_GHOSTTY" == true ]]; then
+                if [[ -d "/Applications/Ghostty.app" ]] || brew list --cask ghostty >/dev/null 2>&1; then
+                    info "ghostty: already present; skipping cask install"
+                else
+                    brew install --cask ghostty || warn "ghostty cask install failed; continuing"
+                fi
             fi
             ;;
         debian)
@@ -166,6 +182,13 @@ main() {
             # the whole install via set -e on the && call site.
             [[ "$INSTALL_NEOVIM" == true ]] && { install_neovim_debian || warn "neovim install failed; continuing without a neovim upgrade"; }
             [[ "$INSTALL_ZSH" == true || "$INSTALL_TMUX" == true ]] && { install_yq_debian || warn "yq install failed; notifications fall back to built-in default colors until yq is installed"; }
+            # Ghostty is a GUI terminal with NO official Debian apt package (the
+            # project ships source builds + community repos only; Ubuntu 26.04+ has
+            # it, Debian does not). This profile is a headless trixie container, so
+            # we do not add a third-party apt repo or build a display app here. The
+            # themed config still lands via chezmoi; install the binary manually on
+            # a real Linux desktop (see README > terminal > ghostty).
+            [[ "$INSTALL_TERMINAL_GHOSTTY" == true ]] && info "ghostty: config applied; skipping binary install on Debian (no official apt package; GUI app not provisioned on the headless container profile). See README."
             ;;
     esac
 
@@ -182,7 +205,7 @@ main() {
     # Post-install steps for each component (non-package work).
     [[ "$INSTALL_ZSH" == true ]]    && bash "$SCRIPT_DIR/install-zsh.sh"
     [[ "$INSTALL_NEOVIM" == true ]] && bash "$SCRIPT_DIR/install-neovim.sh"
-    [[ "$INSTALL_ITERM2" == true ]] && bash "$SCRIPT_DIR/install-iterm2.sh"
+    [[ "$INSTALL_TERMINAL_ITERM2" == true ]] && bash "$SCRIPT_DIR/install-iterm2.sh"
 
     # Provision the CodeCompanion opt-in sentinel that init.lua checks at startup.
     # Only meaningful with neovim. Done here (not as a chezmoi-managed file) so a

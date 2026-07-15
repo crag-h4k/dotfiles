@@ -45,4 +45,12 @@ ensure("Notification", "~/.claude/hooks/notify-tmux.sh")
 ensure("PreToolUse", "~/.claude/hooks/notify-tmux.sh", matcher="AskUserQuestion")
 ensure("UserPromptSubmit", "~/.claude/hooks/notify-clear.sh")
 
+# Managed env vars. Merge-only, like the hooks above: we assert our own keys and
+# leave every other env key (and top-level setting) that Claude Code writes here
+# untouched. CLAUDE_CODE_DISABLE_MOUSE_CLICKS=1 disables mouse-click reporting so
+# terminal text selection / copy keeps working; kept durable so it syncs to every
+# host where this file is managed. (Do NOT resurrect the old CLAUDE_CODE_DISABLE_MOUSE.)
+env = data.setdefault("env", {})
+env["CLAUDE_CODE_DISABLE_MOUSE_CLICKS"] = "1"
+
 sys.stdout.write(json.dumps(data, indent=2) + "\n")

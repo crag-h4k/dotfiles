@@ -102,15 +102,15 @@ typed numbered menu:
 
 ```text
 Components to install:
-  1) zsh    oh-my-zsh, plugins, custom functions, aliases
-  2) tmux   tmux + plugins (tpm, resurrect, sensible, yank)
-  3) neovim neovim, lazy.nvim, language servers, linters
-  4) git    git config files (config, personal, ignore_global)
-  5) ai     AI tools (claude_hooks, codex_hooks, statusline, codecompanion)
-  6) iterm2 iTerm2 prefs, macOS only (custom prefs folder)
+  1) zsh      oh-my-zsh, plugins, custom functions, aliases
+  2) tmux     tmux + plugins (tpm, resurrect, sensible, yank)
+  3) neovim   neovim, lazy.nvim, language servers, linters
+  4) git      git config files (config, personal, ignore_global)
+  5) ai       AI tools (claude_hooks, codex_hooks, statusline, codecompanion)
+  6) terminal terminal emulator config (ghostty, iterm2)
 
   all   the default set (1 2 3 4)
-  all+  everything, adds ai, iterm2
+  all+  everything, adds ai, terminal
 
 Enter numbers (e.g. "1 3"), a keyword above, or press Enter for default (1 2 3 4)
 ```
@@ -122,18 +122,22 @@ Both paths resolve to the same `componentSelection` string and the same
   matter - `1 3`, `13`, and `3 1` are equivalent.
 - Enter: the default, `1 2 3 4` (zsh + tmux + neovim + git; no AI tools).
 - `all`: the default set (`1 2 3 4`).
-- `all+`: everything, adding the AI tools and (on macOS) iTerm2.
+- `all+`: everything, adding the AI tools and the `terminal` component. Like the
+  other submenus, `all+` takes each parent at its default sub-features only, so
+  `terminal` comes on with `ghostty` (its default) but not `iterm2`; add `iterm2`
+  by selecting it in the submenu.
 
 The component list is the single source of truth in `.chezmoi.toml.tmpl`; the gum
 options and the typed menu are both generated from it, so adding a component is a
 one-line edit there. Set `DOTFILES_NO_TUI=1` to force the typed menu even when gum
 is installed.
 
-### Sub-feature submenus (git, ai)
+### Sub-feature submenus (git, ai, terminal)
 
-`git` and `ai` are not plain booleans - each opens a second checkbox to pick its
-sub-features (so they are stored as the nested tables `[data.components.git]` and
-`[data.components.ai]`, where "on" means any sub-feature is true):
+`git`, `ai`, and `terminal` are not plain booleans - each opens a second checkbox
+to pick its sub-features (so they are stored as the nested tables
+`[data.components.git]`, `[data.components.ai]`, and `[data.components.terminal]`,
+where "on" means any sub-feature is true):
 
 - `git`: `config` (`~/.gitconfig`), `personal` (`~/.gitconfig.personal`),
   `ignore_global` (`~/.gitignore_global`). `git` is in the default set, but the
@@ -146,6 +150,11 @@ sub-features (so they are stored as the nested tables `[data.components.git]` an
   is listed last because it is the heaviest sub-feature - it pulls in node, npm, and
   the npm-installed bridge. `ai` stays off by default; if picked, the submenu still
   defaults to `codecompanion`.
+- `terminal`: `ghostty` (Ghostty config + quick-terminal dropdown, macOS and Linux)
+  and `iterm2` (iTerm2 Dynamic Profiles, macOS only). `terminal` stays off by
+  default; if picked, the submenu defaults to `ghostty`. `iterm2` carries an `os`
+  tag, so the submenu hides it on non-macOS (the data key is still emitted for
+  column parity, and the file gate in `.chezmoiignore` also enforces darwin).
 
 With `gum` the submenu is a nested checkbox seeded with your current/default
 sub-features; without it (or under `DOTFILES_NO_TUI`) it falls back to a typed
@@ -164,7 +173,10 @@ are added to `.chezmoiignore` so `chezmoi apply` never writes them, and its plug
 externals are dropped from `.chezmoiexternal.toml` so they are never fetched.
 `~/.gitignore_global` follows the `git > ignore_global` sub-feature (on by
 default), `~/.claude/settings.json` follows `ai > claude_hooks` (off by default),
-and `~/.codex/config.toml` follows `ai > codex_hooks` (off by default). The base
+`~/.codex/config.toml` follows `ai > codex_hooks` (off by default),
+`~/.config/ghostty` follows `terminal > ghostty` (on when `terminal` is picked),
+and `~/.config/iterm2` follows `terminal > iterm2` and `darwin` (macOS only). The
+base
 files install regardless of selection: `~/.tfswitch.toml` and
 the tool linter configs (`~/.darglint`, `~/.flake8`, `~/.tflint.hcl`,
 `~/.markdownlint.yaml`, `~/.config/yamllint/config`). Those linter configs are
@@ -175,12 +187,46 @@ The raw answer is stored as `componentSelection` and parsed into
 `[data.components]` booleans in `~/.config/chezmoi/chezmoi.toml`, reused on every
 subsequent `chezmoi apply` without re-prompting.
 
-### iterm2 (macOS only)
+### terminal (ghostty, iterm2)
 
-`iterm2` is a plain bare-bool component and opt-in (not in the default set). It
-only takes effect on macOS: the files are gated on `.chezmoi.os == "darwin"` in
-`.chezmoiignore`, and the cask install runs only in the macOS arm of
-`scripts/install.sh`. Selecting it on Debian is a harmless no-op.
+`terminal` is opt-in (not in the default set) and carries terminal-emulator config
+as two sub-features: `ghostty` (cross-platform, the submenu default) and `iterm2`
+(macOS only). Both are gated at the file layer in `.chezmoiignore`; `iterm2` also
+gates on `.chezmoi.os == "darwin"` and its cask install runs only in the macOS arm
+of `scripts/install.sh`, so selecting `iterm2` on Debian is a harmless no-op.
+
+#### ghostty
+
+Ghostty runs on macOS and Linux. Its config lives at `~/.config/ghostty/config`,
+templated from `dot_config/ghostty/config.tmpl` so the macOS-only keys and the
+global-shortcut modifier are gated per OS. The palette is the single source of
+color truth in `~/.config/ghostty/themes/gud-theme.conf` - a Dracula-family "gud"
+variant that matches the tmux status line and the nvim `dracula` colorscheme, so
+the whole terminal reads as one theme. The font is Hack Nerd Font Mono, so the
+prompt and tmux status-line glyphs render. A Yakuake-style quick-terminal dropdown
+(position top, size 40%, autohide) toggles from a global shortcut:
+`global:cmd+grave_accent=toggle_quick_terminal` on macOS (needs Accessibility
+permission), and `global:ctrl+grave_accent=toggle_quick_terminal` on Linux (needs
+a desktop that implements the XDG GlobalShortcuts portal).
+
+On macOS, Ghostty also reads a config-shadow at `~/Library/Application
+Support/com.mitchellh.ghostty/config`. The dotfiles manage only the XDG path
+(`~/.config/ghostty`); if that Application Support path exists (for example a
+leftover symlink from an older setup), remove it so it cannot override this config.
+
+Selecting `ghostty` installs the binary as well as the config, gated by
+`INSTALL_TERMINAL_GHOSTTY` (dug from `terminal.ghostty`). On macOS `chezmoi apply`
+installs the Homebrew cask (`brew install --cask ghostty`), guarded to skip if
+`/Applications/Ghostty.app` already exists or the cask is already present. On
+Debian it installs the config only and does not fetch the binary: Ghostty has no
+official Debian apt package (the project ships source builds plus community repos;
+Ubuntu 26.04+ has it, Debian does not), and this profile is a headless trixie
+container where a GUI terminal is not provisioned. To install Ghostty on a real
+Linux desktop, use the Ghostty Linux docs (<https://ghostty.org/docs/linux>) or a
+community Debian repo such as <https://debian.griffo.io>, then let the managed
+config apply on top.
+
+#### iterm2
 
 Profiles are managed as iTerm2 **Dynamic Profiles** (JSON), not a full prefs
 plist. The JSON is kept at a clean, chezmoi-managed path,
@@ -228,6 +274,16 @@ EOF
 > regenerate the config with the nested `[data.components.git]` /
 > `[data.components.ai]` tables. The templates `dig` into those tables, so an
 > `apply` against a stale flat config errors until the schema is regenerated.
+>
+> The same applies to the `terminal` component: if your config still has the old
+> bare `iterm2` boolean under `[data.components]` (from before `iterm2` became the
+> `terminal > iterm2` sub-feature), run `chezmoi init` once to regenerate the
+> `[data.components.terminal]` table. To keep iTerm2 selected through the
+> migration, pick `terminal` with both `ghostty` and `iterm2` in the submenu (a
+> plain re-init defaults `terminal` to `ghostty` only). Digging `terminal.iterm2`
+> against the stale bare `iterm2` key does not error (it just reads the default),
+> but the file gates track `terminal.*`, so `iterm2` config is unmanaged until the
+> table is regenerated.
 
 Two ways:
 
@@ -269,11 +325,15 @@ Two ways:
       codecompanion = false
       claude_hooks = false
       statusline = false
+
+  [data.components.terminal]
+      ghostty = true
+      iterm2 = false
   ```
 
-  Keep the bare `zsh`/`tmux`/`neovim` keys above the `[data.components.git]` and
-  `[data.components.ai]` tables - once a TOML sub-table is opened, later bare keys
-  fall into it.
+  Keep the bare `zsh`/`tmux`/`neovim` keys above the `[data.components.git]`,
+  `[data.components.ai]`, and `[data.components.terminal]` tables - once a TOML
+  sub-table is opened, later bare keys fall into it.
 
 Turning a component off removes its files on the next apply (its targets are now
 ignored); turning one on writes them and fetches its plugins. Unmodified managed
