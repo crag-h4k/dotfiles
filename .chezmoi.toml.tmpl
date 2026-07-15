@@ -31,6 +31,16 @@
     (dict "num" "3" "key" "statusline"    "label" "statusline"    "desc" "Claude statusline slot (reserved)"           "all" false)
     (dict "num" "4" "key" "codecompanion" "label" "codecompanion" "desc" "CodeCompanion.nvim assistant (needs neovim; pulls in node, npm + claude-agent-acp)" "all" true)
 -}}
+{{- /* Terminal-emulator sub-features. MULTI-select (like git/ai): installing more */ -}}
+{{- /* than one emulator's config is harmless and Dane runs both, so this is not a  */ -}}
+{{- /* single-primary picker. ghostty is the cross-platform default (all=true);      */ -}}
+{{- /* iterm2 is macOS-only, so it carries an `os` tag that hides it from the submenu */ -}}
+{{- /* on non-macOS (the data key is still emitted for column parity, and the file   */ -}}
+{{- /* gate in .chezmoiignore also enforces darwin). Non-os features leave `os` "".   */ -}}
+{{- $terminalFeatures := list
+    (dict "num" "1" "key" "ghostty" "label" "ghostty" "desc" "Ghostty config + quick-terminal dropdown (macOS + Linux)" "all" true  "os" "")
+    (dict "num" "2" "key" "iterm2"  "label" "iterm2"  "desc" "iTerm2 Dynamic Profiles (macOS only)"                     "all" false "os" "darwin")
+-}}
 {{- /* Top-level components. git and ai carry a non-empty `sub` features list plus */ -}}
 {{- /* the submenu's persisted selection key and header; the rest have an empty    */ -}}
 {{- /* `sub` and are emitted as bare booleans under [data.components].             */ -}}
@@ -40,7 +50,7 @@
     (dict "num" "3" "key" "neovim" "label" "neovim" "desc" "neovim, lazy.nvim, language servers, linters"    "all" true  "sub" (list))
     (dict "num" "4" "key" "git"    "label" "git"    "desc" "git config files (config, personal, ignore_global)" "all" true  "sub" $gitFeatures "selKey" "gitSelection" "header" "git sub-features")
     (dict "num" "5" "key" "ai"     "label" "ai"     "desc" "AI tools (claude_hooks, codex_hooks, statusline, codecompanion)"  "all" false "sub" $aiFeatures  "selKey" "aiSelection"  "header" "AI sub-features")
-    (dict "num" "6" "key" "iterm2" "label" "iterm2" "desc" "iTerm2 prefs, macOS only (custom prefs folder)"  "all" false "sub" (list))
+    (dict "num" "6" "key" "terminal" "label" "terminal" "desc" "terminal emulator config (ghostty, iterm2)"  "all" false "sub" $terminalFeatures "selKey" "terminalSelection" "header" "terminal emulator")
 -}}
 {{- /* Build the numbered menu text from the list. labels are padded to the    */ -}}
 {{- /* width of the widest label so descriptions line up.                       */ -}}
@@ -138,6 +148,12 @@
 {{- range $c := $components -}}
 {{-   if gt (len $c.sub) 0 -}}
 {{-     $feats := $c.sub -}}
+{{- /* $menuFeats is $feats minus sub-features whose `os` tag does not match this   */ -}}
+{{- /* OS (e.g. iterm2 on Linux). Used ONLY for what the submenu DISPLAYS/offers.    */ -}}
+{{- /* Resolution and the emitted data keys below still range the full $feats so     */ -}}
+{{- /* column parity holds across OSes and the file-layer gate stays authoritative.  */ -}}
+{{-     $menuFeats := list -}}
+{{-     range $feats }}{{ $fos := dig "os" "" . }}{{ if or (eq $fos "") (eq $fos $root.chezmoi.os) }}{{ $menuFeats = append $menuFeats . }}{{ end }}{{ end -}}
 {{-     $subDefaultKeys := list -}}
 {{-     range $feats }}{{ if .all }}{{ $subDefaultKeys = append $subDefaultKeys .key }}{{ end }}{{ end -}}
 {{-     $subDefault := join " " $subDefaultKeys -}}
@@ -152,12 +168,12 @@
 {{-         $prevSub := dig $c.selKey "" $root -}}
 {{-         $seedOpts := list -}}
 {{-         if eq $prevSub "" -}}
-{{-           range $feats }}{{ if .all }}{{ $seedOpts = append $seedOpts (printf "%s - %s" .key .desc) }}{{ end }}{{ end -}}
+{{-           range $menuFeats }}{{ if .all }}{{ $seedOpts = append $seedOpts (printf "%s - %s" .key .desc) }}{{ end }}{{ end -}}
 {{-         else -}}
-{{-           range $feats }}{{ if or (contains .key $prevSub) (contains .num $prevSub) }}{{ $seedOpts = append $seedOpts (printf "%s - %s" .key .desc) }}{{ end }}{{ end -}}
+{{-           range $menuFeats }}{{ if or (contains .key $prevSub) (contains .num $prevSub) }}{{ $seedOpts = append $seedOpts (printf "%s - %s" .key .desc) }}{{ end }}{{ end -}}
 {{-         end -}}
 {{-         $subOpts := list -}}
-{{-         range $feats }}{{ $subOpts = append $subOpts (printf "%s - %s" .key .desc | squote) }}{{ end -}}
+{{-         range $menuFeats }}{{ $subOpts = append $subOpts (printf "%s - %s" .key .desc | squote) }}{{ end -}}
 {{-         $subHdr := printf "%s  (space toggles, enter confirms, esc cancels):" $c.header -}}
 {{-         $subCmd := printf "test -e /dev/tty && gum choose --no-limit --selected=%s --header %s %s </dev/tty 2>/dev/tty || true" (join "," $seedOpts | squote) ($subHdr | squote) (join " " $subOpts) -}}
 {{-         $picked := list -}}
@@ -166,7 +182,7 @@
 {{-       end -}}
 {{-       if eq $subSel "" -}}
 {{-         $subLines := list (printf "%s (enter numbers or keys):" $c.header) -}}
-{{-         range $feats }}{{ $subLines = append $subLines (printf "  %s) %s - %s" .num .label .desc) }}{{ end -}}
+{{-         range $menuFeats }}{{ $subLines = append $subLines (printf "  %s) %s - %s" .num .label .desc) }}{{ end -}}
 {{-         $subPrompt := printf "%s\n\nEnter (e.g. \"1 3\"), or press Enter for default (%s)" (join "\n" $subLines) $subDefault -}}
 {{-         $subSel = trim (promptStringOnce $root $c.selKey $subPrompt) -}}
 {{-       end -}}
@@ -186,6 +202,7 @@
     componentSelection = {{ $sel | quote }}
     gitSelection = {{ get $subSelStore "git" | quote }}
     aiSelection = {{ get $subSelStore "ai" | quote }}
+    terminalSelection = {{ get $subSelStore "terminal" | quote }}
 
 [data.components]
 {{ range $components }}{{ if eq (len .sub) 0 }}    {{ .key }} = {{ get $resolved .key }}
@@ -195,4 +212,7 @@
 {{ end }}
 [data.components.ai]
 {{ range $aiFeatures }}    {{ .key }} = {{ get (get $subResolved "ai") .key }}
+{{ end }}
+[data.components.terminal]
+{{ range $terminalFeatures }}    {{ .key }} = {{ get (get $subResolved "terminal") .key }}
 {{ end -}}

@@ -7,9 +7,11 @@ set -euo pipefail
 export INSTALL_ZSH={{ dig "components" "zsh" true . }}
 export INSTALL_TMUX={{ dig "components" "tmux" true . }}
 export INSTALL_NEOVIM={{ dig "components" "neovim" true . }}
-export INSTALL_ITERM2={{ dig "components" "iterm2" false . }}
-{{/* Nested sub-feature flags (ai/git are tables, not bools). ignore_global */ -}}
-{{- /* and claude_hooks are file-gated in .chezmoiignore, so need no env here. */ -}}
+{{/* Nested sub-feature flags (ai/git/terminal are tables, not bools). ignore_global */ -}}
+{{- /* and claude_hooks are file-gated in .chezmoiignore, so need no env. terminal      */ -}}
+{{- /* CONFIG is file-gated too, but the ghostty/iterm2 BINARY installs use these vars.  */ -}}
+export INSTALL_TERMINAL_GHOSTTY={{ dig "components" "terminal" "ghostty" true . }}
+export INSTALL_TERMINAL_ITERM2={{ dig "components" "terminal" "iterm2" false . }}
 export INSTALL_AI_CODECOMPANION={{ dig "components" "ai" "codecompanion" false . }}
 export INSTALL_GIT_CONFIG={{ dig "components" "git" "config" false . }}
 export INSTALL_GIT_PERSONAL={{ dig "components" "git" "personal" false . }}
