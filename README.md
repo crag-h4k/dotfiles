@@ -178,30 +178,47 @@ subsequent `chezmoi apply` without re-prompting.
 ### iterm2 (macOS only)
 
 `iterm2` is a plain bare-bool component and opt-in (not in the default set). It
-only takes effect on macOS: the config is gated on `.chezmoi.os == "darwin"` in
+only takes effect on macOS: the files are gated on `.chezmoi.os == "darwin"` in
 `.chezmoiignore`, and the cask install runs only in the macOS arm of
 `scripts/install.sh`. Selecting it on Debian is a harmless no-op.
 
-When selected on a Mac, `chezmoi apply` installs the iTerm2 cask
-(`brew install --cask iterm2`), writes
-`~/.config/iterm2/com.googlecode.iterm2.plist`, and runs
-`scripts/install-iterm2.sh`, which points iTerm2 at that folder
-(`PrefsCustomFolder` + `LoadPrefsFromCustomFolder`). Restart iTerm2 to load it.
+Profiles are managed as iTerm2 **Dynamic Profiles** (JSON), not a full prefs
+plist. The JSON is kept at a clean, chezmoi-managed path,
+`~/.config/iterm2/dotfiles.json`, and `scripts/install-iterm2.sh` symlinks it into
+the one directory iTerm2 reads dynamic profiles from
+(`~/Library/Application Support/iTerm2/DynamicProfiles/`) - so the repo carries no
+`~/Library` tree. iTerm2 loads dynamic profiles non-destructively, with no
+prefs-folder redirect and no machine-state cruft (window frames, last-directory
+bookmarks, updater timestamps) in the repo. Dynamic profiles are read-only in the
+iTerm2 UI; edit the JSON to change them.
 
-The load is read-only: the repo stays the source of truth. To update the
-committed prefs after changing settings in the iTerm2 UI, re-export and
-re-normalize to XML, then commit:
+On a fresh machine the profiles load straight from the JSON. On a machine that
+already had them as regular profiles, iTerm2 keeps the regular copies (it rejects
+a dynamic profile whose Guid matches an existing one, and will not run with an
+empty profile list); the committed JSON still serves as source of truth and a
+clean, diffable snapshot.
+
+When selected on a Mac, `chezmoi apply` installs the iTerm2 cask
+(`brew install --cask iterm2`) and writes the JSON, then `scripts/install-iterm2.sh`
+creates the symlink, pins the default-profile Guid, and sets a few app-level
+behavior toggles via `defaults write`. Restart iTerm2 to pick up the global
+`defaults` (a running iTerm2 rewrites its prefs on quit). The AI API key lives in
+the macOS Keychain and is intentionally not synced.
+
+To regenerate the committed profiles from your current iTerm2 profiles (re-scrub
+any machine-specific fields such as `Working Directory` afterward):
 
 ```bash
-defaults export com.googlecode.iterm2 \
-  ~/.local/share/chezmoi/dot_config/iterm2/com.googlecode.iterm2.plist
-plutil -convert xml1 \
-  ~/.local/share/chezmoi/dot_config/iterm2/com.googlecode.iterm2.plist
+python3 - <<'EOF'
+import json, plistlib, subprocess, os
+raw = subprocess.run(["defaults", "export", "com.googlecode.iterm2", "-"],
+                     capture_output=True).stdout
+d = plistlib.loads(raw)
+dst = os.path.expanduser("~/.local/share/chezmoi/dot_config/iterm2/dotfiles.json")
+json.dump({"Profiles": d["New Bookmarks"]}, open(dst, "w"),
+          indent=2, sort_keys=True)
+EOF
 ```
-
-The committed baseline has `NoSync*` keys (per-machine ephemeral state) pruned;
-iTerm2 excludes those from a custom folder anyway, so drop them again after a
-re-export to keep the diff clean.
 
 ## Changing components later
 
