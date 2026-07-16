@@ -1,0 +1,4 @@
+{"message":{"id":"main-1","usage":{"input_tokens":100,"output_tokens":50,"cache_creation_input_tokens":20,"cache_read_input_tokens":30}}}
+
+{"message":{"id":"main-2","usage":{"input_tokens":10,"output_tokens":5,"cache_creation_input_tokens":5,"cache_read_input_tokens":0}}}
+{not valid json at all

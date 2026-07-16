@@ -1,27 +1,54 @@
 # tests/test_merge_codex_config.py
-"""Tests for dot_codex/modify_private_config.toml (chezmoi modify_ script).
+"""Tests for dot_codex/modify_private_config.toml.tmpl (chezmoi modify_ template).
 
-The script is a stdin->stdout transformer: chezmoi pipes the current
-~/.codex/config.toml content in and reads the merged result from stdout. It
-injects the top-level `notify` (tmux hook) and `tui.notifications` (Codex's
-built-in approval alert) keys WITHOUT clobbering the [projects.*] / [tui.*]
-tables Codex writes at runtime. Tests pipe TOML in directly and assert on the
-output.
+The source is now a chezmoi Go template that renders into a Python stdin->stdout
+merge script. It injects the top-level `notify` (tmux hook) and `tui.notifications`
+(Codex's built-in approval alert) keys WITHOUT clobbering the [projects.*] /
+[tui.*] tables Codex writes at runtime. These tests render it with the codex-hooks
+sub-feature ON (statusline off) and assert the notify-merge behavior; the
+statusline injection (tui.status_line / tui.theme) is covered by
+scripts/validate-templates.sh.
 """
 import os
 import subprocess
 import sys
+import tempfile
 import tomllib
 from pathlib import Path
 
-SCRIPT = Path(__file__).parent.parent / "dot_codex" / "modify_private_config.toml"
+TMPL = Path(__file__).parent.parent / "dot_codex" / "modify_private_config.toml.tmpl"
 HOOK = os.path.expanduser("~/.codex/hooks/notify-tmux.sh")
 NOTIFS = ["agent-turn-complete", "approval-requested"]
 
 
+def _render(codex_hooks: bool, statusline: bool) -> str:
+    """Render the modify_ template under the given ai gates; return script path."""
+    d = tempfile.mkdtemp()
+    cfg = Path(d) / "chezmoi.toml"
+    cfg.write_text(
+        "[data.components.ai]\n"
+        f"    codex_hooks = {str(codex_hooks).lower()}\n"
+        f"    statusline = {str(statusline).lower()}\n"
+    )
+    out = subprocess.run(
+        ["chezmoi", "execute-template", "--config", str(cfg)],
+        stdin=TMPL.open(),
+        capture_output=True,
+        text=True,
+        check=True,
+    )
+    script = Path(d) / "modify_config.py"
+    script.write_text(out.stdout)
+    return str(script)
+
+
+# Render once with the notify hook on (statusline off) for the notify assertions.
+SCRIPT = _render(codex_hooks=True, statusline=False)
+
+
 def run_script(config_toml: str) -> subprocess.CompletedProcess:
     return subprocess.run(
-        [sys.executable, str(SCRIPT)],
+        [sys.executable, SCRIPT],
         input=config_toml,
         capture_output=True,
         text=True,

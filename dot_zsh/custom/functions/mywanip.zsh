@@ -10,7 +10,7 @@
 #
 # Caveat: on a FULL-tunnel VPN (all routes via the tunnel) the kernel may route
 # even interface-bound traffic through the VPN, so `mywanip` can mirror the VPN
-# IP. On a split tunnel (the common GlobalProtect corp case) the physical link
+# IP. On a split tunnel (the common corporate-VPN case) the physical link
 # keeps an internet route and mywanip returns the true home/office public IP.
 
 # Primary LAN interface: wired preferred, then wireless. Empty if none up.

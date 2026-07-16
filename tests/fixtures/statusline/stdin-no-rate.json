@@ -1,0 +1,12 @@
+{
+  "model": { "display_name": "Haiku 4.5" },
+  "context_window": {
+    "used_percentage": 42,
+    "total_input_tokens": 50000,
+    "context_window_size": 200000
+  },
+  "cost": { "total_duration_ms": 120000 },
+  "session_id": "norate-session",
+  "transcript_path": "",
+  "workspace": { "current_dir": "/nonexistent-statusline-dir" }
+}

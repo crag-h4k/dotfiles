@@ -6,7 +6,7 @@
 # (to ~/.zsh/custom/functions); do NOT also run this, or it loads twice. Pass
 # --force to override that guard and to overwrite an existing notify.yaml.
 #
-# Installs to the same layout as the beholder coworker package:
+# Installs to this layout:
 #   ~/.config/notify/{notify.yaml,lib.sh,notify-process.zsh,sounds/*.mp3}
 #   ~/.tmux/conf.d/notify.conf
 #   ~/.claude/hooks/notify-{tmux,clear}.sh
@@ -60,15 +60,48 @@ ensure_line '[ -f ~/.config/notify/notify-process.zsh ] && source ~/.config/noti
 ensure_line 'source-file ~/.tmux/conf.d/notify.conf' "$HOME/.tmux.conf"
 warn "notify.conf overrides window-status-format / pane-border-format. If you customize your tmux status bar, review ~/.tmux/conf.d/notify.conf and reconcile."
 
-# --- Claude settings merge (reuse the chezmoi modify_ merger; validate first) --
+# The two modify_ mergers are chezmoi Go templates (modify_*.tmpl) whose notify
+# blocks are gated on ai > claude_hooks / codex_hooks and whose statusline block is
+# gated on ai > statusline. Standalone has no chezmoi to render them, so resolve the
+# gates here for the notify path (hooks ON, statusline OFF) with a tiny line-based
+# renderer, then run the resulting Python merge script exactly as before.
+render_modify() { # $1 = modify_*.tmpl -> rendered Python merge script on stdout
+    python3 - "$1" <<'PY'
+import re, sys
+GATES = {"claude_hooks": True, "codex_hooks": True, "statusline": False}
+if_re = re.compile(r'\{\{-?\s*if\s+dig\s+"components"\s+"ai"\s+"(\w+)".*?\}\}')
+end_re = re.compile(r'\{\{-?\s*end\s*-?\}\}')
+stack, skip, out = [], 0, []
+with open(sys.argv[1]) as f:
+    for line in f:
+        m = if_re.search(line)
+        if m:
+            on = GATES.get(m.group(1), False)
+            stack.append(on)
+            if not on:
+                skip += 1
+            continue
+        if end_re.search(line):
+            if stack and not stack.pop():
+                skip -= 1
+            continue
+        if skip == 0:
+            out.append(line)
+sys.stdout.write("".join(out))
+PY
+}
+
+# --- Claude settings merge (render the chezmoi modify_ template; validate first) --
 SETTINGS="$HOME/.claude/settings.json"
-MERGE="$REPO/dot_claude/modify_settings.json"
+MERGE_TMPL="$REPO/dot_claude/modify_settings.json.tmpl"
 if ! command -v python3 >/dev/null 2>&1; then
-    warn "python3 not found; skipped Claude settings merge. Run later: python3 $MERGE < $SETTINGS > tmp && mv tmp $SETTINGS"
-elif [[ -f "$SETTINGS" ]]; then
-    if ! python3 -c 'import json,sys; json.load(open(sys.argv[1]))' "$SETTINGS" >/dev/null 2>&1; then
-        warn "$SETTINGS is not valid JSON; skipped the hook merge (fix it, then re-run)."
-    else
+    warn "python3 not found; skipped Claude settings merge (the merger is a chezmoi template that needs python to render + run)."
+elif [[ -f "$SETTINGS" ]] && ! python3 -c 'import json,sys; json.load(open(sys.argv[1]))' "$SETTINGS" >/dev/null 2>&1; then
+    warn "$SETTINGS is not valid JSON; skipped the hook merge (fix it, then re-run)."
+else
+    MERGE=$(mktemp)
+    render_modify "$MERGE_TMPL" > "$MERGE"
+    if [[ -f "$SETTINGS" ]]; then
         cp "$SETTINGS" "$SETTINGS.bak"
         tmp=$(mktemp)
         if python3 "$MERGE" < "$SETTINGS" > "$tmp"; then
@@ -78,14 +111,15 @@ elif [[ -f "$SETTINGS" ]]; then
             rm -f "$tmp"
             warn "settings merge failed; left ~/.claude/settings.json unchanged"
         fi
-    fi
-else
-    if printf '{}\n' | python3 "$MERGE" > "$SETTINGS"; then
-        info "created ~/.claude/settings.json with notify hooks"
     else
-        rm -f "$SETTINGS"
-        warn "could not create ~/.claude/settings.json"
+        if printf '{}\n' | python3 "$MERGE" > "$SETTINGS"; then
+            info "created ~/.claude/settings.json with notify hooks"
+        else
+            rm -f "$SETTINGS"
+            warn "could not create ~/.claude/settings.json"
+        fi
     fi
+    rm -f "$MERGE"
 fi
 
 # --- Codex hook + config merge (only when the codex CLI is present) ------------
@@ -100,10 +134,12 @@ if command -v codex >/dev/null 2>&1; then
     chmod +x "$HOME/.codex/hooks/notify-tmux.sh"
     info "installed codex notify hook (~/.codex/hooks/notify-tmux.sh)"
     CODEX_CFG="$HOME/.codex/config.toml"
-    CODEX_MERGE="$REPO/dot_codex/modify_private_config.toml"
+    CODEX_MERGE_TMPL="$REPO/dot_codex/modify_private_config.toml.tmpl"
     if ! command -v python3 >/dev/null 2>&1; then
-        warn "python3 not found; skipped Codex config merge. Run later: python3 $CODEX_MERGE < $CODEX_CFG"
+        warn "python3 not found; skipped Codex config merge (the merger is a chezmoi template that needs python to render + run)."
     else
+        CODEX_MERGE=$(mktemp)
+        render_modify "$CODEX_MERGE_TMPL" > "$CODEX_MERGE"
         tmpc=$(mktemp)
         if [[ -f "$CODEX_CFG" ]]; then
             ok=$(python3 "$CODEX_MERGE" < "$CODEX_CFG" > "$tmpc" && echo 1 || echo 0)
@@ -119,6 +155,7 @@ if command -v codex >/dev/null 2>&1; then
             rm -f "$tmpc"
             warn "codex config merge failed; left ~/.codex/config.toml unchanged"
         fi
+        rm -f "$CODEX_MERGE"
     fi
 else
     info "codex CLI not found; skipped Codex notify wiring"

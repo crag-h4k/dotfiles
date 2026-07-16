@@ -30,6 +30,10 @@ INSTALL_GIT_PERSONAL="${INSTALL_GIT_PERSONAL:-false}"
 # (touch/rm per-host still works). The claude_hooks sub-feature is file-gated in
 # .chezmoiignore, not here.
 INSTALL_AI_CODECOMPANION="${INSTALL_AI_CODECOMPANION:-false}"
+# statusline (opt-in, off by default). Config files are file-gated in
+# .chezmoiignore; this var gates only the runtime deps (jq + python3) the gud
+# statusline shells out to.
+INSTALL_AI_STATUSLINE="${INSTALL_AI_STATUSLINE:-false}"
 # terminal sub-features (opt-in). The CONFIG for each is file-gated in
 # .chezmoiignore; these vars gate only the BINARY install.
 # - ghostty: cask on macOS; no official Debian apt package, so config-only on
@@ -137,6 +141,15 @@ main() {
     # brew here and Debian fetches the mikefarah binary below (install_yq_debian).
     [[ "$INSTALL_ZSH" == true || "$INSTALL_TMUX" == true ]] && macos_pkgs+=(yq)
     [[ "$INSTALL_NEOVIM" == true ]] && macos_pkgs+=(terraform-linters/tap/tflint)
+    # The gud statusline shells out to jq (JSON parse) and python3 (detached
+    # token-total updater), so both are required whenever ai > statusline is on,
+    # independently of neovim. macOS never gets jq otherwise, and a neovim-off
+    # host gets neither; _deduped_pkgs collapses any overlap with the neovim
+    # block above (Debian already lists jq/python3 there).
+    [[ "$INSTALL_AI_STATUSLINE" == true ]] && {
+        macos_pkgs+=(jq python3)
+        debian_pkgs+=(jq python3)
+    }
 
     case "$os" in
         macos)

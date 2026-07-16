@@ -28,7 +28,7 @@
 {{- $aiFeatures := list
     (dict "num" "1" "key" "claude_hooks"  "label" "claude_hooks"  "desc" "Claude settings.json notify hooks"           "all" false)
     (dict "num" "2" "key" "codex_hooks"   "label" "codex_hooks"   "desc" "Codex config.toml notify hook"               "all" false)
-    (dict "num" "3" "key" "statusline"    "label" "statusline"    "desc" "Claude statusline slot (reserved)"           "all" false)
+    (dict "num" "3" "key" "statusline"    "label" "statusline"    "desc" "gud statusline (Claude token/context script + Codex theme)" "all" false)
     (dict "num" "4" "key" "codecompanion" "label" "codecompanion" "desc" "CodeCompanion.nvim assistant (needs neovim; pulls in node, npm + claude-agent-acp)" "all" true)
 -}}
 {{- /* Terminal-emulator sub-features. MULTI-select (like git/ai): installing more */ -}}
@@ -80,17 +80,41 @@
 {{- /* exercise the parser deterministically, and handy to bypass the TUI).      */ -}}
 {{- $sel := "" -}}
 {{- if and (lookPath "gum") (not (env "DOTFILES_NO_TUI")) -}}
+{{- /* Precompute the comma-sanitized option string per component ONCE. gum splits */ -}}
+{{- /* --selected on commas, so any option text containing a comma could never be   */ -}}
+{{- /* pre-checked; swap ", " -> "/" so --selected and the positional options stay   */ -}}
+{{- /* byte-identical and comma-free (gum matches --selected by exact string).       */ -}}
+{{-   $optOf := dict -}}
+{{-   range $components }}{{- $optOf = set $optOf .num (printf "%s) %s - %s" .num .label (.desc | replace ", " "/" | replace "," "/")) -}}{{- end -}}
 {{-   $opts := list -}}
-{{-   range $components }}{{- $opts = append $opts (printf "%s) %s - %s" .num .label .desc | squote) -}}{{- end -}}
+{{-   range $components }}{{- $opts = append $opts (squote (get $optOf .num)) -}}{{- end -}}
 {{-   $hdr := "Components to install  (space toggles, enter confirms, esc cancels):" -}}
-{{- /* On re-init, hint the current selection in the header.                     */ -}}
+{{- /* Seed --selected so a re-init pre-checks whatever is currently enabled. The   */ -}}
+{{- /* truth is the persisted [data.components.*] resolution, not the raw selection */ -}}
+{{- /* string (which would miss the `all`/`all+` keyword forms). A fresh init has no */ -}}
+{{- /* persisted data, so it pre-checks the default-on set instead.                  */ -}}
 {{-   $prevSel := dig "componentSelection" "" . -}}
-{{-   if ne $prevSel "" -}}
+{{-   $topSeed := list -}}
+{{-   if eq $prevSel "" -}}
+{{-     range $components }}{{- if .all }}{{- $topSeed = append $topSeed (get $optOf .num) -}}{{- end -}}{{- end -}}
+{{-   else -}}
+{{- /* "Currently on" = the bare bool is true, or (for the nested git/ai/terminal   */ -}}
+{{- /* tables) any of its sub-features is true. Also drives the [current: ...] hint. */ -}}
 {{-     $curLabels := list -}}
-{{-     range $components }}{{- if contains .num $prevSel }}{{- $curLabels = append $curLabels .label -}}{{- end -}}{{- end -}}
+{{-     range $c := $components -}}
+{{-       $on := false -}}
+{{-       if eq (len $c.sub) 0 -}}
+{{-         $on = dig "components" $c.key false $ -}}
+{{-       else -}}
+{{-         range $sf := $c.sub }}{{- if dig "components" $c.key $sf.key false $ }}{{- $on = true -}}{{- end -}}{{- end -}}
+{{-       end -}}
+{{-       if $on }}{{- $topSeed = append $topSeed (get $optOf $c.num) -}}{{- $curLabels = append $curLabels $c.label -}}{{- end -}}
+{{-     end -}}
 {{-     $hdr = printf "%s  [current: %s]" $hdr (join ", " $curLabels) -}}
 {{-   end -}}
-{{-   $cmd := printf "test -e /dev/tty && gum choose --no-limit --header %s %s </dev/tty 2>/dev/tty || true" ($hdr | squote) (join " " $opts) -}}
+{{-   $selFlag := "" -}}
+{{-   if gt (len $topSeed) 0 }}{{- $selFlag = printf "--selected=%s" (join "," $topSeed | squote) -}}{{- end -}}
+{{-   $cmd := printf "test -e /dev/tty && gum choose --no-limit %s --header %s %s </dev/tty 2>/dev/tty || true" $selFlag ($hdr | squote) (join " " $opts) -}}
 {{- /* Each chosen line starts with "<num>)"; take the leading number, join.     */ -}}
 {{-   $nums := list -}}
 {{-   range (splitList "\n" (trim (output "sh" "-c" $cmd))) }}{{- if . }}{{- $nums = append $nums (first (splitList ")" .)) -}}{{- end -}}{{- end -}}
@@ -166,16 +190,25 @@
 {{-       if not (or $all $allPlus) -}}
 {{-       if and (lookPath "gum") (not (env "DOTFILES_NO_TUI")) -}}
 {{-         $prevSub := dig $c.selKey "" $root -}}
+{{- /* Comma-sanitized sub-feature option string, computed ONCE so --selected and  */ -}}
+{{- /* the positional options stay identical and comma-free (see the top-menu note; */ -}}
+{{- /* codecompanion's "node, npm" desc is why the previous seed never pre-checked). */ -}}
+{{-         $subOptOf := dict -}}
+{{-         range $menuFeats }}{{ $subOptOf = set $subOptOf .key (printf "%s - %s" .key (.desc | replace ", " "/" | replace "," "/")) }}{{ end -}}
 {{-         $seedOpts := list -}}
 {{-         if eq $prevSub "" -}}
-{{-           range $menuFeats }}{{ if .all }}{{ $seedOpts = append $seedOpts (printf "%s - %s" .key .desc) }}{{ end }}{{ end -}}
+{{- /* fresh, or the parent was just turned on: pre-check the sub-defaults. */ -}}
+{{-           range $menuFeats }}{{ if .all }}{{ $seedOpts = append $seedOpts (get $subOptOf .key) }}{{ end }}{{ end -}}
 {{-         else -}}
-{{-           range $menuFeats }}{{ if or (contains .key $prevSub) (contains .num $prevSub) }}{{ $seedOpts = append $seedOpts (printf "%s - %s" .key .desc) }}{{ end }}{{ end -}}
+{{- /* re-run: pre-check whatever is currently enabled (persisted resolved state). */ -}}
+{{-           range $menuFeats }}{{ if dig "components" $c.key .key false $root }}{{ $seedOpts = append $seedOpts (get $subOptOf .key) }}{{ end }}{{ end -}}
 {{-         end -}}
 {{-         $subOpts := list -}}
-{{-         range $menuFeats }}{{ $subOpts = append $subOpts (printf "%s - %s" .key .desc | squote) }}{{ end -}}
+{{-         range $menuFeats }}{{ $subOpts = append $subOpts (squote (get $subOptOf .key)) }}{{ end -}}
 {{-         $subHdr := printf "%s  (space toggles, enter confirms, esc cancels):" $c.header -}}
-{{-         $subCmd := printf "test -e /dev/tty && gum choose --no-limit --selected=%s --header %s %s </dev/tty 2>/dev/tty || true" (join "," $seedOpts | squote) ($subHdr | squote) (join " " $subOpts) -}}
+{{-         $subSelFlag := "" -}}
+{{-         if gt (len $seedOpts) 0 }}{{ $subSelFlag = printf "--selected=%s" (join "," $seedOpts | squote) }}{{ end -}}
+{{-         $subCmd := printf "test -e /dev/tty && gum choose --no-limit %s --header %s %s </dev/tty 2>/dev/tty || true" $subSelFlag ($subHdr | squote) (join " " $subOpts) -}}
 {{-         $picked := list -}}
 {{-         range (splitList "\n" (trim (output "sh" "-c" $subCmd))) }}{{ if . }}{{ $picked = append $picked (first (splitList " " .)) }}{{ end }}{{ end -}}
 {{-         $subSel = trim (join " " $picked) -}}

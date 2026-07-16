@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # ~/.codex/hooks/notify-tmux.sh
 # Codex CLI attention hook: flags the tmux pane via the shared notifier. Wired in
-# ~/.codex/config.toml by the chezmoi modify_ script dot_codex/modify_private_config.toml,
+# ~/.codex/config.toml by the chezmoi modify_ template dot_codex/modify_private_config.toml.tmpl,
 # which sets:
 #   notify = ["~/.codex/hooks/notify-tmux.sh"]
 # Codex appends ONE JSON argument and execs the program directly (no shell), so the

@@ -10,9 +10,12 @@ export INSTALL_NEOVIM={{ dig "components" "neovim" true . }}
 {{/* Nested sub-feature flags (ai/git/terminal are tables, not bools). ignore_global */ -}}
 {{- /* and claude_hooks are file-gated in .chezmoiignore, so need no env. terminal      */ -}}
 {{- /* CONFIG is file-gated too, but the ghostty/iterm2 BINARY installs use these vars.  */ -}}
+{{- /* statusline's FILES are file-gated, but it shells out to jq + python3, so the      */ -}}
+{{- /* install.sh package block needs this env var to pull those deps.                   */ -}}
 export INSTALL_TERMINAL_GHOSTTY={{ dig "components" "terminal" "ghostty" true . }}
 export INSTALL_TERMINAL_ITERM2={{ dig "components" "terminal" "iterm2" false . }}
 export INSTALL_AI_CODECOMPANION={{ dig "components" "ai" "codecompanion" false . }}
+export INSTALL_AI_STATUSLINE={{ dig "components" "ai" "statusline" false . }}
 export INSTALL_GIT_CONFIG={{ dig "components" "git" "config" false . }}
 export INSTALL_GIT_PERSONAL={{ dig "components" "git" "personal" false . }}
 

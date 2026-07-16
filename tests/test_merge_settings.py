@@ -1,23 +1,51 @@
 # tests/test_merge_settings.py
-"""Tests for dot_claude/modify_settings.json (chezmoi modify_ script).
+"""Tests for dot_claude/modify_settings.json.tmpl (chezmoi modify_ template).
 
-The script is a stdin->stdout transformer: chezmoi pipes the current
-settings.json content in and reads the merged result from stdout. Tests
-pipe JSON in directly and assert on the output.
+The source is now a chezmoi Go template that renders into a Python stdin->stdout
+merge script. These tests render it once with the notify-hooks sub-feature ON
+(the path these tests exercise), then pipe settings.json in and assert on the
+merged output. The statusline sub-feature path is covered by
+scripts/validate-templates.sh.
 """
 import json
 import subprocess
 import sys
+import tempfile
 from pathlib import Path
 
-SCRIPT = Path(__file__).parent.parent / "dot_claude" / "modify_settings.json"
+TMPL = Path(__file__).parent.parent / "dot_claude" / "modify_settings.json.tmpl"
 HOOK = "~/.claude/hooks/notify-tmux.sh"
 CLEAR = "~/.claude/hooks/notify-clear.sh"
 
 
+def _render(claude_hooks: bool, statusline: bool) -> str:
+    """Render the modify_ template under the given ai gates; return script path."""
+    d = tempfile.mkdtemp()
+    cfg = Path(d) / "chezmoi.toml"
+    cfg.write_text(
+        "[data.components.ai]\n"
+        f"    claude_hooks = {str(claude_hooks).lower()}\n"
+        f"    statusline = {str(statusline).lower()}\n"
+    )
+    out = subprocess.run(
+        ["chezmoi", "execute-template", "--config", str(cfg)],
+        stdin=TMPL.open(),
+        capture_output=True,
+        text=True,
+        check=True,
+    )
+    script = Path(d) / "modify_settings.py"
+    script.write_text(out.stdout)
+    return str(script)
+
+
+# Render once with the notify hooks on (statusline off) for the hook assertions.
+SCRIPT = _render(claude_hooks=True, statusline=False)
+
+
 def run_script(settings_json: str) -> subprocess.CompletedProcess:
     return subprocess.run(
-        [sys.executable, str(SCRIPT)],
+        [sys.executable, SCRIPT],
         input=settings_json,
         capture_output=True,
         text=True,

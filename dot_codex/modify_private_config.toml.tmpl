@@ -1,0 +1,107 @@
+#!/usr/bin/env python3
+# chezmoi modify_ template for ~/.codex/config.toml (private_ -> mode 0600).
+# Rendered by chezmoi (Go template) into a Python merge script, then run with the
+# current file on stdin; the merged result is emitted on stdout. Idempotent and
+# merge-only for everything Codex owns: it preserves the [projects.*] trust and
+# the [tui.*] subtables Codex writes at runtime (e.g. [tui.model_availability_nux])
+# and leaves model / effort / mcp_servers untouched.
+#
+# Two independent, gated injections, folded through ONE path so a second [tui]
+# table is never created (that would make config.toml unparseable and Codex would
+# fail to launch):
+#   ai > codex_hooks : top-level `notify` + `tui.notifications`.
+#   ai > statusline  : `tui.status_line` + `tui.theme` + `tui.status_line_use_colors`.
+# TUI keys are emitted INSIDE an existing bare [tui] table when one exists, else as
+# top-level `tui.<key>` dotted keys (which coexist with Codex's [tui.subtable]
+# headers). The file is managed when EITHER sub-feature is on (see .chezmoiignore).
+import os
+import re
+import sys
+
+HOOK = os.path.expanduser("~/.codex/hooks/notify-tmux.sh")
+
+# What we inject, decided at render time by the component gates.
+notify_line = None
+tui_items = []  # ordered list of (key, value_toml) to live in the [tui] table
+{{ if dig "components" "ai" "codex_hooks" false . }}
+notify_line = 'notify = ["%s"]' % HOOK
+tui_items.append(("notifications", '["agent-turn-complete", "approval-requested"]'))
+{{ end }}
+{{ if dig "components" "ai" "statusline" false . }}
+tui_items.append(("status_line", '["model-with-reasoning", "context-used", "git-branch", "current-dir", "sandbox", "run-state"]'))
+tui_items.append(("theme", '"gud"'))
+tui_items.append(("status_line_use_colors", "true"))
+{{ end }}
+
+# Merge-only: strip and re-add ONLY the keys we are injecting under the current
+# gates, so a user's own tui.theme / tui.notifications is preserved when the
+# matching sub-feature is off, and no owned key is ever emitted twice or scattered.
+strip_tui = tuple(k for k, _ in tui_items)
+strip_top = (("notify",) if notify_line is not None else ()) \
+    + tuple("tui." + k for k in strip_tui)
+
+key_re = re.compile(r'^\s*([A-Za-z0-9_."-]+)\s*=')
+table_re = re.compile(r"^\s*\[")
+bare_tui_re = re.compile(r"^\s*\[tui\]\s*$")
+
+lines = sys.stdin.read().splitlines()
+
+# Partition into the leading top-level section (before the first table header) and
+# the rest (tables onward).
+head, rest, in_rest = [], [], False
+for line in lines:
+    if not in_rest and table_re.match(line):
+        in_rest = True
+    (rest if in_rest else head).append(line)
+
+# Drop our owned top-level keys from the head; re-add canonically below.
+kept = []
+for line in head:
+    m = key_re.match(line)
+    if m and m.group(1) in strip_top:
+        continue
+    kept.append(line)
+while kept and kept[0].strip() == "":
+    kept.pop(0)
+while kept and kept[-1].strip() == "":
+    kept.pop()
+
+has_bare_tui = any(bare_tui_re.match(line) for line in rest)
+
+if has_bare_tui:
+    # Fold our tui keys INSIDE the existing [tui] table: re-emit the gated ones
+    # right after the header and drop any stale copies of our keys from that body.
+    new_rest = []
+    i, n = 0, len(rest)
+    while i < n:
+        line = rest[i]
+        new_rest.append(line)
+        i += 1
+        if bare_tui_re.match(line):
+            for key, val in tui_items:
+                new_rest.append("%s = %s" % (key, val))
+            while i < n and not table_re.match(rest[i]):
+                m = key_re.match(rest[i])
+                if not (m and m.group(1) in strip_tui):
+                    new_rest.append(rest[i])
+                i += 1
+    rest = new_rest
+
+# Compose: `notify` is always top-level (Codex has no notify table); tui keys are
+# top-level dotted ONLY when there is no bare [tui] table to fold them into.
+out = []
+if notify_line is not None:
+    out.append(notify_line)
+if not has_bare_tui:
+    for key, val in tui_items:
+        out.append("tui.%s = %s" % (key, val))
+if kept:
+    if out:
+        out.append("")
+    out.extend(kept)
+if rest:
+    if out and out[-1].strip() != "":
+        out.append("")
+    out.extend(rest)
+
+sys.stdout.write("\n".join(out) + "\n")
