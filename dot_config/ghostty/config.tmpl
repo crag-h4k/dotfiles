@@ -41,12 +41,14 @@ unfocused-split-opacity = 0.85
 window-save-state = default
 # Translucent background (carried over from iTerm2: transparency 0.16 -> 0.84).
 background-opacity = 0.84
-background-blur = false
 scrollback-limit = 1000000
 {{ if eq .chezmoi.os "darwin" }}
 # ---- macOS-only chrome ------------------------------------------------------
 # Blend the titlebar into the window; keep native tabs.
 macos-titlebar-style = transparent
+# Background blur behind the translucent window (macOS compositor feature; on
+# Linux Ghostty it needs compositor support, so keep it in the darwin arm).
+background-blur = true
 {{ end -}}
 
 # ---- Behavior ---------------------------------------------------------------

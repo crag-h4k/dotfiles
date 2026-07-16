@@ -278,6 +278,85 @@ assert_install_ghostty() {
 assert_install_ghostty true  true
 assert_install_ghostty false false
 
+# --- modify_ templates: gated JSON/TOML merge scripts ----------------------
+# Render each modify_*.tmpl under an ai sub-feature config, run the emitted merge
+# script against a representative target file, and assert the result parses. The
+# required positive case is statusline ON with the notify hooks OFF; we also
+# exercise both-on and the Codex bare-[tui] fold (double-table hazard). Codex TOML
+# checks need tomllib; they are skipped (not failed) when it is absent.
+CLAUDE_MOD="$REPO_DIR/dot_claude/modify_settings.json.tmpl"
+CODEX_MOD="$REPO_DIR/dot_codex/modify_private_config.toml.tmpl"
+
+ai_cfg() { # claude_hooks codex_hooks statusline -> path to a temp chezmoi config
+    local d; d=$(mktemp -d)
+    printf '[data.components.ai]\n    claude_hooks = %s\n    codex_hooks = %s\n    statusline = %s\n' \
+        "$1" "$2" "$3" >"$d/chezmoi.toml"
+    printf '%s' "$d/chezmoi.toml"
+}
+
+run_modify() { # tmpl cfg sample-file -> merged output on stdout, nonzero on error
+    local tmpl="$1" cfg="$2" sample="$3" pyf out
+    pyf=$(mktemp)
+    if ! chezmoi execute-template --config "$cfg" <"$tmpl" >"$pyf" 2>/dev/null; then
+        rm -f "$pyf"; return 1
+    fi
+    out=$(python3 "$pyf" <"$sample" 2>/dev/null) || { rm -f "$pyf"; return 1; }
+    rm -f "$pyf"
+    printf '%s' "$out"
+}
+
+CLA_SAMPLE=$(mktemp); printf '{"model":"opus","env":{"FOO":"bar"}}' >"$CLA_SAMPLE"
+# Codex targets: one with NO bare [tui], one WITH a bare [tui] (fold-in path).
+CODEX_PLAIN=$(mktemp); printf 'model = "x"\n\n[projects."/p"]\ntrust_level = "trusted"\n' >"$CODEX_PLAIN"
+CODEX_BARE_TUI=$(mktemp); printf 'model = "x"\n\n[tui]\nfoo = 1\n\n[projects."/p"]\ntrust_level = "trusted"\n' >"$CODEX_BARE_TUI"
+
+# Claude: statusLine present iff the statusline gate is on; output must be JSON.
+assert_modify_claude() { # cfg wantStatusLine(true|false)
+    local cfg="$1" want="$2" out has
+    if ! out=$(run_modify "$CLAUDE_MOD" "$cfg" "$CLA_SAMPLE"); then
+        echo "validate-templates: claude modify_ render/run FAILED (want statusLine=$want)" >&2; fail=1; return
+    fi
+    if ! printf '%s' "$out" | python3 -c 'import sys,json; json.load(sys.stdin)' 2>/dev/null; then
+        echo "validate-templates: claude modify_ output is not valid JSON" >&2; fail=1; return
+    fi
+    has=$(printf '%s' "$out" | python3 -c 'import sys,json;print(str("statusLine" in json.load(sys.stdin)).lower())')
+    if [[ "$has" != "$want" ]]; then
+        echo "validate-templates: claude modify_ statusLine=$has want=$want" >&2; fail=1
+    fi
+}
+
+# Codex: output must be valid TOML (no second [tui]); status_line present iff the
+# statusline gate is on, notify present iff codex_hooks.
+assert_modify_codex() { # cfg sample wantStatusLine wantNotify
+    local cfg="$1" sample="$2" wsl="$3" wn="$4" out
+    if ! out=$(run_modify "$CODEX_MOD" "$cfg" "$sample"); then
+        echo "validate-templates: codex modify_ render/run FAILED" >&2; fail=1; return
+    fi
+    (( have_tomllib )) || return
+    if ! printf '%s' "$out" | parse_toml 2>/dev/null; then
+        echo "validate-templates: codex modify_ output is not valid TOML" >&2; fail=1
+        printf '%s\n' "$out" >&2; return
+    fi
+    local got
+    got=$(printf '%s' "$out" | python3 -c 'import sys,tomllib
+t=tomllib.loads(sys.stdin.read())
+print(str("status_line" in t.get("tui",{})).lower(), str("notify" in t).lower())')
+    if [[ "$got" != "$wsl $wn" ]]; then
+        echo "validate-templates: codex modify_ (status_line notify)='$got' want='$wsl $wn'" >&2; fail=1
+    fi
+}
+
+# Required positive case: statusline ON, hooks OFF.
+assert_modify_claude "$(ai_cfg false false true)" true
+assert_modify_codex  "$(ai_cfg false false true)" "$CODEX_PLAIN"    true false
+assert_modify_codex  "$(ai_cfg false false true)" "$CODEX_BARE_TUI" true false
+# Both on: injections coexist and still parse.
+assert_modify_claude "$(ai_cfg true false true)" true
+assert_modify_codex  "$(ai_cfg true true true)" "$CODEX_BARE_TUI" true true
+# Hooks on, statusline off: no statusLine / status_line, notify hooks intact.
+assert_modify_claude "$(ai_cfg true false false)" false
+assert_modify_codex  "$(ai_cfg false true false)" "$CODEX_PLAIN" false true
+
 if (( fail )); then
     exit 1
 fi

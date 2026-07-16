@@ -1,8 +1,8 @@
 #!/usr/bin/env bash
 # ~/.claude/hooks/notify-tmux.sh
 # Claude Code attention hook: flags the tmux pane via the shared notifier. Wired
-# globally in ~/.claude/settings.json by the chezmoi modify_ script
-# dot_claude/modify_settings.json to these events:
+# globally in ~/.claude/settings.json by the chezmoi modify_ template
+# dot_claude/modify_settings.json.tmpl to these events:
 #   Stop                         - Claude finished a turn
 #   Notification                 - permission prompt / idle / MCP elicitation
 #   PreToolUse:AskUserQuestion   - the interactive question tool (no Notification

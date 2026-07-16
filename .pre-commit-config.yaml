@@ -13,8 +13,8 @@ repos:
         #   .chezmoiexternal.toml - a chezmoi Go template (gated by component),
         #     so it does not parse until chezmoi renders it.
         #   modify_*.toml - chezmoi modify_ scripts (e.g.
-        #     dot_codex/modify_private_config.toml is Python that merges `notify`
-        #     into ~/.codex/config.toml), not TOML documents.
+        #     dot_codex/modify_private_config.toml.tmpl renders to Python that
+        #     merges `notify` into ~/.codex/config.toml), not TOML documents.
         exclude: |
           (?x)(
             ^\.chezmoiexternal\.toml$|
@@ -22,8 +22,8 @@ repos:
           )
       - id: check-json
         # chezmoi modify_ scripts that target a *.json file are executable
-        # scripts (e.g. dot_claude/modify_settings.json is Python that merges
-        # hooks into ~/.claude/settings.json), not JSON documents.
+        # scripts (e.g. dot_claude/modify_settings.json.tmpl renders to Python
+        # that merges hooks into ~/.claude/settings.json), not JSON documents.
         exclude: (^|/)modify_[^/]*\.json$
       - id: check-added-large-files
         args: [--maxkb=1024]
@@ -95,23 +95,30 @@ repos:
         files: ^(\.chezmoiexternal\.toml|\.chezmoi\.toml\.tmpl|scripts/validate-templates\.sh)$
 
       - id: pytest-notify
-        name: pytest notify (modify_settings.json)
+        name: pytest notify (modify_settings.json.tmpl)
         entry: uv run --with pytest pytest tests/test_merge_settings.py -v
         language: system
         pass_filenames: false
-        files: ^(dot_claude/modify_settings\.json|tests/test_merge_settings\.py)$
+        files: ^(dot_claude/modify_settings\.json\.tmpl|tests/test_merge_settings\.py)$
 
       - id: pytest-notify-codex
-        name: pytest notify (modify_private_config.toml)
+        name: pytest notify (modify_private_config.toml.tmpl)
         entry: uv run --with pytest pytest tests/test_merge_codex_config.py -v
         language: system
         pass_filenames: false
-        files: ^(dot_codex/modify_private_config\.toml|tests/test_merge_codex_config\.py)$
+        files: ^(dot_codex/modify_private_config\.toml\.tmpl|tests/test_merge_codex_config\.py)$
 
-      - id: bats-notify
-        name: bats notify (lib + process)
-        entry: bats
-        args: [tests/test_lib.bats, tests/test_process.bats]
+      - id: pytest-statusline-tokens
+        name: pytest statusline (statusline-tokens.py)
+        entry: uv run --with pytest pytest tests/test_statusline_tokens.py -v
         language: system
         pass_filenames: false
-        files: ^(dot_config/notify/lib\.sh|dot_zsh/custom/functions/notify-process\.zsh|tests/test_(lib|process)\.bats|tests/fixtures/)$
+        files: ^(dot_claude/executable_statusline-tokens\.py|tests/test_statusline_tokens\.py|tests/fixtures/statusline/.*)$
+
+      - id: bats-notify
+        name: bats (notify + statusline + render-shim)
+        entry: bats
+        args: [tests/test_lib.bats, tests/test_process.bats, tests/test_statusline_command.bats, tests/test_render_modify_shim.bats]
+        language: system
+        pass_filenames: false
+        files: ^(dot_config/notify/lib\.sh|dot_zsh/custom/functions/notify-process\.zsh|dot_claude/executable_statusline-command\.sh|scripts/install-notify\.sh|dot_claude/modify_settings\.json\.tmpl|dot_codex/modify_private_config\.toml\.tmpl|tests/test_(lib|process|statusline_command|render_modify_shim)\.bats|tests/fixtures/.*)$

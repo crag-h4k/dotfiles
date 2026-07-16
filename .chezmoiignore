@@ -4,6 +4,7 @@ LICENSE
 .github
 .pre-commit-config.yaml
 scripts
+docs
 *.example
 *.ig
 # Python bytecode (e.g. from validating modify_*.json scripts). A cached
@@ -34,13 +35,27 @@ scripts
 {{ if not (dig "components" "git" "ignore_global" true .) -}}
 .gitignore_global
 {{ end -}}
-{{ if not (dig "components" "ai" "claude_hooks" false .) -}}
+{{/* settings.json / config.toml are the merge targets for BOTH the notify hooks
+     and the statusline, so manage them when EITHER sub-feature is on; ignore only
+     when both are off. The hook scripts stay gated by their hooks sub-feature; the
+     statusline files by the statusline sub-feature. */}}
+{{ if and (not (dig "components" "ai" "claude_hooks" false .)) (not (dig "components" "ai" "statusline" false .)) -}}
 .claude/settings.json
+{{ end -}}
+{{ if not (dig "components" "ai" "claude_hooks" false .) -}}
 .claude/hooks/notify-tmux.sh
 .claude/hooks/notify-clear.sh
 {{ end -}}
-{{ if not (dig "components" "ai" "codex_hooks" false .) -}}
+{{ if not (dig "components" "ai" "statusline" false .) -}}
+.claude/statusline-command.sh
+.claude/statusline-tokens.py
+.config/statusline
+.codex/themes
+{{ end -}}
+{{ if and (not (dig "components" "ai" "codex_hooks" false .)) (not (dig "components" "ai" "statusline" false .)) -}}
 .codex/config.toml
+{{ end -}}
+{{ if not (dig "components" "ai" "codex_hooks" false .) -}}
 .codex/hooks/notify-tmux.sh
 {{ end -}}
 {{/* Ghostty config (~/.config/ghostty) is a terminal sub-feature. Cross-platform

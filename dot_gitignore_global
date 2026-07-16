@@ -365,4 +365,19 @@ terraform.rc
 **/ignore/*
 *.ig
 ipython_config.py
+############################
+### Git ####################
+############################
+*.orig
+*.BACKUP.*
+*.BASE.*
+*.LOCAL.*
+*.REMOTE.*
+*_BACKUP_*.txt
+*_BASE_*.txt
+*_LOCAL_*.txt
+*_REMOTE_*.txt
+*.rej
+.git-rewrite/
+.worktrees/
 ### Exceptions to .gitignore rules
