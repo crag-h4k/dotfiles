@@ -41,13 +41,16 @@ Enter numbers (e.g. "1 3"), a keyword above, or press Enter for default (1 2 3 4
 Both paths resolve to the same `componentSelection` string and the same `[data.components]`
 tables. For the typed menu:
 
-- Numbers: any subset (e.g. `1 3` for zsh + neovim). Spacing and order do not matter - `1 3`,
-  `13`, and `3 1` are equivalent.
-- Enter: the default, `1 2 3 4` (zsh + tmux + neovim + git; no AI tools).
-- `all`: the default set (`1 2 3 4`).
-- `all+`: everything, adding the AI tools and the `terminal` component. Like the other
-  submenus, `all+` takes each parent at its default sub-features only, so `terminal` comes on
-  with `ghostty` (its default) but not `iterm2`; add `iterm2` by selecting it in the submenu.
+| Input | Selects |
+| --- | --- |
+| Numbers (e.g. `1 3`) | Any subset; spacing/order don't matter - `1 3`, `13`, and `3 1` are equivalent |
+| Enter | The default, `1 2 3 4` (zsh + tmux + neovim + git; no AI tools) |
+| `all` | The default set (`1 2 3 4`) |
+| `all+` | Everything, adding the AI tools and the `terminal` component |
+
+Like the other submenus, `all+` takes each parent at its default sub-features only, so
+`terminal` comes on with `ghostty` (its default) but not `iterm2`; add `iterm2` by selecting
+it in the submenu.
 
 The component list is the single source of truth in `.chezmoi.toml.tmpl`; the gum options and
 the typed menu are both generated from it, so adding a component is a one-line edit there. Set
@@ -60,24 +63,20 @@ sub-features (so they are stored as the nested tables `[data.components.git]`,
 `[data.components.ai]`, and `[data.components.terminal]`, where "on" means any sub-feature is
 true):
 
-- `git`: `config` (`~/.gitconfig`), `personal` (`~/.gitconfig.personal`), `ignore_global`
-  (`~/.gitignore_global`). `git` is in the default set, but the submenu pre-selects only
-  `ignore_global` - so by default you get `~/.gitignore_global` and not `~/.gitconfig`
-  (identical to the old behavior).
-- `ai`: `claude_hooks` (merges the Claude notify hooks into `~/.claude/settings.json`),
-  `codex_hooks` (merges the Codex notify hook + `tui.notifications` into
-  `~/.codex/config.toml`), `statusline` (installs a gud, Dracula-family, Claude statusline
-  plus a Codex gud theme; this is what makes `~/.claude/settings.json` and
-  `~/.codex/config.toml` managed even when the notify hooks are off; opt-in and default-off,
-  not in the `all` set), `codecompanion` (CodeCompanion.nvim + the `claude-agent-acp` bridge).
-  `codecompanion` is listed last because it is the heaviest sub-feature - it pulls in node,
-  npm, and the npm-installed bridge. `ai` stays off by default; if picked, the submenu still
-  defaults to `codecompanion`.
-- `terminal`: `ghostty` (Ghostty config + quick-terminal dropdown, macOS and Linux) and
-  `iterm2` (iTerm2 Dynamic Profiles, macOS only). `terminal` stays off by default; if picked,
-  the submenu defaults to `ghostty`. `iterm2` carries an `os` tag, so the submenu hides it on
-  non-macOS (the data key is still emitted for column parity, and the file gate in
-  `.chezmoiignore` also enforces darwin).
+`git` is in the default component set; `ai` and `terminal` are not, so their sub-features only
+apply once you pick the parent.
+
+| Component | Sub-feature | Target | Submenu default | Notes |
+| --- | --- | --- | --- | --- |
+| `git` | `config` | `~/.gitconfig` | off | |
+| `git` | `personal` | `~/.gitconfig.personal` | off | |
+| `git` | `ignore_global` | `~/.gitignore_global` | on | matches the old, pre-submenu default behavior |
+| `ai` | `claude_hooks` | `~/.claude/settings.json` (merge) | off | merges the Claude notify hooks |
+| `ai` | `codex_hooks` | `~/.codex/config.toml` (merge) | off | merges the Codex notify hook + `tui.notifications` |
+| `ai` | `statusline` | `~/.claude/settings.json` + `~/.codex/config.toml` (merge) | off | gud, Dracula-family Claude statusline plus a matching Codex theme; keeps those files managed even when the notify hooks are off; not enabled by `all` or `all+` |
+| `ai` | `codecompanion` | CodeCompanion.nvim + `claude-agent-acp` bridge | on (within the `ai` submenu, if `ai` is picked) | heaviest sub-feature - pulls in node, npm, and the npm-installed bridge; listed last for that reason |
+| `terminal` | `ghostty` | Ghostty config + quick-terminal dropdown | on | macOS and Linux |
+| `terminal` | `iterm2` | iTerm2 Dynamic Profiles | off | macOS only; hidden in the submenu on non-macOS (data key still emitted for column parity), also gated in `.chezmoiignore` |
 
 With `gum` the submenu is a nested checkbox whose `--selected` seed pre-checks the parent's
 currently-enabled sub-features (read from the persisted `[data.components.<parent>]` table), so a
