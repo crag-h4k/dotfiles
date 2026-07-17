@@ -28,7 +28,7 @@
   etc.) installs first; packages for selected components are then deduped and batched into one
   `brew install` / `apt-get install -y` call per OS. `run_once_after_00-install.sh` drives
   `install.sh` with the component selection passed as `INSTALL_*` env vars.
-- **Status-bar network indicator.** The `↓ • ↑` throughput in the tmux status bar comes from the
+- **Status-bar network indicator:** the `↓ • ↑` throughput in the tmux status bar comes from the
   `xamut/tmux-network-bandwidth` plugin (cross-platform, replaces the Linux-only
   `tmux-net-speed`). It needs `coreutils`+`gawk` on macOS and `gawk`+`net-tools` on Debian;
   those ride along in the tmux package set. It sums all interfaces, so VPN and VM-bridge traffic

@@ -103,8 +103,10 @@ duration, rate bars, or the custom glyphs.
 
 ## Supported platforms
 
-- macOS (Homebrew)
-- Debian / Ubuntu (`apt-get`, with sudo)
+| Platform | Package manager |
+| --- | --- |
+| macOS | Homebrew |
+| Debian / Ubuntu | `apt-get`, with sudo |
 
 Other Linux distros work if you install the listed binaries yourself; the config is
 distro-agnostic.

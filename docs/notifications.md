@@ -11,7 +11,7 @@
 Terminal-native attention cues when a long process finishes or Claude/Codex needs you. Visual
 cue always; sound optional per group (empty sound = silent). No notification-center popups.
 
-- **Config (one file).** Everything - the color palette, per-group `bg`/`accent`/`sound`,
+- **Config (one file):** everything - the color palette, per-group `bg`/`accent`/`sound`,
   default and per-group `volume`/`threshold`, the binary-to-group map, the ignore-list, and
   debug logging - lives in `~/.config/notify/notify.yaml`, read via
   [`yq`](https://github.com/mikefarah/yq) (mikefarah, v4). `groups` are triggered by a finished
@@ -19,19 +19,19 @@ cue always; sound optional per group (empty sound = silent). No notification-cen
   auto-added to the ignore-list (so launching the CLI never fires the command path). Palette
   names resolve to hex; a raw `#hex` or `default` passes through. Edit the YAML (new shells
   re-read it; `tmux source-file ~/.tmux.conf` reloads the renderer).
-- **Shared logic.** `~/.config/notify/lib.sh` (array-free POSIX, sourced by both the zsh
+- **Shared logic:** `~/.config/notify/lib.sh` (array-free POSIX, sourced by both the zsh
   notifier and the bash hooks) reads the config and does the recolor + sound. It resolves a
   mikefarah `yq` even under a stripped PATH (preferring `~/.local/bin/yq`, ignoring a stray
   apt/kislyuk `yq`) and locates tmux the same way, bypassing the oh-my-zsh tmux wrapper.
-- **Rendering.** `~/.tmux/conf.d/notify.conf` renders the status-bar flag (per-group accent) and
+- **Rendering:** `~/.tmux/conf.d/notify.conf` renders the status-bar flag (per-group accent) and
   pane tint, and clears them when you return focus to the pane. tmux is the only surface that
   draws; outside tmux the system is inert by design.
-- **Detection.** `~/.zsh/custom/functions/notify-process.zsh` builds its binary-to-group map,
+- **Detection:** `~/.zsh/custom/functions/notify-process.zsh` builds its binary-to-group map,
   per-group thresholds, and ignore-list once at shell init (a single `yq` call), then
   `preexec`/`precmd` flag the pane when a named binary (terraform, brew, ...) finishes at/above
   its group's threshold, or any command runs past the catch-all `default` threshold. A nonzero
   exit uses the `error` group.
-- **AI attention.** The Claude Code `Stop`, `Notification`, and `PreToolUse:AskUserQuestion`
+- **AI attention:** the Claude Code `Stop`, `Notification`, and `PreToolUse:AskUserQuestion`
   events call `notify-tmux.sh`, registered in `~/.claude/settings.json` via the `modify_` template
   (`dot_claude/modify_settings.json.tmpl`) that merges the hooks on each `chezmoi apply` without
   clobbering model/effort/plugins. Matcher-less `Notification` covers permission prompts and
@@ -45,9 +45,9 @@ cue always; sound optional per group (empty sound = silent). No notification-cen
   merge also sets `tui.notifications` (`approval-requested`), Codex's own alert, which is a no-op
   under tmux today ([openai/codex#16855](https://github.com/openai/codex/issues/16855)) and
   activates once that lands. A restart of `codex` picks up the config.
-- **Debug.** Off by default. Set `settings.debug: true` (or `export NOTIFY_DEBUG=1`) to trace
+- **Debug:** off by default. Set `settings.debug: true` (or `export NOTIFY_DEBUG=1`) to trace
   fires to `settings.log` (default `~/.config/notify/notify.log`); the log self-caps at ~1 MB.
-- **yq dependency.** Installed with the `zsh` or `tmux` component: `brew install yq` on macOS,
+- **yq dependency:** installed with the `zsh` or `tmux` component: `brew install yq` on macOS,
   the mikefarah binary fetched to `~/.local/bin` on Debian. Do **not** `apt install yq` on
   Debian - that is a different (python/kislyuk) tool with incompatible syntax, which the system
   detects and ignores.
