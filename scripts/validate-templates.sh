@@ -14,9 +14,11 @@ set -euo pipefail
 # deterministically. Without this, a render on a machine that has gum and a
 # controlling terminal would launch the interactive picker for every case.
 export DOTFILES_NO_TUI=1
+export DOTFILES_INSTALL_MODE=configs
 
 REPO_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 EXTERNAL="$REPO_DIR/.chezmoiexternal.toml"
+IGNORE="$REPO_DIR/.chezmoiignore"
 CONFIG_TMPL="$REPO_DIR/.chezmoi.toml.tmpl"
 RUNONCE="$REPO_DIR/run_once_after_00-install.sh.tmpl"
 
@@ -252,6 +254,39 @@ for combo in "${ext_combos[@]}"; do
     fi
     rm -rf "$cfgdir"
 done
+
+# --- notify gate: every consumer keeps config + runtime dependency together ---
+assert_notify_gate() { # zsh tmux claude_hooks codex_hooks want_enabled
+    local zsh="$1" tmux="$2" claude="$3" codex="$4" want="$5"
+    local cfgdir ignored runout got
+    cfgdir=$(mktemp -d)
+    {
+        printf '[data]\ninstallMode = "configs"\n'
+        printf '[data.components]\nzsh = %s\ntmux = %s\n' "$zsh" "$tmux"
+        printf '[data.components.ai]\nclaude_hooks = %s\ncodex_hooks = %s\nstatusline = false\ncodecompanion = false\n' "$claude" "$codex"
+    } > "$cfgdir/chezmoi.toml"
+    ignored=$(chezmoi execute-template --config "$cfgdir/chezmoi.toml" < "$IGNORE")
+    runout=$(chezmoi execute-template --config "$cfgdir/chezmoi.toml" < "$RUNONCE")
+    rm -rf "$cfgdir"
+    got=$(printf '%s\n' "$runout" | sed -n 's/^export INSTALL_NOTIFY=\(.*\)$/\1/p')
+    if [[ "$got" != "$want" ]]; then
+        echo "validate-templates: INSTALL_NOTIFY=$got want=$want (zsh=$zsh tmux=$tmux claude=$claude codex=$codex)" >&2
+        fail=1
+    fi
+    if [[ "$want" == true ]] && printf '%s\n' "$ignored" | grep -qx '.config/notify'; then
+        echo "validate-templates: enabled notify was ignored" >&2
+        fail=1
+    elif [[ "$want" == false ]] && ! printf '%s\n' "$ignored" | grep -qx '.config/notify'; then
+        echo "validate-templates: disabled notify was not ignored" >&2
+        fail=1
+    fi
+}
+
+assert_notify_gate false false false false false
+assert_notify_gate true  false false false true
+assert_notify_gate false true  false false true
+assert_notify_gate false false true  false true
+assert_notify_gate false false false true  true
 
 # --- run_once_after_00-install.sh.tmpl: install-var flags render correctly --
 # The terminal binary installs are gated by INSTALL_TERMINAL_* env vars dug from

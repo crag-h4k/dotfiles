@@ -1,0 +1,13 @@
+# ~/.config/ghostty/themes/dotfiles.conf
+# Generated from .chezmoidata/palettes.yaml. Select with data.palette.
+{{- $palette := get .palettes (dig "palette" "dracula" .) }}
+
+background = {{ $palette.colors.background }}
+foreground = {{ $palette.colors.foreground }}
+cursor-color = {{ $palette.colors.cursor }}
+cursor-text = {{ $palette.colors.background }}
+selection-background = {{ $palette.colors.selection }}
+selection-foreground = {{ $palette.colors.foreground }}
+{{ range $index, $color := $palette.ansi -}}
+palette = {{ $index }}={{ $color }}
+{{ end -}}

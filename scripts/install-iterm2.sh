@@ -34,9 +34,9 @@ main() {
 
     local domain=com.googlecode.iterm2
 
-    # Default profile is "gud theme". Dynamic profiles are read-only in the UI, so
+    # Default profile is "dotfiles". Dynamic profiles are read-only in the UI, so
     # the default is pinned by Guid in the prefs domain rather than in the JSON.
-    # This is the Guid from dot_config/iterm2/dotfiles.json (freshly minted so it
+    # This is the Guid from dot_config/iterm2/dotfiles.json.tmpl (freshly minted so it
     # does not collide with any pre-existing regular profile).
     defaults write "$domain" "Default Bookmark Guid" \
         -string "F8CE7F87-BEC0-4312-92FA-B86B14B031D2"

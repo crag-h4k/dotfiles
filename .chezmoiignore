@@ -5,6 +5,7 @@ LICENSE
 .pre-commit-config.yaml
 scripts
 docs
+tests
 *.example
 *.ig
 # Python bytecode (e.g. from validating modify_*.json scripts). A cached
@@ -24,9 +25,14 @@ docs
 .tmux.conf
 .tmux
 {{ end -}}
-{{/* notify subsystem (config + shared lib) is read by both the zsh process
-     notifier and the tmux/Claude hooks; install it when either is selected. */}}
-{{ if and (not (dig "components" "zsh" true .)) (not (dig "components" "tmux" true .)) -}}
+{{/* notify subsystem is needed by the zsh process notifier, tmux integration,
+     Claude hooks, or Codex hooks. Keep this condition aligned with
+     INSTALL_NOTIFY in run_once_after_00-install.sh.tmpl. */}}
+{{ if and
+     (not (dig "components" "zsh" true .))
+     (not (dig "components" "tmux" true .))
+     (not (dig "components" "ai" "claude_hooks" false .))
+     (not (dig "components" "ai" "codex_hooks" false .)) -}}
 .config/notify
 {{ end -}}
 {{ if not (dig "components" "neovim" true .) -}}

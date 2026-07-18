@@ -1,0 +1,21 @@
+# ~/.config/statusline/palette.sh
+# Generated from .chezmoidata/palettes.yaml for the Claude statusline.
+# shellcheck shell=bash disable=SC2034
+{{- $p := get .palettes (dig "palette" "dracula" .) -}}
+{{- $purple := trimPrefix "#" $p.colors.purple -}}
+{{- $cyan := trimPrefix "#" $p.colors.cyan -}}
+{{- $comment := trimPrefix "#" $p.colors.comment -}}
+{{- $pink := trimPrefix "#" $p.colors.pink -}}
+{{- $green := trimPrefix "#" $p.colors.green -}}
+{{- $yellow := trimPrefix "#" $p.colors.yellow -}}
+{{- $red := trimPrefix "#" $p.colors.red -}}
+{{- $orange := trimPrefix "#" $p.colors.orange }}
+PALETTE_PURPLE=$'\e[38;2;{{ int (printf "0x%s" (substr 0 2 $purple)) }};{{ int (printf "0x%s" (substr 2 4 $purple)) }};{{ int (printf "0x%s" (substr 4 6 $purple)) }}m'
+PALETTE_CYAN=$'\e[38;2;{{ int (printf "0x%s" (substr 0 2 $cyan)) }};{{ int (printf "0x%s" (substr 2 4 $cyan)) }};{{ int (printf "0x%s" (substr 4 6 $cyan)) }}m'
+PALETTE_GREY=$'\e[38;2;{{ int (printf "0x%s" (substr 0 2 $comment)) }};{{ int (printf "0x%s" (substr 2 4 $comment)) }};{{ int (printf "0x%s" (substr 4 6 $comment)) }}m'
+PALETTE_PINK=$'\e[38;2;{{ int (printf "0x%s" (substr 0 2 $pink)) }};{{ int (printf "0x%s" (substr 2 4 $pink)) }};{{ int (printf "0x%s" (substr 4 6 $pink)) }}m'
+PALETTE_GREEN=$'\e[38;2;{{ int (printf "0x%s" (substr 0 2 $green)) }};{{ int (printf "0x%s" (substr 2 4 $green)) }};{{ int (printf "0x%s" (substr 4 6 $green)) }}m'
+PALETTE_YELLOW=$'\e[38;2;{{ int (printf "0x%s" (substr 0 2 $yellow)) }};{{ int (printf "0x%s" (substr 2 4 $yellow)) }};{{ int (printf "0x%s" (substr 4 6 $yellow)) }}m'
+PALETTE_RED=$'\e[38;2;{{ int (printf "0x%s" (substr 0 2 $red)) }};{{ int (printf "0x%s" (substr 2 4 $red)) }};{{ int (printf "0x%s" (substr 4 6 $red)) }}m'
+PALETTE_RED_BOLD=$'\e[1;38;2;{{ int (printf "0x%s" (substr 0 2 $red)) }};{{ int (printf "0x%s" (substr 2 4 $red)) }};{{ int (printf "0x%s" (substr 4 6 $red)) }}m'
+PALETTE_ORANGE=$'\e[38;2;{{ int (printf "0x%s" (substr 0 2 $orange)) }};{{ int (printf "0x%s" (substr 2 4 $orange)) }};{{ int (printf "0x%s" (substr 4 6 $orange)) }}m'

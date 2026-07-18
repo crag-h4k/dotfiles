@@ -2,7 +2,7 @@
 # tests/test_statusline_command.bats
 # Tests for dot_claude/executable_statusline-command.sh (the fast renderer).
 #
-# The script is run hermetically: a temp HOME (so the gud-palette.sh override is
+# The script is run hermetically: a temp HOME (so the palette.sh override is
 # absent and ORANGE falls back to the truecolor default), a temp XDG_CACHE_HOME
 # (where the Sigma total cache is seeded), fixture stdin payloads piped in, and a
 # throwaway git repo for the branch/dirty segment. Colors are asserted as raw SGR
@@ -129,7 +129,7 @@ git_repo() {
   run bash "$SCRIPT" < "$(mkstdin stdin-no-rate.json \
     "$(printf '.context_window.used_percentage=80 | .workspace.current_dir=%s' "\"$PLAINDIR\"")")"
   [ "$status" -eq 0 ]
-  [[ "$output" == *$'\e[38;2;255;184;108m'* ]]   # gud orange (24-bit)
+  [[ "$output" == *$'\e[38;2;255;184;108m'* ]]   # Dracula orange fallback
 }
 
 @test "context bar is red-bold at 90%+" {

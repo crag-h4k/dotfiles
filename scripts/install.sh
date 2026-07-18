@@ -31,9 +31,12 @@ INSTALL_GIT_PERSONAL="${INSTALL_GIT_PERSONAL:-false}"
 # .chezmoiignore, not here.
 INSTALL_AI_CODECOMPANION="${INSTALL_AI_CODECOMPANION:-false}"
 # statusline (opt-in, off by default). Config files are file-gated in
-# .chezmoiignore; this var gates only the runtime deps (jq + python3) the gud
+# .chezmoiignore; this var gates only the runtime deps (jq + python3) the
 # statusline shells out to.
 INSTALL_AI_STATUSLINE="${INSTALL_AI_STATUSLINE:-false}"
+# Shared notify runtime. AI-hook-only hosts still need notify.yaml, lib.sh, and
+# mikefarah yq even when neither Zsh nor tmux is selected as a component.
+INSTALL_NOTIFY="${INSTALL_NOTIFY:-false}"
 # terminal sub-features (opt-in). The CONFIG for each is file-gated in
 # .chezmoiignore; these vars gate only the BINARY install.
 # - ghostty: cask on macOS; no official Debian apt package, so config-only on
@@ -43,30 +46,9 @@ INSTALL_AI_STATUSLINE="${INSTALL_AI_STATUSLINE:-false}"
 # chezmoi run_once path sets them explicitly from the terminal submenu selection.
 INSTALL_TERMINAL_GHOSTTY="${INSTALL_TERMINAL_GHOSTTY:-false}"
 INSTALL_TERMINAL_ITERM2="${INSTALL_TERMINAL_ITERM2:-false}"
-
-_deduped_pkgs() {
-    local -a unique=()
-    local pkg existing found
-    for pkg in "$@"; do
-        found=0
-        # Guarded: expanding "${unique[@]}" while unique has zero elements trips
-        # "unbound variable" under bash 3.2 (macOS system bash) with set -u -
-        # array-empty is indistinguishable from unset there, fixed only in bash 4.4+.
-        if (( ${#unique[@]} > 0 )); then
-            for existing in "${unique[@]}"; do
-                if [[ "$pkg" == "$existing" ]]; then
-                    found=1
-                    break
-                fi
-            done
-        fi
-        (( found )) || unique+=("$pkg")
-    done
-    # Single space-joined line (not one-per-line) so callers can rebuild the
-    # array with `read -a`, which - unlike mapfile/readarray - works on bash 3.2.
-    (( ${#unique[@]} > 0 )) && printf '%s\n' "${unique[*]}"
-    return 0
-}
+DOTFILES_INSTALL_MODE="${DOTFILES_INSTALL_MODE:-packages}"
+[[ "$DOTFILES_INSTALL_MODE" == packages || "$DOTFILES_INSTALL_MODE" == configs ]] ||
+    die "DOTFILES_INSTALL_MODE must be configs or packages"
 
 # Show an existing gitconfig file then prompt to create/replace from repo example.
 _setup_gitconfig_file() {
@@ -95,117 +77,48 @@ main() {
     local os
     os=$(os_detect)
     info "dotfiles installer: platform=$os"
-    info "components: zsh=$INSTALL_ZSH tmux=$INSTALL_TMUX neovim=$INSTALL_NEOVIM git.config=$INSTALL_GIT_CONFIG git.personal=$INSTALL_GIT_PERSONAL ai.codecompanion=$INSTALL_AI_CODECOMPANION terminal.ghostty=$INSTALL_TERMINAL_GHOSTTY terminal.iterm2=$INSTALL_TERMINAL_ITERM2"
+    info "components: zsh=$INSTALL_ZSH tmux=$INSTALL_TMUX neovim=$INSTALL_NEOVIM git.config=$INSTALL_GIT_CONFIG git.personal=$INSTALL_GIT_PERSONAL ai.codecompanion=$INSTALL_AI_CODECOMPANION notify=$INSTALL_NOTIFY terminal.ghostty=$INSTALL_TERMINAL_GHOSTTY terminal.iterm2=$INSTALL_TERMINAL_ITERM2"
 
-    # Base toolchain required by the installer itself and by reconfigure flows.
-    # This intentionally runs before selected component packages so helpers such
-    # as ensure_gh_apt_repo can rely on curl being present.
-    case "$os" in
-        macos)
-            require_cmd brew
-            brew install git make curl gum chezmoi
-            ;;
-        debian)
-            sudo apt-get update
-            pkg_install_many git make curl ca-certificates gum
-            ;;
-        *)
-            die "unsupported OS: $(uname -s)"
-            ;;
-    esac
-
-    # Build package lists for selected components and install them in one later
-    # package-manager call per platform.
-    local -a macos_pkgs=() debian_pkgs=()
-
-    [[ "$INSTALL_ZSH" == true ]] && {
-        macos_pkgs+=(zsh gh zoxide gnupg fzf)
-        debian_pkgs+=(zsh gh zoxide gnupg command-not-found fzf)
-    }
-    [[ "$INSTALL_TMUX" == true ]] && {
-        # coreutils/gawk + gawk/net-tools are runtime deps of the
-        # tmux-network-bandwidth status plugin (numfmt; 3-arg match(); netstat).
-        macos_pkgs+=(tmux reattach-to-user-namespace coreutils gawk)
-        debian_pkgs+=(tmux xclip wl-clipboard mpg123 gawk net-tools)
-    }
-    [[ "$INSTALL_NEOVIM" == true ]] && {
-        macos_pkgs+=(cmake go hadolint llvm lua@5.4 luarocks
-                     markdownlint-cli2 neovim node python3 shellcheck yamllint)
-        debian_pkgs+=(build-essential cmake golang jq luarocks nodejs npm
-                      python3 python3-pip python3-venv shellcheck yamllint)
-    }
-    # yq powers the attention-notification config (~/.config/notify/notify.yaml),
-    # read by BOTH the zsh process notifier and the tmux/Claude hooks - so it is
-    # required whenever zsh or tmux is selected. On Debian the apt 'yq' is a
-    # different tool (python kislyuk/yq) with incompatible syntax, so macOS uses
-    # brew here and Debian fetches the mikefarah binary below (install_yq_debian).
-    [[ "$INSTALL_ZSH" == true || "$INSTALL_TMUX" == true ]] && macos_pkgs+=(yq)
-    [[ "$INSTALL_NEOVIM" == true ]] && macos_pkgs+=(terraform-linters/tap/tflint)
-    # The gud statusline shells out to jq (JSON parse) and python3 (detached
-    # token-total updater), so both are required whenever ai > statusline is on,
-    # independently of neovim. macOS never gets jq otherwise, and a neovim-off
-    # host gets neither; _deduped_pkgs collapses any overlap with the neovim
-    # block above (Debian already lists jq/python3 there).
-    [[ "$INSTALL_AI_STATUSLINE" == true ]] && {
-        macos_pkgs+=(jq python3)
-        debian_pkgs+=(jq python3)
-    }
-
-    case "$os" in
-        macos)
-            # Same unbound-variable guard as inside _deduped_pkgs: skip the call
-            # entirely when there is nothing to dedup (bash 3.2 + set -u would
-            # otherwise choke expanding "${macos_pkgs[@]}" for a zero-element array).
-            # read -a (not mapfile - bash 4+ only) rebuilds the array.
-            if (( ${#macos_pkgs[@]} > 0 )); then
-                read -r -a macos_pkgs <<< "$(_deduped_pkgs "${macos_pkgs[@]}")"
-            fi
-            if [[ ${#macos_pkgs[@]} -gt 0 ]]; then
-                brew install "${macos_pkgs[@]}"
-            fi
-            # iTerm2 is a cask, not a formula, so it installs separately. Guard
-            # for idempotency (brew --cask errors if already installed) and
-            # soft-fail so a download blip does not abort the whole install.
-            if [[ "$INSTALL_TERMINAL_ITERM2" == true ]]; then
-                brew list --cask iterm2 >/dev/null 2>&1 || brew install --cask iterm2 \
-                    || warn "iterm2 cask install failed; continuing"
-            fi
-            # Ghostty is a cask too. Mirror the iterm2 guard, and also skip when
-            # /Applications/Ghostty.app already exists (installed outside brew) so
-            # we never collide with a manual .app. Soft-fail on a download blip.
-            if [[ "$INSTALL_TERMINAL_GHOSTTY" == true ]]; then
-                if [[ -d "/Applications/Ghostty.app" ]] || brew list --cask ghostty >/dev/null 2>&1; then
-                    info "ghostty: already present; skipping cask install"
-                else
-                    brew install --cask ghostty || warn "ghostty cask install failed; continuing"
+    if [[ "$DOTFILES_INSTALL_MODE" == packages ]]; then
+        local planner="$SCRIPT_DIR/package-plan.sh"
+        local -a packages=() casks=()
+        case "$os" in
+            macos)
+                require_cmd brew
+                while IFS= read -r pkg; do [[ -n "$pkg" ]] && packages+=("$pkg"); done < <("$planner" --names brew-formula)
+                (( ${#packages[@]} == 0 )) || brew install "${packages[@]}"
+                while IFS= read -r pkg; do [[ -n "$pkg" ]] && casks+=("$pkg"); done < <("$planner" --names brew-cask)
+                if (( ${#casks[@]} > 0 )); then
+                    for pkg in "${casks[@]}"; do
+                        if [[ "$pkg" == ghostty && -d /Applications/Ghostty.app ]]; then
+                            info "ghostty: already present; skipping cask install"
+                        else
+                            brew list --cask "$pkg" >/dev/null 2>&1 ||
+                                brew install --cask "$pkg" || warn "$pkg cask install failed; continuing"
+                        fi
+                    done
                 fi
-            fi
-            ;;
-        debian)
-            [[ "$INSTALL_ZSH" == true ]] && ensure_gh_apt_repo
-            if (( ${#debian_pkgs[@]} > 0 )); then
-                read -r -a debian_pkgs <<< "$(_deduped_pkgs "${debian_pkgs[@]}")"
-            fi
-            if [[ ${#debian_pkgs[@]} -gt 0 ]]; then
-                sudo apt-get update
-                pkg_install_many "${debian_pkgs[@]}"
-            fi
-            # Soft-fail: these fetch binaries over the network (GitHub releases),
-            # so a rate-limit/proxy/offline blip must warn and continue, not abort
-            # the whole install via set -e on the && call site.
-            [[ "$INSTALL_NEOVIM" == true ]] && { install_neovim_debian || warn "neovim install failed; continuing without a neovim upgrade"; }
-            [[ "$INSTALL_ZSH" == true || "$INSTALL_TMUX" == true ]] && { install_yq_debian || warn "yq install failed; notifications fall back to built-in default colors until yq is installed"; }
-            # Ghostty is a GUI terminal with NO official Debian apt package (the
-            # project ships source builds + community repos only; Ubuntu 26.04+ has
-            # it, Debian does not). This profile is a headless trixie container, so
-            # we do not add a third-party apt repo or build a display app here. The
-            # themed config still lands via chezmoi; install the binary manually on
-            # a real Linux desktop (see README > terminal > ghostty).
-            [[ "$INSTALL_TERMINAL_GHOSTTY" == true ]] && info "ghostty: config applied; skipping binary install on Debian (no official apt package; GUI app not provisioned on the headless container profile). See README."
-            ;;
-    esac
+                ;;
+            debian)
+                [[ "$INSTALL_ZSH" == true ]] && ensure_gh_apt_repo
+                while IFS= read -r pkg; do [[ -n "$pkg" ]] && packages+=("$pkg"); done < <("$planner" --names apt)
+                if (( ${#packages[@]} > 0 )); then
+                    sudo apt-get update
+                    pkg_install_many "${packages[@]}"
+                fi
+                [[ "$INSTALL_NEOVIM" == true ]] && { install_neovim_debian || warn "neovim install failed; continuing without a neovim upgrade"; }
+                [[ "$INSTALL_NOTIFY" == true ]] && { install_yq_debian || warn "yq install failed; notifications use built-in fallback colors until yq is installed"; }
+                [[ "$INSTALL_TERMINAL_GHOSTTY" == true ]] && info "ghostty: config applied; skipping binary install on Debian. See README."
+                ;;
+            *) die "unsupported OS: $(uname -s)" ;;
+        esac
 
-    ensure_chezmoi
+        ensure_chezmoi
+        [[ "$INSTALL_ZSH" == true ]] && bash "$SCRIPT_DIR/install-zsh.sh"
+        [[ "$INSTALL_NEOVIM" == true ]] && bash "$SCRIPT_DIR/install-neovim.sh"
+    else
+        info "configs-only mode: skipped packages, login-shell changes, language packages, and Neovim plugin sync"
+    fi
 
     # Convenience symlink: ~/dotfiles -> ~/.local/share/chezmoi
     local chezmoi_src="$HOME/.local/share/chezmoi"
@@ -216,8 +129,6 @@ main() {
     fi
 
     # Post-install steps for each component (non-package work).
-    [[ "$INSTALL_ZSH" == true ]]    && bash "$SCRIPT_DIR/install-zsh.sh"
-    [[ "$INSTALL_NEOVIM" == true ]] && bash "$SCRIPT_DIR/install-neovim.sh"
     [[ "$INSTALL_TERMINAL_ITERM2" == true ]] && bash "$SCRIPT_DIR/install-iterm2.sh"
 
     # Provision the CodeCompanion opt-in sentinel that init.lua checks at startup.

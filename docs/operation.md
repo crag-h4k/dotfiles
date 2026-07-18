@@ -50,6 +50,10 @@ Single-pane copy needs no toggle: enter copy-mode, drag to select, and `y` copie
 on by default). `prefix + m` is only for cross-pane native selection, when you want the terminal
 to own the whole grid.
 
+A flagged notify pane clears when it regains focus or receives ordinary keyboard input, a
+primary click, a drag, or a scroll event. The binding targets only the receiving pane, preserves
+normal and copy-mode mouse behavior, and leaves right-click menus untouched.
+
 Session and window names are set automatically so `tmux ls` reads by project while the window
 tabs read by task:
 
@@ -62,8 +66,8 @@ So `tmux ls` shows project names while the window tabs show `1:zsh`, `2:nvim`, `
 
 ## Statusline (Claude / Codex)
 
-The `ai > statusline` sub-feature installs a gud (Dracula-family) statusline for Claude Code and
-a matching gud theme for Codex. Enabling it also pulls `jq` and `python3` as runtime deps: the
+The `ai > statusline` sub-feature installs the custom statusline renderer for Claude Code and a
+matching selected-palette theme for Codex. Enabling it also pulls `jq` and `python3` as runtime deps: the
 renderer parses its stdin JSON with `jq`, and a detached `python3` updater refreshes the
 subagent-inclusive token total off the render path. The Claude statusline clusters its segments
 into groups joined by a grey `│`; items inside a group are joined by a grey `·`:
@@ -97,9 +101,15 @@ falls back to the `med` tier, which mirrors the previous fixed layout. The per-t
 the segment drops, and the divider glyphs are one-line tunables near the top of
 `~/.claude/statusline-command.sh`.
 
-Codex shows a calmer native subset in the same gud palette: model, context, git branch, cwd,
-sandbox, and run-state (via `tui.status_line`). It cannot match the subagent token total, session
-duration, rate bars, or the custom glyphs.
+Codex uses its native footer with the same selected palette. The configured order is model and
+reasoning, run-state, active task progress, context use, session tokens, 5-hour and weekly limits,
+project root, and Git branch. Unavailable values are omitted automatically. The palette gives each
+field family a distinct accent through `~/.codex/themes/dotfiles.tmTheme`: cyan model, pink state,
+green progress and branch, purple usage, orange limits, and yellow paths.
+
+This is Codex's built-in `tui.status_line`, configured by the chezmoi merge template. Codex does
+not currently support a command-backed footer, so it cannot use the Claude renderer's custom
+glyphs, subagent token total, session duration, or adaptive width tiers.
 
 ## Supported platforms
 

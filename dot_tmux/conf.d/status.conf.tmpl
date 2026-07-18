@@ -1,0 +1,38 @@
+# ~/.tmux/conf.d/status.conf
+# Generated from .chezmoidata/palettes.yaml. The layout stays custom; only the
+# semantic colors change with data.palette.
+{{ $p := get .palettes (dig "palette" "dracula" .) -}}
+
+set -g status-interval 2
+set -g status on
+set -g status-position bottom
+
+# Export shared accents for notify.conf, which also supports standalone use.
+set -g @palette_red "{{ $p.colors.red }}"
+set -g @palette_background "{{ $p.colors.background }}"
+set -g @palette_foreground "{{ $p.colors.foreground }}"
+
+set -g status-bg "{{ $p.colors.background }}"
+set -g status-fg "{{ $p.colors.foreground }}"
+set -g pane-border-style "fg={{ $p.colors.surface }}"
+set -g pane-active-border-style "fg={{ $p.colors.purple }}"
+set -g message-style "bg={{ $p.colors.surface }},fg={{ $p.colors.foreground }}"
+
+setw -g window-status-style "fg={{ $p.colors.foreground }},bg={{ $p.colors.background }}"
+setw -g window-status-format " #I:#W "
+setw -g window-status-current-style "fg={{ $p.colors.background }},bg={{ $p.colors.green }},bold"
+setw -g window-status-current-format " #I:#W "
+
+set -g status-left-length 60
+set -g status-left "#[fg={{ $p.colors.background }},bg={{ $p.colors.purple }},bold] #S #[fg={{ $p.colors.purple }},bg={{ $p.colors.surface }}]#[fg={{ $p.colors.foreground }},bg={{ $p.colors.surface }}] #H #[fg={{ $p.colors.surface }},bg={{ $p.colors.background }}] "
+
+set -g @cpu_percentage_format "%3.0f"
+set -g @ram_percentage_format "%3.0f"
+set -g @tmux-network-bandwidth-padding 4
+
+set -g status-right-length 160
+set -g status-right "\
+#[fg={{ $p.colors.surface }},bg={{ $p.colors.background }}]#[fg={{ $p.colors.foreground }},bg={{ $p.colors.surface }}] #{network_bandwidth} \
+#[fg={{ $p.colors.orange }},bg={{ $p.colors.surface }}]#[fg={{ $p.colors.background }},bg={{ $p.colors.orange }},bold] ⚙ #{cpu_percentage}%% \
+#[fg={{ $p.colors.cyan }},bg={{ $p.colors.background }}]#[fg={{ $p.colors.background }},bg={{ $p.colors.cyan }},bold] ▦ #{ram_percentage}%% \
+#[fg={{ $p.colors.surface }},bg={{ $p.colors.background }}]#[fg={{ $p.colors.foreground }},bg={{ $p.colors.background }}] %Y-%m-%d %H:%M "

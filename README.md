@@ -8,10 +8,10 @@ Consolidates my zsh, tmux, and Neovim configuration (formerly split across
 (oh-my-zsh, tpm, `tmux-*`, `zsh-*`) come from chezmoi externals, so nothing is
 vendored and plugins refresh on their own.
 
-chezmoi owns component selection. You pick zsh, tmux, neovim, and gitconfig once
-at `chezmoi init`. The choice persists in `~/.config/chezmoi/chezmoi.toml`.
-`chezmoi apply` then writes only the selected components' files and keeps them
-current. No wrapper script and no path juggling.
+chezmoi owns component selection, the shared color palette, and install mode.
+The choices persist in `~/.config/chezmoi/chezmoi.toml`. `chezmoi apply` then
+writes only the selected components and optionally installs the exact deduped
+package plan shown during init. No wrapper script and no path juggling.
 
 ## Documentation
 
@@ -37,15 +37,18 @@ command -v gum >/dev/null || { sudo apt-get update && sudo apt-get install -y gu
 sh -c "$(curl -fsLS get.chezmoi.io)" -- init --apply crag-h4k
 ```
 
-Without `gum` the picker falls back to a typed numbered menu - still works,
-just less interactive.
+Without `gum` the pickers fall back to typed menus. Interactive local and SSH
+sessions work normally because they have a controlling TTY.
 
 The chezmoi bootstrap line:
 
 1. Installs `chezmoi` if missing.
 1. Clones this repo into `~/.local/share/chezmoi/`.
-1. Prompts for which components to install (gum TUI or typed menu) and saves
-   the answer to `~/.config/chezmoi/chezmoi.toml`.
+1. Prompts for components and a shared palette. Dracula is the default; the
+   other choices are Catppuccin Mocha, Gruvbox Dark, and Tokyo Night.
+1. Shows every deduped download grouped by source and marked `installed` or
+   `planned`, then asks whether to install configs and packages, install configs
+   only, or exit. Exit stops before any target file is applied.
 1. Runs `chezmoi apply`, which:
    - Fetches the upstream plugins declared in `.chezmoiexternal.toml` for the
      selected components and drops them under `~/.zsh/ohmyzsh`,
@@ -64,9 +67,10 @@ The chezmoi bootstrap line:
      skipped. Runs on every apply; keeps the most recent `DOTFILES_BACKUP_KEEP`
      (default 20) snapshots.
    - Runs `run_once_after_00-install.sh`, which exports the component selection
-     as `INSTALL_*` env vars and calls `scripts/install.sh` to install brew/apt
-     packages for the selected components, pre-warm the Neovim plugin cache, and
-     create a convenience symlink `~/dotfiles -> ~/.local/share/chezmoi`.
+     and saved install mode. Package mode installs the displayed Homebrew, apt,
+     cask, GitHub release, npm, pip, and LuaRocks work. Configs-only mode skips
+     those side effects but still applies configs, selected git externals, safe
+     symlinks, iTerm2 defaults, and feature sentinels.
 
 When it finishes, open a new terminal. `zsh` should be your login shell
 already; if not, `sudo chsh -s "$(command -v zsh)" "$USER"`.
@@ -82,4 +86,12 @@ command -v gum >/dev/null || { sudo apt-get update && sudo apt-get install -y gu
 
 chezmoi init crag-h4k      # clone + prompt for components
 chezmoi apply              # write only the selected components
+```
+
+Non-interactive init must choose a mode explicitly so automation cannot apply
+or install by accident:
+
+```sh
+DOTFILES_INSTALL_MODE=configs chezmoi init --apply crag-h4k
+DOTFILES_INSTALL_MODE=packages chezmoi init --apply crag-h4k
 ```

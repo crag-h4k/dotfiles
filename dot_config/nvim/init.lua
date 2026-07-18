@@ -230,6 +230,7 @@ require("statusline")
 
 -- Bootstrap lazy.nvim (plugin manager for Neovim-only plugins)
 local lazypath = vim.fn.stdpath("data") .. "/lazy/lazy.nvim"
+local dotfiles_palette = require("dotfiles_palette")
 if not vim.loop.fs_stat(lazypath) then
   vim.fn.system({
     "git",
@@ -264,8 +265,8 @@ local servers = {
 }
 
 require("lazy").setup({
-  -- Theme (your vimrc sets :colorscheme dracula)
-  { "dracula/vim", name = "dracula", lazy = false, priority = 1000 },
+  -- Shared palette selected by chezmoi and rendered into dotfiles_palette.lua.
+  { dotfiles_palette.plugin, name = dotfiles_palette.lazy_name, lazy = false, priority = 1000 },
 
   -- Statusline (matches vimrc's lightline settings)
   { "itchyny/lightline.vim", lazy = false },
@@ -520,8 +521,8 @@ require("lazy").setup({
   },
 })
 
--- Colorscheme (ported from ~/.vim/vimrc)
-vim.cmd("silent! colorscheme dracula")
+dotfiles_palette.setup()
+vim.cmd.colorscheme(dotfiles_palette.colorscheme)
 
 -- Replace NERDTree's old <C-n> toggle with Oil
 vim.keymap.set("n", "<C-n>", "<CMD>Oil<CR>", { desc = "Oil: file explorer" })

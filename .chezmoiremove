@@ -1,3 +1,7 @@
 {{/* Files chezmoi should delete from the target on apply. */}}
 {{/* notify-lib.sh moved to ~/.config/notify/lib.sh (single-config refactor). */}}
 .tmux/notify-lib.sh
+{{/* Gud remains the Zsh prompt name, but no longer names color artifacts. */}}
+.config/ghostty/themes/gud-theme.conf
+.config/statusline/gud-palette.sh
+.codex/themes/gud.tmTheme

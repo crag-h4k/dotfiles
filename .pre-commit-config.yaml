@@ -92,7 +92,14 @@ repos:
         entry: scripts/validate-templates.sh
         language: script
         pass_filenames: false
-        files: ^(\.chezmoiexternal\.toml|\.chezmoi\.toml\.tmpl|scripts/validate-templates\.sh)$
+        files: ^(\.chezmoiexternal\.toml|\.chezmoi\.toml\.tmpl|scripts/(confirm-install|package-plan|validate-templates)\.sh)$
+
+      - id: validate-palettes
+        name: validate shared palettes render
+        entry: scripts/validate-palettes.sh
+        language: script
+        pass_filenames: false
+        files: ^(\.chezmoidata/palettes\.yaml|dot_(config/(ghostty|iterm2|notify|nvim|statusline)|tmux/conf\.d|codex/themes|zsh/theme).*)$
 
       - id: pytest-notify
         name: pytest notify (modify_settings.json.tmpl)
@@ -118,7 +125,7 @@ repos:
       - id: bats-notify
         name: bats (notify + statusline + render-shim)
         entry: bats
-        args: [tests/test_lib.bats, tests/test_process.bats, tests/test_statusline_command.bats, tests/test_render_modify_shim.bats]
+        args: [tests/test_lib.bats, tests/test_process.bats, tests/test_statusline_command.bats, tests/test_render_modify_shim.bats, tests/test_package_plan.bats]
         language: system
         pass_filenames: false
-        files: ^(dot_config/notify/lib\.sh|dot_zsh/custom/functions/notify-process\.zsh|dot_claude/executable_statusline-command\.sh|scripts/install-notify\.sh|dot_claude/modify_settings\.json\.tmpl|dot_codex/modify_private_config\.toml\.tmpl|tests/test_(lib|process|statusline_command|render_modify_shim)\.bats|tests/fixtures/.*)$
+        files: ^(dot_config/notify/.*|dot_zsh/custom/functions/notify-process\.zsh|dot_claude/executable_statusline-command\.sh|scripts/(confirm-install|install-notify|install|package-plan)\.sh|dot_claude/modify_settings\.json\.tmpl|dot_codex/modify_private_config\.toml\.tmpl|tests/test_(lib|process|statusline_command|render_modify_shim|package_plan)\.bats|tests/fixtures/.*)$

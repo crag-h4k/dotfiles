@@ -28,7 +28,7 @@
 {{- $aiFeatures := list
     (dict "num" "1" "key" "claude_hooks"  "label" "claude_hooks"  "desc" "Claude settings.json notify hooks"           "all" false)
     (dict "num" "2" "key" "codex_hooks"   "label" "codex_hooks"   "desc" "Codex config.toml notify hook"               "all" false)
-    (dict "num" "3" "key" "statusline"    "label" "statusline"    "desc" "gud statusline (Claude token/context script + Codex theme)" "all" false)
+    (dict "num" "3" "key" "statusline"    "label" "statusline"    "desc" "Claude token/context statusline + matching Codex theme" "all" false)
     (dict "num" "4" "key" "codecompanion" "label" "codecompanion" "desc" "CodeCompanion.nvim assistant (needs neovim; pulls in node, npm + claude-agent-acp)" "all" true)
 -}}
 {{- /* Terminal-emulator sub-features. MULTI-select (like git/ai): installing more */ -}}
@@ -231,11 +231,80 @@
 {{-   end -}}
 {{- end -}}
 
+{{- /* Global palette selection. Color values live in .chezmoidata/palettes.yaml; */ -}}
+{{- /* this init-only list carries stable IDs and labels because chezmoi does not  */ -}}
+{{- /* load .chezmoidata while rendering the special config template. Palette     */ -}}
+{{- /* selection is deliberately typed instead of another short-lived Gum process.*/ -}}
+{{- /* promptString always prompts on an interactive re-init and shows the current */ -}}
+{{- /* palette as its default. DOTFILES_PALETTE supplies the same input for        */ -}}
+{{- /* automation. DOTFILES_NO_TUI keeps validation on the persisted value.        */ -}}
+{{- $paletteDefs := list
+    (dict "id" "dracula"          "name" "Dracula")
+    (dict "id" "catppuccin-mocha" "name" "Catppuccin Mocha")
+    (dict "id" "gruvbox-dark"      "name" "Gruvbox Dark")
+    (dict "id" "tokyo-night"       "name" "Tokyo Night")
+-}}
+{{- $paletteIDs := list -}}
+{{- range $paletteDefs }}{{- $paletteIDs = append $paletteIDs .id -}}{{- end -}}
+{{- $palette := dig "palette" "dracula" $root -}}
+{{- if not (has $palette $paletteIDs) }}{{- $palette = "dracula" -}}{{- end -}}
+{{- $paletteInput := trim (env "DOTFILES_PALETTE") -}}
+{{- if and (eq $paletteInput "") (not (env "DOTFILES_NO_TUI")) (stdinIsATTY) -}}
+{{-   $palettePrompt := printf "Shared palette (%s)" (join " / " $paletteIDs) -}}
+{{-   $paletteInput = trim (promptString $palettePrompt $palette) -}}
+{{- end -}}
+{{- if ne $paletteInput "" -}}
+{{-   $paletteInput = $paletteInput | lower | replace "_" "-" | replace " " "-" -}}
+{{-   if not (has $paletteInput $paletteIDs) -}}
+{{-     fail (printf "Unknown palette %q. Choose one of: %s" $paletteInput (join ", " $paletteIDs)) -}}
+{{-   end -}}
+{{-   $palette = $paletteInput -}}
+{{- end -}}
+{{- $zshTheme := dig "zshTheme" "gud" $root -}}
+
+{{- /* Final confirmation happens inside the init template, before chezmoi applies */ -}}
+{{- /* any target files. The helper and install.sh consume the same package planner. */ -}}
+{{- $notifyEnabled := or
+      (get $resolved "zsh")
+      (get $resolved "tmux")
+      (get (get $subResolved "ai") "claude_hooks")
+      (get (get $subResolved "ai") "codex_hooks") -}}
+{{- $confirmEnv := list
+      (printf "INSTALL_ZSH=%t" (get $resolved "zsh"))
+      (printf "INSTALL_TMUX=%t" (get $resolved "tmux"))
+      (printf "INSTALL_NEOVIM=%t" (get $resolved "neovim"))
+      (printf "INSTALL_NOTIFY=%t" $notifyEnabled)
+      (printf "INSTALL_AI_CODECOMPANION=%t" (get (get $subResolved "ai") "codecompanion"))
+      (printf "INSTALL_AI_STATUSLINE=%t" (get (get $subResolved "ai") "statusline"))
+      (printf "INSTALL_TERMINAL_GHOSTTY=%t" (get (get $subResolved "terminal") "ghostty"))
+      (printf "INSTALL_TERMINAL_ITERM2=%t" (get (get $subResolved "terminal") "iterm2"))
+-}}
+{{- $installMode := env "DOTFILES_INSTALL_MODE" -}}
+{{- if and (ne $installMode "") (ne $installMode "configs") (ne $installMode "packages") -}}
+{{-   fail "DOTFILES_INSTALL_MODE must be 'configs' or 'packages'" -}}
+{{- end -}}
+{{- if eq $installMode "" -}}
+{{-   $hasTTY := trim (output "sh" "-c" "test -e /dev/tty && (: </dev/tty) 2>/dev/null && printf tty || true") -}}
+{{-   if eq $hasTTY "" -}}
+{{-     fail "No controlling terminal. Set DOTFILES_INSTALL_MODE=configs or DOTFILES_INSTALL_MODE=packages before chezmoi init." -}}
+{{-   end -}}
+{{-   $confirmCmd := printf "env %s bash %s" (join " " $confirmEnv) (.chezmoi.sourceDir | printf "%s/scripts/confirm-install.sh" | squote) -}}
+{{-   $installMode = trim (output "sh" "-c" $confirmCmd) -}}
+{{-   if eq $installMode "exit" }}{{- fail "Installation cancelled before apply" -}}{{- end -}}
+{{-   if and (ne $installMode "configs") (ne $installMode "packages") }}{{- fail "Could not determine installation mode" -}}{{- end -}}
+{{- end -}}
+
+# Keep chezmoi's own file and external progress visible during init --apply.
+progress = true
+
 [data]
     componentSelection = {{ $sel | quote }}
     gitSelection = {{ get $subSelStore "git" | quote }}
     aiSelection = {{ get $subSelStore "ai" | quote }}
     terminalSelection = {{ get $subSelStore "terminal" | quote }}
+    palette = {{ $palette | quote }}
+    zshTheme = {{ $zshTheme | quote }}
+    installMode = {{ $installMode | quote }}
 
 [data.components]
 {{ range $components }}{{ if eq (len .sub) 0 }}    {{ .key }} = {{ get $resolved .key }}

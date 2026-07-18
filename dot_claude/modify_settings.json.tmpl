@@ -8,7 +8,7 @@
 #
 # Two independent, gated injections:
 #   ai > claude_hooks : the tmux attention-notification hooks + managed env.
-#   ai > statusline   : the gud statusline command (statusLine is ours to own;
+#   ai > statusline   : the dotfiles statusline command (statusLine is ours to own;
 #                       Claude never writes it, so assert it canonically).
 # The file is managed when EITHER sub-feature is on (see .chezmoiignore); each
 # block below is compiled in only for its sub-feature, so a statusline-only host
@@ -67,7 +67,7 @@ if isinstance(env, dict):
 {{ end }}
 {{ if dig "components" "ai" "statusline" false . }}
 # statusLine is ours to own (Claude never writes it), so assert it canonically
-# rather than setdefault. Points at the gud renderer; padding 0 = flush left.
+# rather than setdefault. Points at the dotfiles renderer; padding 0 = flush left.
 data["statusLine"] = {
     "type": "command",
     "command": "~/.claude/statusline-command.sh",

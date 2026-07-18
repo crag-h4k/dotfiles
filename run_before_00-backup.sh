@@ -24,6 +24,8 @@ backup_root="$HOME/.dotfiles-backup"
 backup_dir="$backup_root/$(date +%Y%m%dT%H%M%S)"
 backed_up=0
 
+printf 'dotfiles: inspecting existing configs for backup...\n'
+
 # cp one existing regular file into the snapshot, preserving its path relative to
 # $HOME. Idempotent within a run: a file already copied (e.g. a managed file also
 # seen in the directory scan) is skipped.
@@ -68,6 +70,7 @@ if (( backed_up > 0 )); then
     printf 'dotfiles: backed up %d file(s) to %s\n' "$backed_up" "$backup_dir"
 else
     rm -rf "$backup_dir"
+    printf 'dotfiles: no existing configs needed backup\n'
 fi
 
 # Retention: every apply makes a snapshot, so keep only the most recent $keep and

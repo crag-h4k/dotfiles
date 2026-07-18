@@ -5,9 +5,8 @@ The source is now a chezmoi Go template that renders into a Python stdin->stdout
 merge script. It injects the top-level `notify` (tmux hook) and `tui.notifications`
 (Codex's built-in approval alert) keys WITHOUT clobbering the [projects.*] /
 [tui.*] tables Codex writes at runtime. These tests render it with the codex-hooks
-sub-feature ON (statusline off) and assert the notify-merge behavior; the
-statusline injection (tui.status_line / tui.theme) is covered by
-scripts/validate-templates.sh.
+sub-feature ON (statusline off) and assert the notify-merge behavior. A separate
+render asserts the exact themed statusline fields.
 """
 import os
 import subprocess
@@ -19,6 +18,17 @@ from pathlib import Path
 TMPL = Path(__file__).parent.parent / "dot_codex" / "modify_private_config.toml.tmpl"
 HOOK = os.path.expanduser("~/.codex/hooks/notify-tmux.sh")
 NOTIFS = ["agent-turn-complete", "approval-requested"]
+STATUS_ITEMS = [
+    "model-with-reasoning",
+    "run-state",
+    "task-progress",
+    "context-used",
+    "used-tokens",
+    "five-hour-limit",
+    "weekly-limit",
+    "project-name",
+    "git-branch",
+]
 
 
 def _render(codex_hooks: bool, statusline: bool) -> str:
@@ -44,15 +54,26 @@ def _render(codex_hooks: bool, statusline: bool) -> str:
 
 # Render once with the notify hook on (statusline off) for the notify assertions.
 SCRIPT = _render(codex_hooks=True, statusline=False)
+STATUS_SCRIPT = _render(codex_hooks=False, statusline=True)
 
 
-def run_script(config_toml: str) -> subprocess.CompletedProcess:
+def run_script(config_toml: str, script: str = SCRIPT) -> subprocess.CompletedProcess:
     return subprocess.run(
-        [sys.executable, SCRIPT],
+        [sys.executable, script],
         input=config_toml,
         capture_output=True,
         text=True,
     )
+
+
+def test_statusline_uses_palette_theme_and_high_signal_fields():
+    result = run_script("", STATUS_SCRIPT)
+    assert result.returncode == 0
+    data = tomllib.loads(result.stdout)
+    assert "notify" not in data
+    assert data["tui"]["status_line"] == STATUS_ITEMS
+    assert data["tui"]["theme"] == "dotfiles"
+    assert data["tui"]["status_line_use_colors"] is True
 
 
 def test_empty_adds_both_keys():

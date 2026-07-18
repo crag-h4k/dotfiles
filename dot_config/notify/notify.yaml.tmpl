@@ -1,0 +1,81 @@
+# ~/.config/notify/notify.yaml
+# Notification behavior is stable; colors are rendered from the shared palette.
+{{- $p := get .palettes (dig "palette" "dracula" .) }}
+
+settings:
+  volume: 75
+  threshold: 0
+  debug: false
+  log: ~/.config/notify/notify.log
+  ignore:
+    - bat
+    - btop
+    - emacs
+    - fzf
+    - htop
+    - less
+    - lynx
+    - man
+    - more
+    - nano
+    - nvim
+    - ssh
+    - tail
+    - tmux
+    - top
+    - vi
+    - vim
+    - w3m
+    - watch
+
+palette:
+  dark_red: {{ $p.notify.dark_red | quote }}
+  dark_purple: {{ $p.notify.dark_purple | quote }}
+  dark_green: {{ $p.notify.dark_green | quote }}
+  dark_orange: {{ $p.notify.dark_orange | quote }}
+  dark_cyan: {{ $p.notify.dark_cyan | quote }}
+  dark_pink: {{ $p.notify.dark_pink | quote }}
+  bright_red: {{ $p.colors.red | quote }}
+  bright_purple: {{ $p.colors.purple | quote }}
+  bright_green: {{ $p.colors.green | quote }}
+  bright_orange: {{ $p.colors.orange | quote }}
+  bright_cyan: {{ $p.colors.cyan | quote }}
+  bright_pink: {{ $p.colors.pink | quote }}
+
+groups:
+  iac:
+    bg: dark_orange
+    accent: bright_orange
+    sound: ""
+    binaries: [terraform, terragrunt, tofu, tflint]
+  pkg:
+    bg: dark_green
+    accent: bright_green
+    sound: ""
+    binaries: [brew, apt, apt-get, dnf, yum, pip, pip3, npm, pnpm, yarn, cargo]
+  slow_processes:
+    bg: dark_cyan
+    accent: bright_cyan
+    sound: glass.mp3
+    threshold: 60
+    binaries: [rsync, rclone, borg, dd]
+  default:
+    bg: dark_red
+    accent: bright_red
+    sound: submarine.mp3
+    threshold: 30
+  error:
+    bg: dark_red
+    accent: bright_red
+    sound: alert.mp3
+    volume: 30
+
+integrations:
+  claude:
+    bg: dark_pink
+    accent: bright_pink
+    sound: funk.mp3
+  codex:
+    bg: dark_purple
+    accent: bright_purple
+    sound: glass.mp3

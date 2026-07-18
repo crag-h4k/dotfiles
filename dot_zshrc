@@ -1,7 +1,7 @@
 #!/bin/zsh
 #
 ZSH_DISABLE_COMPFIX=true
-ZSH_THEME="gud"
+source "$ZSH_BASE/theme.zsh"
 # Interactive-only: GPG pinentry needs the controlling tty. (Moved here from
 # .zshenv, where $(tty) is meaningless for non-interactive shells.)
 export GPG_TTY=$(tty)
@@ -84,6 +84,15 @@ case "$OSTYPE" in
 esac
 #
 source $ZSH/oh-my-zsh.sh
+
+if [[ -n "$DOTFILES_ZSH_THEME_PATH" ]]; then
+    if [[ -r "$DOTFILES_ZSH_THEME_PATH" ]]; then
+        source "$DOTFILES_ZSH_THEME_PATH"
+    else
+        print -u2 "dotfiles: zsh theme path '$DOTFILES_ZSH_THEME_PATH' is not readable; using gud"
+        source "$ZSH_CUSTOM/themes/gud.zsh-theme"
+    fi
+fi
 
 # Custom functions AFTER OMZ so our definitions override any plugin-provided
 # ones (e.g. workflow_helpers.zsh `ta` beats tmux plugin's `ta`).

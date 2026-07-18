@@ -23,11 +23,13 @@
 - **Upstream plugins** are chezmoi externals (`.chezmoiexternal.toml`), fetched and refreshed by
   `chezmoi apply` on a weekly `refreshPeriod`. Only the selected components' externals are
   declared.
-- **System packages** (zsh, neovim, tmux, fzf, gh, zoxide, gum, yq, etc.) are installed by
-  `scripts/install.sh` on first apply. The small base toolchain (`git`, `make`, `curl`, `gum`,
-  etc.) installs first; packages for selected components are then deduped and batched into one
-  `brew install` / `apt-get install -y` call per OS. `run_once_after_00-install.sh` drives
-  `install.sh` with the component selection passed as `INSTALL_*` env vars.
+- **Shared palette** data lives in `.chezmoidata/palettes.yaml`. Templates render the selected
+  semantic colors into Ghostty, iTerm2, tmux, notify, Claude, and Codex; Neovim selects the
+  corresponding pinned flavor. Consumers do not carry independent color copies.
+- **System packages** are planned by `scripts/package-plan.sh`. The init template shows the
+  deduped, source-grouped records before apply and saves `installMode`. `scripts/install.sh`
+  consumes the same records for one Homebrew or apt batch plus the displayed cask, release,
+  npm, pip, and LuaRocks work. Configs-only skips package and login-shell side effects.
 - **Status-bar network indicator:** the `↓ • ↑` throughput in the tmux status bar comes from the
   `xamut/tmux-network-bandwidth` plugin (cross-platform, replaces the Linux-only
   `tmux-net-speed`). It needs `coreutils`+`gawk` on macOS and `gawk`+`net-tools` on Debian;
@@ -43,23 +45,28 @@
 | `dot_zsh/aliases` | `~/.zsh/aliases` | real file |
 | `dot_zsh/bin/executable_*` | `~/.zsh/bin/*` | exec bit preserved |
 | `dot_zsh/custom/functions/*.zsh` | `~/.zsh/custom/functions/*.zsh` | |
-| `dot_zsh/custom/themes/gud.zsh-theme` | `~/.zsh/custom/themes/gud.zsh-theme` | custom oh-my-zsh theme; `ZSH_THEME="gud"` |
+| `dot_zsh/custom/themes/gud.zsh-theme` | `~/.zsh/custom/themes/gud.zsh-theme` | default custom prompt; override with `data.zshTheme` |
+| `dot_zsh/theme.zsh.tmpl` | `~/.zsh/theme.zsh` | resolves an Oh My Zsh theme name or readable theme path, with Gud fallback |
 | `dot_tmux.conf` | `~/.tmux.conf` | real file; sources `notify.conf` (notify config moved to `notify.yaml`) |
 | `dot_tmux/conf.d/*.conf` | `~/.tmux/conf.d/*.conf` | incl. `notify.conf` (status-bar flag + focus-clear) |
 | `dot_config/notify/sounds/*.mp3` | `~/.config/notify/sounds/*.mp3` | notification audio files |
-| `dot_config/notify/notify.yaml` | `~/.config/notify/notify.yaml` | single notify config: palette, groups, sounds, volume, thresholds, binary map; gated on `zsh`/`tmux` |
+| `dot_config/notify/notify.yaml.tmpl` | `~/.config/notify/notify.yaml` | notify behavior plus colors rendered from the selected palette; gated on every notify consumer |
 | `dot_config/notify/lib.sh` | `~/.config/notify/lib.sh` | shared `notify_fire`/`notify_clear`/`notify_play` + yq reader (array-free POSIX) |
+| `dot_config/notify/executable_clear-pane.sh` | `~/.config/notify/clear-pane.sh` | clears one flagged pane from tmux keyboard and mouse bindings |
 | `dot_claude/hooks/notify-tmux.sh` | `~/.claude/hooks/notify-tmux.sh` | Claude `Stop`/`Notification`/`PreToolUse:AskUserQuestion` hook; gated on `ai > claude_hooks` |
 | `dot_claude/hooks/notify-clear.sh` | `~/.claude/hooks/notify-clear.sh` | Claude `UserPromptSubmit` hook (clears); gated on `ai > claude_hooks` |
 | `dot_claude/modify_settings.json.tmpl` | `~/.claude/settings.json` (merge) | chezmoi `modify_` template: injects the notify hooks under `ai > claude_hooks` and asserts the `statusLine` command under `ai > statusline`, preserving your other settings |
 | `dot_codex/hooks/notify-tmux.sh` | `~/.codex/hooks/notify-tmux.sh` | Codex `agent-turn-complete` notify hook (color+sound); gated on `ai > codex_hooks` |
 | `dot_codex/modify_private_config.toml.tmpl` | `~/.codex/config.toml` (merge) | chezmoi `modify_` template: injects `notify` + `tui.notifications` under `ai > codex_hooks` and `tui.status_line` + `tui.theme` + `tui.status_line_use_colors` under `ai > statusline`, folded into a single `[tui]` table; preserves Codex's `[projects.*]` tables, keeps mode 600 |
-| `dot_claude/executable_statusline-command.sh` | `~/.claude/statusline-command.sh` | gud statusline renderer; gated on `ai > statusline` |
+| `dot_claude/executable_statusline-command.sh` | `~/.claude/statusline-command.sh` | Claude statusline renderer; gated on `ai > statusline` |
 | `dot_claude/executable_statusline-tokens.py` | `~/.claude/statusline-tokens.py` | detached updater that walks the transcript + subagents for a token total; gated on `ai > statusline` |
-| `dot_config/statusline/gud-palette.sh` | `~/.config/statusline/gud-palette.sh` | the one truecolor orange the SGR palette cannot carry; gated on `ai > statusline` |
-| `dot_codex/themes/gud.tmTheme` | `~/.codex/themes/gud.tmTheme` | Codex gud theme, selected via `tui.theme="gud"`; gated on `ai > statusline` |
+| `dot_config/statusline/palette.sh.tmpl` | `~/.config/statusline/palette.sh` | semantic truecolor exports rendered from the selected palette |
+| `dot_codex/themes/dotfiles.tmTheme.tmpl` | `~/.codex/themes/dotfiles.tmTheme` | selected-palette Codex theme, configured through `tui.theme="dotfiles"` |
 | `dot_config/nvim/init.lua` | `~/.config/nvim/init.lua` | lazy.nvim entrypoint |
+| `dot_config/nvim/lua/dotfiles_palette.lua.tmpl` | `~/.config/nvim/lua/dotfiles_palette.lua` | selected Neovim plugin, flavor, and colorscheme |
 | `dot_config/nvim/lua/statusline.lua` | `~/.config/nvim/lua/statusline.lua` | |
+| `dot_config/ghostty/themes/dotfiles.conf.tmpl` | `~/.config/ghostty/themes/dotfiles.conf` | selected terminal palette |
+| `dot_config/iterm2/dotfiles.json.tmpl` | `~/.config/iterm2/dotfiles.json` | two Dynamic Profiles with generated palette colors |
 | **Linter configs (base, each at its own path)** | | |
 | `dot_darglint` | `~/.darglint` | docstring style |
 | `dot_flake8` | `~/.flake8` | python style; `flake8` alias appends it |
@@ -71,7 +78,7 @@
 | `gitconfig.example` | reference only | seed for `~/.gitconfig`; install.sh prompts to copy when `git > config` is on |
 | `gitconfig.personal.example` | reference only | seed for `~/.gitconfig.personal`; copied when `git > personal` is on |
 | `dot_gitignore_global` | `~/.gitignore_global` | global ignore patterns; gated on `git > ignore_global` (on by default) |
-| `.chezmoi.toml.tmpl` | `~/.config/chezmoi/chezmoi.toml` | prompts for components at init; stores `[data.components]` + nested `.git` / `.ai` sub-feature tables |
+| `.chezmoi.toml.tmpl` | `~/.config/chezmoi/chezmoi.toml` | prompts for components, palette, and install mode before apply |
 | `.chezmoiignore` | (templated) | ignores an off component's (or sub-feature's) target paths |
 | `.chezmoiexternal.toml` | (templated externals) | plugins gated by `.components.zsh` / `.components.tmux` |
 
