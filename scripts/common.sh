@@ -3,6 +3,10 @@
 
 set -euo pipefail
 
+# Directory this lib lives in (scripts/), so helpers can locate sibling scripts
+# (e.g. package-plan.sh) regardless of the caller's working directory.
+_COMMON_SH_DIR="$(cd "$(dirname "${BASH_SOURCE[0]:-$0}")" && pwd)"
+
 die() { printf 'dotfiles: %s\n' "$*" >&2; exit 1; }
 info() { printf '==> %s\n' "$*"; }
 warn() { printf 'WARN: %s\n' "$*" >&2; }
@@ -303,4 +307,77 @@ pkg_install_many() {
             die "unsupported OS: $(uname -s)"
             ;;
     esac
+}
+
+# True when $1 is an affirmative value (1/true/yes/y), case-insensitive. Bash 3.2
+# safe (case globs, no ${x,,}).
+_is_truthy() {
+    case "$1" in
+        1|[Tt][Rr][Uu][Ee]|[Yy][Ee][Ss]|[Yy]) return 0 ;;
+        *) return 1 ;;
+    esac
+}
+
+# Resolve the one-shot "packages confirmed at init" sentinel path. Overridable
+# via DOTFILES_PKG_CONFIRM_SENTINEL (used by the tests). MUST stay identical to
+# the path confirm-install.sh writes.
+_pkg_confirm_sentinel() {
+    printf '%s\n' "${DOTFILES_PKG_CONFIRM_SENTINEL:-${XDG_RUNTIME_DIR:-${TMPDIR:-/tmp}}/dotfiles-pkg-confirm}"
+}
+
+# Confirm before any package-manager mutation. One checkpoint per independent
+# entry path (install.sh's packages branch, install-notify.sh), matching the grain
+# where DOTFILES_INSTALL_MODE already gates a whole branch as a unit - not one
+# prompt per brew/apt/npm/pip call. Returns 0 to proceed, non-zero to decline.
+#
+# Decision order:
+#   1. DOTFILES_ASSUME_YES truthy (1/true/yes/y)       -> proceed silently.
+#   2. one-shot sentinel present and younger than ~10m -> proceed, consume it
+#      (confirm-install.sh writes it when "packages" is chosen at init, so the
+#      apply immediately following an interactive init does not re-prompt).
+#   3. a usable controlling terminal                   -> show the package plan,
+#      prompt [y/N] (default N); only y/yes proceeds.
+#   4. no terminal and no opt-in                        -> decline.
+#
+# Reads the answer from ${DOTFILES_TTY:-/dev/tty} and writes the plan + prompt to
+# the same device with append (>>). On a real tty append is an ordinary write; on
+# a plain file (test) it preserves a preloaded answer on line 1 that a truncating
+# write would clobber.
+# $1 (optional): a short context label shown in the prompt.
+pkg_confirm() {
+    local label="${1:-package install/update}"
+    local sentinel dev plan resp
+
+    if _is_truthy "${DOTFILES_ASSUME_YES:-}"; then
+        return 0
+    fi
+
+    sentinel="$(_pkg_confirm_sentinel)"
+    if [[ -f "$sentinel" ]]; then
+        if [[ -n "$(find "$sentinel" -mmin -10 2>/dev/null)" ]]; then
+            rm -f "$sentinel"
+            info "package install pre-confirmed at init; proceeding"
+            return 0
+        fi
+        # Stale sentinel (past the window): never trust it, clean it up.
+        rm -f "$sentinel"
+    fi
+
+    dev="${DOTFILES_TTY:-/dev/tty}"
+    if [[ -e "$dev" ]] && (: <"$dev") 2>/dev/null; then
+        plan="$("$_COMMON_SH_DIR/package-plan.sh" --display 2>/dev/null || true)"
+        {
+            if [[ -n "$plan" ]]; then
+                printf '%s\n\n' "$plan"
+            fi
+            printf 'dotfiles: %s. Install/update packages now? [y/N] ' "$label"
+        } >>"$dev"
+        IFS= read -r resp <"$dev" || resp=""
+        case "$resp" in
+            [Yy]|[Yy][Ee][Ss]) return 0 ;;
+            *) return 1 ;;
+        esac
+    fi
+
+    return 1
 }

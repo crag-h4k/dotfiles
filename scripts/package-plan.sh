@@ -96,6 +96,12 @@ _status() {
             [[ -d "$probe" ]] && _status_result=installed
             ;;
     esac
+    # _status communicates only through $_status_result; its exit code is
+    # meaningless. Return 0 explicitly: otherwise a not-installed probe leaves the
+    # final `[[ ... ]] && ...` short-circuiting to 1, and under `set -e` that aborts
+    # _build at the first uninstalled package (e.g. on a fresh machine where git is
+    # not yet installed) - which would take confirm-install's plan capture with it.
+    return 0
 }
 
 _records=()
@@ -250,7 +256,12 @@ _names() {
 
 _build
 case "$_plan_mode" in
-    --display) _display ;;
+    # `|| true`: _display's status is whatever its final loop / `[[ ... ]]`
+    # membership test happened to return (a no-match returns 1), which is
+    # accidental, not an error. Normalize it so a caller capturing the plan under
+    # `set -e` - confirm-install.sh does `plan=$(... --display)` - does not abort
+    # on that stray non-zero.
+    --display) _display || true ;;
     --records) printf '%s\n' "${_records[@]}" ;;
     --names)
         [[ -n "${2:-}" ]] || { printf 'package-plan: --names requires a source\n' >&2; exit 2; }

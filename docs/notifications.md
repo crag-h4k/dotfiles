@@ -66,7 +66,10 @@ It copies the same files into `~/.config/notify/` (including `sounds/`), `~/.tmu
 `~/.claude/hooks/`, installs mikefarah `yq` (brew on macOS, binary to `~/.local/bin` on Debian),
 and wires `~/.zshrc`, `~/.tmux.conf`, and `~/.claude/settings.json`. When the `codex` CLI is
 present it also installs `~/.codex/hooks/notify-tmux.sh` and merges `notify` + `tui.notifications`
-into `~/.codex/config.toml` (mode 600 preserved). It is idempotent. If you use `chezmoi apply`,
+into `~/.codex/config.toml` (mode 600 preserved). It is idempotent. When mikefarah `yq` is
+missing it confirms `[y/N]` before installing it (or set `DOTFILES_ASSUME_YES=1`); `yq` is
+required here, so declining aborts with a message rather than writing broken colors. If you use
+`chezmoi apply`,
 notify is already installed - do **not** also run this (the zsh notifier would load twice); the
 script refuses unless you pass `--force`. This is the same layout `chezmoi apply`
 installs.

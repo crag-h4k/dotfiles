@@ -79,7 +79,21 @@ main() {
     info "dotfiles installer: platform=$os"
     info "components: zsh=$INSTALL_ZSH tmux=$INSTALL_TMUX neovim=$INSTALL_NEOVIM git.config=$INSTALL_GIT_CONFIG git.personal=$INSTALL_GIT_PERSONAL ai.codecompanion=$INSTALL_AI_CODECOMPANION notify=$INSTALL_NOTIFY terminal.ghostty=$INSTALL_TERMINAL_GHOSTTY terminal.iterm2=$INSTALL_TERMINAL_ITERM2"
 
+    # Confirm before any package-manager mutation. Decline degrades to the same
+    # configs-only tail this function already runs for `configs` mode, for THIS
+    # run only - persisted installMode is never touched, and the script never
+    # aborts half-applied.
+    local do_packages=false
     if [[ "$DOTFILES_INSTALL_MODE" == packages ]]; then
+        if pkg_confirm "chezmoi apply"; then
+            do_packages=true
+        else
+            info "package install declined for this run; applying configs only (installMode unchanged; re-run to install)"
+        fi
+    fi
+
+    if [[ "$do_packages" == true ]]; then
+        local pkg_started=$SECONDS
         local planner="$SCRIPT_DIR/package-plan.sh"
         local -a packages=() casks=()
         case "$os" in
@@ -116,6 +130,8 @@ main() {
         ensure_chezmoi
         [[ "$INSTALL_ZSH" == true ]] && bash "$SCRIPT_DIR/install-zsh.sh"
         [[ "$INSTALL_NEOVIM" == true ]] && bash "$SCRIPT_DIR/install-neovim.sh"
+        local pkg_elapsed=$(( SECONDS - pkg_started ))
+        info "packages: installed/updated in ${pkg_elapsed}s"
     else
         info "configs-only mode: skipped packages, login-shell changes, language packages, and Neovim plugin sync"
     fi

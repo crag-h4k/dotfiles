@@ -33,6 +33,14 @@ os=$(os_detect)
 [[ "$os" == unsupported ]] && die "unsupported OS $(uname -s); this targets macOS and Debian"
 info "standalone notify installer: platform=$os"
 
+# Gate the one package-manager mutation this standalone path can make: ensure_yq
+# (brew install yq / binary fetch). Only prompt when a mikefarah yq is actually
+# missing. yq is a hard dependency here - it also renders notify.yaml's colors
+# below - so a decline dies with guidance rather than degrading to broken output.
+if ! have_mikefarah_yq; then
+    pkg_confirm "standalone notify install (needs mikefarah yq)" ||
+        die "yq is required for the standalone notify install; re-run with DOTFILES_ASSUME_YES=1 or install mikefarah yq first"
+fi
 ensure_yq
 
 # --- copy from the repo's chezmoi-source files (single source of truth) --------

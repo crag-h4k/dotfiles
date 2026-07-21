@@ -29,7 +29,11 @@
 - **System packages** are planned by `scripts/package-plan.sh`. The init template shows the
   deduped, source-grouped records before apply and saves `installMode`. `scripts/install.sh`
   consumes the same records for one Homebrew or apt batch plus the displayed cask, release,
-  npm, pip, and LuaRocks work. Configs-only skips package and login-shell side effects.
+  npm, pip, and LuaRocks work. It confirms before any package-manager mutation: a `[y/N]` prompt
+  on the controlling terminal, or `DOTFILES_ASSUME_YES=1` to skip it. A decline (or a
+  no-terminal apply with no opt-in) degrades to configs-only for that run and leaves `installMode`
+  unchanged, so the choice never becomes sticky. Configs-only skips package and login-shell side
+  effects.
 - **Status-bar network indicator:** the `↓ • ↑` throughput in the tmux status bar comes from the
   `xamut/tmux-network-bandwidth` plugin (cross-platform, replaces the Linux-only
   `tmux-net-speed`). It needs `coreutils`+`gawk` on macOS and `gawk`+`net-tools` on Debian;

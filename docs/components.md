@@ -129,6 +129,9 @@ plugin synchronization.
 
 Non-interactive init requires `DOTFILES_INSTALL_MODE=configs` or
 `DOTFILES_INSTALL_MODE=packages`. Without one, chezmoi stops before apply.
+Installing packages unattended also needs `DOTFILES_ASSUME_YES=1`; it answers the
+per-run confirmation `install.sh` shows before touching a package manager. Without
+it, a no-terminal apply declines and writes configs only.
 
 ### terminal (ghostty, iterm2)
 
@@ -267,9 +270,11 @@ cleanly. A file you edited locally is left in place rather than deleted, so back
 you want it gone.
 
 Enabling a component re-runs the installer because `run_once_after_00-install.sh` embeds the
-component booleans. Packages install only when `installMode = "packages"`; re-run `chezmoi init`
-and choose that mode when you want missing dependencies installed. If the script does not re-run,
-force it:
+component booleans. Packages install only when `installMode = "packages"`, and the re-run
+prompts `[y/N]` before touching a package manager (answer N to apply configs only for that run
+without changing `installMode`, or set `DOTFILES_ASSUME_YES=1` to skip the prompt). Re-run
+`chezmoi init` and choose packages mode when you want missing dependencies installed. If the
+script does not re-run, force it:
 
 ```sh
 chezmoi state delete-bucket --bucket=scriptState

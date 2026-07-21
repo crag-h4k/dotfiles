@@ -89,9 +89,12 @@ chezmoi apply              # write only the selected components
 ```
 
 Non-interactive init must choose a mode explicitly so automation cannot apply
-or install by accident:
+or install by accident. Installing packages unattended also needs
+`DOTFILES_ASSUME_YES=1`; it answers the confirmation that `install.sh` shows
+before touching a package manager, so without it a no-terminal apply declines
+and writes configs only.
 
 ```sh
 DOTFILES_INSTALL_MODE=configs chezmoi init --apply crag-h4k
-DOTFILES_INSTALL_MODE=packages chezmoi init --apply crag-h4k
+DOTFILES_INSTALL_MODE=packages DOTFILES_ASSUME_YES=1 chezmoi init --apply crag-h4k
 ```

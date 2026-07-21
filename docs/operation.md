@@ -25,9 +25,12 @@ chezmoi apply
 # Pull upstream plugins now instead of waiting for weekly refresh:
 chezmoi apply --refresh-externals
 
-# Re-run the install scripts (e.g. after updating packages):
+# Re-run the install scripts (e.g. after updating packages). This recipe and
+# flipping a component both prompt [y/N] before touching a package manager;
+# answer N to apply configs only, or skip the prompt with DOTFILES_ASSUME_YES=1:
 chezmoi state delete-bucket --bucket=scriptState
 chezmoi apply
+DOTFILES_ASSUME_YES=1 chezmoi apply   # unattended: install without prompting
 
 # Inspect what chezmoi thinks should change:
 chezmoi diff

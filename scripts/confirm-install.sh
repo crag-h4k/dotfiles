@@ -23,8 +23,12 @@ if command -v gum >/dev/null 2>&1; then
     # Keep stdin on the terminal. Gum queries terminal color and cursor state;
     # piping the plan into stdin prevents Gum from reading those replies and
     # leaves raw OSC/CSI response bytes in the shell.
+    # SC2094: $TTY_DEVICE is a terminal device, not a regular file - reading and
+    # writing it in the same command is intentional (that is how a TTY works).
+    # shellcheck disable=SC2094
     gum style --border rounded --padding "1 2" "$plan" \
         <"$TTY_DEVICE" >"$TTY_DEVICE" 2>"$TTY_DEVICE"
+    # shellcheck disable=SC2094
     choice=$(gum choose \
         --header "Choose what chezmoi should apply:" \
         --selected "Install configs and packages" \
@@ -38,7 +42,15 @@ else
 fi
 
 case "$choice" in
-    "Install configs and packages"|1|"") printf 'packages\n' ;;
+    "Install configs and packages"|1|"")
+        # One-shot handshake so the apply that immediately follows this interactive
+        # init does not re-prompt: pkg_confirm (scripts/common.sh) treats a sentinel
+        # younger than ~10m as assume-yes and consumes it. Keep this path byte-for-
+        # byte identical to _pkg_confirm_sentinel in common.sh.
+        _sentinel="${DOTFILES_PKG_CONFIRM_SENTINEL:-${XDG_RUNTIME_DIR:-${TMPDIR:-/tmp}}/dotfiles-pkg-confirm}"
+        date +%s >"$_sentinel" 2>/dev/null || true
+        printf 'packages\n'
+        ;;
     "Install configs only"|2) printf 'configs\n' ;;
     *) printf 'exit\n' ;;
 esac
