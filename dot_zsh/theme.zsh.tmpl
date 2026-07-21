@@ -1,0 +1,22 @@
+# ~/.zsh/theme.zsh
+# Resolve data.zshTheme without adding work to the common prompt hot path.
+
+DOTFILES_ZSH_THEME={{ dig "zshTheme" "gud" . | quote }}
+DOTFILES_ZSH_THEME_PATH=""
+
+case "$DOTFILES_ZSH_THEME" in
+  /*|~/*|*.zsh-theme)
+    DOTFILES_ZSH_THEME_PATH="${DOTFILES_ZSH_THEME/#\~/$HOME}"
+    ZSH_THEME=""
+    ;;
+  *)
+    if [[ -r "$ZSH_CUSTOM/$DOTFILES_ZSH_THEME.zsh-theme" ||
+          -r "$ZSH_CUSTOM/themes/$DOTFILES_ZSH_THEME.zsh-theme" ||
+          -r "$ZSH/themes/$DOTFILES_ZSH_THEME.zsh-theme" ]]; then
+      ZSH_THEME="$DOTFILES_ZSH_THEME"
+    else
+      print -u2 "dotfiles: zsh theme '$DOTFILES_ZSH_THEME' not found; using gud"
+      ZSH_THEME="gud"
+    fi
+    ;;
+esac

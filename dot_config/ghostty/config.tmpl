@@ -4,12 +4,13 @@
 # dot_config/ghostty/config.tmpl (templated so macOS-only keys and the
 # global-shortcut modifier are gated per OS). Ghostty runs on macOS and Linux.
 #
-# The palette is the single source of color truth in themes/gud-theme.conf: a
-# Dracula-family "gud" variant that matches the tmux status line and the nvim
-# colorscheme. Edit colors THERE, not here.
+# The selected palette is rendered from .chezmoidata/palettes.yaml into
+# themes/dotfiles.conf. Edit the catalog, not generated consumer templates.
+
+{{- $palette := get .palettes (dig "palette" "dracula" .) }}
 
 # ---- Theme / palette --------------------------------------------------------
-theme = gud-theme.conf
+theme = dotfiles.conf
 
 # ---- Font -------------------------------------------------------------------
 # Hack Nerd Font Mono: the patched, single-width Hack, so powerline separators
@@ -21,7 +22,7 @@ font-size = 16
 # Bright bold (carried over from the old iTerm2 "Use Bright Bold") plus an
 # explicit bold color so bold text stays legible on the dark background.
 bold-is-bright = true
-bold-color = #e6e6e6
+bold-color = {{ $palette.colors.foreground }}
 
 # ---- Cursor -----------------------------------------------------------------
 cursor-style = block

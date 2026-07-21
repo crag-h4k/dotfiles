@@ -223,4 +223,5 @@ notify_clear() {
     set-option -p  -t "$pane" @notify_accent '' \; \
     set-option -w  -t "$pane" @notify_accent '' 2>/dev/null
   notify_log "clear pane=$pane"
+  return 0
 }

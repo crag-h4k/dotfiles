@@ -28,8 +28,11 @@ notify_line = 'notify = ["%s"]' % HOOK
 tui_items.append(("notifications", '["agent-turn-complete", "approval-requested"]'))
 {{ end }}
 {{ if dig "components" "ai" "statusline" false . }}
-tui_items.append(("status_line", '["model-with-reasoning", "context-used", "git-branch", "current-dir", "sandbox", "run-state"]'))
-tui_items.append(("theme", '"gud"'))
+# Keep identity and live work state first so narrow terminals retain the most
+# useful fields. Codex omits unavailable values such as task progress and rate
+# limits instead of leaving empty placeholders.
+tui_items.append(("status_line", '["model-with-reasoning", "run-state", "task-progress", "context-used", "used-tokens", "five-hour-limit", "weekly-limit", "project-name", "git-branch"]'))
+tui_items.append(("theme", '"dotfiles"'))
 tui_items.append(("status_line_use_colors", "true"))
 {{ end }}
 

@@ -37,6 +37,23 @@ teardown() {
   [ "$status" -eq 0 ]
 }
 
+@test "notify_clear succeeds after clearing a pane when debug logging is off" {
+  cat > "${STUB_DIR}/tmux" <<'STUB'
+#!/bin/sh
+exit 0
+STUB
+  chmod +x "${STUB_DIR}/tmux"
+
+  run bash -c "
+    export PATH='${STUB_DIR}:${PATH}'
+    export NOTIFY_CONFIG='${FIXTURES}/notify.yaml'
+    unset NOTIFY_DEBUG
+    source '${NOTIFY_LIB}'
+    notify_clear '%1'
+  "
+  [ "$status" -eq 0 ]
+}
+
 @test "notify_fire does not call tmux when pane is empty" {
   cat > "${STUB_DIR}/tmux" <<'STUB'
 #!/bin/sh

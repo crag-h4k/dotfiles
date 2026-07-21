@@ -1,0 +1,22 @@
+-- ~/.config/nvim/lua/dotfiles_palette.lua
+-- Generated from data.palette. Plugin setup runs once before colorscheme load.
+{{- $p := get .palettes (dig "palette" "dracula" .) }}
+local palette = {
+  id = {{ dig "palette" "dracula" . | quote }},
+  plugin = {{ $p.nvim_plugin | quote }},
+  lazy_name = {{ $p.nvim_lazy_name | quote }},
+  colorscheme = {{ $p.nvim_name | quote }},
+}
+
+function palette.setup()
+{{- if eq (dig "palette" "dracula" .) "catppuccin-mocha" }}
+  require("catppuccin").setup({ flavour = "mocha" })
+{{- else if eq (dig "palette" "dracula" .) "gruvbox-dark" }}
+  require("gruvbox").setup({ contrast = "medium" })
+  vim.o.background = "dark"
+{{- else if eq (dig "palette" "dracula" .) "tokyo-night" }}
+  require("tokyonight").setup({ style = "night" })
+{{- end }}
+end
+
+return palette

@@ -16,7 +16,10 @@ export INSTALL_TERMINAL_GHOSTTY={{ dig "components" "terminal" "ghostty" true . 
 export INSTALL_TERMINAL_ITERM2={{ dig "components" "terminal" "iterm2" false . }}
 export INSTALL_AI_CODECOMPANION={{ dig "components" "ai" "codecompanion" false . }}
 export INSTALL_AI_STATUSLINE={{ dig "components" "ai" "statusline" false . }}
+export INSTALL_NOTIFY={{ or (dig "components" "zsh" true .) (dig "components" "tmux" true .) (dig "components" "ai" "claude_hooks" false .) (dig "components" "ai" "codex_hooks" false .) }}
 export INSTALL_GIT_CONFIG={{ dig "components" "git" "config" false . }}
 export INSTALL_GIT_PERSONAL={{ dig "components" "git" "personal" false . }}
+export DOTFILES_INSTALL_MODE={{ dig "installMode" "packages" . | quote }}
 
+printf 'dotfiles: starting post-apply setup (mode=%s)...\n' "$DOTFILES_INSTALL_MODE"
 bash "{{ .chezmoi.sourceDir }}/scripts/install.sh"

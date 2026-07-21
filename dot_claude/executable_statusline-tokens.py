@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 # ~/.claude/statusline-tokens.py
-# Detached background updater for the gud Claude statusline. Walks the main
+# Detached background updater for the Claude dotfiles statusline. Walks the main
 # transcript plus every subagents/agent-*.jsonl beside it, dedups messages by
 # message.id (fallback line uuid), and sums input+output+cache_creation+cache_read
 # per deduped message. Writes the subagent-inclusive cumulative total to

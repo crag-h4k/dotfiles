@@ -4,11 +4,13 @@
 ## Table of Contents
 
 - [Choosing components](#choosing-components)
+  - [Palette and install confirmation](#palette-and-install-confirmation)
   - [Sub-feature submenus (git, ai, terminal)](#sub-feature-submenus-git-ai-terminal)
   - [terminal (ghostty, iterm2)](#terminal-ghostty-iterm2)
     - [ghostty](#ghostty)
     - [iterm2](#iterm2)
 - [Changing components later](#changing-components-later)
+  - [Changing the Zsh prompt](#changing-the-zsh-prompt)
 
 ## Choosing components
 
@@ -73,7 +75,7 @@ apply once you pick the parent.
 | `git` | `ignore_global` | `~/.gitignore_global` | on | matches the old, pre-submenu default behavior |
 | `ai` | `claude_hooks` | `~/.claude/settings.json` (merge) | off | merges the Claude notify hooks |
 | `ai` | `codex_hooks` | `~/.codex/config.toml` (merge) | off | merges the Codex notify hook + `tui.notifications` |
-| `ai` | `statusline` | `~/.claude/settings.json` + `~/.codex/config.toml` (merge) | off | gud, Dracula-family Claude statusline plus a matching Codex theme; keeps those files managed even when the notify hooks are off; not enabled by `all` or `all+` |
+| `ai` | `statusline` | `~/.claude/settings.json` + `~/.codex/config.toml` (merge) | off | Claude renderer plus a matching selected-palette Codex theme; keeps those files managed even when notify hooks are off; not enabled by `all` or `all+` |
 | `ai` | `codecompanion` | CodeCompanion.nvim + `claude-agent-acp` bridge | on (within the `ai` submenu, if `ai` is picked) | heaviest sub-feature - pulls in node, npm, and the npm-installed bridge; listed last for that reason |
 | `terminal` | `ghostty` | Ghostty config + quick-terminal dropdown | on | macOS and Linux |
 | `terminal` | `iterm2` | iTerm2 Dynamic Profiles | off | macOS only; hidden in the submenu on non-macOS (data key still emitted for column parity), also gated in `.chezmoiignore` |
@@ -111,6 +113,26 @@ The raw answer is stored as `componentSelection` and parsed into `[data.componen
 in `~/.config/chezmoi/chezmoi.toml`, reused on every subsequent `chezmoi apply` without
 re-prompting.
 
+### Palette and install confirmation
+
+After component selection, choose one global palette: Dracula, Catppuccin Mocha, Gruvbox Dark,
+or Tokyo Night. The selected ID is stored as `data.palette`. The canonical colors live in
+`.chezmoidata/palettes.yaml` and render Ghostty, iTerm2, tmux, notify, the Claude statusline,
+the Codex TextMate theme, and the Neovim theme choice. Dracula is the default.
+
+The final screen shows one deduped plan grouped by Homebrew formulae, Homebrew casks, apt,
+GitHub releases, npm, pip, LuaRocks, Neovim plugins, and chezmoi git externals. Every entry is
+marked `installed` or `planned` and includes its source. Choose configs and packages, configs
+only, or exit. Configs-only still fetches selected chezmoi externals and runs safe config
+finalizers, but skips package managers, direct binaries, language packages, `chsh`, and Neovim
+plugin synchronization.
+
+Non-interactive init requires `DOTFILES_INSTALL_MODE=configs` or
+`DOTFILES_INSTALL_MODE=packages`. Without one, chezmoi stops before apply.
+Installing packages unattended also needs `DOTFILES_ASSUME_YES=1`; it answers the
+per-run confirmation `install.sh` shows before touching a package manager. Without
+it, a no-terminal apply declines and writes configs only.
+
 ### terminal (ghostty, iterm2)
 
 `terminal` is opt-in (not in the default set) and carries terminal-emulator config as two
@@ -123,9 +145,9 @@ are gated at the file layer in `.chezmoiignore`; `iterm2` also gates on
 
 Ghostty runs on macOS and Linux. Its config lives at `~/.config/ghostty/config`, templated
 from `dot_config/ghostty/config.tmpl` so the macOS-only keys and the global-shortcut modifier
-are gated per OS. The palette is the single source of color truth in
-`~/.config/ghostty/themes/gud-theme.conf` - a Dracula-family "gud" variant that matches the
-tmux status line and the nvim `dracula` colorscheme, so the whole terminal reads as one theme.
+are gated per OS. The selected catalog entry renders to
+`~/.config/ghostty/themes/dotfiles.conf` and matches tmux, Neovim, iTerm2, notify, and the AI
+status surfaces.
 The font is Hack Nerd Font Mono, so the prompt and tmux status-line glyphs render. A
 Yakuake-style quick-terminal dropdown (position top, size 40%, autohide) toggles from a global
 shortcut: `global:cmd+grave_accent=toggle_quick_terminal` on macOS (needs Accessibility
@@ -168,21 +190,8 @@ When selected on a Mac, `chezmoi apply` installs the iTerm2 cask
 the symlink, pins the default-profile Guid, and sets a few app-level behavior toggles via
 `defaults write`. Restart iTerm2 to pick up the global `defaults` (a running iTerm2 rewrites its
 prefs on quit). The AI API key lives in the macOS Keychain and is intentionally not synced.
-
-To regenerate the committed profiles from your current iTerm2 profiles (re-scrub any
-machine-specific fields such as `Working Directory` afterward):
-
-```bash
-python3 - <<'EOF'
-import json, plistlib, subprocess, os
-raw = subprocess.run(["defaults", "export", "com.googlecode.iterm2", "-"],
-                     capture_output=True).stdout
-d = plistlib.loads(raw)
-dst = os.path.expanduser("~/.local/share/chezmoi/dot_config/iterm2/dotfiles.json")
-json.dump({"Profiles": d["New Bookmarks"]}, open(dst, "w"),
-          indent=2, sort_keys=True)
-EOF
-```
+Profile behavior lives in `dot_config/iterm2/dotfiles.json.tmpl`; its color objects are
+generated from the shared palette and should not be edited independently.
 
 ## Changing components later
 
@@ -226,6 +235,11 @@ Two ways:
   `chezmoi apply`:
 
   ```toml
+  [data]
+      palette = "dracula"
+      zshTheme = "gud"
+      installMode = "configs"
+
   [data.components]
       zsh = true
       tmux = false
@@ -255,10 +269,12 @@ turning one on writes them and fetches its plugins. Unmodified managed files are
 cleanly. A file you edited locally is left in place rather than deleted, so back it up first if
 you want it gone.
 
-Enabling a component that installs packages (e.g. `ai`) also re-runs the installer
-automatically: `run_once_after_00-install.sh` embeds the component booleans, so flipping one
-changes the script's rendered content and chezmoi re-runs it on the next apply, installing the
-newly selected tools. If it does not re-run for some reason, force it:
+Enabling a component re-runs the installer because `run_once_after_00-install.sh` embeds the
+component booleans. Packages install only when `installMode = "packages"`, and the re-run
+prompts `[y/N]` before touching a package manager (answer N to apply configs only for that run
+without changing `installMode`, or set `DOTFILES_ASSUME_YES=1` to skip the prompt). Re-run
+`chezmoi init` and choose packages mode when you want missing dependencies installed. If the
+script does not re-run, force it:
 
 ```sh
 chezmoi state delete-bucket --bucket=scriptState
@@ -267,5 +283,18 @@ chezmoi apply
 
 So to enable the AI tools after the fact: set `codecompanion = true` under `[data.components.ai]`
 in `~/.config/chezmoi/chezmoi.toml` (or re-run the menu, include `5`, and check `codecompanion`
-in the submenu), then `chezmoi apply`. That installs the Claude Code ACP bridge and provisions
-the CodeCompanion sentinel - no full reinstall needed.
+in the submenu), then `chezmoi apply`. That provisions the CodeCompanion sentinel. Choose package
+mode during re-init if the ACP bridge is missing.
+
+### Changing the Zsh prompt
+
+Gud remains the default prompt and follows the selected terminal ANSI palette. To use another
+existing Oh My Zsh theme or a readable theme file, edit `data.zshTheme` and apply:
+
+```toml
+[data]
+zshTheme = "robbyrussell"
+# zshTheme = "~/src/my-prompt.zsh-theme"
+```
+
+An invalid name or unreadable path prints a warning and falls back to Gud.

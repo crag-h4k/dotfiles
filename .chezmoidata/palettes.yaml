@@ -1,0 +1,206 @@
+# .chezmoidata/palettes.yaml
+# Canonical color data for every managed terminal surface. Consumer templates
+# select one entry through data.palette and must not carry their own hex copies.
+
+paletteOrder:
+  - dracula
+  - catppuccin-mocha
+  - gruvbox-dark
+  - tokyo-night
+
+palettes:
+  dracula:
+    name: Dracula
+    upstream: https://github.com/dracula/dracula-theme
+    nvim_plugin: dracula/vim
+    nvim_lazy_name: dracula
+    nvim_name: dracula
+    nvim_style: ""
+    colors:
+      background: "#282a36"
+      surface: "#44475a"
+      selection: "#44475a"
+      foreground: "#f8f8f2"
+      comment: "#6272a4"
+      cursor: "#f8f8f2"
+      black: "#21222c"
+      red: "#ff5555"
+      green: "#50fa7b"
+      yellow: "#f1fa8c"
+      blue: "#bd93f9"
+      purple: "#bd93f9"
+      cyan: "#8be9fd"
+      white: "#f8f8f2"
+      orange: "#ffb86c"
+      pink: "#ff79c6"
+    ansi:
+      - "#21222c"
+      - "#ff5555"
+      - "#50fa7b"
+      - "#f1fa8c"
+      - "#bd93f9"
+      - "#ff79c6"
+      - "#8be9fd"
+      - "#f8f8f2"
+      - "#6272a4"
+      - "#ff6e6e"
+      - "#69ff94"
+      - "#ffffa5"
+      - "#d6acff"
+      - "#ff92df"
+      - "#a4ffff"
+      - "#ffffff"
+    notify:
+      dark_red: "#5b1a1a"
+      dark_purple: "#3d1a5b"
+      dark_green: "#1a3d1a"
+      dark_orange: "#3d2a10"
+      dark_cyan: "#10303d"
+      dark_pink: "#4d1a38"
+
+  catppuccin-mocha:
+    name: Catppuccin Mocha
+    upstream: https://github.com/catppuccin/palette
+    nvim_plugin: catppuccin/nvim
+    nvim_lazy_name: catppuccin
+    nvim_name: catppuccin-mocha
+    nvim_style: mocha
+    colors:
+      background: "#1e1e2e"
+      surface: "#313244"
+      selection: "#45475a"
+      foreground: "#cdd6f4"
+      comment: "#6c7086"
+      cursor: "#f5e0dc"
+      black: "#45475a"
+      red: "#f38ba8"
+      green: "#a6e3a1"
+      yellow: "#f9e2af"
+      blue: "#89b4fa"
+      purple: "#cba6f7"
+      cyan: "#94e2d5"
+      white: "#bac2de"
+      orange: "#fab387"
+      pink: "#f5c2e7"
+    ansi:
+      - "#45475a"
+      - "#f38ba8"
+      - "#a6e3a1"
+      - "#f9e2af"
+      - "#89b4fa"
+      - "#f5c2e7"
+      - "#94e2d5"
+      - "#bac2de"
+      - "#585b70"
+      - "#f38ba8"
+      - "#a6e3a1"
+      - "#f9e2af"
+      - "#89b4fa"
+      - "#f5c2e7"
+      - "#94e2d5"
+      - "#a6adc8"
+    notify:
+      dark_red: "#452738"
+      dark_purple: "#35294a"
+      dark_green: "#263b2d"
+      dark_orange: "#493423"
+      dark_cyan: "#243b40"
+      dark_pink: "#442b3f"
+
+  gruvbox-dark:
+    name: Gruvbox Dark
+    upstream: https://github.com/morhetz/gruvbox
+    nvim_plugin: ellisonleao/gruvbox.nvim
+    nvim_lazy_name: gruvbox
+    nvim_name: gruvbox
+    nvim_style: medium
+    colors:
+      background: "#282828"
+      surface: "#3c3836"
+      selection: "#504945"
+      foreground: "#ebdbb2"
+      comment: "#928374"
+      cursor: "#ebdbb2"
+      black: "#282828"
+      red: "#fb4934"
+      green: "#b8bb26"
+      yellow: "#fabd2f"
+      blue: "#83a598"
+      purple: "#d3869b"
+      cyan: "#8ec07c"
+      white: "#ebdbb2"
+      orange: "#fe8019"
+      pink: "#d3869b"
+    ansi:
+      - "#282828"
+      - "#cc241d"
+      - "#98971a"
+      - "#d79921"
+      - "#458588"
+      - "#b16286"
+      - "#689d6a"
+      - "#a89984"
+      - "#928374"
+      - "#fb4934"
+      - "#b8bb26"
+      - "#fabd2f"
+      - "#83a598"
+      - "#d3869b"
+      - "#8ec07c"
+      - "#ebdbb2"
+    notify:
+      dark_red: "#3c2421"
+      dark_purple: "#3b2936"
+      dark_green: "#2d3421"
+      dark_orange: "#3b2d1f"
+      dark_cyan: "#26352d"
+      dark_pink: "#3b2936"
+
+  tokyo-night:
+    name: Tokyo Night
+    upstream: https://github.com/enkia/tokyo-night-vscode-theme
+    nvim_plugin: folke/tokyonight.nvim
+    nvim_lazy_name: tokyonight
+    nvim_name: tokyonight-night
+    nvim_style: night
+    colors:
+      background: "#1a1b26"
+      surface: "#292e42"
+      selection: "#33467c"
+      foreground: "#c0caf5"
+      comment: "#565f89"
+      cursor: "#c0caf5"
+      black: "#15161e"
+      red: "#f7768e"
+      green: "#9ece6a"
+      yellow: "#e0af68"
+      blue: "#7aa2f7"
+      purple: "#bb9af7"
+      cyan: "#7dcfff"
+      white: "#a9b1d6"
+      orange: "#ff9e64"
+      pink: "#bb9af7"
+    ansi:
+      - "#15161e"
+      - "#f7768e"
+      - "#9ece6a"
+      - "#e0af68"
+      - "#7aa2f7"
+      - "#bb9af7"
+      - "#7dcfff"
+      - "#a9b1d6"
+      - "#414868"
+      - "#f7768e"
+      - "#9ece6a"
+      - "#e0af68"
+      - "#7aa2f7"
+      - "#bb9af7"
+      - "#7dcfff"
+      - "#c0caf5"
+    notify:
+      dark_red: "#3b2430"
+      dark_purple: "#302847"
+      dark_green: "#24352f"
+      dark_orange: "#3b3026"
+      dark_cyan: "#24353f"
+      dark_pink: "#3b2841"

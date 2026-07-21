@@ -11,21 +11,23 @@
 Terminal-native attention cues when a long process finishes or Claude/Codex needs you. Visual
 cue always; sound optional per group (empty sound = silent). No notification-center popups.
 
-- **Config (one file):** everything - the color palette, per-group `bg`/`accent`/`sound`,
+- **Config (one file):** notification behavior - per-group `bg`/`accent`/`sound`,
   default and per-group `volume`/`threshold`, the binary-to-group map, the ignore-list, and
   debug logging - lives in `~/.config/notify/notify.yaml`, read via
   [`yq`](https://github.com/mikefarah/yq) (mikefarah, v4). `groups` are triggered by a finished
   command's binary; `integrations` (claude/codex) are triggered by an event hook and are
   auto-added to the ignore-list (so launching the CLI never fires the command path). Palette
-  names resolve to hex; a raw `#hex` or `default` passes through. Edit the YAML (new shells
-  re-read it; `tmux source-file ~/.tmux.conf` reloads the renderer).
+  names resolve to hex; a raw `#hex` or `default` passes through. The named colors are rendered
+  from `.chezmoidata/palettes.yaml`; edit behavior in the YAML template and shared colors in the
+  palette catalog. New shells re-read it; `tmux source-file ~/.tmux.conf` reloads the renderer.
 - **Shared logic:** `~/.config/notify/lib.sh` (array-free POSIX, sourced by both the zsh
   notifier and the bash hooks) reads the config and does the recolor + sound. It resolves a
   mikefarah `yq` even under a stripped PATH (preferring `~/.local/bin/yq`, ignoring a stray
   apt/kislyuk `yq`) and locates tmux the same way, bypassing the oh-my-zsh tmux wrapper.
-- **Rendering:** `~/.tmux/conf.d/notify.conf` renders the status-bar flag (per-group accent) and
-  pane tint, and clears them when you return focus to the pane. tmux is the only surface that
-  draws; outside tmux the system is inert by design.
+- **Rendering:** `~/.tmux/conf.d/notify.conf` renders the status-bar flag and pane tint. It clears
+  only the receiving flagged pane on focus, ordinary keyboard input, primary click, drag, or
+  scrolling in normal and copy modes. Right-click menus remain tmux defaults. Outside tmux the
+  system is inert by design.
 - **Detection:** `~/.zsh/custom/functions/notify-process.zsh` builds its binary-to-group map,
   per-group thresholds, and ignore-list once at shell init (a single `yq` call), then
   `preexec`/`precmd` flag the pane when a named binary (terraform, brew, ...) finishes at/above
@@ -47,10 +49,9 @@ cue always; sound optional per group (empty sound = silent). No notification-cen
   activates once that lands. A restart of `codex` picks up the config.
 - **Debug:** off by default. Set `settings.debug: true` (or `export NOTIFY_DEBUG=1`) to trace
   fires to `settings.log` (default `~/.config/notify/notify.log`); the log self-caps at ~1 MB.
-- **yq dependency:** installed with the `zsh` or `tmux` component: `brew install yq` on macOS,
-  the mikefarah binary fetched to `~/.local/bin` on Debian. Do **not** `apt install yq` on
-  Debian - that is a different (python/kislyuk) tool with incompatible syntax, which the system
-  detects and ignores.
+- **yq dependency:** installed whenever Zsh, tmux, Claude hooks, or Codex hooks need notify:
+  `brew install yq` on macOS, or the mikefarah binary under `~/.local/bin` on Debian. Do **not**
+  `apt install yq` on Debian; that is a different tool with incompatible syntax.
 
 ### Standalone install (no chezmoi)
 
@@ -65,7 +66,10 @@ It copies the same files into `~/.config/notify/` (including `sounds/`), `~/.tmu
 `~/.claude/hooks/`, installs mikefarah `yq` (brew on macOS, binary to `~/.local/bin` on Debian),
 and wires `~/.zshrc`, `~/.tmux.conf`, and `~/.claude/settings.json`. When the `codex` CLI is
 present it also installs `~/.codex/hooks/notify-tmux.sh` and merges `notify` + `tui.notifications`
-into `~/.codex/config.toml` (mode 600 preserved). It is idempotent. If you use `chezmoi apply`,
+into `~/.codex/config.toml` (mode 600 preserved). It is idempotent. When mikefarah `yq` is
+missing it confirms `[y/N]` before installing it (or set `DOTFILES_ASSUME_YES=1`); `yq` is
+required here, so declining aborts with a message rather than writing broken colors. If you use
+`chezmoi apply`,
 notify is already installed - do **not** also run this (the zsh notifier would load twice); the
 script refuses unless you pass `--force`. This is the same layout `chezmoi apply`
 installs.
@@ -73,12 +77,14 @@ installs.
 Manual equivalent, if you prefer not to run the script:
 
 1. `mkdir -p ~/.config/notify/sounds ~/.tmux/conf.d ~/.claude/hooks`
-2. Copy `dot_config/notify/notify.yaml`, `dot_config/notify/lib.sh`, and
+2. Render `dot_config/notify/notify.yaml.tmpl`, then copy it as `notify.yaml`. Copy
+   `dot_config/notify/lib.sh`, `dot_config/notify/executable_clear-pane.sh`, and
    `dot_config/notify/sounds/*.mp3` to `~/.config/notify/` (sounds go in
    `~/.config/notify/sounds/`); `dot_zsh/custom/functions/notify-process.zsh` to
-   `~/.config/notify/notify-process.zsh`; `dot_tmux/conf.d/notify.conf` to `~/.tmux/conf.d/`; and
+   `~/.config/notify/notify-process.zsh`; copy the clear helper as
+   `~/.config/notify/clear-pane.sh`; copy `dot_tmux/conf.d/notify.conf` to `~/.tmux/conf.d/`; and
    `dot_claude/hooks/executable_notify-tmux.sh` / `executable_notify-clear.sh` to
-   `~/.claude/hooks/notify-tmux.sh` / `notify-clear.sh` (then `chmod +x` both).
+   `~/.claude/hooks/notify-tmux.sh` / `notify-clear.sh` (then mark all three helpers executable).
 3. Install mikefarah `yq`: `brew install yq` (macOS) or fetch the `yq_linux_<arch>` binary to
    `~/.local/bin` (Debian; do **not** `apt install yq` - that is a different tool).
 4. Add to `~/.zshrc`: `[ -f ~/.config/notify/notify-process.zsh ] && source ~/.config/notify/notify-process.zsh`

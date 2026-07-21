@@ -1,0 +1,44 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- ~/.codex/themes/dotfiles.tmTheme: rendered from the shared chezmoi palette. -->
+{{- $p := get .palettes (dig "palette" "dracula" .) }}
+<!DOCTYPE plist PUBLIC "-//Apple Computer//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+  <key>name</key>
+  <string>dotfiles</string>
+  <key>settings</key>
+  <array>
+    <dict>
+      <key>settings</key>
+      <dict>
+        <key>background</key><string>{{ $p.colors.background }}</string>
+        <key>caret</key><string>{{ $p.colors.cursor }}</string>
+        <key>foreground</key><string>{{ $p.colors.foreground }}</string>
+        <key>invisibles</key><string>{{ $p.colors.comment }}</string>
+        <key>lineHighlight</key><string>{{ $p.colors.surface }}</string>
+        <key>selection</key><string>{{ $p.colors.selection }}</string>
+        <key>findHighlight</key><string>{{ $p.colors.yellow }}</string>
+        <key>findHighlightForeground</key><string>{{ $p.colors.background }}</string>
+        <key>activeGuide</key><string>{{ $p.colors.purple }}</string>
+      </dict>
+    </dict>
+    <!-- Codex also resolves these TextMate scopes into native statusline accents. -->
+    <dict><key>name</key><string>Metadata</string><key>scope</key><string>comment, constant.other</string><key>settings</key><dict><key>foreground</key><string>{{ $p.colors.comment }}</string></dict></dict>
+    <dict><key>name</key><string>Path</string><key>scope</key><string>string, markup.underline.link</string><key>settings</key><dict><key>foreground</key><string>{{ $p.colors.yellow }}</string></dict></dict>
+    <dict><key>name</key><string>Usage</string><key>scope</key><string>constant.numeric, constant</string><key>settings</key><dict><key>foreground</key><string>{{ $p.colors.purple }}</string></dict></dict>
+    <dict><key>name</key><string>Limit</string><key>scope</key><string>constant.language, storage.type</string><key>settings</key><dict><key>foreground</key><string>{{ $p.colors.orange }}</string></dict></dict>
+    <dict><key>name</key><string>State</string><key>scope</key><string>keyword.control</string><key>settings</key><dict><key>foreground</key><string>{{ $p.colors.pink }}</string><key>fontStyle</key><string>bold</string></dict></dict>
+    <dict><key>name</key><string>Keyword</string><key>scope</key><string>keyword, storage.modifier, keyword.operator</string><key>settings</key><dict><key>foreground</key><string>{{ $p.colors.pink }}</string></dict></dict>
+    <dict><key>name</key><string>Branch</string><key>scope</key><string>entity.name.function, entity.name.tag, support.function</string><key>settings</key><dict><key>foreground</key><string>{{ $p.colors.green }}</string></dict></dict>
+    <dict><key>name</key><string>Model</string><key>scope</key><string>entity.name.type, support.type, support.class</string><key>settings</key><dict><key>foreground</key><string>{{ $p.colors.cyan }}</string><key>fontStyle</key><string>bold</string></dict></dict>
+    <dict><key>name</key><string>Thread</string><key>scope</key><string>markup.heading, entity.name.section</string><key>settings</key><dict><key>foreground</key><string>{{ $p.colors.blue }}</string><key>fontStyle</key><string>bold</string></dict></dict>
+    <dict><key>name</key><string>Progress</string><key>scope</key><string>markup.inserted</string><key>settings</key><dict><key>foreground</key><string>{{ $p.colors.green }}</string><key>fontStyle</key><string>bold</string></dict></dict>
+    <dict><key>name</key><string>Variable</string><key>scope</key><string>variable</string><key>settings</key><dict><key>foreground</key><string>{{ $p.colors.foreground }}</string></dict></dict>
+    <dict><key>name</key><string>Invalid</string><key>scope</key><string>invalid</string><key>settings</key><dict><key>foreground</key><string>{{ $p.colors.red }}</string></dict></dict>
+  </array>
+  <key>uuid</key>
+  <string>7B3E1C2A-4D5F-4A6B-9C8D-0E1F2A3B4C5D</string>
+  <key>semanticClass</key>
+  <string>theme.dark.dotfiles</string>
+</dict>
+</plist>

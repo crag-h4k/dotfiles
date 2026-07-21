@@ -1,14 +1,14 @@
 #!/usr/bin/env bash
 # ~/.claude/statusline-command.sh
-# gud (Dracula-family) statusline for Claude Code. Fast renderer: one jq spawn off
+# Dotfiles statusline for Claude Code. Fast renderer: one jq spawn off
 # stdin, integer math in bash, no per-render token walk. The subagent-inclusive
 # cumulative total is served from a cache file that a detached Python updater
 # (~/.claude/statusline-tokens.py) refreshes off the critical path, so render stays
 # flat regardless of transcript length.
 #
-# Colors are emitted as SGR ANSI codes (never hex) so gud-theme.conf resolves them.
-# Orange is the one hue ANSI 16 cannot carry in gud; it is sourced once from
-# ~/.config/statusline/gud-palette.sh as GUD_ORANGE. macOS ships bash 3.2, so
+# Semantic colors come from ~/.config/statusline/palette.sh, rendered from the
+# shared chezmoi palette. ANSI fallbacks keep the renderer usable on its own.
+# macOS ships bash 3.2, so
 # glyphs are ANSI-C byte escapes ($'\xHH...') and there is no printf '\U' or flock.
 #
 # stdin schema: https://code.claude.com/docs/en/statusline
@@ -16,19 +16,18 @@ set -u
 
 # --- palette (SGR) ---------------------------------------------------------
 RESET=$'\e[0m'
-PURPLE=$'\e[34m'     # ANSI 4  -> gud #BD93F9  (model)
-CYAN=$'\e[36m'       # ANSI 6  -> gud #8BE9FD  (total)
-GREY=$'\e[90m'       # ANSI 8  -> gud #555555  (labels, separators, empty track)
-PINK=$'\e[35m'       # ANSI 5  -> gud #FF79C6  (5h rate; gud has no blue slot)
-GREEN=$'\e[32m'      # ANSI 2  -> gud #50FA7B
-YELLOW=$'\e[33m'     # ANSI 3  -> gud #F1FA8C
-RED=$'\e[31m'        # ANSI 1  -> gud #FF5555
-RED_BOLD=$'\e[1;31m' # ANSI 1 bold
-PALETTE="$HOME/.config/statusline/gud-palette.sh"
+PALETTE="$HOME/.config/statusline/palette.sh"
 # shellcheck source=/dev/null
 [ -r "$PALETTE" ] && . "$PALETTE"
-[ -n "${GUD_ORANGE:-}" ] || GUD_ORANGE=$'\e[38;2;255;184;108m'
-ORANGE="$GUD_ORANGE"
+PURPLE=${PALETTE_PURPLE:-$'\e[34m'}
+CYAN=${PALETTE_CYAN:-$'\e[36m'}
+GREY=${PALETTE_GREY:-$'\e[90m'}
+PINK=${PALETTE_PINK:-$'\e[35m'}
+GREEN=${PALETTE_GREEN:-$'\e[32m'}
+YELLOW=${PALETTE_YELLOW:-$'\e[33m'}
+RED=${PALETTE_RED:-$'\e[31m'}
+RED_BOLD=${PALETTE_RED_BOLD:-$'\e[1;31m'}
+ORANGE=${PALETTE_ORANGE:-$'\e[38;2;255;184;108m'}
 
 # --- glyphs (Nerd Font; one swappable block) -------------------------------
 # Each is the UTF-8 byte sequence for the codepoint named. If any renders as a

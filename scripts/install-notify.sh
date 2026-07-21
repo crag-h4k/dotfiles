@@ -33,6 +33,14 @@ os=$(os_detect)
 [[ "$os" == unsupported ]] && die "unsupported OS $(uname -s); this targets macOS and Debian"
 info "standalone notify installer: platform=$os"
 
+# Gate the one package-manager mutation this standalone path can make: ensure_yq
+# (brew install yq / binary fetch). Only prompt when a mikefarah yq is actually
+# missing. yq is a hard dependency here - it also renders notify.yaml's colors
+# below - so a decline dies with guidance rather than degrading to broken output.
+if ! have_mikefarah_yq; then
+    pkg_confirm "standalone notify install (needs mikefarah yq)" ||
+        die "yq is required for the standalone notify install; re-run with DOTFILES_ASSUME_YES=1 or install mikefarah yq first"
+fi
 ensure_yq
 
 # --- copy from the repo's chezmoi-source files (single source of truth) --------
@@ -42,17 +50,37 @@ mkdir -p "$HOME/.config/notify/sounds" "$HOME/.tmux/conf.d" "$HOME/.claude/hooks
 if [[ -f "$HOME/.config/notify/notify.yaml" && "$FORCE" -ne 1 ]]; then
     info "kept existing notify.yaml (pass --force to overwrite)"
 else
-    cp "$REPO/dot_config/notify/notify.yaml" "$HOME/.config/notify/notify.yaml"
+    palette="$REPO/.chezmoidata/palettes.yaml"
+    template="$REPO/dot_config/notify/notify.yaml.tmpl"
+    # Standalone installs use Dracula. Resolve the same canonical values without
+    # requiring chezmoi to render the Go template.
+    sed \
+        -e '/{{- \$p :=/d' \
+        -e "s@{{ \$p.notify.dark_red | quote }}@\"$(yq -r '.palettes.dracula.notify.dark_red' "$palette")\"@" \
+        -e "s@{{ \$p.notify.dark_purple | quote }}@\"$(yq -r '.palettes.dracula.notify.dark_purple' "$palette")\"@" \
+        -e "s@{{ \$p.notify.dark_green | quote }}@\"$(yq -r '.palettes.dracula.notify.dark_green' "$palette")\"@" \
+        -e "s@{{ \$p.notify.dark_orange | quote }}@\"$(yq -r '.palettes.dracula.notify.dark_orange' "$palette")\"@" \
+        -e "s@{{ \$p.notify.dark_cyan | quote }}@\"$(yq -r '.palettes.dracula.notify.dark_cyan' "$palette")\"@" \
+        -e "s@{{ \$p.notify.dark_pink | quote }}@\"$(yq -r '.palettes.dracula.notify.dark_pink' "$palette")\"@" \
+        -e "s@{{ \$p.colors.red | quote }}@\"$(yq -r '.palettes.dracula.colors.red' "$palette")\"@" \
+        -e "s@{{ \$p.colors.purple | quote }}@\"$(yq -r '.palettes.dracula.colors.purple' "$palette")\"@" \
+        -e "s@{{ \$p.colors.green | quote }}@\"$(yq -r '.palettes.dracula.colors.green' "$palette")\"@" \
+        -e "s@{{ \$p.colors.orange | quote }}@\"$(yq -r '.palettes.dracula.colors.orange' "$palette")\"@" \
+        -e "s@{{ \$p.colors.cyan | quote }}@\"$(yq -r '.palettes.dracula.colors.cyan' "$palette")\"@" \
+        -e "s@{{ \$p.colors.pink | quote }}@\"$(yq -r '.palettes.dracula.colors.pink' "$palette")\"@" \
+        "$template" > "$HOME/.config/notify/notify.yaml"
     info "installed notify.yaml"
 fi
 
 cp "$REPO/dot_config/notify/lib.sh"                       "$HOME/.config/notify/lib.sh"
+cp "$REPO/dot_config/notify/executable_clear-pane.sh"     "$HOME/.config/notify/clear-pane.sh"
 cp "$REPO/dot_zsh/custom/functions/notify-process.zsh"    "$HOME/.config/notify/notify-process.zsh"
 cp "$REPO/dot_tmux/conf.d/notify.conf"                    "$HOME/.tmux/conf.d/notify.conf"
 cp "$REPO"/dot_config/notify/sounds/*.mp3                 "$HOME/.config/notify/sounds/" 2>/dev/null || warn "no sound files copied"
 cp "$REPO/dot_claude/hooks/executable_notify-tmux.sh"     "$HOME/.claude/hooks/notify-tmux.sh"
 cp "$REPO/dot_claude/hooks/executable_notify-clear.sh"    "$HOME/.claude/hooks/notify-clear.sh"
 chmod +x "$HOME/.claude/hooks/notify-tmux.sh" "$HOME/.claude/hooks/notify-clear.sh"
+chmod +x "$HOME/.config/notify/clear-pane.sh"
 info "copied lib + zsh notifier + tmux render + sounds + claude hooks"
 
 # --- wire-ups (idempotent) ----------------------------------------------------

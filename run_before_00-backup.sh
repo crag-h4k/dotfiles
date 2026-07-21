@@ -23,6 +23,9 @@ set -euo pipefail
 backup_root="$HOME/.dotfiles-backup"
 backup_dir="$backup_root/$(date +%Y%m%dT%H%M%S)"
 backed_up=0
+started=$SECONDS
+
+printf 'dotfiles: inspecting existing configs for backup...\n'
 
 # cp one existing regular file into the snapshot, preserving its path relative to
 # $HOME. Idempotent within a run: a file already copied (e.g. a managed file also
@@ -64,10 +67,12 @@ while IFS= read -r dir; do
 done < <(chezmoi managed --path-style=absolute --include=files 2>/dev/null \
          | while IFS= read -r t; do dirname "$t"; done | sort -u)
 
+elapsed=$(( SECONDS - started ))
 if (( backed_up > 0 )); then
-    printf 'dotfiles: backed up %d file(s) to %s\n' "$backed_up" "$backup_dir"
+    printf 'dotfiles: backed up %d file(s) to %s (%ss)\n' "$backed_up" "$backup_dir" "$elapsed"
 else
     rm -rf "$backup_dir"
+    printf 'dotfiles: no existing configs needed backup (%ss)\n' "$elapsed"
 fi
 
 # Retention: every apply makes a snapshot, so keep only the most recent $keep and
@@ -80,3 +85,10 @@ if [[ -d "$backup_root" ]]; then
         rm -rf "$old"
     done
 fi
+
+# chezmoi applies managed files and fetches/refreshes the .chezmoiexternal.toml
+# plugin repos next, interleaved. There is no "before externals only" hook
+# (run_before scripts fire before the whole apply, not specifically before
+# externals), so this is a coarse phase marker for "the next step includes
+# externals"; per-file detail comes from `progress = true` in .chezmoi.toml.tmpl.
+printf 'dotfiles: applying configs and fetching any updated externals...\n'
