@@ -60,7 +60,7 @@ render_components() {
         [[ -n "$aisel"   ]] && printf '    aiSelection = "%s"\n'       "$aisel"
         [[ -n "$termsel" ]] && printf '    terminalSelection = "%s"\n' "$termsel"
     } >"$cfgdir/chezmoi.toml"
-    if ! out=$(chezmoi execute-template --init --config "$cfgdir/chezmoi.toml" <"$CONFIG_TMPL" 2>&1); then
+    if ! out=$(chezmoi execute-template --init --source "$REPO_DIR" --config "$cfgdir/chezmoi.toml" <"$CONFIG_TMPL" 2>&1); then
         rm -rf "$cfgdir"
         printf 'RENDER_ERROR %s' "$out"
         return 1
@@ -244,7 +244,7 @@ for combo in "${ext_combos[@]}"; do
     cfgdir=$(mktemp -d)
     printf '[data.components]\n    zsh = %s\n    tmux = %s\n    neovim = true\n' \
         "$zsh" "$tmux" >"$cfgdir/chezmoi.toml"
-    if ! out=$(chezmoi execute-template --config "$cfgdir/chezmoi.toml" <"$EXTERNAL" 2>&1); then
+    if ! out=$(chezmoi execute-template --source "$REPO_DIR" --config "$cfgdir/chezmoi.toml" <"$EXTERNAL" 2>&1); then
         echo "validate-templates: render FAILED for externals ($label):" >&2
         echo "$out" >&2
         fail=1
@@ -265,8 +265,8 @@ assert_notify_gate() { # zsh tmux claude_hooks codex_hooks want_enabled
         printf '[data.components]\nzsh = %s\ntmux = %s\n' "$zsh" "$tmux"
         printf '[data.components.ai]\nclaude_hooks = %s\ncodex_hooks = %s\nstatusline = false\ncodecompanion = false\n' "$claude" "$codex"
     } > "$cfgdir/chezmoi.toml"
-    ignored=$(chezmoi execute-template --config "$cfgdir/chezmoi.toml" < "$IGNORE")
-    runout=$(chezmoi execute-template --config "$cfgdir/chezmoi.toml" < "$RUNONCE")
+    ignored=$(chezmoi execute-template --source "$REPO_DIR" --config "$cfgdir/chezmoi.toml" < "$IGNORE")
+    runout=$(chezmoi execute-template --source "$REPO_DIR" --config "$cfgdir/chezmoi.toml" < "$RUNONCE")
     rm -rf "$cfgdir"
     got=$(printf '%s\n' "$runout" | sed -n 's/^export INSTALL_NOTIFY=\(.*\)$/\1/p')
     if [[ "$got" != "$want" ]]; then
@@ -297,7 +297,7 @@ assert_install_ghostty() {
     local ghostty="$1" want="$2" cfgdir out got
     cfgdir=$(mktemp -d)
     printf '[data.components.terminal]\n    ghostty = %s\n    iterm2 = false\n' "$ghostty" >"$cfgdir/chezmoi.toml"
-    if ! out=$(chezmoi execute-template --config "$cfgdir/chezmoi.toml" <"$RUNONCE" 2>&1); then
+    if ! out=$(chezmoi execute-template --source "$REPO_DIR" --config "$cfgdir/chezmoi.toml" <"$RUNONCE" 2>&1); then
         echo "validate-templates: run_once render FAILED (ghostty=$ghostty): $out" >&2
         fail=1
         rm -rf "$cfgdir"
@@ -332,7 +332,7 @@ ai_cfg() { # claude_hooks codex_hooks statusline -> path to a temp chezmoi confi
 run_modify() { # tmpl cfg sample-file -> merged output on stdout, nonzero on error
     local tmpl="$1" cfg="$2" sample="$3" pyf out
     pyf=$(mktemp)
-    if ! chezmoi execute-template --config "$cfg" <"$tmpl" >"$pyf" 2>/dev/null; then
+    if ! chezmoi execute-template --source "$REPO_DIR" --config "$cfg" <"$tmpl" >"$pyf" 2>/dev/null; then
         rm -f "$pyf"; return 1
     fi
     out=$(python3 "$pyf" <"$sample" 2>/dev/null) || { rm -f "$pyf"; return 1; }

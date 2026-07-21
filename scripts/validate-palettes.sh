@@ -13,7 +13,13 @@ for palette in dracula catppuccin-mocha gruvbox-dark tokyo-night; do
     printf '[data]\npalette = "%s"\nzshTheme = "gud"\n' "$palette" > "$cfg"
 
     render() {
-        chezmoi execute-template --config "$cfg" < "$REPO_DIR/$1"
+        # --source pins the repo under test as the chezmoi source directory, so
+        # .chezmoidata/palettes.yaml loads regardless of machine or CI runner.
+        # Without it, chezmoi falls back to its default source dir
+        # (~/.local/share/chezmoi), which only happens to be this repo on a
+        # dev machine that has it checked out there - a bare CI runner has no
+        # such directory, so .palettes is silently absent from the template data.
+        chezmoi execute-template --source "$REPO_DIR" --config "$cfg" < "$REPO_DIR/$1"
     }
 
     render dot_config/ghostty/themes/dotfiles.conf.tmpl > "$TMP_DIR/ghostty.conf"
