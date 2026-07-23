@@ -3,13 +3,14 @@ name: pre-commit
 
 # Enforce the same hooks that run locally - including validate-templates.sh,
 # which renders the component-gated chezmoi templates and parses the result.
+# workflow_call-only: invoked by ci.yaml's pre-commit job for both the
+# pull-request and push-to-main cases, so there is one run per push, not two.
 on:
-  push:
-    branches: [main]
-  pull_request:
+  workflow_call:
 
 permissions:
   contents: read
+  pull-requests: write
 
 jobs:
   pre-commit:
@@ -38,5 +39,35 @@ jobs:
           sudo apt-get install -y luarocks bats zsh
           sudo luarocks install luacheck
 
+      # continue-on-error so the summary still gets built and commented below;
+      # the explicit exit-1 step at the end fails the job for real.
       - name: Run pre-commit
-        run: uvx pre-commit run --show-diff-on-failure --color=always --all-files
+        id: run-pre-commit
+        continue-on-error: true
+        run: uvx pre-commit run --show-diff-on-failure --color=never --all-files | tee pre-commit-output.txt
+
+      - name: Build summary comment
+        if: always()
+        run: |
+          if [ "${{ steps.run-pre-commit.outcome }}" = "success" ]; then
+            echo "### :white_check_mark: pre-commit passed" > pre-commit-summary.md
+          else
+            echo "### :x: pre-commit failed" > pre-commit-summary.md
+          fi
+          {
+            echo
+            echo '```'
+            grep -E '(Passed|Failed|Skipped)$' pre-commit-output.txt || cat pre-commit-output.txt
+            echo '```'
+          } >> pre-commit-summary.md
+
+      - name: Comment pre-commit summary
+        if: always() && github.event_name == 'pull_request'
+        uses: marocchino/sticky-pull-request-comment@5770ad5eb8f42dd2c4f34da00c94c5381e49af88 # v3.0.5
+        with:
+          header: pre-commit
+          path: pre-commit-summary.md
+
+      - name: Fail if pre-commit failed
+        if: steps.run-pre-commit.outcome == 'failure'
+        run: exit 1

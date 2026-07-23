@@ -34,7 +34,7 @@
   no-terminal apply with no opt-in) degrades to configs-only for that run and leaves `installMode`
   unchanged, so the choice never becomes sticky. Configs-only skips package and login-shell side
   effects.
-- **Status-bar network indicator:** the `↓ • ↑` throughput in the tmux status bar comes from the
+- **The status-bar network indicator** (`↓ • ↑` throughput) comes from the
   `xamut/tmux-network-bandwidth` plugin (cross-platform, replaces the Linux-only
   `tmux-net-speed`). It needs `coreutils`+`gawk` on macOS and `gawk`+`net-tools` on Debian;
   those ride along in the tmux package set. It sums all interfaces, so VPN and VM-bridge traffic

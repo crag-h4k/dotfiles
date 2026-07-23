@@ -1,5 +1,10 @@
 # dotfiles
 
+| Check | Status |
+| --- | --- |
+| Pre-commit (PR) | [![Pre-commit](https://github.com/crag-h4k/dotfiles/actions/workflows/ci.yaml/badge.svg?branch=main&event=pull_request)](https://github.com/crag-h4k/dotfiles/actions/workflows/ci.yaml) |
+| Release (main) | [![Release](https://github.com/crag-h4k/dotfiles/actions/workflows/ci.yaml/badge.svg?branch=main&event=push)](https://github.com/crag-h4k/dotfiles/actions/workflows/ci.yaml) |
+
 Single-repo dotfile deployment using [chezmoi](https://chezmoi.io). `~` is the
 only repo you need to clone on a new host.
 
