@@ -1,0 +1,40 @@
+---
+name: tag-preview
+
+# Comments the current release tag and the tag merging this PR would cut,
+# using the same anothrNick/github-tag-action dry-run math as release.yaml.
+# Fork PRs get a read-only GITHUB_TOKEN by default and can't post this
+# comment; that's a GitHub default, not a bug here.
+on:
+  pull_request:
+    branches: [main]
+
+permissions:
+  contents: read
+  pull-requests: write
+
+jobs:
+  preview:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7
+        with:
+          fetch-depth: 0
+
+      - name: Compute next tag
+        id: tag
+        uses: anothrNick/github-tag-action@4ed44965e0db8dab2b466a16da04aec3cc312fd8 # 1.75.0
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+          DEFAULT_BUMP: patch
+          TAG_PREFIX: v
+          DEFAULT_BRANCH: main
+          DRY_RUN: "true"
+
+      - name: Comment tag preview
+        uses: marocchino/sticky-pull-request-comment@5770ad5eb8f42dd2c4f34da00c94c5381e49af88 # v3.0.5
+        with:
+          header: tag-preview
+          message: |
+            Current tag: `${{ steps.tag.outputs.tag }}`
+            Merging this PR will cut: `${{ steps.tag.outputs.new_tag }}`

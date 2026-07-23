@@ -11,47 +11,49 @@
 Terminal-native attention cues when a long process finishes or Claude/Codex needs you. Visual
 cue always; sound optional per group (empty sound = silent). No notification-center popups.
 
-- **Config (one file):** notification behavior - per-group `bg`/`accent`/`sound`,
+- **All notification behavior lives in one file**, `~/.config/notify/notify.yaml`, read via
+  [`yq`](https://github.com/mikefarah/yq) (mikefarah, v4): per-group `bg`/`accent`/`sound`,
   default and per-group `volume`/`threshold`, the binary-to-group map, the ignore-list, and
-  debug logging - lives in `~/.config/notify/notify.yaml`, read via
-  [`yq`](https://github.com/mikefarah/yq) (mikefarah, v4). `groups` are triggered by a finished
-  command's binary; `integrations` (claude/codex) are triggered by an event hook and are
-  auto-added to the ignore-list (so launching the CLI never fires the command path). Palette
-  names resolve to hex; a raw `#hex` or `default` passes through. The named colors are rendered
-  from `.chezmoidata/palettes.yaml`; edit behavior in the YAML template and shared colors in the
-  palette catalog. New shells re-read it; `tmux source-file ~/.tmux.conf` reloads the renderer.
-- **Shared logic:** `~/.config/notify/lib.sh` (array-free POSIX, sourced by both the zsh
+  debug logging. `groups` are triggered by a finished command's binary; `integrations`
+  (claude/codex) are triggered by an event hook and are auto-added to the ignore-list (so
+  launching the CLI never fires the command path). Palette names resolve to hex; a raw `#hex`
+  or `default` passes through. The named colors are rendered from `.chezmoidata/palettes.yaml`;
+  edit behavior in the YAML template and shared colors in the palette catalog. New shells
+  re-read it; `tmux source-file ~/.tmux.conf` reloads the renderer.
+- **Shared logic in `~/.config/notify/lib.sh`** (array-free POSIX, sourced by both the zsh
   notifier and the bash hooks) reads the config and does the recolor + sound. It resolves a
   mikefarah `yq` even under a stripped PATH (preferring `~/.local/bin/yq`, ignoring a stray
   apt/kislyuk `yq`) and locates tmux the same way, bypassing the oh-my-zsh tmux wrapper.
-- **Rendering:** `~/.tmux/conf.d/notify.conf` renders the status-bar flag and pane tint. It clears
+- **`~/.tmux/conf.d/notify.conf` renders** the status-bar flag and pane tint. It clears
   only the receiving flagged pane on focus, ordinary keyboard input, primary click, drag, or
   scrolling in normal and copy modes. Right-click menus remain tmux defaults. Outside tmux the
   system is inert by design.
-- **Detection:** `~/.zsh/custom/functions/notify-process.zsh` builds its binary-to-group map,
-  per-group thresholds, and ignore-list once at shell init (a single `yq` call), then
-  `preexec`/`precmd` flag the pane when a named binary (terraform, brew, ...) finishes at/above
-  its group's threshold, or any command runs past the catch-all `default` threshold. A nonzero
-  exit uses the `error` group.
-- **AI attention:** the Claude Code `Stop`, `Notification`, and `PreToolUse:AskUserQuestion`
-  events call `notify-tmux.sh`, registered in `~/.claude/settings.json` via the `modify_` template
-  (`dot_claude/modify_settings.json.tmpl`) that merges the hooks on each `chezmoi apply` without
-  clobbering model/effort/plugins. Matcher-less `Notification` covers permission prompts and
-  idle; `PreToolUse:AskUserQuestion` covers the question tool (which emits no `Notification`
-  event). `~/.claude/settings.local.json` is never loaded and `.claude` settings do not merge up
-  the directory tree; the externally managed `~/.claude.json` is left untouched. A fresh `claude`
-  session picks up the hooks. Codex is wired the same way via `~/.codex/config.toml` (the
-  `modify_private_config.toml.tmpl` merge, gated on `ai > codex_hooks`): its external `notify` program
-  calls `notify-tmux.sh` on `agent-turn-complete` (the color+sound "your turn" flag). Codex never
-  sends the notify program an approval event, so `notify` cannot cover permission prompts; the
-  merge also sets `tui.notifications` (`approval-requested`), Codex's own alert, which is a no-op
-  under tmux today ([openai/codex#16855](https://github.com/openai/codex/issues/16855)) and
-  activates once that lands. A restart of `codex` picks up the config.
-- **Debug:** off by default. Set `settings.debug: true` (or `export NOTIFY_DEBUG=1`) to trace
-  fires to `settings.log` (default `~/.config/notify/notify.log`); the log self-caps at ~1 MB.
-- **yq dependency:** installed whenever Zsh, tmux, Claude hooks, or Codex hooks need notify:
-  `brew install yq` on macOS, or the mikefarah binary under `~/.local/bin` on Debian. Do **not**
-  `apt install yq` on Debian; that is a different tool with incompatible syntax.
+- **`~/.zsh/custom/functions/notify-process.zsh` handles detection**: it builds its
+  binary-to-group map, per-group thresholds, and ignore-list once at shell init (a single `yq`
+  call), then `preexec`/`precmd` flag the pane when a named binary (terraform, brew, ...)
+  finishes at/above its group's threshold, or any command runs past the catch-all `default`
+  threshold. A nonzero exit uses the `error` group.
+- **Claude Code drives AI attention** through its `Stop`, `Notification`, and
+  `PreToolUse:AskUserQuestion` events, which call `notify-tmux.sh`, registered in
+  `~/.claude/settings.json` via the `modify_` template (`dot_claude/modify_settings.json.tmpl`)
+  that merges the hooks on each `chezmoi apply` without clobbering model/effort/plugins.
+  Matcher-less `Notification` covers permission prompts and idle; `PreToolUse:AskUserQuestion`
+  covers the question tool (which emits no `Notification` event). `~/.claude/settings.local.json`
+  is never loaded and `.claude` settings do not merge up the directory tree; the externally
+  managed `~/.claude.json` is left untouched. A fresh `claude` session picks up the hooks. Codex
+  is wired the same way via `~/.codex/config.toml` (the `modify_private_config.toml.tmpl` merge,
+  gated on `ai > codex_hooks`): its external `notify` program calls `notify-tmux.sh` on
+  `agent-turn-complete` (the color+sound "your turn" flag). Codex never sends the notify program
+  an approval event, so `notify` cannot cover permission prompts; the merge also sets
+  `tui.notifications` (`approval-requested`), Codex's own alert, which is a no-op under tmux
+  today ([openai/codex#16855](https://github.com/openai/codex/issues/16855)) and activates once
+  that lands. A restart of `codex` picks up the config.
+- **Debug logging is off by default.** Set `settings.debug: true` (or `export NOTIFY_DEBUG=1`)
+  to trace fires to `settings.log` (default `~/.config/notify/notify.log`); the log self-caps at
+  ~1 MB.
+- **The `yq` dependency installs** whenever Zsh, tmux, Claude hooks, or Codex hooks need
+  notify: `brew install yq` on macOS, or the mikefarah binary under `~/.local/bin` on Debian. Do
+  **not** `apt install yq` on Debian; that is a different tool with incompatible syntax.
 
 ### Standalone install (no chezmoi)
 

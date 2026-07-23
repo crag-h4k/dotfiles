@@ -56,6 +56,14 @@ repos:
             dot_zsh/.*
           )$
 
+  # GitHub Actions workflow linting. golang-language hook: pre-commit builds
+  # it from the go toolchain already installed by scripts/install.sh (go on
+  # macOS, golang on Debian), so no separate system install is needed.
+  - repo: https://github.com/rhysd/actionlint
+    rev: v1.7.12
+    hooks:
+      - id: actionlint
+
   # Markdown linting (global rule: markdownlint-compliant).
   - repo: https://github.com/igorshubovych/markdownlint-cli
     rev: v0.43.0
