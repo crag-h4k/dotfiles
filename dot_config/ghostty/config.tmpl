@@ -59,6 +59,12 @@ mouse-hide-while-typing = true
 confirm-close-surface = false
 # Auto-detected shell integration keeps cwd reporting and prompt marks working.
 shell-integration = detect
+# Fix "unknown terminal type xterm-ghostty" over SSH: ssh-env converts TERM to
+# xterm-256color on remotes, so no terminfo is pushed. ssh-terminfo is left OFF
+# on purpose: pushing ghostty's terminfo garbled input on some Debian boxes
+# (chonk) whose ncurses renders the entry imperfectly. 256color is universal.
+# cursor,title,path are the current enabled defaults; sudo stays off.
+shell-integration-features = cursor,title,path,ssh-env
 
 # ---- Quick terminal (Yakuake / Guake-style dropdown) ------------------------
 # One always-available dropdown terminal that slides down from the top of the
