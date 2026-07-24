@@ -13,6 +13,12 @@ warn() { printf 'WARN: %s\n' "$*" >&2; }
 
 # os_detect → "macos" | "debian" | "unsupported"
 os_detect() {
+    # Shared with package-plan tests so installer paths can be exercised with
+    # stubbed package managers without mutating the host platform.
+    if [[ -n "${DOTFILES_PLAN_OS:-}" ]]; then
+        printf '%s\n' "$DOTFILES_PLAN_OS"
+        return
+    fi
     case "$(uname -s)" in
         Darwin) echo "macos" ;;
         Linux)
@@ -50,6 +56,60 @@ apt_deb822_repo_configured() {
         ' "$file" && return 0
     done
     return 1
+}
+
+render_deb822_source() {
+    local uri="$1" suite="$2" keyring="$3" arch="${4:-$(dpkg --print-architecture)}"
+    printf 'Types: deb\n'
+    printf 'URIs: %s\n' "$uri"
+    printf 'Suites: %s\n' "$suite"
+    printf 'Components: main\n'
+    printf 'Architectures: %s\n' "$arch"
+    printf 'Signed-By: %s\n' "$keyring"
+}
+
+install_debian_apt_repo() {
+    local label="$1" uri="$2" suite="$3" key_url="$4" keyring="$5" source_file="$6"
+    if apt_deb822_repo_configured "$uri"; then
+        info "$label apt repo already configured"
+        return 0
+    fi
+
+    require_cmd curl
+    local tmp_dir source_tmp
+    tmp_dir=$(mktemp -d)
+    source_tmp="$tmp_dir/repo.sources"
+    info "adding $label apt repo"
+    if ! curl -fsSL -o "$tmp_dir/repo.asc" "$key_url"; then
+        warn "could not download the $label signing key"
+        rm -rf "$tmp_dir"
+        return 1
+    fi
+    render_deb822_source "$uri" "$suite" "$keyring" > "$source_tmp"
+    sudo install -d -m 0755 /etc/apt/keyrings
+    sudo install -m 0644 "$tmp_dir/repo.asc" "$keyring"
+    sudo install -m 0644 "$source_tmp" "$source_file"
+    rm -rf "$tmp_dir"
+}
+
+ensure_nodesource_apt_repo() {
+    install_debian_apt_repo \
+        "NodeSource Node.js 24" \
+        "https://deb.nodesource.com/node_24.x" \
+        "nodistro" \
+        "https://deb.nodesource.com/gpgkey/nodesource-repo.gpg.key" \
+        "/etc/apt/keyrings/nodesource.asc" \
+        "/etc/apt/sources.list.d/nodesource.sources"
+}
+
+ensure_trivy_apt_repo() {
+    install_debian_apt_repo \
+        "Aqua Security Trivy" \
+        "https://aquasecurity.github.io/trivy-repo/deb" \
+        "generic" \
+        "https://aquasecurity.github.io/trivy-repo/deb/public.key" \
+        "/etc/apt/keyrings/trivy.asc" \
+        "/etc/apt/sources.list.d/trivy.sources"
 }
 
 # Add the GitHub CLI apt repo on Debian if gh is not already installed.
@@ -101,6 +161,132 @@ ensure_chezmoi() {
             return 1
             ;;
     esac
+}
+
+github_latest_release_tag() {
+    local repo="$1" tmp_json tag
+    tmp_json=$(mktemp)
+    if ! curl -fsSL -o "$tmp_json" "https://api.github.com/repos/${repo}/releases/latest"; then
+        rm -f "$tmp_json"
+        return 1
+    fi
+    tag=$(awk -F'"' '/"tag_name":/{print $4; exit}' "$tmp_json")
+    rm -f "$tmp_json"
+    [[ -n "$tag" ]] || return 1
+    printf '%s\n' "$tag"
+}
+
+tflint_release_arch() {
+    case "$1" in
+        x86_64|amd64)  echo "amd64" ;;
+        aarch64|arm64) echo "arm64" ;;
+        *) return 1 ;;
+    esac
+}
+
+tenv_release_arch() {
+    case "$1" in
+        x86_64|amd64)  echo "x86_64" ;;
+        aarch64|arm64) echo "arm64" ;;
+        *) return 1 ;;
+    esac
+}
+
+verify_release_checksum() {
+    local dir="$1" checksums="$2" asset="$3"
+    (
+        cd "$dir"
+        awk -v asset="$asset" '$2 == asset || $2 == "*" asset' "$checksums" \
+            > selected-checksum.txt
+        [[ -s selected-checksum.txt ]]
+        sha256sum -c selected-checksum.txt
+    )
+}
+
+install_tflint_debian() {
+    if command -v tflint >/dev/null 2>&1; then
+        info "tflint already on PATH: $(command -v tflint)"
+        return 0
+    fi
+    require_cmd curl
+    require_cmd unzip
+    local arch tag asset tmp_dir
+    arch=$(tflint_release_arch "$(uname -m)") \
+        || { warn "unsupported arch $(uname -m) for tflint"; return 1; }
+    tag=$(github_latest_release_tag terraform-linters/tflint) \
+        || { warn "could not determine the latest tflint release"; return 1; }
+    asset="tflint_linux_${arch}.zip"
+    tmp_dir=$(mktemp -d)
+    info "fetching tflint ${tag} (${arch})"
+    if ! curl -fsSL -o "$tmp_dir/$asset" \
+        "https://github.com/terraform-linters/tflint/releases/download/${tag}/${asset}" \
+        || ! curl -fsSL -o "$tmp_dir/checksums.txt" \
+        "https://github.com/terraform-linters/tflint/releases/download/${tag}/checksums.txt" \
+        || ! verify_release_checksum "$tmp_dir" checksums.txt "$asset"; then
+        warn "tflint download or checksum verification failed"
+        rm -rf "$tmp_dir"
+        return 1
+    fi
+    unzip -oq "$tmp_dir/$asset" -d "$tmp_dir/unpack"
+    mkdir -p "$HOME/.local/bin"
+    install -m 0755 "$tmp_dir/unpack/tflint" "$HOME/.local/bin/tflint"
+    rm -rf "$tmp_dir"
+    info "tflint installed: $("$HOME/.local/bin/tflint" --version 2>/dev/null | head -1)"
+}
+
+install_tenv_debian() {
+    if command -v tenv >/dev/null 2>&1 && [[ -x "$HOME/.local/bin/terraform" ]]; then
+        info "tenv and its terraform proxy already present"
+        return 0
+    fi
+    require_cmd curl
+    local arch tag asset checksums tmp_dir
+    arch=$(tenv_release_arch "$(uname -m)") \
+        || { warn "unsupported arch $(uname -m) for tenv"; return 1; }
+    tag=$(github_latest_release_tag tofuutils/tenv) \
+        || { warn "could not determine the latest tenv release"; return 1; }
+    asset="tenv_${tag}_Linux_${arch}.tar.gz"
+    checksums="tenv_${tag}_checksums.txt"
+    tmp_dir=$(mktemp -d)
+    info "fetching tenv ${tag} (${arch})"
+    if ! curl -fsSL -o "$tmp_dir/$asset" \
+        "https://github.com/tofuutils/tenv/releases/download/${tag}/${asset}" \
+        || ! curl -fsSL -o "$tmp_dir/$checksums" \
+        "https://github.com/tofuutils/tenv/releases/download/${tag}/${checksums}" \
+        || ! verify_release_checksum "$tmp_dir" "$checksums" "$asset"; then
+        warn "tenv download or checksum verification failed"
+        rm -rf "$tmp_dir"
+        return 1
+    fi
+    mkdir -p "$tmp_dir/unpack" "$HOME/.local/bin"
+    tar -xzf "$tmp_dir/$asset" -C "$tmp_dir/unpack"
+    [[ -x "$tmp_dir/unpack/tenv" && -x "$tmp_dir/unpack/terraform" ]] \
+        || { warn "tenv archive did not contain the expected proxies"; rm -rf "$tmp_dir"; return 1; }
+    install -m 0755 "$tmp_dir/unpack/tenv" "$HOME/.local/bin/tenv"
+    install -m 0755 "$tmp_dir/unpack/terraform" "$HOME/.local/bin/terraform"
+    rm -rf "$tmp_dir"
+    info "tenv installed: $("$HOME/.local/bin/tenv" --version 2>/dev/null | head -1)"
+}
+
+verify_node_major() {
+    local wanted="$1" version major
+    command -v node >/dev/null 2>&1 || return 1
+    version=$(node --version 2>/dev/null) || return 1
+    major=${version#v}
+    major=${major%%.*}
+    [[ "$major" == "$wanted" ]]
+}
+
+bootstrap_tenv_terraform() {
+    local tenv_bin
+    if [[ -x "$HOME/.local/bin/tenv" ]]; then
+        tenv_bin="$HOME/.local/bin/tenv"
+    else
+        tenv_bin=$(command -v tenv 2>/dev/null) || return 1
+    fi
+    info "installing the latest stable Terraform fallback with tenv"
+    TENV_AUTO_INSTALL=true TENV_VALIDATION=signature "$tenv_bin" tf install latest
+    TENV_AUTO_INSTALL=true TENV_VALIDATION=signature "$tenv_bin" tf use latest
 }
 
 # Install the latest tagged neovim release from GitHub, system-wide.

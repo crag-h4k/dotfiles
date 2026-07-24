@@ -186,6 +186,7 @@ export_install_base() {
 
 @test "install-notify.sh: yq missing + DOTFILES_ASSUME_YES=1 reaches ensure_yq (brew)" {
   run env PATH="${STUB_DIR}:/usr/bin:/bin" HOME="${TEST_HOME}" \
+    DOTFILES_PLAN_OS=macos \
     DOTFILES_ASSUME_YES=1 DOTFILES_TTY="${NO_TTY}" \
     DOTFILES_PKG_CONFIRM_SENTINEL="${NO_SENTINEL}" \
     bash "$NOTIFY"

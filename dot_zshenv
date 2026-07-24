@@ -18,6 +18,10 @@ export LANG="en_US.UTF-8"
 export UPDATE_ZSH_DAYS=7
 export HISTTIMEFORMAT="%d-%b-%y %*"
 export ARCH="$(arch)"
+# tenv's terraform proxy resolves project pins/constraints and installs a
+# missing version only after validating HashiCorp's checksum signature.
+export TENV_AUTO_INSTALL=true
+export TENV_VALIDATION=signature
 #
 case "$OSTYPE" in
     darwin*)

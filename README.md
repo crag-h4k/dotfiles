@@ -2,8 +2,7 @@
 
 | Check | Status |
 | --- | --- |
-| Pre-commit (PR) | [![Pre-commit](https://github.com/crag-h4k/dotfiles/actions/workflows/ci.yaml/badge.svg?branch=main&event=pull_request)](https://github.com/crag-h4k/dotfiles/actions/workflows/ci.yaml) |
-| Release (main) | [![Release](https://github.com/crag-h4k/dotfiles/actions/workflows/ci.yaml/badge.svg?branch=main&event=push)](https://github.com/crag-h4k/dotfiles/actions/workflows/ci.yaml) |
+| CI (main, including pre-commit) | [![CI](https://github.com/crag-h4k/dotfiles/actions/workflows/ci.yaml/badge.svg?branch=main&event=push)](https://github.com/crag-h4k/dotfiles/actions/workflows/ci.yaml?query=branch%3Amain) |
 
 Single-repo dotfile deployment using [chezmoi](https://chezmoi.io). `~` is the
 only repo you need to clone on a new host.
@@ -63,6 +62,8 @@ The chezmoi bootstrap line:
      `~/.config/nvim/` with the tracked config.
    - Places the linter configs at their own conventional paths (`~/.darglint`,
      `~/.flake8`, `~/.tflint.hcl`, `~/.markdownlint.yaml`, `~/.config/yamllint`).
+   - With Neovim selected, installs Node.js 24 LTS, tenv-managed Terraform,
+     TFLint, Trivy, and Docker's Dockerfile/Compose language server.
    - Runs `run_before_00-backup.sh` first, which snapshots the previous
      (pre-apply) version of your configs into `~/.dotfiles-backup/<timestamp>/`
      before anything is overwritten - every managed file plus colocated

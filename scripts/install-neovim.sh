@@ -32,12 +32,11 @@ main() {
     os=$(os_detect)
     info "install-neovim: $os"
 
-    # Packages are installed by the batched call in install.sh. tflint (macOS tap)
-    # and install_neovim_debian (Debian binary) are also called from install.sh.
+    # Packages and standalone binaries are installed by install.sh before this
+    # post-install step runs.
 
     # On Debian: markdownlint-cli2 is not in apt; install via npm.
     if [[ "$os" == "debian" ]]; then
-        warn "tflint and hadolint not installed on Debian by this script; install separately if needed"
         npm install -g --prefix "$HOME/.local" markdownlint-cli2 \
             || warn "markdownlint-cli2 npm install failed; continuing"
     fi

@@ -144,7 +144,7 @@ _build() {
                 _add brew-formula gawk "Homebrew core"
             fi
             if [[ "$INSTALL_NEOVIM" == true ]]; then
-                for pkg in cmake go hadolint llvm lua@5.4 luarocks markdownlint-cli2 neovim node python3 shellcheck yamllint; do
+                for pkg in cmake go llvm lua@5.4 luarocks markdownlint-cli2 neovim node python3 shellcheck tenv trivy yamllint; do
                     _add brew-formula "$pkg" "Homebrew core"
                 done
                 _add brew-formula terraform-linters/tap/tflint "Homebrew tap terraform-linters/tap"
@@ -158,7 +158,7 @@ _build() {
             [[ "$INSTALL_TERMINAL_ITERM2" == true ]] && _add brew-cask iterm2 "Homebrew cask"
             ;;
         debian)
-            for pkg in git make curl ca-certificates gum; do
+            for pkg in git make curl ca-certificates gnupg gum; do
                 _add apt "$pkg" "Debian apt repository"
             done
             if [[ "$INSTALL_ZSH" == true ]]; then
@@ -172,10 +172,15 @@ _build() {
                 done
             fi
             if [[ "$INSTALL_NEOVIM" == true ]]; then
-                for pkg in build-essential cmake golang jq luarocks nodejs npm python3 python3-pip python3-venv shellcheck yamllint; do
+                for pkg in build-essential cmake golang jq luarocks python3 python3-pip python3-venv shellcheck unzip yamllint; do
                     _add apt "$pkg" "Debian apt repository"
                 done
+                _add apt nodejs "NodeSource Node.js 24 apt repository"
+                _add apt trivy "Aqua Security apt repository"
                 _add github-release neovim "https://github.com/neovim/neovim/releases" nvim
+                _add github-release tflint "https://github.com/terraform-linters/tflint/releases" tflint
+                _add github-release tenv "https://github.com/tofuutils/tenv/releases" tenv
+                _add github-release terraform "https://releases.hashicorp.com/terraform/" terraform
                 _add npm markdownlint-cli2 "https://www.npmjs.com/package/markdownlint-cli2"
             fi
             [[ "$INSTALL_NOTIFY" == true ]] && _add github-release yq "https://github.com/mikefarah/yq/releases" yq
