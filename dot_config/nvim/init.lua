@@ -521,8 +521,9 @@ require("lazy").setup({
   },
 })
 
+-- base16-nvim's setup() applies the scheme directly from the 16 colors, so
+-- there is no separate :colorscheme to run.
 dotfiles_palette.setup()
-vim.cmd.colorscheme(dotfiles_palette.colorscheme)
 
 -- Replace NERDTree's old <C-n> toggle with Oil
 vim.keymap.set("n", "<C-n>", "<CMD>Oil<CR>", { desc = "Oil: file explorer" })

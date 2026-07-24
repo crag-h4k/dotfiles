@@ -6,6 +6,7 @@ LICENSE
 scripts
 docs
 tests
+vendor
 *.example
 *.ig
 # Python bytecode (e.g. from validating modify_*.json scripts). A cached

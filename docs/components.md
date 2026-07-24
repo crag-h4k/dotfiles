@@ -10,6 +10,7 @@
     - [ghostty](#ghostty)
     - [iterm2](#iterm2)
 - [Changing components later](#changing-components-later)
+  - [Changing the palette](#changing-the-palette)
   - [Changing the Zsh prompt](#changing-the-zsh-prompt)
 
 ## Choosing components
@@ -27,15 +28,16 @@ Without `gum` - if you skipped the bootstrap install - it falls back to a typed 
 
 ```text
 Components to install:
-  1) zsh      oh-my-zsh, plugins, custom functions, aliases
-  2) tmux     tmux + plugins (tpm, resurrect, sensible, yank)
-  3) neovim   neovim, lazy.nvim, language servers, linters
-  4) git      git config files (config, personal, ignore_global)
-  5) ai       AI tools (claude_hooks, codex_hooks, statusline, codecompanion)
-  6) terminal terminal emulator config (ghostty, iterm2)
+  1) zsh         oh-my-zsh, plugins, custom functions, aliases
+  2) tmux        tmux + plugins (tpm, resurrect, sensible, yank)
+  3) neovim      neovim, lazy.nvim, language servers, linters
+  4) git         git config files (config, personal, ignore_global)
+  5) ai          AI tools (claude_hooks, codex_hooks, statusline, codecompanion)
+  6) terminal    terminal emulator config (ghostty, iterm2)
+  7) colorscheme re-pick the shared color scheme (unchecked keeps the current one)
 
   all   the default set (1 2 3 4)
-  all+  everything, adds ai, terminal
+  all+  everything, adds ai, terminal, colorscheme
 
 Enter numbers (e.g. "1 3"), a keyword above, or press Enter for default (1 2 3 4)
 ```
@@ -48,7 +50,7 @@ tables. For the typed menu:
 | Numbers (e.g. `1 3`) | Any subset; spacing/order don't matter - `1 3`, `13`, and `3 1` are equivalent |
 | Enter | The default, `1 2 3 4` (zsh + tmux + neovim + git; no AI tools) |
 | `all` | The default set (`1 2 3 4`) |
-| `all+` | Everything, adding the AI tools and the `terminal` component |
+| `all+` | Everything, adding the AI tools, `terminal`, and the `colorscheme` picker |
 
 Like the other submenus, `all+` takes each parent at its default sub-features only, so
 `terminal` comes on with `ghostty` (its default) but not `iterm2`; add `iterm2` by selecting
@@ -56,7 +58,10 @@ it in the submenu.
 
 The component list is the single source of truth in `.chezmoi.toml.tmpl`; the gum options and
 the typed menu are both generated from it, so adding a component is a one-line edit there. Set
-`DOTFILES_NO_TUI=1` to force the typed menu even when gum is installed.
+`DOTFILES_NO_TUI=1` to force the typed menu even when gum is installed. `colorscheme` is an
+init-time action rather than an installed component: it appears in the menu but is not stored
+under `[data.components]`; checking it re-opens the palette picker (see
+[Palette and install confirmation](#palette-and-install-confirmation)).
 
 ### Sub-feature submenus (git, ai, terminal)
 
@@ -115,17 +120,30 @@ re-prompting.
 
 ### Palette and install confirmation
 
-After component selection, choose one global palette: Dracula, Catppuccin Mocha, Gruvbox Dark,
-or Tokyo Night. The selected ID is stored as `data.palette`. The canonical colors live in
-`.chezmoidata/palettes.yaml` and render Ghostty, iTerm2, tmux, notify, the Claude statusline,
-the Codex TextMate theme, and the Neovim theme choice. Dracula is the default.
+The palette is re-picked only when you check the `colorscheme` component; otherwise the current
+palette is kept and init prints `keeping <name> color scheme`. When checked, a single-select
+picker lists the catalog: `gum choose` with the current scheme pre-selected, or a typed prompt
+without gum. The selected id is stored as `data.palette`, defaulting to Dracula.
 
-The final screen shows one deduped plan grouped by Homebrew formulae, Homebrew casks, apt,
-GitHub releases, npm, pip, LuaRocks, Neovim plugins, and chezmoi git externals. Every entry is
-marked `installed` or `planned` and includes its source. Choose configs and packages, configs
-only, or exit. Configs-only still fetches selected chezmoi externals and runs safe config
-finalizers, but skips package managers, direct binaries, language packages, `chsh`, and Neovim
-plugin synchronization.
+The catalog is generated from the base16 standard. `scripts/build-palettes.py` reads the
+`tinted-theming/schemes` collection (vendored as the `vendor/tinted-schemes` submodule) and writes
+`.chezmoidata/palettes.yaml`, mapping the 16 base colors to the semantic keys, the 16-entry ANSI
+array, and the notify tints. That committed catalog renders Ghostty, iTerm2, tmux, notify, the
+Claude statusline, the Codex TextMate theme, and Neovim (via `RRethy/base16-nvim`, fed the same 16
+colors), so `apply` needs no submodule, Python, or network. The generator runs at authoring time
+only: add a scheme to its `CURATED` list, rerun it, and commit. `DOTFILES_PALETTE=<id>` sets the
+palette non-interactively when `colorscheme` is selected. See [Palette catalog](palettes.md) for
+the base16 mapping, the command line, and how to add a scheme.
+
+The final screen shows the deduped plan ordered by status so the actionable items read first:
+what will be installed at the top, what will be updated next, and what is already current at the
+bottom, each line colored by status (honoring `NO_COLOR`). Update detection is local and fast:
+Homebrew (`brew outdated`) and apt (`apt list --upgradable`) report a real "to update" state;
+other sources (GitHub releases, npm, pip, LuaRocks, git externals, Neovim plugins) show as new or
+installed only, so the inspection stays quick. Each line names the package and its source. Choose
+configs and packages, configs only, or exit. Configs-only still fetches selected chezmoi externals
+and runs safe config finalizers, but skips package managers, direct binaries, language packages,
+`chsh`, and Neovim plugin synchronization.
 
 Non-interactive init requires `DOTFILES_INSTALL_MODE=configs` or
 `DOTFILES_INSTALL_MODE=packages`. Without one, chezmoi stops before apply.
@@ -285,6 +303,26 @@ So to enable the AI tools after the fact: set `codecompanion = true` under `[dat
 in `~/.config/chezmoi/chezmoi.toml` (or re-run the menu, include `5`, and check `codecompanion`
 in the submenu), then `chezmoi apply`. That provisions the CodeCompanion sentinel. Choose package
 mode during re-init if the ACP bridge is missing.
+
+### Changing the palette
+
+Re-run the picker and check `colorscheme`, or set `data.palette` directly.
+
+```sh
+ccomp     # alias for: chezmoi init --apply; check "colorscheme" in the menu
+```
+
+With gum, checking `colorscheme` opens a single-select list of the catalog with the current
+scheme pre-selected; leaving it unchecked keeps the current palette. Or edit the config and apply:
+
+```toml
+[data]
+    palette = "gruvbox-dark"
+```
+
+Valid ids are the `paletteOrder` keys in `.chezmoidata/palettes.yaml`. To add a scheme, add it to
+`CURATED` in `scripts/build-palettes.py`, run `python3 scripts/build-palettes.py`, and commit the
+regenerated catalog (CI's `build-palettes.py --check` fails if the commit is stale).
 
 ### Changing the Zsh prompt
 

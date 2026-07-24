@@ -22,4 +22,10 @@ export INSTALL_GIT_PERSONAL={{ dig "components" "git" "personal" false . }}
 export DOTFILES_INSTALL_MODE={{ dig "installMode" "packages" . | quote }}
 
 printf 'dotfiles: starting post-apply setup (mode=%s)...\n' "$DOTFILES_INSTALL_MODE"
+
+# Best-effort: initialize the base16 scheme submodule so this machine can
+# regenerate the palette catalog (scripts/build-palettes.py). Apply never needs
+# it - the committed catalog renders without it - so failures are ignored.
+git -C "{{ .chezmoi.sourceDir }}" submodule update --init --depth 1 vendor/tinted-schemes 2>/dev/null || true
+
 bash "{{ .chezmoi.sourceDir }}/scripts/install.sh"

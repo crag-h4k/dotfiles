@@ -17,6 +17,11 @@ _status_result=planned
 _brew_inventory_loaded=0
 _brew_formulae=$'\n'
 _brew_casks=$'\n'
+_brew_outdated_loaded=0
+_brew_outdated_formulae=$'\n'
+_brew_outdated_casks=$'\n'
+_apt_upgradable_loaded=0
+_apt_upgradable=$'\n'
 
 _plan_os() {
     if [[ -n "${DOTFILES_PLAN_OS:-}" ]]; then
@@ -44,6 +49,30 @@ _load_brew_inventory() {
     _brew_casks=$'\n'"$output"$'\n'
 }
 
+# Outdated inventories for the "needs update" tier. Loaded once, and only when a
+# package is actually installed (so a fresh machine with nothing installed never
+# pays for them). brew outdated is a local metadata check, not a network fetch.
+_load_brew_outdated() {
+    local output
+    [[ "$_brew_outdated_loaded" -eq 1 ]] && return 0
+    _brew_outdated_loaded=1
+    command -v brew >/dev/null 2>&1 || return 0
+    output=$(brew outdated --formula --quiet 2>/dev/null || true)
+    _brew_outdated_formulae=$'\n'"$output"$'\n'
+    output=$(brew outdated --cask --quiet 2>/dev/null || true)
+    _brew_outdated_casks=$'\n'"$output"$'\n'
+}
+
+_load_apt_upgradable() {
+    local output
+    [[ "$_apt_upgradable_loaded" -eq 1 ]] && return 0
+    _apt_upgradable_loaded=1
+    command -v apt >/dev/null 2>&1 || return 0
+    # apt list --upgradable prints "name/repo version ..."; keep the name.
+    output=$(apt list --upgradable 2>/dev/null | sed -n 's|^\([^/][^/]*\)/.*|\1|p' || true)
+    _apt_upgradable=$'\n'"$output"$'\n'
+}
+
 _status() {
     local source="$1" name="$2" probe="${3:-}"
     local lookup="${name##*/}"
@@ -53,7 +82,11 @@ _status() {
     case "$source" in
         brew-formula)
             _load_brew_inventory
-            [[ "$_brew_formulae" == *$'\n'"$lookup"$'\n'* ]] && _status_result=installed
+            if [[ "$_brew_formulae" == *$'\n'"$lookup"$'\n'* ]]; then
+                _status_result=installed
+                _load_brew_outdated
+                [[ "$_brew_outdated_formulae" == *$'\n'"$lookup"$'\n'* ]] && _status_result=update
+            fi
             ;;
         brew-cask)
             if [[ "$name" == ghostty && -d /Applications/Ghostty.app ]]; then
@@ -61,12 +94,18 @@ _status() {
                 return 0
             fi
             _load_brew_inventory
-            [[ "$_brew_casks" == *$'\n'"$lookup"$'\n'* ]] && _status_result=installed
+            if [[ "$_brew_casks" == *$'\n'"$lookup"$'\n'* ]]; then
+                _status_result=installed
+                _load_brew_outdated
+                [[ "$_brew_outdated_casks" == *$'\n'"$lookup"$'\n'* ]] && _status_result=update
+            fi
             ;;
         apt)
             if command -v dpkg-query >/dev/null 2>&1 &&
                 [[ "$(dpkg-query -W -f='${Status}' "$name" 2>/dev/null || true)" == "install ok installed" ]]; then
                 _status_result=installed
+                _load_apt_upgradable
+                [[ "$_apt_upgradable" == *$'\n'"$name"$'\n'* ]] && _status_result=update
             fi
             ;;
         github-release)
@@ -96,6 +135,15 @@ _status() {
             [[ -d "$probe" ]] && _status_result=installed
             ;;
     esac
+    # Fallback: a tool is often installed by a method the source-specific probe
+    # above cannot see - system python3, a brew formula whose name differs from
+    # its binary, luacheck under a different luarocks tree, tflint via tfswitch.
+    # If its command is on PATH, it is installed. $probe is the binary for CLI
+    # tools; for the path/library probes (git externals, pip modules) command -v
+    # simply returns false, so this adds no false positives.
+    if [[ "$_status_result" == planned ]] && command -v "$probe" >/dev/null 2>&1; then
+        _status_result=installed
+    fi
     # _status communicates only through $_status_result; its exit code is
     # meaningless. Return 0 explicitly: otherwise a not-installed probe leaves the
     # final `[[ ... ]] && ...` short-circuiting to 1, and under `set -e` that aborts
@@ -147,7 +195,7 @@ _build() {
                 for pkg in cmake go hadolint llvm lua@5.4 luarocks markdownlint-cli2 neovim node python3 shellcheck yamllint; do
                     _add brew-formula "$pkg" "Homebrew core"
                 done
-                _add brew-formula terraform-linters/tap/tflint "Homebrew tap terraform-linters/tap"
+                _add brew-formula terraform-linters/tap/tflint "Homebrew tap terraform-linters/tap" tflint
             fi
             [[ "$INSTALL_NOTIFY" == true ]] && _add brew-formula yq "Homebrew core"
             if [[ "$INSTALL_AI_STATUSLINE" == true ]]; then
@@ -215,33 +263,39 @@ _build() {
     fi
 }
 
-_source_label() {
-    case "$1" in
-        brew-formula) printf 'Homebrew formulae' ;;
-        brew-cask) printf 'Homebrew casks' ;;
-        apt) printf 'apt packages' ;;
-        github-release) printf 'GitHub release binaries' ;;
-        npm) printf 'npm globals' ;;
-        pip) printf 'Python virtual environment' ;;
-        luarocks) printf 'LuaRocks' ;;
-        git-external) printf 'chezmoi git externals' ;;
-        neovim-plugin) printf 'Neovim plugin sync' ;;
-    esac
-}
-
+# Status-first plan: new items to install at the top, outdated ones next, and
+# already-current ones at the bottom. Colored by status when the output lands on
+# a terminal (or DOTFILES_PLAN_COLOR is set); honors NO_COLOR.
 _display() {
-    local wanted source name status origin record printed
-    printf 'Deduped download plan\n'
-    for wanted in brew-formula brew-cask apt github-release npm pip luarocks neovim-plugin git-external; do
-        printed=0
+    local tier wanted source name status origin record n label tcolor
+    local c_new c_upd c_old c_hdr c_rst
+    if [[ ( -t 1 || -n "${DOTFILES_PLAN_COLOR:-}" ) && -z "${NO_COLOR:-}" ]]; then
+        c_new=$'\033[32m'; c_upd=$'\033[33m'; c_old=$'\033[2m'
+        c_hdr=$'\033[1m'; c_rst=$'\033[0m'
+    else
+        c_new=""; c_upd=""; c_old=""; c_hdr=""; c_rst=""
+    fi
+    printf '%sInstall plan%s\n' "$c_hdr" "$c_rst"
+    for tier in planned update installed; do
+        n=0
         for record in "${_records[@]}"; do
             IFS=$'\t' read -r source name status origin <<< "$record"
-            [[ "$source" == "$wanted" ]] || continue
-            if [[ "$printed" -eq 0 ]]; then
-                printf '\n%s\n' "$(_source_label "$wanted")"
-                printed=1
-            fi
-            printf '  [%s] %s - %s\n' "$status" "$name" "$origin"
+            [[ "$status" == "$tier" ]] && n=$((n + 1))
+        done
+        [[ "$n" -eq 0 ]] && continue
+        case "$tier" in
+            planned)   label="To install" ; tcolor="$c_new" ;;
+            update)    label="To update"  ; tcolor="$c_upd" ;;
+            installed) label="Up to date" ; tcolor="$c_old" ;;
+        esac
+        printf '\n%s%s (%d)%s\n' "$c_hdr" "$label" "$n" "$c_rst"
+        # Cluster by source within the tier, following the install order.
+        for wanted in brew-formula brew-cask apt github-release npm pip luarocks neovim-plugin git-external; do
+            for record in "${_records[@]}"; do
+                IFS=$'\t' read -r source name status origin <<< "$record"
+                [[ "$source" == "$wanted" && "$status" == "$tier" ]] || continue
+                printf '  %s%s - %s%s\n' "$tcolor" "$name" "$origin" "$c_rst"
+            done
         done
     done
 }
