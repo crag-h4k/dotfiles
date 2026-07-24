@@ -23,9 +23,9 @@ notify tints. `scripts/build-palettes.py` generates that file from the
 `tinted-theming/schemes` collection, vendored as the `vendor/tinted-schemes` git
 submodule.
 
-The generator runs at authoring time and its output is committed. `chezmoi apply`
-only renders the committed YAML, so a fresh machine needs no submodule, no Python,
-and no network. Neovim reads the same 16 colors through `RRethy/base16-nvim`, so its
+The generator runs at authoring time and its output is committed. `chezmoi apply` only
+renders the committed YAML, so it works on a bare machine that never fetched the submodule
+or ran the generator. Neovim reads the same 16 colors through `RRethy/base16-nvim`, so its
 syntax matches the terminal ANSI byte for byte.
 
 ## What determines the palettes

@@ -141,7 +141,10 @@ bottom, each line colored by status (honoring `NO_COLOR`). Update detection is l
 Homebrew (`brew outdated`) and apt (`apt list --upgradable`) report a real "to update" state;
 other sources (GitHub releases, npm, pip, LuaRocks, git externals, Neovim plugins) show as new or
 installed only, so the inspection stays quick. Each line names the package and its source. Choose
-configs and packages, configs only, or exit. Configs-only still fetches selected chezmoi externals
+configs and packages, configs only, or exit. Packages mode installs what is missing and, on
+macOS, upgrades the managed formulae and casks that are out of date, so the "to update" tier
+clears; on Debian `apt-get install` already installs the candidate version. Configs-only still
+fetches selected chezmoi externals
 and runs safe config finalizers, but skips package managers, direct binaries, language packages,
 `chsh`, and Neovim plugin synchronization.
 

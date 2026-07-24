@@ -100,15 +100,22 @@ main() {
             macos)
                 require_cmd brew
                 while IFS= read -r pkg; do [[ -n "$pkg" ]] && packages+=("$pkg"); done < <("$planner" --names brew-formula)
-                (( ${#packages[@]} == 0 )) || brew install "${packages[@]}"
+                if (( ${#packages[@]} > 0 )); then
+                    brew install "${packages[@]}"
+                    # Bring already-installed managed formulae up to date, so the
+                    # plan's "To update" tier clears. brew upgrade skips any that
+                    # are already current.
+                    brew upgrade "${packages[@]}" || warn "some formula upgrades failed; continuing"
+                fi
                 while IFS= read -r pkg; do [[ -n "$pkg" ]] && casks+=("$pkg"); done < <("$planner" --names brew-cask)
                 if (( ${#casks[@]} > 0 )); then
                     for pkg in "${casks[@]}"; do
                         if [[ "$pkg" == ghostty && -d /Applications/Ghostty.app ]]; then
                             info "ghostty: already present; skipping cask install"
+                        elif brew list --cask "$pkg" >/dev/null 2>&1; then
+                            brew upgrade --cask "$pkg" || warn "$pkg cask upgrade failed; continuing"
                         else
-                            brew list --cask "$pkg" >/dev/null 2>&1 ||
-                                brew install --cask "$pkg" || warn "$pkg cask install failed; continuing"
+                            brew install --cask "$pkg" || warn "$pkg cask install failed; continuing"
                         fi
                     done
                 fi

@@ -73,6 +73,19 @@ _load_apt_upgradable() {
     _apt_upgradable=$'\n'"$output"$'\n'
 }
 
+# Membership test against a newline-delimited brew inventory, alias-aware: a
+# digit-suffixed alias (python3) also matches its versioned formula (python@3.x),
+# which is the name `brew list` and `brew outdated` actually report.
+_brew_member() {
+    local lookup="$1" inv="$2" stem
+    [[ "$inv" == *$'\n'"$lookup"$'\n'* ]] && return 0
+    if [[ "$lookup" == *[0-9] ]]; then
+        stem="${lookup%%[0-9]*}"
+        [[ "$inv" == *$'\n'"$stem"@* ]] && return 0
+    fi
+    return 1
+}
+
 _status() {
     local source="$1" name="$2" probe="${3:-}"
     local lookup="${name##*/}"
@@ -82,10 +95,10 @@ _status() {
     case "$source" in
         brew-formula)
             _load_brew_inventory
-            if [[ "$_brew_formulae" == *$'\n'"$lookup"$'\n'* ]]; then
+            if _brew_member "$lookup" "$_brew_formulae"; then
                 _status_result=installed
                 _load_brew_outdated
-                [[ "$_brew_outdated_formulae" == *$'\n'"$lookup"$'\n'* ]] && _status_result=update
+                _brew_member "$lookup" "$_brew_outdated_formulae" && _status_result=update
             fi
             ;;
         brew-cask)
@@ -94,10 +107,10 @@ _status() {
                 return 0
             fi
             _load_brew_inventory
-            if [[ "$_brew_casks" == *$'\n'"$lookup"$'\n'* ]]; then
+            if _brew_member "$lookup" "$_brew_casks"; then
                 _status_result=installed
                 _load_brew_outdated
-                [[ "$_brew_outdated_casks" == *$'\n'"$lookup"$'\n'* ]] && _status_result=update
+                _brew_member "$lookup" "$_brew_outdated_casks" && _status_result=update
             fi
             ;;
         apt)
@@ -245,7 +258,7 @@ _build() {
         _add neovim-plugin "lazy.nvim plugin set" "GitHub repositories declared in ~/.config/nvim/init.lua" "$HOME/.local/share/nvim/lazy"
     fi
     [[ "$INSTALL_AI_CODECOMPANION" == true ]] &&
-        _add npm @agentclientprotocol/claude-agent-acp "https://www.npmjs.com/package/@agentclientprotocol/claude-agent-acp"
+        _add npm @agentclientprotocol/claude-agent-acp "https://www.npmjs.com/package/@agentclientprotocol/claude-agent-acp" claude-agent-acp
 
     if [[ "$INSTALL_ZSH" == true ]]; then
         _add git-external ohmyzsh/ohmyzsh "https://github.com/ohmyzsh/ohmyzsh.git" "$HOME/.zsh/ohmyzsh"
