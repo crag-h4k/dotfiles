@@ -46,7 +46,17 @@ alias "cdiff"="chezmoi diff"
 alias "cu"="chezmoi update"
 alias "cre"="chezmoi apply --refresh-externals"
 alias "cdd"="cd ~/dotfiles"
+# Re-open the component/palette picker. Changing the selection re-renders the
+# run_once installer (new content hash), so newly added components install on the
+# same run. An unchanged selection does NOT re-provision - use cup for that.
 alias "ccomp"="chezmoi init --apply"
+# Update packages without re-opening the picker: clear the run_once installer's
+# scriptState hash, then apply. Installs missing packages and runs brew upgrade /
+# apt-to-candidate on the managed set, so the plan's "To update" tier clears.
+# Needs installMode=packages; pkg_confirm shows the plan and prompts [y/N] (set
+# DOTFILES_ASSUME_YES=1 for headless). Clears the whole scriptState bucket, which
+# is safe today (one run_once script); scope it if a second is ever added.
+alias "cup"="chezmoi state delete-bucket --bucket=scriptState >/dev/null 2>&1; chezmoi apply"
 # Docker - only define if docker is available
 if command -v docker &>/dev/null; then
   # Stop all containers:

@@ -55,6 +55,7 @@
     (dict "num" "5" "key" "ai"     "label" "ai"     "desc" "AI tools (claude_hooks, codex_hooks, statusline, codecompanion)"  "all" false "sub" $aiFeatures  "selKey" "aiSelection"  "header" "AI sub-features")
     (dict "num" "6" "key" "terminal" "label" "terminal" "desc" "terminal emulator config (ghostty, iterm2)"  "all" false "sub" $terminalFeatures "selKey" "terminalSelection" "header" "terminal emulator")
     (dict "num" "7" "key" "colorscheme" "label" "colorscheme" "desc" (printf "re-pick the color scheme (current: %s; unchecked keeps it)" (dig "palette" "dracula" .)) "all" false "sub" (list) "action" true)
+    (dict "num" "8" "key" "install_mode" "label" "install_mode" "desc" (printf "re-choose packages vs configs (current: %s; unchecked keeps it)" (dig "installMode" "packages" .)) "all" false "sub" (list) "action" true)
 -}}
 {{- /* Build the numbered menu text from the list. labels are padded to the    */ -}}
 {{- /* width of the widest label so descriptions line up.                       */ -}}
@@ -315,10 +316,19 @@
       (printf "INSTALL_TERMINAL_ITERM2=%t" (get (get $subResolved "terminal") "iterm2"))
 -}}
 {{- $installMode := env "DOTFILES_INSTALL_MODE" -}}
+{{- /* Reuse the persisted installMode on a re-init so `chezmoi init` does not re-show */ -}}
+{{- /* the package plan + mode prompt every time. A first init (no persisted value)    */ -}}
+{{- /* still prompts; DOTFILES_INSTALL_MODE still overrides. Package install/upgrade is */ -}}
+{{- /* confirmed at install time by install.sh's pkg_confirm (and by `cup`), not here.  */ -}}
+{{- if eq $installMode "" }}{{- $installMode = dig "installMode" "" $root }}{{- end -}}
 {{- if and (ne $installMode "") (ne $installMode "configs") (ne $installMode "packages") -}}
 {{-   fail "DOTFILES_INSTALL_MODE must be 'configs' or 'packages'" -}}
 {{- end -}}
-{{- if eq $installMode "" -}}
+{{- /* Show the plan + packages/configs prompt on a first init (no persisted mode) or */ -}}
+{{- /* when the `install_mode` toggle was checked this interactive init. Automation     */ -}}
+{{- /* (DOTFILES_INSTALL_MODE / DOTFILES_NO_TUI / no tty) never re-prompts.              */ -}}
+{{- $wantMode := or (eq $installMode "") (and (get $resolved "install_mode") (eq (env "DOTFILES_INSTALL_MODE") "") (not (env "DOTFILES_NO_TUI")) (stdinIsATTY)) -}}
+{{- if $wantMode -}}
 {{-   $hasTTY := trim (output "sh" "-c" "test -e /dev/tty && (: </dev/tty) 2>/dev/null && printf tty || true") -}}
 {{-   if eq $hasTTY "" -}}
 {{-     fail "No controlling terminal. Set DOTFILES_INSTALL_MODE=configs or DOTFILES_INSTALL_MODE=packages before chezmoi init." -}}
