@@ -1,2 +1,0 @@
-install = "$HOME/.local/bin"
-bin = "$HOME/.local/bin/terraform"

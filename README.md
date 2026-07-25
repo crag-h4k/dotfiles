@@ -60,6 +60,8 @@ The chezmoi bootstrap line:
      `~/.config/nvim/` with the tracked config.
    - Places the linter configs at their own conventional paths (`~/.darglint`,
      `~/.flake8`, `~/.tflint.hcl`, `~/.markdownlint.yaml`, `~/.config/yamllint`).
+   - With Neovim selected, installs Node.js 24 LTS, tenv-managed Terraform,
+     TFLint, Trivy, and Docker's Dockerfile/Compose language server.
    - Runs `run_before_00-backup.sh` first, which snapshots the previous
      (pre-apply) version of your configs into `~/.dotfiles-backup/<timestamp>/`
      before anything is overwritten - every managed file plus colocated

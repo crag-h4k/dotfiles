@@ -6,6 +6,7 @@
 - [Daily operation](#daily-operation)
 - [Terminal (tmux) behavior](#terminal-tmux-behavior)
 - [Statusline (Claude / Codex)](#statusline-claude--codex)
+- [Docker and Terraform checks](#docker-and-terraform-checks)
 - [Supported platforms](#supported-platforms)
 - [Uninstall](#uninstall)
 
@@ -114,6 +115,35 @@ This is Codex's built-in `tui.status_line`, configured by the chezmoi merge temp
 not currently support a command-backed footer, so it cannot use the Claude renderer's custom
 glyphs, subagent token total, session duration, or adaptive width tiers.
 
+## Docker and Terraform checks
+
+Neovim uses Docker's official language server for Dockerfiles and standard Compose filenames.
+For repository checks, use the first-party validators and Trivy:
+
+```sh
+docker build --check .
+docker compose config --quiet
+trivy config .
+```
+
+Terraform is exposed through tenv's project-aware `terraform` proxy. It honors project version
+files and `required_version`, automatically installs a missing version, and verifies HashiCorp's
+checksum signature. Common operations are:
+
+```sh
+tenv tf install 1.15.7       # explicitly install a Terraform release
+tenv tf use -w 1.15.7        # write .terraform-version in this project
+terraform fmt -check -recursive
+terraform init -backend=false
+terraform validate
+tflint --init && tflint
+trivy config .
+```
+
+The managed `~/.tflint.hcl` enables only TFLint's portable recommended Terraform rules.
+Cloud-provider rulesets belong in each project so an AWS plugin is not loaded for every
+Terraform repository.
+
 ## Supported platforms
 
 | Platform | Package manager |
@@ -131,6 +161,7 @@ chezmoi purge          # removes chezmoi source and state
 rm -rf ~/.zsh ~/.tmux ~/.config/nvim ~/.config/yamllint ~/.local/share/nvim-venv
 rm -f ~/.zshrc ~/.zshenv ~/.tmux.conf
 rm -f ~/.darglint ~/.flake8 ~/.tflint.hcl ~/.markdownlint.yaml
-rm -f ~/.gitignore_global ~/.tfswitch.toml
+rm -f ~/.gitignore_global ~/.local/bin/tenv ~/.local/bin/terraform ~/.local/bin/tflint
+rm -rf ~/.tenv
 rm -f ~/dotfiles    # convenience symlink created by install.sh
 ```

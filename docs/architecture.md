@@ -34,6 +34,10 @@
   no-terminal apply with no opt-in) degrades to configs-only for that run and leaves `installMode`
   unchanged, so the choice never becomes sticky. Configs-only skips package and login-shell side
   effects.
+- **Development toolchain.** The Neovim component provisions Node.js 24 LTS plus TFLint,
+  Trivy, and tenv. On Debian, NodeSource and Aqua Security are explicit signed apt sources;
+  TFLint and tenv release archives are checksum-verified before their binaries are installed.
+  tenv's `terraform` proxy selects project versions and verifies HashiCorp signatures.
 - **The status-bar network indicator** (`↓ • ↑` throughput) comes from the
   `xamut/tmux-network-bandwidth` plugin (cross-platform, replaces the Linux-only
   `tmux-net-speed`). It needs `coreutils`+`gawk` on macOS and `gawk`+`net-tools` on Debian;
@@ -77,8 +81,6 @@
 | `dot_tflint.hcl` | `~/.tflint.hcl` | terraform lint rules |
 | `dot_markdownlint.yaml` | `~/.markdownlint.yaml` | markdown rules; nvim-lint points `--config` here |
 | `dot_config/yamllint/config` | `~/.config/yamllint/config` | yamllint's XDG config path |
-| **System-level tool configs** | | |
-| `dot_tfswitch.toml` | `~/.tfswitch.toml` | terraform version switcher |
 | `gitconfig.example` | reference only | seed for `~/.gitconfig`; install.sh prompts to copy when `git > config` is on |
 | `gitconfig.personal.example` | reference only | seed for `~/.gitconfig.personal`; copied when `git > personal` is on |
 | `dot_gitignore_global` | `~/.gitignore_global` | global ignore patterns; gated on `git > ignore_global` (on by default) |

@@ -122,17 +122,29 @@ main() {
                 ;;
             debian)
                 [[ "$INSTALL_ZSH" == true ]] && ensure_gh_apt_repo
+                if [[ "$INSTALL_NEOVIM" == true ]]; then
+                    ensure_nodesource_apt_repo
+                    ensure_trivy_apt_repo
+                fi
                 while IFS= read -r pkg; do [[ -n "$pkg" ]] && packages+=("$pkg"); done < <("$planner" --names apt)
                 if (( ${#packages[@]} > 0 )); then
                     sudo apt-get update
                     pkg_install_many "${packages[@]}"
                 fi
                 [[ "$INSTALL_NEOVIM" == true ]] && { install_neovim_debian || warn "neovim install failed; continuing without a neovim upgrade"; }
+                if [[ "$INSTALL_NEOVIM" == true ]]; then
+                    verify_node_major 24 || die "NodeSource install did not provide Node.js 24"
+                    install_tflint_debian || warn "tflint install failed; continuing without the CLI/LSP"
+                    install_tenv_debian || warn "tenv install failed; the existing terraform command is unchanged"
+                fi
                 [[ "$INSTALL_NOTIFY" == true ]] && { install_yq_debian || warn "yq install failed; notifications use built-in fallback colors until yq is installed"; }
                 [[ "$INSTALL_TERMINAL_GHOSTTY" == true ]] && info "ghostty: config applied; skipping binary install on Debian. See README."
                 ;;
             *) die "unsupported OS: $(uname -s)" ;;
         esac
+
+        [[ "$INSTALL_NEOVIM" == true ]] \
+            && { bootstrap_tenv_terraform || warn "tenv could not install/select the latest stable Terraform fallback"; }
 
         ensure_chezmoi
         [[ "$INSTALL_ZSH" == true ]] && bash "$SCRIPT_DIR/install-zsh.sh"

@@ -112,10 +112,16 @@ either `ai > claude_hooks` or `ai > statusline` is on, `~/.codex/config.toml` is
 either `ai > codex_hooks` or `ai > statusline` is on, `~/.config/ghostty` follows
 `terminal > ghostty` (on when `terminal` is picked), and `~/.config/iterm2` follows
 `terminal > iterm2` and `darwin` (macOS only). The base files install regardless of selection:
-`~/.tfswitch.toml` and the tool linter configs (`~/.darglint`, `~/.flake8`, `~/.tflint.hcl`,
+the tool linter configs (`~/.darglint`, `~/.flake8`, `~/.tflint.hcl`,
 `~/.markdownlint.yaml`, `~/.config/yamllint/config`). Those linter configs are plain tool
 configs, not neovim's, so they live at each tool's own path and install even without the neovim
 component.
+
+The `neovim` component also installs the development binaries behind those editor integrations:
+Node.js 24 LTS, tenv and its `terraform` proxy, TFLint, Trivy, and Docker's official language
+server. tenv honors `.terraform-version`, `.tfswitchrc`, `.tool-versions`, Terragrunt
+constraints, and Terraform `required_version`; missing Terraform versions are installed with
+checksum and HashiCorp signature validation.
 
 The raw answer is stored as `componentSelection` and parsed into `[data.components]` booleans
 in `~/.config/chezmoi/chezmoi.toml`, reused on every subsequent `chezmoi apply` without

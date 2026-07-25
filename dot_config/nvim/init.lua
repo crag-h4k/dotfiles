@@ -253,13 +253,14 @@ local codecompanion_enabled = (vim.uv or vim.loop).fs_stat(vim.fn.stdpath("confi
 local servers = {
   -- LSP server IDs (must match nvim-lspconfig names)
   "bashls",
-  "dockerls",
+  "docker_language_server",
   "jinja_lsp",
   "jsonls",
   "lua_ls",
   "marksman",
   "pyright",
   "terraformls",
+  "tflint",
   "yamlls",
   "gh_actions_ls",
 }
