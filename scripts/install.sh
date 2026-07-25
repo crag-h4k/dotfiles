@@ -6,7 +6,7 @@
 # so applying again would recurse.
 #
 # Standalone use is supported too: the INSTALL_* vars default to zsh+tmux+neovim
-# on, gitconfig off, when unset.
+# on when unset.
 
 set -euo pipefail
 
@@ -20,11 +20,6 @@ source "$SCRIPT_DIR/common.sh"
 INSTALL_ZSH="${INSTALL_ZSH:-true}"
 INSTALL_TMUX="${INSTALL_TMUX:-true}"
 INSTALL_NEOVIM="${INSTALL_NEOVIM:-true}"
-# git sub-features (default off): copy ~/.gitconfig / ~/.gitconfig.personal from
-# the repo examples. ~/.gitignore_global is chezmoi-managed (file-gated in
-# .chezmoiignore), not handled here.
-INSTALL_GIT_CONFIG="${INSTALL_GIT_CONFIG:-false}"
-INSTALL_GIT_PERSONAL="${INSTALL_GIT_PERSONAL:-false}"
 # AI tooling, opt-in and off by default. codecompanion (with neovim) installs the
 # claude-agent-acp bridge and provisions the runtime sentinel init.lua checks
 # (touch/rm per-host still works). The claude_hooks sub-feature is file-gated in
@@ -50,34 +45,11 @@ DOTFILES_INSTALL_MODE="${DOTFILES_INSTALL_MODE:-packages}"
 [[ "$DOTFILES_INSTALL_MODE" == packages || "$DOTFILES_INSTALL_MODE" == configs ]] ||
     die "DOTFILES_INSTALL_MODE must be configs or packages"
 
-# Show an existing gitconfig file then prompt to create/replace from repo example.
-_setup_gitconfig_file() {
-    local target="$1" example="$2" label="$3"
-    if [[ -f "$target" ]]; then
-        info "existing $target:"
-        cat "$target"
-        printf '\n%s already exists. Replace with repo example? [y/N] ' "$target"
-    else
-        printf 'No %s found. Create from repo example? [y/N] ' "$target"
-    fi
-    local resp=""
-    # Non-fatal under `set -e`: a non-interactive apply (piped bootstrap, CI) has
-    # no tty, so read would hit EOF and return non-zero, aborting the installer.
-    # Default to "no" in that case rather than prompting into the void.
-    if [[ -t 0 ]]; then
-        read -r resp || resp=""
-    fi
-    if [[ "$resp" =~ ^[Yy]$ ]]; then
-        cp "$example" "$target"
-        info "copied $label -> $target"
-    fi
-}
-
 main() {
     local os
     os=$(os_detect)
     info "dotfiles installer: platform=$os"
-    info "components: zsh=$INSTALL_ZSH tmux=$INSTALL_TMUX neovim=$INSTALL_NEOVIM git.config=$INSTALL_GIT_CONFIG git.personal=$INSTALL_GIT_PERSONAL ai.codecompanion=$INSTALL_AI_CODECOMPANION notify=$INSTALL_NOTIFY terminal.ghostty=$INSTALL_TERMINAL_GHOSTTY terminal.iterm2=$INSTALL_TERMINAL_ITERM2"
+    info "components: zsh=$INSTALL_ZSH tmux=$INSTALL_TMUX neovim=$INSTALL_NEOVIM ai.codecompanion=$INSTALL_AI_CODECOMPANION notify=$INSTALL_NOTIFY terminal.ghostty=$INSTALL_TERMINAL_GHOSTTY terminal.iterm2=$INSTALL_TERMINAL_ITERM2"
 
     # Confirm before any package-manager mutation. Decline degrades to the same
     # configs-only tail this function already runs for `configs` mode, for THIS
@@ -173,13 +145,6 @@ main() {
         mkdir -p "$HOME/.config/nvim"
         touch "$HOME/.config/nvim/.codecompanion-enabled"
         info "CodeCompanion enabled (sentinel: ~/.config/nvim/.codecompanion-enabled)"
-    fi
-
-    if [[ "$INSTALL_GIT_CONFIG" == true ]]; then
-        _setup_gitconfig_file "$HOME/.gitconfig"          "$SCRIPT_DIR/../gitconfig.example"          "gitconfig.example"
-    fi
-    if [[ "$INSTALL_GIT_PERSONAL" == true ]]; then
-        _setup_gitconfig_file "$HOME/.gitconfig.personal" "$SCRIPT_DIR/../gitconfig.personal.example" "gitconfig.personal.example"
     fi
 
     info "all done. Open a new shell (zsh) and tmux/nvim to verify."

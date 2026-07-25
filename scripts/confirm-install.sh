@@ -5,6 +5,9 @@
 set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+# shellcheck source-path=SCRIPTDIR
+# shellcheck source=common.sh
+source "$SCRIPT_DIR/common.sh"
 PLAN="$SCRIPT_DIR/package-plan.sh"
 TTY_DEVICE="${DOTFILES_TTY:-/dev/tty}"
 
@@ -25,7 +28,7 @@ printf 'dotfiles: package inspection complete (%ss).\n\n' "$elapsed" >"$TTY_DEVI
 # are the first thing read.
 printf '%s\n\n' "$plan" >"$TTY_DEVICE"
 
-if command -v gum >/dev/null 2>&1; then
+if [[ -z "${DOTFILES_NO_TUI:-}" ]] && command -v gum >/dev/null 2>&1; then
     # Keep stdin on the terminal so gum can read its color/cursor replies.
     # SC2094: reading and writing the same TTY device in one command is
     # intentional (that is how a TTY works).
@@ -44,11 +47,11 @@ fi
 case "$choice" in
     "Install configs and packages"|1|"")
         # One-shot handshake so the apply that immediately follows this interactive
-        # init does not re-prompt: pkg_confirm (scripts/common.sh) treats a sentinel
-        # younger than ~10m as assume-yes and consumes it. Keep this path byte-for-
-        # byte identical to _pkg_confirm_sentinel in common.sh.
-        _sentinel="${DOTFILES_PKG_CONFIRM_SENTINEL:-${XDG_RUNTIME_DIR:-${TMPDIR:-/tmp}}/dotfiles-pkg-confirm}"
-        date +%s >"$_sentinel" 2>/dev/null || true
+        # init does not re-prompt. The shared resolver rejects stale inherited
+        # XDG_RUNTIME_DIR values and selects an owned UID-specific fallback.
+        _sentinel=""
+        _sentinel=$(_pkg_confirm_sentinel) || true
+        [[ -z "$_sentinel" ]] || date +%s >"$_sentinel" 2>/dev/null || true
         printf 'packages\n'
         ;;
     "Install configs only"|2) printf 'configs\n' ;;

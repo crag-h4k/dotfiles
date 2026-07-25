@@ -39,6 +39,12 @@ vendor
 {{ if not (dig "components" "neovim" true .) -}}
 .config/nvim
 {{ end -}}
+{{ if not (dig "components" "git" "config" false .) -}}
+.gitconfig
+{{ end -}}
+{{ if not (dig "components" "git" "personal" false .) -}}
+.gitconfig.personal
+{{ end -}}
 {{ if not (dig "components" "git" "ignore_global" true .) -}}
 .gitignore_global
 {{ end -}}

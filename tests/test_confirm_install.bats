@@ -24,6 +24,7 @@ setup() {
 # PATH, feeding <response>; result token lands in $output.
 drive() {
   run env PATH="/usr/bin:/bin" \
+    DOTFILES_NO_TUI=1 \
     DOTFILES_PLAN_OS=macos DOTFILES_PLAN_ASSUME_MISSING=1 \
     DOTFILES_PKG_CONFIRM_SENTINEL="${SENTINEL}" \
     "$PYTHON3" "$PTY" "$1" bash "$CONFIRM"
@@ -69,4 +70,17 @@ drive() {
   [ "$status" -eq 0 ]
   # No ESC (0x1b) byte anywhere in the captured token stream.
   [[ "$output" != *$'\x1b'* ]]
+}
+
+@test "confirm-install: rejects inherited /run/user/0 and writes UID fallback" {
+  local fallback
+  fallback="${BATS_TEST_TMPDIR}/dotfiles-runtime-$(id -u)/dotfiles-pkg-confirm"
+  run env -u DOTFILES_PKG_CONFIRM_SENTINEL PATH="/usr/bin:/bin" \
+    DOTFILES_NO_TUI=1 \
+    DOTFILES_PLAN_OS=macos DOTFILES_PLAN_ASSUME_MISSING=1 \
+    XDG_RUNTIME_DIR=/run/user/0 TMPDIR="${BATS_TEST_TMPDIR}" \
+    "$PYTHON3" "$PTY" "1" bash "$CONFIRM"
+  [ "$status" -eq 0 ]
+  [ "$output" = "packages" ]
+  [ -f "$fallback" ]
 }

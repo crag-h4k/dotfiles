@@ -81,8 +81,8 @@
 | `dot_tflint.hcl` | `~/.tflint.hcl` | terraform lint rules |
 | `dot_markdownlint.yaml` | `~/.markdownlint.yaml` | markdown rules; nvim-lint points `--config` here |
 | `dot_config/yamllint/config` | `~/.config/yamllint/config` | yamllint's XDG config path |
-| `gitconfig.example` | reference only | seed for `~/.gitconfig`; install.sh prompts to copy when `git > config` is on |
-| `gitconfig.personal.example` | reference only | seed for `~/.gitconfig.personal`; copied when `git > personal` is on |
+| `dot_gitconfig` | `~/.gitconfig` | shared Git behavior and credential helpers; gated on `git > config` |
+| `private_dot_gitconfig.personal.tmpl` | `~/.gitconfig.personal` | per-host name/email rendered from private chezmoi data with mode 600; gated on `git > personal` |
 | `dot_gitignore_global` | `~/.gitignore_global` | global ignore patterns; gated on `git > ignore_global` (on by default) |
 | `.chezmoi.toml.tmpl` | `~/.config/chezmoi/chezmoi.toml` | prompts for components, palette, and install mode before apply |
 | `.chezmoiignore` | (templated) | ignores an off component's (or sub-feature's) target paths |

@@ -297,6 +297,19 @@
 {{-   $_ := output "sh" "-c" (printf "printf '%%s\\n' %s >/dev/tty 2>/dev/null || true" (squote $msg)) -}}
 {{- end -}}
 {{- $zshTheme := dig "zshTheme" "gud" $root -}}
+{{- /* Personal Git identity is host-private chezmoi data, never repository data. */ -}}
+{{- $gitName := dig "gitName" "" $root -}}
+{{- $gitEmail := dig "gitEmail" "" $root -}}
+{{- if get (get $subResolved "git") "personal" -}}
+{{-   if eq $gitName "" }}{{- $gitName = trim (promptStringOnce $root "gitName" "Personal Git name") -}}{{- end -}}
+{{-   if eq $gitEmail "" }}{{- $gitEmail = trim (promptStringOnce $root "gitEmail" "Personal Git email") -}}{{- end -}}
+{{-   if or (eq $gitName "") (hasPrefix "Personal Git name" $gitName) -}}
+{{-     fail "git > personal requires a non-empty Git name" -}}
+{{-   end -}}
+{{-   if or (eq $gitEmail "") (hasPrefix "Personal Git email" $gitEmail) -}}
+{{-     fail "git > personal requires a non-empty Git email" -}}
+{{-   end -}}
+{{- end -}}
 
 {{- /* Final confirmation happens inside the init template, before chezmoi applies */ -}}
 {{- /* any target files. The helper and install.sh consume the same package planner. */ -}}
@@ -350,6 +363,9 @@ progress = true
     palette = {{ $palette | quote }}
     zshTheme = {{ $zshTheme | quote }}
     installMode = {{ $installMode | quote }}
+{{ if get (get $subResolved "git") "personal" }}    gitName = {{ $gitName | quote }}
+    gitEmail = {{ $gitEmail | quote }}
+{{ end }}
 
 [data.components]
 {{ range $components }}{{ if and (eq (len .sub) 0) (not (hasKey . "action")) }}    {{ .key }} = {{ get $resolved .key }}

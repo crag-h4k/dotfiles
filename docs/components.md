@@ -78,8 +78,8 @@ apply once you pick the parent.
 
 | Component | Sub-feature | Target | Submenu default | Notes |
 | --- | --- | --- | --- | --- |
-| `git` | `config` | `~/.gitconfig` | off | |
-| `git` | `personal` | `~/.gitconfig.personal` | off | |
+| `git` | `config` | `~/.gitconfig` | off | chezmoi-managed shared Git behavior and GitHub CLI credential helpers |
+| `git` | `personal` | `~/.gitconfig.personal` | off | chezmoi prompts once for per-host name/email and renders the file privately (mode 600) |
 | `git` | `ignore_global` | `~/.gitignore_global` | on | matches the old, pre-submenu default behavior |
 | `ai` | `claude_hooks` | `~/.claude/settings.json` (merge) | off | merges the Claude notify hooks |
 | `ai` | `codex_hooks` | `~/.codex/config.toml` (merge) | off | merges the Codex notify hook + `tui.notifications` |
@@ -282,6 +282,8 @@ Two ways:
       palette = "dracula"
       zshTheme = "gud"
       installMode = "configs"
+      gitName = "Your Name"
+      gitEmail = "you@example.com"
 
   [data.components]
       zsh = true
@@ -311,6 +313,11 @@ Turning a component off removes its files on the next apply (its targets are now
 turning one on writes them and fetches its plugins. Unmodified managed files are removed
 cleanly. A file you edited locally is left in place rather than deleted, so back it up first if
 you want it gone.
+
+When `git > personal` is enabled, `gitName` and `gitEmail` live only in that host's
+`~/.config/chezmoi/chezmoi.toml`; they are not stored in the source repository. Chezmoi renders
+them into the private `~/.gitconfig.personal` target. The installer never prints or copies an
+existing Git configuration.
 
 Enabling a component re-runs the installer because `run_once_after_00-install.sh` embeds the
 component booleans. Packages install only when `installMode = "packages"`, and the re-run
