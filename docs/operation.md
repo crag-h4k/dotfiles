@@ -54,6 +54,10 @@ Single-pane copy needs no toggle: enter copy-mode, drag to select, and `y` copie
 on by default). `prefix + m` is only for cross-pane native selection, when you want the terminal
 to own the whole grid.
 
+A wheel-up event always enters tmux copy mode, even when the foreground TUI has requested
+application mouse reporting. Ghostty-over-SSH therefore scrolls tmux history instead of handing
+the wheel to the TUI.
+
 A flagged notify pane clears when it regains focus or receives ordinary keyboard input, a
 primary click, a drag, or a scroll event. The binding targets only the receiving pane, preserves
 normal and copy-mode mouse behavior, and leaves right-click menus untouched.
