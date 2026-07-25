@@ -1,0 +1,3 @@
+[submodule "vendor/tinted-schemes"]
+	path = vendor/tinted-schemes
+	url = https://github.com/tinted-theming/schemes

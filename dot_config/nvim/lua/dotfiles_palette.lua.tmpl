@@ -1,22 +1,34 @@
 -- ~/.config/nvim/lua/dotfiles_palette.lua
--- Generated from data.palette. Plugin setup runs once before colorscheme load.
+-- Generated from data.palette. Feeds RRethy/base16-nvim the 16 base colors so
+-- nvim syntax matches the terminal ANSI byte for byte. setup() applies the
+-- scheme directly; no separate :colorscheme is needed.
 {{- $p := get .palettes (dig "palette" "dracula" .) }}
 local palette = {
   id = {{ dig "palette" "dracula" . | quote }},
-  plugin = {{ $p.nvim_plugin | quote }},
-  lazy_name = {{ $p.nvim_lazy_name | quote }},
-  colorscheme = {{ $p.nvim_name | quote }},
+  plugin = "RRethy/base16-nvim",
+  lazy_name = "base16-nvim",
+  base16 = {
+    base00 = {{ $p.base16.base00 | quote }},
+    base01 = {{ $p.base16.base01 | quote }},
+    base02 = {{ $p.base16.base02 | quote }},
+    base03 = {{ $p.base16.base03 | quote }},
+    base04 = {{ $p.base16.base04 | quote }},
+    base05 = {{ $p.base16.base05 | quote }},
+    base06 = {{ $p.base16.base06 | quote }},
+    base07 = {{ $p.base16.base07 | quote }},
+    base08 = {{ $p.base16.base08 | quote }},
+    base09 = {{ $p.base16.base09 | quote }},
+    base0A = {{ $p.base16.base0a | quote }},
+    base0B = {{ $p.base16.base0b | quote }},
+    base0C = {{ $p.base16.base0c | quote }},
+    base0D = {{ $p.base16.base0d | quote }},
+    base0E = {{ $p.base16.base0e | quote }},
+    base0F = {{ $p.base16.base0f | quote }},
+  },
 }
 
 function palette.setup()
-{{- if eq (dig "palette" "dracula" .) "catppuccin-mocha" }}
-  require("catppuccin").setup({ flavour = "mocha" })
-{{- else if eq (dig "palette" "dracula" .) "gruvbox-dark" }}
-  require("gruvbox").setup({ contrast = "medium" })
-  vim.o.background = "dark"
-{{- else if eq (dig "palette" "dracula" .) "tokyo-night" }}
-  require("tokyonight").setup({ style = "night" })
-{{- end }}
+  require("base16-colorscheme").setup(palette.base16)
 end
 
 return palette

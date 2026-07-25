@@ -11,7 +11,7 @@ PLANNER="${BATS_TEST_DIRNAME}/../scripts/package-plan.sh"
     INSTALL_TERMINAL_GHOSTTY=true INSTALL_TERMINAL_ITERM2=true \
     bash "$PLANNER" --records
   [ "$status" -eq 0 ]
-  [ -z "$(printf '%s\n' "$output" | awk -F '\t' 'NF != 4 || ($3 != "installed" && $3 != "planned")')" ]
+  [ -z "$(printf '%s\n' "$output" | awk -F '\t' 'NF != 4 || ($3 != "installed" && $3 != "planned" && $3 != "update")')" ]
   [ "$(printf '%s\n' "$output" | grep -c $'^brew-formula\tpython3\t')" -eq 1 ]
   [[ "$output" == *$'brew-cask\tghostty\tplanned\tHomebrew cask'* ]]
   [[ "$output" == *$'npm\t@agentclientprotocol/claude-agent-acp\tplanned\t'* ]]

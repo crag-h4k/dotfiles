@@ -43,7 +43,10 @@
 -}}
 {{- /* Top-level components. git and ai carry a non-empty `sub` features list plus */ -}}
 {{- /* the submenu's persisted selection key and header; the rest have an empty    */ -}}
-{{- /* `sub` and are emitted as bare booleans under [data.components].             */ -}}
+{{- /* `sub` and are emitted as bare booleans under [data.components]. An `action` */ -}}
+{{- /* entry (colorscheme) resolves like a bare bool so we can read whether it was  */ -}}
+{{- /* checked, but it is a one-shot init toggle (gates the palette picker): it      */ -}}
+{{- /* stays out of the [data.components] output and never pre-checks on re-init.    */ -}}
 {{- $components := list
     (dict "num" "1" "key" "zsh"    "label" "zsh"    "desc" "oh-my-zsh, plugins, custom functions, aliases"  "all" true  "sub" (list))
     (dict "num" "2" "key" "tmux"   "label" "tmux"   "desc" "tmux + plugins (tpm, resurrect, sensible, yank)" "all" true  "sub" (list))
@@ -51,6 +54,8 @@
     (dict "num" "4" "key" "git"    "label" "git"    "desc" "git config files (config, personal, ignore_global)" "all" true  "sub" $gitFeatures "selKey" "gitSelection" "header" "git sub-features")
     (dict "num" "5" "key" "ai"     "label" "ai"     "desc" "AI tools (claude_hooks, codex_hooks, statusline, codecompanion)"  "all" false "sub" $aiFeatures  "selKey" "aiSelection"  "header" "AI sub-features")
     (dict "num" "6" "key" "terminal" "label" "terminal" "desc" "terminal emulator config (ghostty, iterm2)"  "all" false "sub" $terminalFeatures "selKey" "terminalSelection" "header" "terminal emulator")
+    (dict "num" "7" "key" "colorscheme" "label" "colorscheme" "desc" (printf "re-pick the color scheme (current: %s; unchecked keeps it)" (dig "palette" "dracula" .)) "all" false "sub" (list) "action" true)
+    (dict "num" "8" "key" "install_mode" "label" "install_mode" "desc" (printf "re-choose packages vs configs (current: %s; unchecked keeps it)" (dig "installMode" "packages" .)) "all" false "sub" (list) "action" true)
 -}}
 {{- /* Build the numbered menu text from the list. labels are padded to the    */ -}}
 {{- /* width of the widest label so descriptions line up.                       */ -}}
@@ -85,7 +90,9 @@
 {{- /* pre-checked; swap ", " -> "/" so --selected and the positional options stay   */ -}}
 {{- /* byte-identical and comma-free (gum matches --selected by exact string).       */ -}}
 {{-   $optOf := dict -}}
-{{-   range $components }}{{- $optOf = set $optOf .num (printf "%s) %s - %s" .num .label (.desc | replace ", " "/" | replace "," "/")) -}}{{- end -}}
+{{- /* Bold the component label; space out slash-joined desc items. The ", "->" / " */ -}}
+{{- /* swap keeps the option comma-free so gum's --selected match still works.       */ -}}
+{{-   range $components }}{{- $optOf = set $optOf .num (printf "%s) \033[1m%s\033[0m - %s" .num .label (.desc | replace ", " " / " | replace "," " / ")) -}}{{- end -}}
 {{-   $opts := list -}}
 {{-   range $components }}{{- $opts = append $opts (squote (get $optOf .num)) -}}{{- end -}}
 {{-   $hdr := "Components to install  (space toggles, enter confirms, esc cancels):" -}}
@@ -231,34 +238,63 @@
 {{-   end -}}
 {{- end -}}
 
-{{- /* Global palette selection. Color values live in .chezmoidata/palettes.yaml; */ -}}
-{{- /* this init-only list carries stable IDs and labels because chezmoi does not  */ -}}
-{{- /* load .chezmoidata while rendering the special config template. Palette     */ -}}
-{{- /* selection is deliberately typed instead of another short-lived Gum process.*/ -}}
-{{- /* promptString always prompts on an interactive re-init and shows the current */ -}}
-{{- /* palette as its default. DOTFILES_PALETTE supplies the same input for        */ -}}
-{{- /* automation. DOTFILES_NO_TUI keeps validation on the persisted value.        */ -}}
+{{- /* Global palette selection. Color values live in .chezmoidata/palettes.yaml;   */ -}}
+{{- /* the generated $paletteDefs list below carries stable ids and names because    */ -}}
+{{- /* chezmoi does not load .chezmoidata while rendering this config template. The   */ -}}
+{{- /* picker runs only when the `colorscheme` component was checked this init: gum   */ -}}
+{{- /* choose when available, typed promptString otherwise. Unchecked keeps the      */ -}}
+{{- /* current palette and echoes it. DOTFILES_PALETTE sets it for automation;        */ -}}
+{{- /* DOTFILES_NO_TUI keeps validation on the persisted value.                       */ -}}
+{{- /* GENERATED-PALETTES-BEGIN (scripts/build-palettes.py; do not edit by hand) */ -}}
 {{- $paletteDefs := list
-    (dict "id" "dracula"          "name" "Dracula")
+    (dict "id" "dracula" "name" "Dracula")
     (dict "id" "catppuccin-mocha" "name" "Catppuccin Mocha")
-    (dict "id" "gruvbox-dark"      "name" "Gruvbox Dark")
-    (dict "id" "tokyo-night"       "name" "Tokyo Night")
+    (dict "id" "catppuccin-macchiato" "name" "Catppuccin Macchiato")
+    (dict "id" "catppuccin-frappe" "name" "Catppuccin Frappe")
+    (dict "id" "gruvbox-dark" "name" "Gruvbox Dark")
+    (dict "id" "gruvbox-dark-hard" "name" "Gruvbox Dark Hard")
+    (dict "id" "gruvbox-material" "name" "Gruvbox Material")
+    (dict "id" "tokyo-night" "name" "Tokyo Night")
+    (dict "id" "nord" "name" "Nord")
+    (dict "id" "rose-pine" "name" "Rose Pine")
+    (dict "id" "rose-pine-moon" "name" "Rose Pine Moon")
+    (dict "id" "everforest" "name" "Everforest")
+    (dict "id" "kanagawa" "name" "Kanagawa")
+    (dict "id" "onedark" "name" "One Dark")
+    (dict "id" "solarized-dark" "name" "Solarized Dark")
 -}}
+{{- /* GENERATED-PALETTES-END */ -}}
 {{- $paletteIDs := list -}}
 {{- range $paletteDefs }}{{- $paletteIDs = append $paletteIDs .id -}}{{- end -}}
 {{- $palette := dig "palette" "dracula" $root -}}
 {{- if not (has $palette $paletteIDs) }}{{- $palette = "dracula" -}}{{- end -}}
-{{- $paletteInput := trim (env "DOTFILES_PALETTE") -}}
-{{- if and (eq $paletteInput "") (not (env "DOTFILES_NO_TUI")) (stdinIsATTY) -}}
-{{-   $palettePrompt := printf "Shared palette (%s)" (join " / " $paletteIDs) -}}
-{{-   $paletteInput = trim (promptString $palettePrompt $palette) -}}
-{{- end -}}
-{{- if ne $paletteInput "" -}}
-{{-   $paletteInput = $paletteInput | lower | replace "_" "-" | replace " " "-" -}}
-{{-   if not (has $paletteInput $paletteIDs) -}}
-{{-     fail (printf "Unknown palette %q. Choose one of: %s" $paletteInput (join ", " $paletteIDs)) -}}
+{{- $wantPick := get $resolved "colorscheme" -}}
+{{- $paletteInput := "" -}}
+{{- if $wantPick -}}
+{{-   $paletteInput = trim (env "DOTFILES_PALETTE") -}}
+{{-   if and (eq $paletteInput "") (not (env "DOTFILES_NO_TUI")) (stdinIsATTY) -}}
+{{-     if lookPath "gum" -}}
+{{-       $paletteOpts := list -}}
+{{-       range $paletteIDs }}{{- $paletteOpts = append $paletteOpts (squote .) -}}{{- end -}}
+{{-       $pcmd := printf "test -e /dev/tty && gum choose --header %s --selected %s %s </dev/tty 2>/dev/tty || true" (squote "Pick a color scheme") (squote $palette) (join " " $paletteOpts) -}}
+{{-       $paletteInput = trim (output "sh" "-c" $pcmd) -}}
+{{-     else -}}
+{{-       $palettePrompt := printf "Shared palette (%s)" (join " / " $paletteIDs) -}}
+{{-       $paletteInput = trim (promptString $palettePrompt $palette) -}}
+{{-     end -}}
 {{-   end -}}
-{{-   $palette = $paletteInput -}}
+{{-   if ne $paletteInput "" -}}
+{{-     $paletteInput = $paletteInput | lower | replace "_" "-" | replace " " "-" -}}
+{{-     if not (has $paletteInput $paletteIDs) -}}
+{{-       fail (printf "Unknown palette %q. Choose one of: %s" $paletteInput (join ", " $paletteIDs)) -}}
+{{-     end -}}
+{{-     $palette = $paletteInput -}}
+{{-   end -}}
+{{- else if and (not (env "DOTFILES_NO_TUI")) (stdinIsATTY) -}}
+{{-   $keepName := $palette -}}
+{{-   range $paletteDefs }}{{- if eq .id $palette }}{{- $keepName = .name -}}{{- end -}}{{- end -}}
+{{-   $msg := printf "keeping %s color scheme" $keepName -}}
+{{-   $_ := output "sh" "-c" (printf "printf '%%s\\n' %s >/dev/tty 2>/dev/null || true" (squote $msg)) -}}
 {{- end -}}
 {{- $zshTheme := dig "zshTheme" "gud" $root -}}
 
@@ -280,10 +316,19 @@
       (printf "INSTALL_TERMINAL_ITERM2=%t" (get (get $subResolved "terminal") "iterm2"))
 -}}
 {{- $installMode := env "DOTFILES_INSTALL_MODE" -}}
+{{- /* Reuse the persisted installMode on a re-init so `chezmoi init` does not re-show */ -}}
+{{- /* the package plan + mode prompt every time. A first init (no persisted value)    */ -}}
+{{- /* still prompts; DOTFILES_INSTALL_MODE still overrides. Package install/upgrade is */ -}}
+{{- /* confirmed at install time by install.sh's pkg_confirm (and by `cup`), not here.  */ -}}
+{{- if eq $installMode "" }}{{- $installMode = dig "installMode" "" $root }}{{- end -}}
 {{- if and (ne $installMode "") (ne $installMode "configs") (ne $installMode "packages") -}}
 {{-   fail "DOTFILES_INSTALL_MODE must be 'configs' or 'packages'" -}}
 {{- end -}}
-{{- if eq $installMode "" -}}
+{{- /* Show the plan + packages/configs prompt on a first init (no persisted mode) or */ -}}
+{{- /* when the `install_mode` toggle was checked this interactive init. Automation     */ -}}
+{{- /* (DOTFILES_INSTALL_MODE / DOTFILES_NO_TUI / no tty) never re-prompts.              */ -}}
+{{- $wantMode := or (eq $installMode "") (and (get $resolved "install_mode") (eq (env "DOTFILES_INSTALL_MODE") "") (not (env "DOTFILES_NO_TUI")) (stdinIsATTY)) -}}
+{{- if $wantMode -}}
 {{-   $hasTTY := trim (output "sh" "-c" "test -e /dev/tty && (: </dev/tty) 2>/dev/null && printf tty || true") -}}
 {{-   if eq $hasTTY "" -}}
 {{-     fail "No controlling terminal. Set DOTFILES_INSTALL_MODE=configs or DOTFILES_INSTALL_MODE=packages before chezmoi init." -}}
@@ -307,7 +352,7 @@ progress = true
     installMode = {{ $installMode | quote }}
 
 [data.components]
-{{ range $components }}{{ if eq (len .sub) 0 }}    {{ .key }} = {{ get $resolved .key }}
+{{ range $components }}{{ if and (eq (len .sub) 0) (not (hasKey . "action")) }}    {{ .key }} = {{ get $resolved .key }}
 {{ end }}{{ end }}
 [data.components.git]
 {{ range $gitFeatures }}    {{ .key }} = {{ get (get $subResolved "git") .key }}

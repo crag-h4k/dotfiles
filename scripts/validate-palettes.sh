@@ -8,7 +8,9 @@ REPO_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 TMP_DIR=$(mktemp -d)
 trap 'rm -rf "$TMP_DIR"' EXIT
 
-for palette in dracula catppuccin-mocha gruvbox-dark tokyo-night; do
+# Read the scheme ids from the catalog so new schemes are covered automatically.
+# ids have no spaces, so word-splitting the yq output is safe (and bash-3.2 ok).
+for palette in $(yq '.paletteOrder[]' "$REPO_DIR/.chezmoidata/palettes.yaml"); do
     cfg="$TMP_DIR/$palette.toml"
     printf '[data]\npalette = "%s"\nzshTheme = "gud"\n' "$palette" > "$cfg"
 
@@ -49,4 +51,5 @@ for palette in dracula catppuccin-mocha gruvbox-dark tokyo-night; do
     grep -q '^set -g status-bg "#[0-9a-fA-F]\{6\}"$' "$TMP_DIR/status.conf"
 done
 
-printf 'validate-palettes: OK - 4 palettes render for Ghostty, notify, iTerm2, Codex, Claude, Neovim, Zsh, and tmux\n'
+printf 'validate-palettes: OK - %s palettes render for Ghostty, notify, iTerm2, Codex, Claude, Neovim, Zsh, and tmux\n' \
+    "$(yq '.paletteOrder | length' "$REPO_DIR/.chezmoidata/palettes.yaml")"
