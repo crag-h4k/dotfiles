@@ -150,3 +150,11 @@ repos:
         language: system
         pass_filenames: false
         files: ^(dot_config/notify/.*|dot_zsh/custom/functions/notify-process\.zsh|dot_claude/executable_statusline-command\.sh|scripts/(common|confirm-install|install-neovim|install-notify|install|package-plan)\.sh|dot_claude/modify_settings\.json\.tmpl|dot_codex/modify_private_config\.toml\.tmpl|tests/test_(lib|process|statusline_command|render_modify_shim|package_plan|tooling)\.bats|tests/fixtures/.*)$
+
+      - id: bats-tmux-startup
+        name: bats (tmux startup config selection)
+        entry: bats
+        args: [tests/test_tmux_startup.bats]
+        language: system
+        pass_filenames: false
+        files: ^(dot_zshrc|dot_tmux/conf\.d/notify\.conf|tests/test_tmux_startup\.bats)$

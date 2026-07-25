@@ -45,6 +45,9 @@ source $ZSH_BASE/aliases
 # Default is true, which makes `tmux` with no args attach to the last session
 # instead of starting a new one.
 ZSH_TMUX_AUTOCONNECT=false
+# Always use the chezmoi-managed tmux config. An exported value inherited from
+# an older shell would otherwise win over the Oh My Zsh tmux plugin's default.
+export ZSH_TMUX_CONFIG="$HOME/.tmux.conf"
 
 plugins=(
     aws
