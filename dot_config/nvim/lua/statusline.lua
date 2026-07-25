@@ -66,7 +66,9 @@ endfunction
 ]])
 
 vim.g.lightline = {
-  colorscheme = "darcula",
+  -- 16color follows the terminal ANSI palette base16-nvim sets, so lightline
+  -- matches any scheme with no per-theme wiring.
+  colorscheme = "16color",
   active = {
     left = { { "mode", "paste" }, { "readonly", "filename", "modified" }, { "diag_msg" } },
     right = { { "diag_counts" }, { "lineinfo" }, { "percent" }, { "fileformat", "fileencoding", "filetype" } },

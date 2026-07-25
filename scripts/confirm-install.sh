@@ -15,19 +15,20 @@ fi
 
 started=$SECONDS
 printf 'dotfiles: inspecting installed packages...\n' >"$TTY_DEVICE"
-plan=$("$PLAN" --display)
+# Force color: --display stdout is captured here (a pipe, not a TTY), but it
+# renders to the terminal below. _display still honors NO_COLOR.
+plan=$(DOTFILES_PLAN_COLOR=1 "$PLAN" --display)
 elapsed=$(( SECONDS - started ))
 printf 'dotfiles: package inspection complete (%ss).\n\n' "$elapsed" >"$TTY_DEVICE"
 
+# Print the plan directly, no border box, so the new/outdated items at the top
+# are the first thing read.
+printf '%s\n\n' "$plan" >"$TTY_DEVICE"
+
 if command -v gum >/dev/null 2>&1; then
-    # Keep stdin on the terminal. Gum queries terminal color and cursor state;
-    # piping the plan into stdin prevents Gum from reading those replies and
-    # leaves raw OSC/CSI response bytes in the shell.
-    # SC2094: $TTY_DEVICE is a terminal device, not a regular file - reading and
-    # writing it in the same command is intentional (that is how a TTY works).
-    # shellcheck disable=SC2094
-    gum style --border rounded --padding "1 2" "$plan" \
-        <"$TTY_DEVICE" >"$TTY_DEVICE" 2>"$TTY_DEVICE"
+    # Keep stdin on the terminal so gum can read its color/cursor replies.
+    # SC2094: reading and writing the same TTY device in one command is
+    # intentional (that is how a TTY works).
     # shellcheck disable=SC2094
     choice=$(gum choose \
         --header "Choose what chezmoi should apply:" \
@@ -36,8 +37,7 @@ if command -v gum >/dev/null 2>&1; then
         "Install configs only" \
         "Exit" <"$TTY_DEVICE" 2>"$TTY_DEVICE" || true)
 else
-    printf '%s\n' "$plan" >"$TTY_DEVICE"
-    printf '\n1) Install configs and packages\n2) Install configs only\n3) Exit\nChoice [1]: ' >"$TTY_DEVICE"
+    printf '1) Install configs and packages\n2) Install configs only\n3) Exit\nChoice [1]: ' >"$TTY_DEVICE"
     IFS= read -r choice <"$TTY_DEVICE" || choice=3
 fi
 
