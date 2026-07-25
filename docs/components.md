@@ -117,11 +117,15 @@ the tool linter configs (`~/.darglint`, `~/.flake8`, `~/.tflint.hcl`,
 configs, not neovim's, so they live at each tool's own path and install even without the neovim
 component.
 
-The `neovim` component also installs the development binaries behind those editor integrations:
-Node.js 24 LTS, tenv and its `terraform` proxy, TFLint, Trivy, and Docker's official language
-server. tenv honors `.terraform-version`, `.tfswitchrc`, `.tool-versions`, Terragrunt
-constraints, and Terraform `required_version`; missing Terraform versions are installed with
-checksum and HashiCorp signature validation.
+The `neovim` component also installs the development binaries behind those editor integrations.
+The cross-platform package plan owns shell-visible markdownlint-cli2, ShellCheck, yamllint,
+TFLint, Trivy, and Luacheck. Mason owns the desired language-server set plus editor-only
+Gitleaks; startup installs only missing Mason packages and never updates or reconciles an
+installed package version. Neovim starts the servers through `vim.lsp.config()` /
+`vim.lsp.enable()`, including Docker's official Dockerfile/Compose server. tenv honors
+`.terraform-version`, `.tfswitchrc`, `.tool-versions`, Terragrunt constraints, and Terraform
+`required_version`; missing Terraform versions are installed with checksum and HashiCorp
+signature validation.
 
 The raw answer is stored as `componentSelection` and parsed into `[data.components]` booleans
 in `~/.config/chezmoi/chezmoi.toml`, reused on every subsequent `chezmoi apply` without

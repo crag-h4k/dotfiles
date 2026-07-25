@@ -250,8 +250,9 @@ vim.opt.rtp:prepend(lazypath)
 -- A fresh clone on an unknown/sensitive host never loads it until you opt in.
 local codecompanion_enabled = (vim.uv or vim.loop).fs_stat(vim.fn.stdpath("config") .. "/.codecompanion-enabled") ~= nil
 
-local servers = {
-  -- LSP server IDs (must match nvim-lspconfig names)
+local lsp_servers = {
+  -- Modern nvim-lspconfig IDs. mason-lspconfig translates these to Mason
+  -- package names and installs only servers that are currently absent.
   "bashls",
   "docker_language_server",
   "jinja_lsp",
@@ -284,86 +285,63 @@ require("lazy").setup({
 
   -- LSP server installer/manager
   {
-    "williamboman/mason.nvim",
+    "mason-org/mason.nvim",
+    lazy = false,
     config = function()
       require("mason").setup()
+
+      -- Gitleaks is editor-specific here, so Mason owns this one executable.
+      -- Deliberately install only when absent: startup never updates an
+      -- installed package or reconciles its version.
+      local registry = require("mason-registry")
+      if not registry.is_installed("gitleaks") then
+        -- A fresh host may not have a registry yet. Refresh metadata only while
+        -- the executable is missing, then install it; never update an existing
+        -- Gitleaks package during startup.
+        registry.refresh(function(registry_ok)
+          if not registry_ok then
+            vim.notify("Mason registry refresh failed; skipped Gitleaks install", vim.log.levels.WARN)
+            return
+          end
+
+          local package_ok, package = pcall(registry.get_package, "gitleaks")
+          if not package_ok then
+            vim.notify("Mason registry does not contain gitleaks", vim.log.levels.WARN)
+            return
+          end
+          if not package:is_installed() and not package:is_installing() then
+            package:install()
+          end
+        end)
+      end
+
+      require("gitleaks").setup()
     end,
   },
   {
-    "williamboman/mason-lspconfig.nvim",
+    "mason-org/mason-lspconfig.nvim",
     dependencies = {
-      "williamboman/mason.nvim",
+      "mason-org/mason.nvim",
       "hrsh7th/cmp-nvim-lsp",
       "neovim/nvim-lspconfig",
     },
     config = function()
-      local mlsp = require("mason-lspconfig")
-      mlsp.setup({ ensure_installed = servers })
-
       local capabilities = require("cmp_nvim_lsp").default_capabilities()
 
-      local function lua_settings()
-        return { Lua = { diagnostics = { globals = { "vim" } } } }
-      end
-      local function build_config(server)
-        local opts = { capabilities = capabilities }
-        if server == "lua_ls" then
-          opts.settings = lua_settings()
-        end
-        -- gh-actions-language-server crashes at initialize if it receives no
-        -- initializationOptions (it reads options.sessionToken off undefined).
-        -- The deprecated lspconfig.configs.* table lacks the init_options shim
-        -- that the modern lsp/gh_actions_ls.lua spec carries, so add it here.
-        if server == "gh_actions_ls" then
-          opts.init_options = vim.empty_dict()
-        end
-        -- Load the server config data directly without using the deprecated lspconfig framework
-        local ok, config_def = pcall(require, "lspconfig.configs." .. server)
-        if not ok or not config_def or not config_def.default_config then
-          vim.notify("mason-lspconfig: server not recognized by nvim-lspconfig: " .. server, vim.log.levels.WARN)
-          return nil
-        end
-        local cfg = vim.tbl_deep_extend("force", {}, config_def.default_config, opts)
-        cfg.name = cfg.name or server
-        return cfg
-      end
+      -- Extend every nvim-lspconfig definition with completion capabilities,
+      -- then apply the one server-specific override this config needs.
+      vim.lsp.config("*", { capabilities = capabilities })
+      vim.lsp.config("lua_ls", {
+        settings = { Lua = { diagnostics = { globals = { "vim" } } } },
+      })
 
-      local lsp_group = vim.api.nvim_create_augroup("UserLspAutoStart", { clear = true })
-
-      for _, server in ipairs(servers) do
-        local cfg = build_config(server)
-        if cfg then
-          local patterns = cfg.filetypes or "*"
-          vim.api.nvim_create_autocmd("FileType", {
-            group = lsp_group,
-            pattern = patterns,
-            callback = function(event)
-              if cfg.filetypes and #cfg.filetypes > 0 then
-                if not vim.tbl_contains(cfg.filetypes, vim.bo[event.buf].filetype) then
-                  return
-                end
-              end
-              -- gh_actions_ls attaches to the yaml filetype, but only GitHub
-              -- Actions workflow files are meaningful. Its deprecated function-form
-              -- root_dir is ignored by vim.lsp.start (which wants a string), so
-              -- gate the start on the path here instead.
-              if server == "gh_actions_ls" then
-                local name = vim.api.nvim_buf_get_name(event.buf)
-                if not name:match("[/\\]%.github[/\\]workflows[/\\]") then
-                  return
-                end
-              end
-              vim.lsp.start(vim.tbl_deep_extend("force", {}, cfg), {
-                bufnr = event.buf,
-                reuse_client = function(client, config)
-                  return client.name == config.name and client.config.root_dir == config.root_dir
-                end,
-              })
-            end,
-            desc = "Start LSP (" .. server .. ")",
-          })
-        end
-      end
+      -- mason-lspconfig owns the desired LSP install set. Disable its default
+      -- auto-enable so activation has one explicit modern path below.
+      require("mason-lspconfig").setup({
+        ensure_installed = lsp_servers,
+        automatic_enable = false,
+      })
+      vim.lsp.enable(lsp_servers)
     end,
   },
 

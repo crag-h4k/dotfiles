@@ -1,0 +1,20 @@
+title = "dotfiles Gitleaks configuration"
+
+[extend]
+useDefault = true
+
+# These paths are upstream or binary assets managed in-repo rather than authored
+# configuration. Keep project-specific exceptions explicit and reviewable here
+# instead of weakening a default detection rule.
+[[allowlists]]
+description = "Vendored upstream content"
+paths = [
+  '''^vendor/''',
+]
+
+[[allowlists]]
+description = "Binary media assets"
+paths = [
+  '''^dot_config/notify/sounds/''',
+  '''^dot_zsh/custom/functions/resources/''',
+]

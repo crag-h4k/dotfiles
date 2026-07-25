@@ -6,6 +6,14 @@
 exclude: ^vendor/
 
 repos:
+  # Official Gitleaks hook. Its upstream entry scans staged content with
+  # `--redact`; keep the arg explicit as defense against accidental hook drift.
+  - repo: https://github.com/gitleaks/gitleaks
+    rev: v8.30.1
+    hooks:
+      - id: gitleaks
+        args: [--redact]
+
   - repo: https://github.com/pre-commit/pre-commit-hooks
     rev: v5.0.0
     hooks:
@@ -149,7 +157,7 @@ repos:
         args: [tests/test_confirm_install.bats, tests/test_install_gate.bats, tests/test_lib.bats, tests/test_process.bats, tests/test_statusline_command.bats, tests/test_render_modify_shim.bats, tests/test_package_plan.bats, tests/test_tooling.bats]
         language: system
         pass_filenames: false
-        files: ^(dot_config/notify/.*|dot_zsh/custom/functions/notify-process\.zsh|dot_claude/executable_statusline-command\.sh|scripts/(common|confirm-install|install-neovim|install-notify|install|package-plan)\.sh|dot_claude/modify_settings\.json\.tmpl|dot_codex/modify_private_config\.toml\.tmpl|tests/test_(confirm_install|install_gate|lib|process|statusline_command|render_modify_shim|package_plan|tooling)\.bats|tests/fixtures/.*)$
+        files: ^(\.gitignore|\.gitleaks\.toml|\.pre-commit-config\.yaml|dot_config/notify/.*|dot_config/nvim/(init\.lua|lua/gitleaks\.lua)|dot_zsh/custom/functions/notify-process\.zsh|dot_claude/executable_statusline-command\.sh|scripts/(common|confirm-install|install-neovim|install-notify|install|package-plan)\.sh|dot_claude/modify_settings\.json\.tmpl|dot_codex/modify_private_config\.toml\.tmpl|tests/test_(confirm_install|install_gate|lib|process|statusline_command|render_modify_shim|package_plan|tooling)\.bats|tests/fixtures/.*)$
 
       - id: bats-tmux-startup
         name: bats (tmux startup config selection)
