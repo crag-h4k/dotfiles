@@ -25,7 +25,7 @@
 [user]
     useConfigOnly = true
 
-# Personal identity by default. Fill in ~/.gitconfig.personal on each host.
+# Personal identity is rendered per host when git > personal is enabled.
 [include]
     path = ~/.gitconfig.personal
 

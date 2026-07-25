@@ -21,6 +21,7 @@ EXTERNAL="$REPO_DIR/.chezmoiexternal.toml"
 IGNORE="$REPO_DIR/.chezmoiignore"
 CONFIG_TMPL="$REPO_DIR/.chezmoi.toml.tmpl"
 RUNONCE="$REPO_DIR/run_once_after_00-install.sh.tmpl"
+GIT_PERSONAL="$REPO_DIR/private_dot_gitconfig.personal.tmpl"
 
 command -v chezmoi >/dev/null 2>&1 || { echo "validate-templates: chezmoi not found" >&2; exit 1; }
 
@@ -56,6 +57,8 @@ render_components() {
     cfgdir=$(mktemp -d)
     {
         printf '[data]\n    componentSelection = "%s"\n' "$selection"
+        printf '    gitName = "Template Test User"\n'
+        printf '    gitEmail = "template-test@example.invalid"\n'
         [[ -n "$gitsel"  ]] && printf '    gitSelection = "%s"\n'      "$gitsel"
         [[ -n "$aisel"   ]] && printf '    aiSelection = "%s"\n'       "$aisel"
         [[ -n "$termsel" ]] && printf '    terminalSelection = "%s"\n' "$termsel"
@@ -287,6 +290,61 @@ assert_notify_gate true  false false false true
 assert_notify_gate false true  false false true
 assert_notify_gate false false true  false true
 assert_notify_gate false false false true  true
+
+# --- Git file gates + host-private identity render -----------------------------
+assert_git_gate() { # config personal ignore_global
+    local config="$1" personal="$2" ignore_global="$3"
+    local cfgdir ignored rendered
+    cfgdir=$(mktemp -d)
+    {
+        printf '[data]\n'
+        printf '    gitName = "Template Test User"\n'
+        printf '    gitEmail = "template-test@example.invalid"\n'
+        printf '[data.components.git]\n'
+        printf '    config = %s\n' "$config"
+        printf '    personal = %s\n' "$personal"
+        printf '    ignore_global = %s\n' "$ignore_global"
+    } >"$cfgdir/chezmoi.toml"
+    ignored=$(chezmoi execute-template --source "$REPO_DIR" --config "$cfgdir/chezmoi.toml" <"$IGNORE")
+
+    if [[ "$config" == true ]] && printf '%s\n' "$ignored" | grep -qx '.gitconfig'; then
+        echo "validate-templates: enabled git config was ignored" >&2
+        fail=1
+    elif [[ "$config" == false ]] && ! printf '%s\n' "$ignored" | grep -qx '.gitconfig'; then
+        echo "validate-templates: disabled git config was not ignored" >&2
+        fail=1
+    fi
+    if [[ "$personal" == true ]] && printf '%s\n' "$ignored" | grep -qx '.gitconfig.personal'; then
+        echo "validate-templates: enabled personal git config was ignored" >&2
+        fail=1
+    elif [[ "$personal" == false ]] && ! printf '%s\n' "$ignored" | grep -qx '.gitconfig.personal'; then
+        echo "validate-templates: disabled personal git config was not ignored" >&2
+        fail=1
+    fi
+    if [[ "$ignore_global" == true ]] && printf '%s\n' "$ignored" | grep -qx '.gitignore_global'; then
+        echo "validate-templates: enabled global git ignore was ignored" >&2
+        fail=1
+    elif [[ "$ignore_global" == false ]] && ! printf '%s\n' "$ignored" | grep -qx '.gitignore_global'; then
+        echo "validate-templates: disabled global git ignore was not ignored" >&2
+        fail=1
+    fi
+
+    if [[ "$personal" == true ]]; then
+        if ! rendered=$(chezmoi execute-template --source "$REPO_DIR" --config "$cfgdir/chezmoi.toml" <"$GIT_PERSONAL" 2>&1); then
+            echo "validate-templates: personal git config render failed: $rendered" >&2
+            fail=1
+        elif [[ "$rendered" != $'[user]\n    name = "Template Test User"\n    email = "template-test@example.invalid"' ]]; then
+            echo "validate-templates: personal git identity rendered unexpected content" >&2
+            fail=1
+        fi
+    fi
+    rm -rf "$cfgdir"
+}
+
+assert_git_gate false false false
+assert_git_gate true  false true
+assert_git_gate false true  true
+assert_git_gate true  true  true
 
 # --- run_once_after_00-install.sh.tmpl: install-var flags render correctly --
 # The terminal binary installs are gated by INSTALL_TERMINAL_* env vars dug from

@@ -118,6 +118,17 @@ export_install_base() {
   [ ! -e "$sent" ]
 }
 
+@test "pkg_confirm: inherited /run/user/0 falls back to an owned UID directory" {
+  local expected
+  expected="${BATS_TEST_TMPDIR}/dotfiles-runtime-$(id -u)/dotfiles-pkg-confirm"
+  run env -u DOTFILES_PKG_CONFIRM_SENTINEL \
+    XDG_RUNTIME_DIR=/run/user/0 TMPDIR="${BATS_TEST_TMPDIR}" \
+    bash -c "source '${COMMON}'; path=\$(_pkg_confirm_sentinel); printf '%s\\n' \"\$path\"; test -O \"\$(dirname \"\$path\")\" -a -w \"\$(dirname \"\$path\")\""
+  [ "$status" -eq 0 ]
+  [ "$output" = "$expected" ]
+  [ -d "$(dirname "$expected")" ]
+}
+
 # --- install.sh integration -----------------------------------------------------
 
 @test "install.sh packages+DOTFILES_ASSUME_YES=1 runs brew" {

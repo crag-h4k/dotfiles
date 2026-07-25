@@ -36,30 +36,13 @@ require_cmd() {
     command -v "$1" >/dev/null 2>&1 || die "required command not found: $1"
 }
 
-apt_deb822_repo_configured() {
-    local wanted_uri="$1" file
-    for file in /etc/apt/sources.list.d/*.sources; do
-        [[ -r "$file" ]] || continue
-        awk -v wanted_uri="$wanted_uri" '
-            /^[[:space:]]*#/ { next }
-            /^[[:space:]]*URIs:[[:space:]]*/ {
-                sub(/^[[:space:]]*URIs:[[:space:]]*/, "")
-                for (i = 1; i <= NF; i++) {
-                    uri = $i
-                    sub(/\/$/, "", uri)
-                    if (uri == wanted_uri) {
-                        found = 1
-                    }
-                }
-            }
-            END { exit found ? 0 : 1 }
-        ' "$file" && return 0
-    done
-    return 1
+_apt_root_path() {
+    printf '%s%s\n' "${DOTFILES_APT_ROOT:-}" "$1"
 }
 
 render_deb822_source() {
-    local uri="$1" suite="$2" keyring="$3" arch="${4:-$(dpkg --print-architecture)}"
+    local uri="$1" suite="$2" keyring="$3"
+    local arch="${4:-${DOTFILES_APT_ARCH:-$(dpkg --print-architecture)}}"
     printf 'Types: deb\n'
     printf 'URIs: %s\n' "$uri"
     printf 'Suites: %s\n' "$suite"
@@ -70,25 +53,34 @@ render_deb822_source() {
 
 install_debian_apt_repo() {
     local label="$1" uri="$2" suite="$3" key_url="$4" keyring="$5" source_file="$6"
-    if apt_deb822_repo_configured "$uri"; then
+    local keyring_target source_target tmp_dir key_tmp source_tmp
+    keyring_target=$(_apt_root_path "$keyring")
+    source_target=$(_apt_root_path "$source_file")
+    tmp_dir=$(mktemp -d)
+    key_tmp="$tmp_dir/repo-key"
+    source_tmp="$tmp_dir/repo.sources"
+    render_deb822_source "$uri" "$suite" "$keyring" >"$source_tmp"
+
+    if [[ -r "$keyring_target" && -r "$source_target" ]] \
+        && cmp -s "$source_tmp" "$source_target"; then
         info "$label apt repo already configured"
+        rm -rf "$tmp_dir"
         return 0
     fi
 
     require_cmd curl
-    local tmp_dir source_tmp
-    tmp_dir=$(mktemp -d)
-    source_tmp="$tmp_dir/repo.sources"
     info "adding $label apt repo"
-    if ! curl -fsSL -o "$tmp_dir/repo.asc" "$key_url"; then
+    if ! curl -fsSL -o "$key_tmp" "$key_url"; then
         warn "could not download the $label signing key"
         rm -rf "$tmp_dir"
         return 1
     fi
-    render_deb822_source "$uri" "$suite" "$keyring" > "$source_tmp"
-    sudo install -d -m 0755 /etc/apt/keyrings
-    sudo install -m 0644 "$tmp_dir/repo.asc" "$keyring"
-    sudo install -m 0644 "$source_tmp" "$source_file"
+    if ! sudo install -d -m 0755 "$(dirname "$keyring_target")" "$(dirname "$source_target")" \
+        || ! sudo install -m 0644 "$key_tmp" "$keyring_target" \
+        || ! sudo install -m 0644 "$source_tmp" "$source_target"; then
+        rm -rf "$tmp_dir"
+        return 1
+    fi
     rm -rf "$tmp_dir"
 }
 
@@ -112,29 +104,16 @@ ensure_trivy_apt_repo() {
         "/etc/apt/sources.list.d/trivy.sources"
 }
 
-# Add the GitHub CLI apt repo on Debian if gh is not already installed.
-# Safe to call multiple times; no-ops if gh is already in PATH. The caller
-# owns apt-get update so package installs can stay batched.
+# Manage the canonical GitHub CLI Deb822 repository. The caller owns apt-get
+# update so package installs can stay batched.
 ensure_gh_apt_repo() {
-    command -v gh >/dev/null 2>&1 && return 0
-    require_cmd curl
-    local repo_uri="https://cli.github.com/packages"
-    if apt_deb822_repo_configured "$repo_uri"; then
-        info "GitHub CLI apt repo already configured"
-        return 0
-    fi
-    info "adding GitHub CLI apt repo"
-    curl -fsSL https://cli.github.com/packages/githubcli-archive-keyring.gpg \
-        | sudo dd of=/usr/share/keyrings/githubcli-archive-keyring.gpg
-    sudo chmod go+r /usr/share/keyrings/githubcli-archive-keyring.gpg
-    {
-        printf 'Types: deb\n'
-        printf 'URIs: %s\n' "$repo_uri"
-        printf 'Suites: stable\n'
-        printf 'Components: main\n'
-        printf 'Architectures: %s\n' "$(dpkg --print-architecture)"
-        printf 'Signed-By: /usr/share/keyrings/githubcli-archive-keyring.gpg\n'
-    } | sudo tee /etc/apt/sources.list.d/github-cli.sources >/dev/null
+    install_debian_apt_repo \
+        "GitHub CLI" \
+        "https://cli.github.com/packages" \
+        "stable" \
+        "https://cli.github.com/packages/githubcli-archive-keyring.gpg" \
+        "/etc/apt/keyrings/githubcli-archive-keyring.gpg" \
+        "/etc/apt/sources.list.d/github-cli.sources"
 }
 
 # Install chezmoi to ~/.local/bin if it is not already in PATH.
@@ -504,11 +483,42 @@ _is_truthy() {
     esac
 }
 
-# Resolve the one-shot "packages confirmed at init" sentinel path. Overridable
-# via DOTFILES_PKG_CONFIRM_SENTINEL (used by the tests). MUST stay identical to
-# the path confirm-install.sh writes.
+# Select an owned, writable runtime directory for the one-shot package
+# confirmation. XDG_RUNTIME_DIR is trusted only when it belongs to this user;
+# stale sudo-exported values such as /run/user/0 therefore fall back to a
+# UID-specific directory under TMPDIR (or /tmp).
+_pkg_confirm_runtime_dir() {
+    local candidate="${XDG_RUNTIME_DIR:-}" uid base
+    if [[ -n "$candidate" && -d "$candidate" && ! -L "$candidate" \
+        && -O "$candidate" && -w "$candidate" ]]; then
+        printf '%s\n' "$candidate"
+        return 0
+    fi
+
+    uid=$(id -u)
+    for base in "${TMPDIR:-}" /tmp; do
+        [[ -n "$base" ]] || continue
+        candidate="${base%/}/dotfiles-runtime-${uid}"
+        [[ -L "$candidate" ]] && continue
+        if (umask 077; mkdir -p "$candidate") 2>/dev/null \
+            && [[ -d "$candidate" && -O "$candidate" && -w "$candidate" ]]; then
+            printf '%s\n' "$candidate"
+            return 0
+        fi
+    done
+    return 1
+}
+
+# Resolve the one-shot "packages confirmed at init" sentinel path. An explicit
+# override remains available for automation and tests.
 _pkg_confirm_sentinel() {
-    printf '%s\n' "${DOTFILES_PKG_CONFIRM_SENTINEL:-${XDG_RUNTIME_DIR:-${TMPDIR:-/tmp}}/dotfiles-pkg-confirm}"
+    if [[ -n "${DOTFILES_PKG_CONFIRM_SENTINEL:-}" ]]; then
+        printf '%s\n' "$DOTFILES_PKG_CONFIRM_SENTINEL"
+        return 0
+    fi
+    local runtime_dir
+    runtime_dir=$(_pkg_confirm_runtime_dir) || return 1
+    printf '%s/dotfiles-pkg-confirm\n' "$runtime_dir"
 }
 
 # Confirm before any package-manager mutation. One checkpoint per independent
@@ -538,8 +548,9 @@ pkg_confirm() {
         return 0
     fi
 
-    sentinel="$(_pkg_confirm_sentinel)"
-    if [[ -f "$sentinel" ]]; then
+    sentinel=""
+    sentinel=$(_pkg_confirm_sentinel) || true
+    if [[ -n "$sentinel" && -f "$sentinel" ]]; then
         if [[ -n "$(find "$sentinel" -mmin -10 2>/dev/null)" ]]; then
             rm -f "$sentinel"
             info "package install pre-confirmed at init; proceeding"
