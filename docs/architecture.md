@@ -34,10 +34,13 @@
   no-terminal apply with no opt-in) degrades to configs-only for that run and leaves `installMode`
   unchanged, so the choice never becomes sticky. Configs-only skips package and login-shell side
   effects.
-- **Development toolchain.** The Neovim component provisions Node.js 24 LTS plus TFLint,
-  Trivy, and tenv. On Debian, NodeSource and Aqua Security are explicit signed apt sources;
-  TFLint and tenv release archives are checksum-verified before their binaries are installed.
-  tenv's `terraform` proxy selects project versions and verifies HashiCorp signatures.
+- **Development toolchain.** The cross-platform Neovim package plan owns shell-visible
+  markdownlint-cli2, ShellCheck, yamllint, TFLint, Trivy, and Luacheck. Mason owns the desired
+  language-server set and editor-only Gitleaks, installing only packages that are absent rather
+  than updating or reconciling installed versions. On Debian, NodeSource and Aqua Security are
+  explicit signed apt sources; TFLint and tenv release archives are checksum-verified before
+  their binaries are installed. tenv's `terraform` proxy selects project versions and verifies
+  HashiCorp signatures.
 - **The status-bar network indicator** (`↓ • ↑` throughput) comes from the
   `xamut/tmux-network-bandwidth` plugin (cross-platform, replaces the Linux-only
   `tmux-net-speed`). It needs `coreutils`+`gawk` on macOS and `gawk`+`net-tools` on Debian;
@@ -72,6 +75,7 @@
 | `dot_codex/themes/dotfiles.tmTheme.tmpl` | `~/.codex/themes/dotfiles.tmTheme` | selected-palette Codex theme, configured through `tui.theme="dotfiles"` |
 | `dot_config/nvim/init.lua` | `~/.config/nvim/init.lua` | lazy.nvim entrypoint |
 | `dot_config/nvim/lua/dotfiles_palette.lua.tmpl` | `~/.config/nvim/lua/dotfiles_palette.lua` | selected Neovim plugin, flavor, and colorscheme |
+| `dot_config/nvim/lua/gitleaks.lua` | `~/.config/nvim/lua/gitleaks.lua` | asynchronous read/save secret warnings; honors project `.gitleaks.toml` |
 | `dot_config/nvim/lua/statusline.lua` | `~/.config/nvim/lua/statusline.lua` | |
 | `dot_config/ghostty/themes/dotfiles.conf.tmpl` | `~/.config/ghostty/themes/dotfiles.conf` | selected terminal palette |
 | `dot_config/iterm2/dotfiles.json.tmpl` | `~/.config/iterm2/dotfiles.json` | two Dynamic Profiles with generated palette colors |

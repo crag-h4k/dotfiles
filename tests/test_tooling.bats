@@ -189,7 +189,7 @@ STUB
   [ "$status" -ne 0 ]
 }
 
-@test "development package plan uses NodeSource, Trivy, TFLint, and tenv without Hadolint" {
+@test "development package plan owns cross-platform CLIs without Gitleaks or Hadolint" {
   local planner="$REPO_ROOT/scripts/package-plan.sh"
 
   run env DOTFILES_PLAN_OS=debian DOTFILES_PLAN_ASSUME_MISSING=1 \
@@ -199,13 +199,57 @@ STUB
   [[ "$output" == *$'apt\ttrivy\tplanned\tAqua Security apt repository'* ]]
   [[ "$output" == *$'github-release\ttflint\tplanned\t'* ]]
   [[ "$output" == *$'github-release\ttenv\tplanned\t'* ]]
+  [[ "$output" == *$'npm\tmarkdownlint-cli2\tplanned\t'* ]]
+  [[ "$output" == *$'apt\tshellcheck\tplanned\t'* ]]
+  [[ "$output" == *$'apt\tyamllint\tplanned\t'* ]]
+  [[ "$output" == *$'luarocks\tluacheck\tplanned\t'* ]]
   [[ "$output" != *$'apt\tnpm\t'* ]]
+  [[ "$output" != *$'\tgitleaks\t'* ]]
   [[ "$output" != *$'\thadolint\t'* ]]
 
   run env DOTFILES_PLAN_OS=macos DOTFILES_PLAN_ASSUME_MISSING=1 \
     INSTALL_NEOVIM=true bash "$planner" --records
   [ "$status" -eq 0 ]
+  [[ "$output" == *$'brew-formula\tmarkdownlint-cli2\tplanned\t'* ]]
+  [[ "$output" == *$'brew-formula\tshellcheck\tplanned\t'* ]]
   [[ "$output" == *$'brew-formula\ttenv\tplanned\t'* ]]
   [[ "$output" == *$'brew-formula\ttrivy\tplanned\t'* ]]
+  [[ "$output" == *$'brew-formula\tyamllint\tplanned\t'* ]]
+  [[ "$output" == *$'brew-formula\tterraform-linters/tap/tflint\tplanned\t'* ]]
+  [[ "$output" == *$'luarocks\tluacheck\tplanned\t'* ]]
+  [[ "$output" != *$'\tgitleaks\t'* ]]
   [[ "$output" != *$'\thadolint\t'* ]]
+}
+
+@test "Neovim uses modern LSP activation and reserves Mason tooling for Gitleaks" {
+  local init="$REPO_ROOT/dot_config/nvim/init.lua"
+  local scanner="$REPO_ROOT/dot_config/nvim/lua/gitleaks.lua"
+
+  grep -Fq 'vim.lsp.config("*"' "$init"
+  grep -Fq 'vim.lsp.config("lua_ls"' "$init"
+  grep -Fq 'vim.lsp.enable(lsp_servers)' "$init"
+  grep -Fq '"docker_language_server"' "$init"
+  grep -Fq 'ensure_installed = lsp_servers' "$init"
+  run grep -Fq 'vim.lsp.start(' "$init"
+  [ "$status" -ne 0 ]
+  run grep -Fq 'lspconfig.configs.' "$init"
+  [ "$status" -ne 0 ]
+
+  grep -Fq 'registry.get_package, "gitleaks"' "$init"
+  run grep -Fq 'registry.get_package, "markdownlint-cli2"' "$init"
+  [ "$status" -ne 0 ]
+  grep -Fq '"BufReadPost", "BufWritePost"' "$scanner"
+  grep -Fq 'vim.bo[bufnr].buftype ~= ""' "$scanner"
+  grep -Fq -- '"--redact"' "$scanner"
+  grep -Fq '.gitleaks.toml' "$scanner"
+}
+
+@test "Gitleaks policy extends defaults and lazy lock state stays untracked" {
+  grep -Fq 'useDefault = true' "$REPO_ROOT/.gitleaks.toml"
+  grep -Fq '[[allowlists]]' "$REPO_ROOT/.gitleaks.toml"
+  grep -Fxq 'lazy-lock.json' "$REPO_ROOT/.gitignore"
+
+  grep -Fq 'repo: https://github.com/gitleaks/gitleaks' "$REPO_ROOT/.pre-commit-config.yaml"
+  grep -Fq 'rev: v8.30.1' "$REPO_ROOT/.pre-commit-config.yaml"
+  grep -Fq 'args: [--redact]' "$REPO_ROOT/.pre-commit-config.yaml"
 }

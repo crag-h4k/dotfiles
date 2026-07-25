@@ -6,6 +6,7 @@
 - [Daily operation](#daily-operation)
 - [Terminal (tmux) behavior](#terminal-tmux-behavior)
 - [Statusline (Claude / Codex)](#statusline-claude--codex)
+- [Secret scanning](#secret-scanning)
 - [Docker and Terraform checks](#docker-and-terraform-checks)
 - [Supported platforms](#supported-platforms)
 - [Uninstall](#uninstall)
@@ -118,6 +119,22 @@ green progress and branch, purple usage, orange limits, and yellow paths.
 This is Codex's built-in `tui.status_line`, configured by the chezmoi merge template. Codex does
 not currently support a command-backed footer, so it cannot use the Claude renderer's custom
 glyphs, subagent token total, session duration, or adaptive width tiers.
+
+## Secret scanning
+
+Mason installs Gitleaks for Neovim only. Normal file buffers are scanned asynchronously after
+read and save; findings appear as warning diagnostics and never block either operation. Plugin,
+dependency, generated-state, and special buffers are excluded. A project-root `.gitleaks.toml`
+is passed explicitly when present, so project allowlists apply to editor scans. The dotfiles
+repo's own policy extends the Gitleaks defaults and allowlists only its vendored and binary media
+assets.
+
+The official pinned pre-commit hook is the enforcement boundary. It scans staged changes with
+redaction enabled, while the editor integration is intentionally advisory:
+
+```sh
+pre-commit run gitleaks --all-files
+```
 
 ## Docker and Terraform checks
 

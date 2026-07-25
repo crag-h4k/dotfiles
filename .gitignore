@@ -13,6 +13,7 @@ __pycache__/
 
 # Node noise (some nvim plugins end up here at install time)
 node_modules/
+lazy-lock.json
 
 # Logs
 *.log
