@@ -46,6 +46,141 @@ Signed-By: /etc/apt/keyrings/nodesource.asc" ]
   [[ "$output" == *"Signed-By: /etc/apt/keyrings/githubcli-archive-keyring.gpg"* ]]
 }
 
+@test "Debian repository management reuses an active host Deb822 definition" {
+  local stub_dir apt_root sudo_log curl_log external_source
+  stub_dir="${BATS_TEST_TMPDIR}/external-stubs"
+  apt_root="${BATS_TEST_TMPDIR}/external-root"
+  sudo_log="${BATS_TEST_TMPDIR}/external-sudo.log"
+  curl_log="${BATS_TEST_TMPDIR}/external-curl.log"
+  external_source="$apt_root/etc/apt/sources.list.d/apt.sources"
+  mkdir -p "$stub_dir" "$(dirname "$external_source")" "$apt_root/usr/share/keyrings"
+  printf '%s\n' \
+    'Types: deb' \
+    'URIs: https://cli.github.com/packages/' \
+    'Suites: stable' \
+    'Components: main' \
+    'Signed-By: /usr/share/keyrings/githubcli-archive-keyring.gpg' \
+    >"$external_source"
+  printf 'existing key\n' >"$apt_root/usr/share/keyrings/githubcli-archive-keyring.gpg"
+
+  cat >"$stub_dir/sudo" <<'STUB'
+#!/bin/sh
+printf '%s\n' "$*" >>"$DOTFILES_SUDO_LOG"
+exit 91
+STUB
+  cat >"$stub_dir/curl" <<'STUB'
+#!/bin/sh
+printf '%s\n' "$*" >>"$DOTFILES_CURL_LOG"
+exit 92
+STUB
+  chmod +x "$stub_dir/sudo" "$stub_dir/curl"
+
+  run env PATH="$stub_dir:$PATH" \
+    DOTFILES_APT_ROOT="$apt_root" DOTFILES_APT_ARCH=arm64 \
+    DOTFILES_SUDO_LOG="$sudo_log" DOTFILES_CURL_LOG="$curl_log" \
+    bash -c "source '$REPO_ROOT/scripts/common.sh'; ensure_gh_apt_repo"
+  [ "$status" -eq 0 ]
+  [[ "$output" == *"GitHub CLI apt repo already configured elsewhere"* ]]
+  [ ! -e "$apt_root/etc/apt/sources.list.d/github-cli.sources" ]
+  [ ! -e "$sudo_log" ]
+  [ ! -e "$curl_log" ]
+}
+
+@test "Debian repository management removes its duplicate beside a host definition" {
+  local stub_dir apt_root sudo_log curl_log external_source managed_source
+  stub_dir="${BATS_TEST_TMPDIR}/duplicate-stubs"
+  apt_root="${BATS_TEST_TMPDIR}/duplicate-root"
+  sudo_log="${BATS_TEST_TMPDIR}/duplicate-sudo.log"
+  curl_log="${BATS_TEST_TMPDIR}/duplicate-curl.log"
+  external_source="$apt_root/etc/apt/sources.list.d/apt.sources"
+  managed_source="$apt_root/etc/apt/sources.list.d/github-cli.sources"
+  mkdir -p "$stub_dir" "$(dirname "$external_source")"
+  printf '%s\n' \
+    'Types: deb' \
+    'URIs: https://cli.github.com/packages/' \
+    'Suites: stable' \
+    'Components: main' \
+    'Signed-By: /usr/share/keyrings/githubcli-archive-keyring.gpg' \
+    >"$external_source"
+  render_deb822_source \
+    "https://cli.github.com/packages" \
+    "stable" \
+    "/etc/apt/keyrings/githubcli-archive-keyring.gpg" \
+    "arm64" >"$managed_source"
+
+  cat >"$stub_dir/sudo" <<'STUB'
+#!/bin/sh
+printf '%s\n' "$*" >>"$DOTFILES_SUDO_LOG"
+exec "$@"
+STUB
+  cat >"$stub_dir/curl" <<'STUB'
+#!/bin/sh
+printf '%s\n' "$*" >>"$DOTFILES_CURL_LOG"
+exit 92
+STUB
+  chmod +x "$stub_dir/sudo" "$stub_dir/curl"
+
+  run env PATH="$stub_dir:$PATH" \
+    DOTFILES_APT_ROOT="$apt_root" DOTFILES_APT_ARCH=arm64 \
+    DOTFILES_SUDO_LOG="$sudo_log" DOTFILES_CURL_LOG="$curl_log" \
+    bash -c "source '$REPO_ROOT/scripts/common.sh'; ensure_gh_apt_repo"
+  [ "$status" -eq 0 ]
+  [[ "$output" == *"removing duplicate managed source"* ]]
+  [ -f "$external_source" ]
+  [ ! -e "$managed_source" ]
+  [ "$(wc -l <"$sudo_log")" -eq 1 ]
+  grep -Fq "rm -f -- $managed_source" "$sudo_log"
+  [ ! -e "$curl_log" ]
+}
+
+@test "Debian repository management ignores disabled external definitions" {
+  local stub_dir apt_root sudo_log curl_log external_source managed_source
+  stub_dir="${BATS_TEST_TMPDIR}/disabled-stubs"
+  apt_root="${BATS_TEST_TMPDIR}/disabled-root"
+  sudo_log="${BATS_TEST_TMPDIR}/disabled-sudo.log"
+  curl_log="${BATS_TEST_TMPDIR}/disabled-curl.log"
+  external_source="$apt_root/etc/apt/sources.list.d/disabled.sources"
+  managed_source="$apt_root/etc/apt/sources.list.d/github-cli.sources"
+  mkdir -p "$stub_dir" "$(dirname "$external_source")"
+  printf '%s\n' \
+    'Types: deb' \
+    'URIs: https://cli.github.com/packages' \
+    'Suites: stable' \
+    'Components: main' \
+    'Signed-By: /usr/share/keyrings/githubcli-archive-keyring.gpg' \
+    'Enabled: no' \
+    >"$external_source"
+
+  cat >"$stub_dir/sudo" <<'STUB'
+#!/bin/sh
+printf '%s\n' "$*" >>"$DOTFILES_SUDO_LOG"
+exec "$@"
+STUB
+  cat >"$stub_dir/curl" <<'STUB'
+#!/bin/sh
+out=
+while [ "$#" -gt 0 ]; do
+    case "$1" in
+        -o) out=$2; shift 2 ;;
+        -*) shift ;;
+        *) shift ;;
+    esac
+done
+printf '%s\n' "$*" >>"$DOTFILES_CURL_LOG"
+printf 'stub signing key\n' >"$out"
+STUB
+  chmod +x "$stub_dir/sudo" "$stub_dir/curl"
+
+  run env PATH="$stub_dir:$PATH" \
+    DOTFILES_APT_ROOT="$apt_root" DOTFILES_APT_ARCH=arm64 \
+    DOTFILES_SUDO_LOG="$sudo_log" DOTFILES_CURL_LOG="$curl_log" \
+    bash -c "source '$REPO_ROOT/scripts/common.sh'; ensure_gh_apt_repo"
+  [ "$status" -eq 0 ]
+  [ -f "$managed_source" ]
+  grep -q '^Signed-By: /etc/apt/keyrings/githubcli-archive-keyring.gpg$' "$managed_source"
+  [ "$(wc -l <"$sudo_log")" -eq 3 ]
+}
+
 @test "Debian repository management uses stubbed privilege and is idempotent" {
   local stub_dir apt_root sudo_log curl_log
   stub_dir="${BATS_TEST_TMPDIR}/apt-stubs"

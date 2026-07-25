@@ -21,8 +21,22 @@ jobs:
   pre-commit:
     uses: ./.github/workflows/pre-commit.yaml
 
+  trixie-build:
+    name: trixie build
+    runs-on: ubuntu-latest
+    environment: trixie
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7
+
+      - name: Build Trixie deployment image
+        run: docker build --file tests/trixie-deployment/Dockerfile.trixie --tag dotfiles-trixie-deployment .
+
+      - name: Run focused headless Trixie package deployment
+        run: docker run --rm dotfiles-trixie-deployment
+
   tag-preview:
-    needs: pre-commit
+    needs: [pre-commit, trixie-build]
     if: github.event_name == 'pull_request'
     runs-on: ubuntu-latest
     steps:
@@ -49,7 +63,7 @@ jobs:
             Merging this PR will cut: `${{ steps.tag.outputs.new_tag }}`
 
   release:
-    needs: pre-commit
+    needs: [pre-commit, trixie-build]
     if: github.event_name == 'push'
     runs-on: ubuntu-latest
     steps:

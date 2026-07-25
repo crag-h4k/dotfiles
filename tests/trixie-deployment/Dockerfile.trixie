@@ -1,0 +1,53 @@
+# Focused, fully headless deployment target for Debian Trixie.
+FROM debian:trixie-slim
+
+ARG DEBIAN_FRONTEND=noninteractive
+
+# Bootstrap only what a fresh machine needs before chezmoi owns the rest of the
+# package plan. sudo is intentionally present: deployment runs as an ordinary
+# user, matching a real workstation rather than applying dotfiles as root.
+RUN apt-get update \
+    && apt-get install -y --no-install-recommends \
+        ca-certificates \
+        curl \
+        git \
+        sudo \
+    && rm -rf /var/lib/apt/lists/*
+
+RUN sh -c "$(curl -fsLS get.chezmoi.io)" -- -b /usr/local/bin
+
+# Reproduce a host on which GitHub CLI's documented repository was configured
+# before these dotfiles. The different (but valid) keyring path triggered the
+# duplicate Signed-By failure that this deployment check must guard against.
+RUN install -d -m 0755 /usr/share/keyrings /etc/apt/sources.list.d \
+    && curl -fsSL \
+        https://cli.github.com/packages/githubcli-archive-keyring.gpg \
+        -o /usr/share/keyrings/githubcli-archive-keyring.gpg \
+    && chmod go+r /usr/share/keyrings/githubcli-archive-keyring.gpg \
+    && printf '%s\n' \
+        'Types: deb' \
+        'URIs: https://cli.github.com/packages/' \
+        'Suites: stable' \
+        'Components: main' \
+        'Signed-By: /usr/share/keyrings/githubcli-archive-keyring.gpg' \
+        > /etc/apt/sources.list.d/apt.sources
+
+RUN useradd --create-home --shell /bin/bash dotfiles \
+    && printf '%s\n' 'dotfiles ALL=(ALL) NOPASSWD: ALL' \
+        > /etc/sudoers.d/dotfiles \
+    && printf '%s\n' \
+        'Defaults:dotfiles env_keep += "APT_LISTCHANGES_FRONTEND DEBIAN_FRONTEND NEEDRESTART_MODE"' \
+        >> /etc/sudoers.d/dotfiles \
+    && chmod 0440 /etc/sudoers.d/dotfiles
+
+COPY --chown=dotfiles:dotfiles . /home/dotfiles/source
+
+USER dotfiles
+ENV HOME=/home/dotfiles
+ENV USER=dotfiles
+ENV DEBIAN_FRONTEND=noninteractive
+ENV NEEDRESTART_MODE=a
+ENV PATH=/home/dotfiles/.local/bin:/usr/local/bin:/usr/bin:/bin
+WORKDIR /home/dotfiles
+
+CMD ["bash", "/home/dotfiles/source/tests/trixie-deployment/deploy.sh"]
