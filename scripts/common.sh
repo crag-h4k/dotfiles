@@ -40,6 +40,81 @@ _apt_root_path() {
     printf '%s%s\n' "${DOTFILES_APT_ROOT:-}" "$1"
 }
 
+_apt_source_file_has_uri() {
+    local file="$1" wanted_uri="${2%/}"
+    case "$file" in
+        *.sources)
+            awk -v wanted_uri="$wanted_uri" '
+                function finish_stanza() {
+                    if (has_uri && enabled) {
+                        active = 1
+                    }
+                    has_uri = 0
+                    enabled = 1
+                }
+                BEGIN { enabled = 1 }
+                /^[[:space:]]*$/ {
+                    finish_stanza()
+                    next
+                }
+                /^[[:space:]]*#/ { next }
+                /^[[:space:]]*Enabled:[[:space:]]*/ {
+                    value = $0
+                    sub(/^[[:space:]]*Enabled:[[:space:]]*/, "", value)
+                    if (tolower(value) == "no") {
+                        enabled = 0
+                    }
+                    next
+                }
+                /^[[:space:]]*URIs:[[:space:]]*/ {
+                    value = $0
+                    sub(/^[[:space:]]*URIs:[[:space:]]*/, "", value)
+                    count = split(value, uris, /[[:space:]]+/)
+                    for (i = 1; i <= count; i++) {
+                        uri = uris[i]
+                        sub(/\/+$/, "", uri)
+                        if (uri == wanted_uri) {
+                            has_uri = 1
+                        }
+                    }
+                }
+                END {
+                    finish_stanza()
+                    exit active ? 0 : 1
+                }
+            ' "$file"
+            ;;
+        *)
+            awk -v wanted_uri="$wanted_uri" '
+                /^[[:space:]]*#/ { next }
+                /^[[:space:]]*deb(-src)?[[:space:]]/ {
+                    for (i = 1; i <= NF; i++) {
+                        uri = $i
+                        sub(/\/+$/, "", uri)
+                        if (uri == wanted_uri) {
+                            found = 1
+                        }
+                    }
+                }
+                END { exit found ? 0 : 1 }
+            ' "$file"
+            ;;
+    esac
+}
+
+apt_repo_configured_elsewhere() {
+    local uri="$1" managed_source="$2" managed_target file
+    managed_target=$(_apt_root_path "$managed_source")
+    for file in \
+        "$(_apt_root_path /etc/apt/sources.list)" \
+        "$(_apt_root_path /etc/apt/sources.list.d)"/*.list \
+        "$(_apt_root_path /etc/apt/sources.list.d)"/*.sources; do
+        [[ -r "$file" && "$file" != "$managed_target" ]] || continue
+        _apt_source_file_has_uri "$file" "$uri" && return 0
+    done
+    return 1
+}
+
 render_deb822_source() {
     local uri="$1" suite="$2" keyring="$3"
     local arch="${4:-${DOTFILES_APT_ARCH:-$(dpkg --print-architecture)}}"
@@ -60,6 +135,25 @@ install_debian_apt_repo() {
     key_tmp="$tmp_dir/repo-key"
     source_tmp="$tmp_dir/repo.sources"
     render_deb822_source "$uri" "$suite" "$keyring" >"$source_tmp"
+
+    # Respect an equivalent repository owned by the host (including a stanza
+    # embedded in a shared Deb822 file). If an earlier dotfiles run created our
+    # canonical file alongside it, remove only that duplicate to resolve APT's
+    # conflicting Signed-By error; leave the external source and both keyrings
+    # untouched.
+    if apt_repo_configured_elsewhere "$uri" "$source_file"; then
+        if [[ -e "$source_target" || -L "$source_target" ]]; then
+            info "$label apt repo configured elsewhere; removing duplicate managed source"
+            if ! sudo rm -f -- "$source_target"; then
+                rm -rf "$tmp_dir"
+                return 1
+            fi
+        else
+            info "$label apt repo already configured elsewhere"
+        fi
+        rm -rf "$tmp_dir"
+        return 0
+    fi
 
     if [[ -r "$keyring_target" && -r "$source_target" ]] \
         && cmp -s "$source_tmp" "$source_target"; then

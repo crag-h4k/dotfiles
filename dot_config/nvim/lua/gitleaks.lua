@@ -158,43 +158,48 @@ function M.scan(bufnr)
   end
   command[#command + 1] = context.source
 
-  local started, job = pcall(vim.system, command, {
-    cwd = context.root,
-    text = true,
-  }, vim.schedule_wrap(function(result)
-    if generations[bufnr] == generation then
-      jobs[bufnr] = nil
-    end
-    local report = ""
-    if vim.fn.filereadable(report_path) == 1 then
-      report = table.concat(vim.fn.readfile(report_path, "b"), "\n")
-    end
-    vim.fn.delete(report_path)
+  local started, job = pcall(
+    vim.system,
+    command,
+    {
+      cwd = context.root,
+      text = true,
+    },
+    vim.schedule_wrap(function(result)
+      if generations[bufnr] == generation then
+        jobs[bufnr] = nil
+      end
+      local report = ""
+      if vim.fn.filereadable(report_path) == 1 then
+        report = table.concat(vim.fn.readfile(report_path, "b"), "\n")
+      end
+      vim.fn.delete(report_path)
 
-    if generations[bufnr] ~= generation or not vim.api.nvim_buf_is_valid(bufnr) then
-      return
-    end
+      if generations[bufnr] ~= generation or not vim.api.nvim_buf_is_valid(bufnr) then
+        return
+      end
 
-    -- Gitleaks uses 1 for findings and 0 for a clean scan. Anything else is an
-    -- execution/configuration failure and must not replace the last good result.
-    if result.code ~= 0 and result.code ~= 1 then
-      local detail = (result.stderr or ""):gsub("%s+$", "")
-      report_error("Gitleaks scan failed" .. (detail ~= "" and ": " .. detail or ""))
-      return
-    end
+      -- Gitleaks uses 1 for findings and 0 for a clean scan. Anything else is an
+      -- execution/configuration failure and must not replace the last good result.
+      if result.code ~= 0 and result.code ~= 1 then
+        local detail = (result.stderr or ""):gsub("%s+$", "")
+        report_error("Gitleaks scan failed" .. (detail ~= "" and ": " .. detail or ""))
+        return
+      end
 
-    local diagnostics, parse_error = parse_report(report)
-    if not diagnostics then
-      report_error(parse_error)
-      return
-    end
-    last_error = nil
-    vim.diagnostic.set(namespace, bufnr, diagnostics, {
-      severity_sort = true,
-      underline = true,
-      virtual_text = false,
-    })
-  end))
+      local diagnostics, parse_error = parse_report(report)
+      if not diagnostics then
+        report_error(parse_error)
+        return
+      end
+      last_error = nil
+      vim.diagnostic.set(namespace, bufnr, diagnostics, {
+        severity_sort = true,
+        underline = true,
+        virtual_text = false,
+      })
+    end)
+  )
 
   if started then
     jobs[bufnr] = job
