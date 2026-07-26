@@ -1,5 +1,5 @@
 # tests/test_merge_settings.py
-"""Tests for dot_claude/modify_settings.json.tmpl (chezmoi modify_ template).
+"""Tests for home/dot_claude/modify_settings.json.tmpl (chezmoi modify_ template).
 
 The source is now a chezmoi Go template that renders into a Python stdin->stdout
 merge script. These tests render it once with the notify-hooks sub-feature ON
@@ -13,7 +13,7 @@ import sys
 import tempfile
 from pathlib import Path
 
-TMPL = Path(__file__).parent.parent / "dot_claude" / "modify_settings.json.tmpl"
+TMPL = Path(__file__).parent.parent / "home" / "dot_claude" / "modify_settings.json.tmpl"
 HOOK = "~/.claude/hooks/notify-tmux.sh"
 CLEAR = "~/.claude/hooks/notify-clear.sh"
 

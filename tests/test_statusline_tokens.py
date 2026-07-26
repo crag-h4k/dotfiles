@@ -1,5 +1,5 @@
 # tests/test_statusline_tokens.py
-"""Tests for dot_claude/executable_statusline-tokens.py (the detached token walker).
+"""Tests for home/dot_claude/executable_statusline-tokens.py (the detached token walker).
 
 The source is loaded by file path with importlib (its name carries a hyphen and the
 chezmoi `executable_` prefix, so it cannot be imported as a normal module). It is
@@ -16,7 +16,7 @@ import shutil
 import sys
 from pathlib import Path
 
-SRC = Path(__file__).parent.parent / "dot_claude" / "executable_statusline-tokens.py"
+SRC = Path(__file__).parent.parent / "home" / "dot_claude" / "executable_statusline-tokens.py"
 FIXTURES = Path(__file__).parent / "fixtures" / "statusline"
 
 

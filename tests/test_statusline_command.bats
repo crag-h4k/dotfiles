@@ -1,6 +1,6 @@
 #!/usr/bin/env bats
 # tests/test_statusline_command.bats
-# Tests for dot_claude/executable_statusline-command.sh (the fast renderer).
+# Tests for home/dot_claude/executable_statusline-command.sh (the fast renderer).
 #
 # The script is run hermetically: a temp HOME (so the palette.sh override is
 # absent and ORANGE falls back to the truecolor default), a temp XDG_CACHE_HOME
@@ -10,7 +10,7 @@
 # updater is never spawned during a test.
 
 CHEZMOI_DIR="$(cd "${BATS_TEST_DIRNAME}/.." && pwd)"
-SCRIPT="${CHEZMOI_DIR}/dot_claude/executable_statusline-command.sh"
+SCRIPT="${CHEZMOI_DIR}/home/dot_claude/executable_statusline-command.sh"
 FIXTURES="${BATS_TEST_DIRNAME}/fixtures/statusline"
 
 setup() {

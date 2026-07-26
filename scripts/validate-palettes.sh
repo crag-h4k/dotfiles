@@ -5,23 +5,24 @@
 set -euo pipefail
 
 REPO_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+SOURCE_DIR="$REPO_DIR/home"
 TMP_DIR=$(mktemp -d)
 trap 'rm -rf "$TMP_DIR"' EXIT
 
 # Read the scheme ids from the catalog so new schemes are covered automatically.
 # ids have no spaces, so word-splitting the yq output is safe (and bash-3.2 ok).
-for palette in $(yq '.paletteOrder[]' "$REPO_DIR/.chezmoidata/palettes.yaml"); do
+for palette in $(yq '.paletteOrder[]' "$SOURCE_DIR/.chezmoidata/palettes.yaml"); do
     cfg="$TMP_DIR/$palette.toml"
     printf '[data]\npalette = "%s"\nzshTheme = "gud"\n' "$palette" > "$cfg"
 
     render() {
         # --source pins the repo under test as the chezmoi source directory, so
-        # .chezmoidata/palettes.yaml loads regardless of machine or CI runner.
+        # home/.chezmoidata/palettes.yaml loads regardless of machine or CI runner.
         # Without it, chezmoi falls back to its default source dir
         # (~/.local/share/chezmoi), which only happens to be this repo on a
         # dev machine that has it checked out there - a bare CI runner has no
         # such directory, so .palettes is silently absent from the template data.
-        chezmoi execute-template --source "$REPO_DIR" --config "$cfg" < "$REPO_DIR/$1"
+        chezmoi execute-template --source "$REPO_DIR" --config "$cfg" < "$SOURCE_DIR/$1"
     }
 
     render dot_config/ghostty/themes/dotfiles.conf.tmpl > "$TMP_DIR/ghostty.conf"
@@ -52,4 +53,4 @@ for palette in $(yq '.paletteOrder[]' "$REPO_DIR/.chezmoidata/palettes.yaml"); d
 done
 
 printf 'validate-palettes: OK - %s palettes render for Ghostty, notify, iTerm2, Codex, Claude, Neovim, Zsh, and tmux\n' \
-    "$(yq '.paletteOrder | length' "$REPO_DIR/.chezmoidata/palettes.yaml")"
+    "$(yq '.paletteOrder | length' "$SOURCE_DIR/.chezmoidata/palettes.yaml")"

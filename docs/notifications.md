@@ -17,7 +17,8 @@ cue always; sound optional per group (empty sound = silent). No notification-cen
   debug logging. `groups` are triggered by a finished command's binary; `integrations`
   (claude/codex) are triggered by an event hook and are auto-added to the ignore-list (so
   launching the CLI never fires the command path). Palette names resolve to hex; a raw `#hex`
-  or `default` passes through. The named colors are rendered from `.chezmoidata/palettes.yaml`;
+  or `default` passes through. The named colors are rendered from
+  `home/.chezmoidata/palettes.yaml`;
   edit behavior in the YAML template and shared colors in the palette catalog. New shells
   re-read it; `tmux source-file ~/.tmux.conf` reloads the renderer.
 - **Shared logic in `~/.config/notify/lib.sh`** (array-free POSIX, sourced by both the zsh
@@ -35,7 +36,8 @@ cue always; sound optional per group (empty sound = silent). No notification-cen
   threshold. A nonzero exit uses the `error` group.
 - **Claude Code drives AI attention** through its `Stop`, `Notification`, and
   `PreToolUse:AskUserQuestion` events, which call `notify-tmux.sh`, registered in
-  `~/.claude/settings.json` via the `modify_` template (`dot_claude/modify_settings.json.tmpl`)
+  `~/.claude/settings.json` via the `modify_` template
+  (`home/dot_claude/modify_settings.json.tmpl`)
   that merges the hooks on each `chezmoi apply` without clobbering model/effort/plugins.
   Matcher-less `Notification` covers permission prompts and idle; `PreToolUse:AskUserQuestion`
   covers the question tool (which emits no `Notification` event). `~/.claude/settings.local.json`
@@ -79,13 +81,14 @@ installs.
 Manual equivalent, if you prefer not to run the script:
 
 1. `mkdir -p ~/.config/notify/sounds ~/.tmux/conf.d ~/.claude/hooks`
-2. Render `dot_config/notify/notify.yaml.tmpl`, then copy it as `notify.yaml`. Copy
-   `dot_config/notify/lib.sh`, `dot_config/notify/executable_clear-pane.sh`, and
-   `dot_config/notify/sounds/*.mp3` to `~/.config/notify/` (sounds go in
-   `~/.config/notify/sounds/`); `dot_zsh/custom/functions/notify-process.zsh` to
+2. Render `home/dot_config/notify/notify.yaml.tmpl`, then copy it as `notify.yaml`. Copy
+   `home/dot_config/notify/lib.sh`, `home/dot_config/notify/executable_clear-pane.sh`, and
+   `home/dot_config/notify/sounds/*.mp3` to `~/.config/notify/` (sounds go in
+   `~/.config/notify/sounds/`); `home/dot_zsh/custom/functions/notify-process.zsh` to
    `~/.config/notify/notify-process.zsh`; copy the clear helper as
-   `~/.config/notify/clear-pane.sh`; copy `dot_tmux/conf.d/notify.conf` to `~/.tmux/conf.d/`; and
-   `dot_claude/hooks/executable_notify-tmux.sh` / `executable_notify-clear.sh` to
+   `~/.config/notify/clear-pane.sh`; copy `home/dot_tmux/conf.d/notify.conf` to
+   `~/.tmux/conf.d/`; and `home/dot_claude/hooks/executable_notify-tmux.sh` /
+   `executable_notify-clear.sh` to
    `~/.claude/hooks/notify-tmux.sh` / `notify-clear.sh` (then mark all three helpers executable).
 3. Install mikefarah `yq`: `brew install yq` (macOS) or fetch the `yq_linux_<arch>` binary to
    `~/.local/bin` (Debian; do **not** `apt install yq` - that is a different tool).
@@ -93,10 +96,10 @@ Manual equivalent, if you prefer not to run the script:
 5. Add to `~/.tmux.conf`: `source-file ~/.tmux/conf.d/notify.conf` (this overrides
    `window-status-format` / `pane-border-format` - reconcile with your status bar).
 6. Register the Claude hooks. The merger is now a chezmoi template
-   (`dot_claude/modify_settings.json.tmpl`), so render it with the hooks gate on before running
+   (`home/dot_claude/modify_settings.json.tmpl`), so render it with the hooks gate on before running
    it. Easiest is to let `scripts/install-notify.sh` do this step (it renders the template for the
    notify path and merges it, preserving your existing settings). To do it by hand with chezmoi
    available: `printf '[data.components.ai]\n    claude_hooks = true\n' > /tmp/g.toml && chezmoi
-   execute-template --config /tmp/g.toml < dot_claude/modify_settings.json.tmpl > /tmp/m.py && python3
+   execute-template --config /tmp/g.toml < home/dot_claude/modify_settings.json.tmpl > /tmp/m.py && python3
    /tmp/m.py < ~/.claude/settings.json > /tmp/s && mv /tmp/s ~/.claude/settings.json`.
 7. Reload: `tmux source-file ~/.tmux.conf`, open a new shell, restart Claude Code.

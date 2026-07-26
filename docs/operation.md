@@ -21,7 +21,7 @@ chezmoi apply                      # materialize the edit into $HOME
 # Or edit the source tree directly and then apply (~/dotfiles is a symlink to
 # ~/.local/share/chezmoi, created by scripts/install.sh):
 cd ~/dotfiles
-$EDITOR dot_zshrc
+$EDITOR home/dot_zshrc
 chezmoi apply
 
 # Pull upstream plugins now instead of waiting for weekly refresh:
@@ -68,7 +68,7 @@ tabs read by task:
 
 | Name | Source |
 | --- | --- |
-| Session | the project root (git toplevel basename, else cwd basename), set by a zsh `chpwd` hook (`dot_zsh/custom/functions/tmux-session-name.zsh`); a name you set manually via `prefix + $` is respected |
+| Session | the project root (git toplevel basename, else cwd basename), set by a zsh `chpwd` hook (`home/dot_zsh/custom/functions/tmux-session-name.zsh`); a name you set manually via `prefix + $` is respected |
 | Window | tracks the foreground command via tmux `automatic-rename` (`#{pane_current_command}`) |
 
 So `tmux ls` shows project names while the window tabs show `1:zsh`, `2:nvim`, `3:git` live.

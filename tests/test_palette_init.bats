@@ -1,6 +1,6 @@
 #!/usr/bin/env bats
 # tests/test_palette_init.bats
-# Exercise the palette selection + validation in .chezmoi.toml.tmpl the way a real
+# Exercise the palette selection + validation in home/.chezmoi.toml.tmpl the way a real
 # `chezmoi init` renders it: via `chezmoi execute-template --init` (the same engine
 # init uses, and the pattern scripts/validate-templates.sh already relies on). A
 # full `chezmoi init` cannot run headless here - its component promptStringOnce
@@ -9,7 +9,7 @@
 # DOTFILES_INSTALL_MODE=configs always, so no path can reach a real package install.
 
 CHEZMOI_DIR="$(cd "${BATS_TEST_DIRNAME}/.." && pwd)"
-CONFIG_TMPL="${CHEZMOI_DIR}/.chezmoi.toml.tmpl"
+CONFIG_TMPL="${CHEZMOI_DIR}/home/.chezmoi.toml.tmpl"
 
 setup() {
   command -v chezmoi >/dev/null 2>&1 || skip "chezmoi not installed"
@@ -21,7 +21,9 @@ setup() {
 # instead of trying to open a TTY; DOTFILES_NO_TUI keeps the palette prompt off.
 render_palette() {
   {
-    printf '[data]\n    componentSelection = "1 2 3"\n'
+    # Include the colorscheme action (7); DOTFILES_PALETTE is intentionally
+    # ignored unless that one-shot action is selected.
+    printf '[data]\n    componentSelection = "1 2 3 7"\n'
     if [ -n "${2:-}" ]; then
       printf '    palette = "%s"\n' "$2"
     fi

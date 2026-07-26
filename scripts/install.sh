@@ -1,5 +1,6 @@
 #!/usr/bin/env bash
-# Top-level installer. Driven by chezmoi: run_once_after_00-install.sh exports
+# Top-level installer. Driven by chezmoi's
+# home/.chezmoiscripts/run_once_after_00-install.sh.tmpl, which exports
 # the component selection (made at `chezmoi init`) as INSTALL_* env vars and
 # then calls this script. It installs base tools plus packages for the selected
 # components. It does NOT call `chezmoi apply` - chezmoi invokes this script,
@@ -16,24 +17,25 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 source "$SCRIPT_DIR/common.sh"
 
 # Component flags, read from the environment (set by chezmoi via
-# run_once_after_00-install.sh). Defaults apply only for standalone runs.
+# home/.chezmoiscripts/run_once_after_00-install.sh.tmpl). Defaults apply only
+# for standalone runs.
 INSTALL_ZSH="${INSTALL_ZSH:-true}"
 INSTALL_TMUX="${INSTALL_TMUX:-true}"
 INSTALL_NEOVIM="${INSTALL_NEOVIM:-true}"
 # AI tooling, opt-in and off by default. codecompanion (with neovim) installs the
 # claude-agent-acp bridge and provisions the runtime sentinel init.lua checks
 # (touch/rm per-host still works). The claude_hooks sub-feature is file-gated in
-# .chezmoiignore, not here.
+# home/.chezmoiignore, not here.
 INSTALL_AI_CODECOMPANION="${INSTALL_AI_CODECOMPANION:-false}"
 # statusline (opt-in, off by default). Config files are file-gated in
-# .chezmoiignore; this var gates only the runtime deps (jq + python3) the
+# home/.chezmoiignore; this var gates only the runtime deps (jq + python3) the
 # statusline shells out to.
 INSTALL_AI_STATUSLINE="${INSTALL_AI_STATUSLINE:-false}"
 # Shared notify runtime. AI-hook-only hosts still need notify.yaml, lib.sh, and
 # mikefarah yq even when neither Zsh nor tmux is selected as a component.
 INSTALL_NOTIFY="${INSTALL_NOTIFY:-false}"
 # terminal sub-features (opt-in). The CONFIG for each is file-gated in
-# .chezmoiignore; these vars gate only the BINARY install.
+# home/.chezmoiignore; these vars gate only the BINARY install.
 # - ghostty: cask on macOS; no official Debian apt package, so config-only on
 #   Debian (see the debian arm below).
 # - iterm2: cask on macOS only; a no-op on non-macOS.

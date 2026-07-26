@@ -1,4 +1,4 @@
-# StyLua config. Matches the existing Lua style in dot_config/nvim so the first
+# StyLua config. Matches the existing Lua style in home/dot_config/nvim so the first
 # format pass is minimal: 2-space indent (StyLua defaults to 4), double quotes.
 column_width = 160
 line_endings = "Unix"

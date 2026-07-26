@@ -1,5 +1,5 @@
 # tests/test_merge_codex_config.py
-"""Tests for dot_codex/modify_private_config.toml.tmpl (chezmoi modify_ template).
+"""Tests for home/dot_codex/modify_private_config.toml.tmpl (chezmoi modify_ template).
 
 The source is now a chezmoi Go template that renders into a Python stdin->stdout
 merge script. It injects the top-level `notify` (tmux hook) and `tui.notifications`
@@ -15,7 +15,7 @@ import tempfile
 import tomllib
 from pathlib import Path
 
-TMPL = Path(__file__).parent.parent / "dot_codex" / "modify_private_config.toml.tmpl"
+TMPL = Path(__file__).parent.parent / "home" / "dot_codex" / "modify_private_config.toml.tmpl"
 HOOK = os.path.expanduser("~/.codex/hooks/notify-tmux.sh")
 NOTIFS = ["agent-turn-complete", "approval-requested"]
 STATUS_ITEMS = [

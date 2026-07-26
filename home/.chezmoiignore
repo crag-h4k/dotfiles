@@ -1,12 +1,3 @@
-README.md
-TODO.md
-LICENSE
-.github
-.pre-commit-config.yaml
-scripts
-docs
-tests
-vendor
 *.example
 *.ig
 # Python bytecode (e.g. from validating modify_*.json scripts). A cached
@@ -28,7 +19,7 @@ vendor
 {{ end -}}
 {{/* notify subsystem is needed by the zsh process notifier, tmux integration,
      Claude hooks, or Codex hooks. Keep this condition aligned with
-     INSTALL_NOTIFY in run_once_after_00-install.sh.tmpl. */}}
+     INSTALL_NOTIFY in .chezmoiscripts/run_once_after_00-install.sh.tmpl. */}}
 {{ if and
      (not (dig "components" "zsh" true .))
      (not (dig "components" "tmux" true .))

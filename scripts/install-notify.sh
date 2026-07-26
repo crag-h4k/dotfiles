@@ -16,6 +16,7 @@ set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REPO="$(cd "$SCRIPT_DIR/.." && pwd)"
+SOURCE="$REPO/home"
 # shellcheck source-path=SCRIPTDIR
 # shellcheck source=common.sh
 source "$SCRIPT_DIR/common.sh"
@@ -50,8 +51,8 @@ mkdir -p "$HOME/.config/notify/sounds" "$HOME/.tmux/conf.d" "$HOME/.claude/hooks
 if [[ -f "$HOME/.config/notify/notify.yaml" && "$FORCE" -ne 1 ]]; then
     info "kept existing notify.yaml (pass --force to overwrite)"
 else
-    palette="$REPO/.chezmoidata/palettes.yaml"
-    template="$REPO/dot_config/notify/notify.yaml.tmpl"
+    palette="$SOURCE/.chezmoidata/palettes.yaml"
+    template="$SOURCE/dot_config/notify/notify.yaml.tmpl"
     # Standalone installs use Dracula. Resolve the same canonical values without
     # requiring chezmoi to render the Go template.
     sed \
@@ -72,13 +73,13 @@ else
     info "installed notify.yaml"
 fi
 
-cp "$REPO/dot_config/notify/lib.sh"                       "$HOME/.config/notify/lib.sh"
-cp "$REPO/dot_config/notify/executable_clear-pane.sh"     "$HOME/.config/notify/clear-pane.sh"
-cp "$REPO/dot_zsh/custom/functions/notify-process.zsh"    "$HOME/.config/notify/notify-process.zsh"
-cp "$REPO/dot_tmux/conf.d/notify.conf"                    "$HOME/.tmux/conf.d/notify.conf"
-cp "$REPO"/dot_config/notify/sounds/*.mp3                 "$HOME/.config/notify/sounds/" 2>/dev/null || warn "no sound files copied"
-cp "$REPO/dot_claude/hooks/executable_notify-tmux.sh"     "$HOME/.claude/hooks/notify-tmux.sh"
-cp "$REPO/dot_claude/hooks/executable_notify-clear.sh"    "$HOME/.claude/hooks/notify-clear.sh"
+cp "$SOURCE/dot_config/notify/lib.sh"                       "$HOME/.config/notify/lib.sh"
+cp "$SOURCE/dot_config/notify/executable_clear-pane.sh"     "$HOME/.config/notify/clear-pane.sh"
+cp "$SOURCE/dot_zsh/custom/functions/notify-process.zsh"    "$HOME/.config/notify/notify-process.zsh"
+cp "$SOURCE/dot_tmux/conf.d/notify.conf"                    "$HOME/.tmux/conf.d/notify.conf"
+cp "$SOURCE"/dot_config/notify/sounds/*.mp3                 "$HOME/.config/notify/sounds/" 2>/dev/null || warn "no sound files copied"
+cp "$SOURCE/dot_claude/hooks/executable_notify-tmux.sh"     "$HOME/.claude/hooks/notify-tmux.sh"
+cp "$SOURCE/dot_claude/hooks/executable_notify-clear.sh"    "$HOME/.claude/hooks/notify-clear.sh"
 chmod +x "$HOME/.claude/hooks/notify-tmux.sh" "$HOME/.claude/hooks/notify-clear.sh"
 chmod +x "$HOME/.config/notify/clear-pane.sh"
 info "copied lib + zsh notifier + tmux render + sounds + claude hooks"
@@ -121,7 +122,7 @@ PY
 
 # --- Claude settings merge (render the chezmoi modify_ template; validate first) --
 SETTINGS="$HOME/.claude/settings.json"
-MERGE_TMPL="$REPO/dot_claude/modify_settings.json.tmpl"
+MERGE_TMPL="$SOURCE/dot_claude/modify_settings.json.tmpl"
 if ! command -v python3 >/dev/null 2>&1; then
     warn "python3 not found; skipped Claude settings merge (the merger is a chezmoi template that needs python to render + run)."
 elif [[ -f "$SETTINGS" ]] && ! python3 -c 'import json,sys; json.load(open(sys.argv[1]))' "$SETTINGS" >/dev/null 2>&1; then
@@ -158,11 +159,11 @@ fi
 # [projects.*] trust and [tui.*] entries survive; mode stays 600.
 if command -v codex >/dev/null 2>&1; then
     mkdir -p "$HOME/.codex/hooks"
-    cp "$REPO/dot_codex/hooks/executable_notify-tmux.sh" "$HOME/.codex/hooks/notify-tmux.sh"
+    cp "$SOURCE/dot_codex/hooks/executable_notify-tmux.sh" "$HOME/.codex/hooks/notify-tmux.sh"
     chmod +x "$HOME/.codex/hooks/notify-tmux.sh"
     info "installed codex notify hook (~/.codex/hooks/notify-tmux.sh)"
     CODEX_CFG="$HOME/.codex/config.toml"
-    CODEX_MERGE_TMPL="$REPO/dot_codex/modify_private_config.toml.tmpl"
+    CODEX_MERGE_TMPL="$SOURCE/dot_codex/modify_private_config.toml.tmpl"
     if ! command -v python3 >/dev/null 2>&1; then
         warn "python3 not found; skipped Codex config merge (the merger is a chezmoi template that needs python to render + run)."
     else

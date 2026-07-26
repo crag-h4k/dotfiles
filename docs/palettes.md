@@ -17,7 +17,7 @@ Codex theme, and Neovim, so they stay in lockstep.
 
 ## How it works
 
-`.chezmoidata/palettes.yaml` is the committed catalog. Each entry holds the raw 16
+`home/.chezmoidata/palettes.yaml` is the committed catalog. Each entry holds the raw 16
 base16 colors, the semantic keys the consumers read, a 16-entry ANSI array, and the
 notify tints. `scripts/build-palettes.py` generates that file from the
 `tinted-theming/schemes` collection, vendored as the `vendor/tinted-schemes` git
@@ -80,8 +80,8 @@ until the accent clears roughly 3:1 contrast against the tint.
 
 1. Find the scheme id under `vendor/tinted-schemes/base16/` or `base24/`.
 2. Add a row to `CURATED` in `scripts/build-palettes.py`.
-3. Regenerate, then commit the changed `.chezmoidata/palettes.yaml` and
-   `.chezmoi.toml.tmpl`:
+3. Regenerate, then commit the changed `home/.chezmoidata/palettes.yaml` and
+   `home/.chezmoi.toml.tmpl`:
 
    ```sh
    python3 scripts/build-palettes.py
