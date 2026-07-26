@@ -16,18 +16,18 @@ Chezmoi wrangles Zsh, Neovim, Ghostty/iTerm2, Claude/Codex hooks, palettes, and 
   - Bespoke and fully customizable
   - tmux's pane color, then chirps, beeps, or cracks a whip to keep focus
     when a long process finishes, something errors, or when Claude/Codex
-    needs attention.
+    needs attention
   - Configure volume, duration, process groupings for different notifications,
-    enable/disable settings 
-- Selectively installs only the components and sub-features selected for a host.
-- Keeps Ghostty, iTerm2, tmux, Neovim, Claude, and Codex on one shared palette.
-- Handles the Ghostty > SSH > tmux mouse, clipboard, and scrollback gauntlet.
+    enable/disable settings
+- Selectively installs only the components and sub-features selected for a host
+- Keeps Ghostty, iTerm2, tmux, Neovim, Claude, and Codex on one shared palette
+- Handles the Ghostty > SSH > tmux mouse, clipboard, and scrollback gauntlet
 - Gives Neovim modern LSP activation, missing-only Mason installs, and
-  non-blocking Gitleaks warnings.
-- Plans and deduplicates packages before Homebrew or APT gets to touch anything.
+  non-blocking Gitleaks warnings
+- Plans and deduplicates packages before Homebrew or APT gets to touch anything
 - Proves clean, unattended installs on native macOS and Debian Trixie before
-  `main` gets the privilege.
-- Accumulates intentional releases instead of spraying tags after every merge.
+  `main` gets the privilege
+- Accumulates intentional releases instead of spraying tags after every merge
 
 ## Quick start
 
