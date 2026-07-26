@@ -1,26 +1,21 @@
 # dotfiles
 
+[![CI](https://github.com/crag-h4k/dotfiles/actions/workflows/ci.yaml/badge.svg?branch=main)](https://github.com/crag-h4k/dotfiles/actions/workflows/ci.yaml) [![Managed by chezmoi](https://img.shields.io/badge/managed%20by-chezmoi-2d3142)](https://chezmoi.io) [![Debian Trixie](https://img.shields.io/badge/Debian%20Trixie-A81D33?logo=debian&logoColor=white)](docs/ci.md) [![macOS](https://img.shields.io/badge/macOS-252525?logo=apple&logoColor=white)](docs/ci.md) [![Gum](https://img.shields.io/badge/picker-Gum-FF69B4)](https://github.com/charmbracelet/gum)
+
 Professionally overengineered, personally unhinged dotfiles for people with
 enterprise-level trust issues who think tmux deserves deployment CI. Chezmoi
 wrangles Zsh, Neovim, Ghostty/iTerm2, Claude/Codex hooks, palettes, and tools.
-Gum picks the loadout; headless macOS/Trixie runners make sure nothing shits
-the bed.
-
-| What | Status |
-| --- | --- |
-| `main` | [![CI](https://github.com/crag-h4k/dotfiles/actions/workflows/ci.yaml/badge.svg?branch=main)](https://github.com/crag-h4k/dotfiles/actions/workflows/ci.yaml) |
-| Config owner | [![Managed by chezmoi](https://img.shields.io/badge/managed%20by-chezmoi-2d3142)](https://chezmoi.io) |
-| Deployments | [![Debian Trixie](https://img.shields.io/badge/Debian%20Trixie-A81D33?logo=debian&logoColor=white)](docs/ci.md) [![macOS](https://img.shields.io/badge/macOS-252525?logo=apple&logoColor=white)](docs/ci.md) |
-| Components | Zsh · tmux · Neovim · Git · AI hooks · terminals |
-| Picker | [![Gum](https://img.shields.io/badge/picker-Gum-FF69B4)](https://github.com/charmbracelet/gum) |
+Its home-grown notifier chirps or beeps and makes tmux change colors at you
+when a long job, Claude, or Codex needs attention. Gum picks the loadout;
+headless macOS/Trixie runners make sure nothing shits the bed.
 
 ## What this thing does
 
+- Chirps or beeps and recolors the tmux pane and status flag when a long job,
+  Claude, or Codex needs attention.
 - Installs only the components and sub-features selected for a host.
 - Keeps Ghostty, iTerm2, tmux, Neovim, Claude, and Codex on one shared palette.
 - Handles the Ghostty → SSH → tmux mouse, clipboard, and scrollback gauntlet.
-- Wires Claude and Codex attention hooks into tmux without desktop-notification
-  spam.
 - Gives Neovim modern LSP activation, missing-only Mason installs, and
   non-blocking Gitleaks warnings.
 - Plans and deduplicates packages before Homebrew or APT gets to touch anything.
