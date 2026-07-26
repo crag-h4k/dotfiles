@@ -88,8 +88,31 @@ done
 (( history_limit >= 50000 && scrollback_limit >= 50000 )) ||
     fail "tmux dynamic scrollback limit was not applied"
 
-wheel_binding=$(tmux -L "$tmux_socket" list-keys -T root WheelUpPane)
-[[ "$wheel_binding" == *"copy-mode -e"* ]] ||
-    fail "tmux mouse wheel does not enter copy mode"
+# tmux 3.7 added structured list-keys output, but its exact-key query can exit
+# successfully without printing the requested binding. List the table and select
+# WheelUpPane by its structured key name instead. tmux 3.5 does not support -F,
+# so retain its exact-key query as the compatibility path.
+if root_bindings=$(
+    tmux -L "$tmux_socket" \
+        list-keys -T root -F '#{key_string}|#{key_command}' 2>/dev/null
+); then
+    wheel_binding=$(
+        awk '
+            index($0, "WheelUpPane|") == 1 {
+                print substr($0, length("WheelUpPane|") + 1)
+                exit
+            }
+        ' <<<"$root_bindings"
+    )
+else
+    wheel_binding=$(tmux -L "$tmux_socket" list-keys -T root WheelUpPane)
+fi
+# Command flags may be serialized in a different order between versions. Check
+# the behavior and scroll-exit flag independently instead of depending on one
+# presentation.
+if [[ "$wheel_binding" != *"copy-mode"* ||
+    "$wheel_binding" != *"-e"* ]]; then
+    fail "tmux mouse wheel binding is unexpected: $wheel_binding"
+fi
 
 printf 'Headless deployment runtime smoke test passed on %s\n' "$(uname -s)"
