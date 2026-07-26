@@ -63,11 +63,11 @@ assert_shim_matches_chezmoi() {
   local input="${BATS_TMPDIR}/settings-in-$$.json"
   printf '{"model":"x","env":{"CLAUDE_CODE_DISABLE_MOUSE_CLICKS":"1","KEEP":"y"},"hooks":{}}\n' \
     > "$input"
-  assert_shim_matches_chezmoi "${CHEZMOI_DIR}/dot_claude/modify_settings.json.tmpl" "$input"
+  assert_shim_matches_chezmoi "${CHEZMOI_DIR}/home/dot_claude/modify_settings.json.tmpl" "$input"
 }
 
 @test "render_modify matches chezmoi for codex config.toml (hooks on, statusline off)" {
   local input="${BATS_TMPDIR}/codex-in-$$.toml"
   printf '[tui]\ntheme = "mine"\n[projects."/x"]\ntrust_level = "trusted"\n' > "$input"
-  assert_shim_matches_chezmoi "${CHEZMOI_DIR}/dot_codex/modify_private_config.toml.tmpl" "$input"
+  assert_shim_matches_chezmoi "${CHEZMOI_DIR}/home/dot_codex/modify_private_config.toml.tmpl" "$input"
 }

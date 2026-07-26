@@ -2,7 +2,7 @@
 # tests/test_lib.bats
 
 CHEZMOI_DIR="$(cd "${BATS_TEST_DIRNAME}/.." && pwd)"
-NOTIFY_LIB="${CHEZMOI_DIR}/dot_config/notify/lib.sh"
+NOTIFY_LIB="${CHEZMOI_DIR}/home/dot_config/notify/lib.sh"
 FIXTURES="${BATS_TEST_DIRNAME}/fixtures"
 
 setup() {

@@ -58,7 +58,7 @@ Like the other submenus, `all+` takes each parent at its default sub-features on
 `terminal` comes on with `ghostty` (its default) but not `iterm2`; add `iterm2` by selecting
 it in the submenu.
 
-The component list is the single source of truth in `.chezmoi.toml.tmpl`; the gum options and
+The component list is the single source of truth in `home/.chezmoi.toml.tmpl`; the gum options and
 the typed menu are both generated from it, so adding a component is a one-line edit there. Set
 `DOTFILES_NO_TUI=1` to force the typed menu even when gum is installed. `colorscheme` and
 `install_mode` are init-time actions rather than installed components: they appear in the menu but
@@ -86,7 +86,7 @@ apply once you pick the parent.
 | `ai` | `statusline` | `~/.claude/settings.json` + `~/.codex/config.toml` (merge) | off | Claude renderer plus a matching selected-palette Codex theme; keeps those files managed even when notify hooks are off; not enabled by `all` or `all+` |
 | `ai` | `codecompanion` | CodeCompanion.nvim + `claude-agent-acp` bridge | on (within the `ai` submenu, if `ai` is picked) | heaviest sub-feature - pulls in node, npm, and the npm-installed bridge; listed last for that reason |
 | `terminal` | `ghostty` | Ghostty config + quick-terminal dropdown | on | macOS and Linux |
-| `terminal` | `iterm2` | iTerm2 Dynamic Profiles | off | macOS only; hidden in the submenu on non-macOS (data key still emitted for column parity), also gated in `.chezmoiignore` |
+| `terminal` | `iterm2` | iTerm2 Dynamic Profiles | off | macOS only; hidden in the submenu on non-macOS (data key still emitted for column parity), also gated in `home/.chezmoiignore` |
 
 With `gum` the submenu is a nested checkbox whose `--selected` seed pre-checks the parent's
 currently-enabled sub-features (read from the persisted `[data.components.<parent>]` table), so a
@@ -105,8 +105,8 @@ into `~/.local/bin`, and the chat reuses your existing `claude` login (no token 
 `codecompanion` without `neovim` is a no-op.
 
 A component (or sub-feature) that is off is excluded two ways: its target files are added to
-`.chezmoiignore` so `chezmoi apply` never writes them, and its plugin externals are dropped
-from `.chezmoiexternal.toml` so they are never fetched. `~/.gitignore_global` follows the
+`home/.chezmoiignore` so `chezmoi apply` never writes them, and its plugin externals are dropped
+from `home/.chezmoiexternal.toml` so they are never fetched. `~/.gitignore_global` follows the
 `git > ignore_global` sub-feature (on by default), `~/.claude/settings.json` is managed when
 either `ai > claude_hooks` or `ai > statusline` is on, `~/.codex/config.toml` is managed when
 either `ai > codex_hooks` or `ai > statusline` is on, `~/.config/ghostty` follows
@@ -140,7 +140,7 @@ without gum. The selected id is stored as `data.palette`, defaulting to Dracula.
 
 The catalog is generated from the base16 standard. `scripts/build-palettes.py` reads the
 `tinted-theming/schemes` collection (vendored as the `vendor/tinted-schemes` submodule) and writes
-`.chezmoidata/palettes.yaml`, mapping the 16 base colors to the semantic keys, the 16-entry ANSI
+`home/.chezmoidata/palettes.yaml`, mapping the 16 base colors to the semantic keys, the 16-entry ANSI
 array, and the notify tints. That committed catalog renders Ghostty, iTerm2, tmux, notify, the
 Claude statusline, the Codex TextMate theme, and Neovim (via `RRethy/base16-nvim`, fed the same 16
 colors), so `apply` needs no submodule, Python, or network. The generator runs at authoring time
@@ -179,14 +179,14 @@ it, a no-terminal apply declines and writes configs only.
 
 `terminal` is opt-in (not in the default set) and carries terminal-emulator config as two
 sub-features: `ghostty` (cross-platform, the submenu default) and `iterm2` (macOS only). Both
-are gated at the file layer in `.chezmoiignore`; `iterm2` also gates on
+are gated at the file layer in `home/.chezmoiignore`; `iterm2` also gates on
 `.chezmoi.os == "darwin"` and its cask install runs only in the macOS arm of
 `scripts/install.sh`, so selecting `iterm2` on Debian is a harmless no-op.
 
 #### ghostty
 
 Ghostty runs on macOS and Linux. Its config lives at `~/.config/ghostty/config`, templated
-from `dot_config/ghostty/config.tmpl` so the macOS-only keys and the global-shortcut modifier
+from `home/dot_config/ghostty/config.tmpl` so the macOS-only keys and the global-shortcut modifier
 are gated per OS. The selected catalog entry renders to
 `~/.config/ghostty/themes/dotfiles.conf` and matches tmux, Neovim, iTerm2, notify, and the AI
 status surfaces.
@@ -232,7 +232,7 @@ When selected on a Mac, `chezmoi apply` installs the iTerm2 cask
 the symlink, pins the default-profile Guid, and sets a few app-level behavior toggles via
 `defaults write`. Restart iTerm2 to pick up the global `defaults` (a running iTerm2 rewrites its
 prefs on quit). The AI API key lives in the macOS Keychain and is intentionally not synced.
-Profile behavior lives in `dot_config/iterm2/dotfiles.json.tmpl`; its color objects are
+Profile behavior lives in `home/dot_config/iterm2/dotfiles.json.tmpl`; its color objects are
 generated from the shared palette and should not be edited independently.
 
 ## Changing components later
@@ -323,7 +323,8 @@ When `git > personal` is enabled, `gitName` and `gitEmail` live only in that hos
 them into the private `~/.gitconfig.personal` target. The installer never prints or copies an
 existing Git configuration.
 
-Enabling a component re-runs the installer because `run_once_after_00-install.sh` embeds the
+Enabling a component re-runs the installer because
+`home/.chezmoiscripts/run_once_after_00-install.sh.tmpl` embeds the
 component booleans. Packages install only when `installMode = "packages"`, and the re-run
 prompts `[y/N]` before touching a package manager (answer N to apply configs only for that run
 without changing `installMode`, or set `DOTFILES_ASSUME_YES=1` to skip the prompt). Because it is
@@ -368,7 +369,7 @@ scheme pre-selected; leaving it unchecked keeps the current palette. Or edit the
     palette = "gruvbox-dark"
 ```
 
-Valid ids are the `paletteOrder` keys in `.chezmoidata/palettes.yaml`. To add a scheme, add it to
+Valid ids are the `paletteOrder` keys in `home/.chezmoidata/palettes.yaml`. To add a scheme, add it to
 `CURATED` in `scripts/build-palettes.py`, run `python3 scripts/build-palettes.py`, and commit the
 regenerated catalog (CI's `build-palettes.py --check` fails if the commit is stale).
 

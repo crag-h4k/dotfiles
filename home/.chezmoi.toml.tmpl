@@ -346,7 +346,7 @@
 {{-   if eq $hasTTY "" -}}
 {{-     fail "No controlling terminal. Set DOTFILES_INSTALL_MODE=configs or DOTFILES_INSTALL_MODE=packages before chezmoi init." -}}
 {{-   end -}}
-{{-   $confirmCmd := printf "env %s bash %s" (join " " $confirmEnv) (.chezmoi.sourceDir | printf "%s/scripts/confirm-install.sh" | squote) -}}
+{{-   $confirmCmd := printf "env %s bash %s" (join " " $confirmEnv) (.chezmoi.sourceDir | dir | printf "%s/scripts/confirm-install.sh" | squote) -}}
 {{-   $installMode = trim (output "sh" "-c" $confirmCmd) -}}
 {{-   if eq $installMode "exit" }}{{- fail "Installation cancelled before apply" -}}{{- end -}}
 {{-   if and (ne $installMode "configs") (ne $installMode "packages") }}{{- fail "Could not determine installation mode" -}}{{- end -}}

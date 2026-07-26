@@ -13,7 +13,9 @@ vendored and plugins refresh on their own.
 chezmoi owns component selection, the shared color palette, and install mode.
 The choices persist in `~/.config/chezmoi/chezmoi.toml`. `chezmoi apply` then
 writes only the selected components and optionally installs the exact deduped
-package plan shown during init. No wrapper script and no path juggling.
+package plan shown during init. The repository-level `.chezmoiroot` points
+chezmoi at `home/`; project scripts, tests, docs, workflows, and vendored
+authoring inputs stay outside the managed source root.
 
 ## Documentation
 
@@ -52,7 +54,7 @@ The chezmoi bootstrap line:
    `planned`, then asks whether to install configs and packages, install configs
    only, or exit. Exit stops before any target file is applied.
 1. Runs `chezmoi apply`, which:
-   - Fetches the upstream plugins declared in `.chezmoiexternal.toml` for the
+   - Fetches the upstream plugins declared in `home/.chezmoiexternal.toml` for the
      selected components and drops them under `~/.zsh/ohmyzsh`,
      `~/.zsh/custom/plugins/*`, `~/.tmux/plugins/*`.
    - Places the selected components' files: `~/.zshrc`, `~/.zshenv`,
@@ -64,7 +66,7 @@ The chezmoi bootstrap line:
      markdownlint-cli2, ShellCheck, yamllint, TFLint, Trivy, and Luacheck CLIs.
      Mason installs missing language servers plus editor-only Gitleaks; it does
      not update or reconcile installed Mason package versions at startup.
-   - Runs `run_before_00-backup.sh` first, which snapshots the previous
+   - Runs `home/.chezmoiscripts/run_before_00-backup.sh` first, which snapshots the previous
      (pre-apply) version of your configs into `~/.dotfiles-backup/<timestamp>/`
      before anything is overwritten - every managed file plus colocated
      non-managed state / local additions (e.g. the git-ignored `lazy-lock.json`, a hand-added
@@ -72,7 +74,7 @@ The chezmoi bootstrap line:
      plugins) and app-state dirs with secrets/logs (`~/.claude`, `~/.codex`) are
      skipped. Runs on every apply; keeps the most recent `DOTFILES_BACKUP_KEEP`
      (default 20) snapshots.
-   - Runs `run_once_after_00-install.sh`, which exports the component selection
+   - Runs `home/.chezmoiscripts/run_once_after_00-install.sh.tmpl`, which exports the component selection
      and saved install mode. Package mode installs the displayed Homebrew, apt,
      cask, GitHub release, npm, pip, and LuaRocks work. Configs-only mode skips
      those side effects but still applies configs, selected git externals, safe

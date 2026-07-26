@@ -357,8 +357,8 @@ STUB
 }
 
 @test "Neovim uses modern LSP activation and reserves Mason tooling for Gitleaks" {
-  local init="$REPO_ROOT/dot_config/nvim/init.lua"
-  local scanner="$REPO_ROOT/dot_config/nvim/lua/gitleaks.lua"
+  local init="$REPO_ROOT/home/dot_config/nvim/init.lua"
+  local scanner="$REPO_ROOT/home/dot_config/nvim/lua/gitleaks.lua"
 
   grep -Fq 'vim.lsp.config("*"' "$init"
   grep -Fq 'vim.lsp.config("lua_ls"' "$init"
@@ -380,11 +380,11 @@ STUB
 }
 
 @test "Gitleaks policy extends defaults and lazy lock state stays untracked" {
-  grep -Fq 'useDefault = true' "$REPO_ROOT/.gitleaks.toml"
-  grep -Fq '[[allowlists]]' "$REPO_ROOT/.gitleaks.toml"
+  grep -Fq 'useDefault = true' "$REPO_ROOT/config/linters/gitleaks.toml"
+  grep -Fq '[[allowlists]]' "$REPO_ROOT/config/linters/gitleaks.toml"
   grep -Fxq 'lazy-lock.json' "$REPO_ROOT/.gitignore"
 
   grep -Fq 'repo: https://github.com/gitleaks/gitleaks' "$REPO_ROOT/.pre-commit-config.yaml"
   grep -Fq 'rev: v8.30.1' "$REPO_ROOT/.pre-commit-config.yaml"
-  grep -Fq 'args: [--redact]' "$REPO_ROOT/.pre-commit-config.yaml"
+  grep -Fq 'args: [--redact, --config=config/linters/gitleaks.toml]' "$REPO_ROOT/.pre-commit-config.yaml"
 }

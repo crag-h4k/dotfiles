@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # Render the chezmoi templates that are gated by component and assert each
 # combination produces the correct output. Catches malformed Go template
-# syntax, broken TOML, and - for .chezmoi.toml.tmpl - any drift in the
+# syntax, broken TOML, and - for home/.chezmoi.toml.tmpl - any drift in the
 # selection parser, which a single `chezmoi apply` would not exercise.
 #
 # Runs in pre-commit. Requires chezmoi (rendering) and python3 with tomllib
@@ -10,18 +10,19 @@
 
 set -euo pipefail
 
-# Force the typed-menu path in .chezmoi.toml.tmpl so the parser is exercised
+# Force the typed-menu path in home/.chezmoi.toml.tmpl so the parser is exercised
 # deterministically. Without this, a render on a machine that has gum and a
 # controlling terminal would launch the interactive picker for every case.
 export DOTFILES_NO_TUI=1
 export DOTFILES_INSTALL_MODE=configs
 
 REPO_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
-EXTERNAL="$REPO_DIR/.chezmoiexternal.toml"
-IGNORE="$REPO_DIR/.chezmoiignore"
-CONFIG_TMPL="$REPO_DIR/.chezmoi.toml.tmpl"
-RUNONCE="$REPO_DIR/run_once_after_00-install.sh.tmpl"
-GIT_PERSONAL="$REPO_DIR/private_dot_gitconfig.personal.tmpl"
+SOURCE_DIR="$REPO_DIR/home"
+EXTERNAL="$SOURCE_DIR/.chezmoiexternal.toml"
+IGNORE="$SOURCE_DIR/.chezmoiignore"
+CONFIG_TMPL="$SOURCE_DIR/.chezmoi.toml.tmpl"
+RUNONCE="$SOURCE_DIR/.chezmoiscripts/run_once_after_00-install.sh.tmpl"
+GIT_PERSONAL="$SOURCE_DIR/private_dot_gitconfig.personal.tmpl"
 
 command -v chezmoi >/dev/null 2>&1 || { echo "validate-templates: chezmoi not found" >&2; exit 1; }
 
@@ -41,7 +42,7 @@ parse_toml() {
     fi
 }
 
-# Render .chezmoi.toml.tmpl with componentSelection (and optionally gitSelection
+# Render home/.chezmoi.toml.tmpl with componentSelection (and optionally gitSelection
 # / aiSelection / terminalSelection) pre-seeded, then echo the component booleans
 # in the fixed column order:
 #   zsh tmux neovim  git.config git.personal git.ignore_global  ai.codecompanion ai.claude_hooks ai.codex_hooks ai.statusline  terminal.ghostty terminal.iterm2
@@ -148,7 +149,7 @@ assert_sub() {
     fi
 }
 
-# --- .chezmoi.toml.tmpl: exhaustive numeric matrix -------------------------
+# --- home/.chezmoi.toml.tmpl: exhaustive numeric matrix --------------------
 # All 32 on/off combinations of digits 1..5, expressed with NO spaces (e.g.
 # "135"). Expected booleans are derived from digit presence: number N present
 # => component N on. This is the ground truth the parser must match.
@@ -232,7 +233,7 @@ assert_sub "6"   "" "" "1 2"             false false false  false false false  f
 assert_sub "6"   "" "" "2"               false false false  false false false  false false false false  false true
 assert_sub "1 6" "" "" "ghostty"         true  false false  false false false  false false false false  true  false
 
-# --- .chezmoiexternal.toml: render + parse under each component combo -------
+# --- home/.chezmoiexternal.toml: render + parse under each component combo --
 # The externals file only branches on zsh and tmux, so vary those two and pin
 # neovim. This is a render/parse check (no per-line assertion); the point is
 # that the gated TOML stays valid whether a block is present or not.
@@ -346,7 +347,7 @@ assert_git_gate true  false true
 assert_git_gate false true  true
 assert_git_gate true  true  true
 
-# --- run_once_after_00-install.sh.tmpl: install-var flags render correctly --
+# --- home/.chezmoiscripts/run_once_after_00-install.sh.tmpl: install vars ---
 # The terminal binary installs are gated by INSTALL_TERMINAL_* env vars dug from
 # the terminal.* data keys. Prove INSTALL_TERMINAL_GHOSTTY renders true when the
 # ghostty sub-feature is on and false when off (its data-key resolution is
@@ -377,8 +378,8 @@ assert_install_ghostty false false
 # required positive case is statusline ON with the notify hooks OFF; we also
 # exercise both-on and the Codex bare-[tui] fold (double-table hazard). Codex TOML
 # checks need tomllib; they are skipped (not failed) when it is absent.
-CLAUDE_MOD="$REPO_DIR/dot_claude/modify_settings.json.tmpl"
-CODEX_MOD="$REPO_DIR/dot_codex/modify_private_config.toml.tmpl"
+CLAUDE_MOD="$SOURCE_DIR/dot_claude/modify_settings.json.tmpl"
+CODEX_MOD="$SOURCE_DIR/dot_codex/modify_private_config.toml.tmpl"
 
 ai_cfg() { # claude_hooks codex_hooks statusline -> path to a temp chezmoi config
     local d; d=$(mktemp -d)

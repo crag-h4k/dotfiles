@@ -12,7 +12,7 @@ repos:
     rev: v8.30.1
     hooks:
       - id: gitleaks
-        args: [--redact]
+        args: [--redact, --config=config/linters/gitleaks.toml]
 
   - repo: https://github.com/pre-commit/pre-commit-hooks
     rev: v5.0.0
@@ -22,19 +22,19 @@ repos:
       - id: check-yaml
       - id: check-toml
         # Skip files that are not raw TOML documents:
-        #   .chezmoiexternal.toml - a chezmoi Go template (gated by component),
+        #   home/.chezmoiexternal.toml - a chezmoi Go template (gated by component),
         #     so it does not parse until chezmoi renders it.
         #   modify_*.toml - chezmoi modify_ scripts (e.g.
-        #     dot_codex/modify_private_config.toml.tmpl renders to Python that
+        #     home/dot_codex/modify_private_config.toml.tmpl renders to Python that
         #     merges `notify` into ~/.codex/config.toml), not TOML documents.
         exclude: |
           (?x)(
-            ^\.chezmoiexternal\.toml$|
+            ^home/\.chezmoiexternal\.toml$|
             (^|/)modify_[^/]*\.toml$
           )
       - id: check-json
         # chezmoi modify_ scripts that target a *.json file are executable
-        # scripts (e.g. dot_claude/modify_settings.json.tmpl renders to Python
+        # scripts (e.g. home/dot_claude/modify_settings.json.tmpl renders to Python
         # that merges hooks into ~/.claude/settings.json), not JSON documents.
         exclude: (^|/)modify_[^/]*\.json$
       - id: check-added-large-files
@@ -47,15 +47,15 @@ repos:
         # filetype hint but are sourced by zsh, not executed.
         exclude: |
           (?x)^(
-            dot_zshrc$|
-            dot_zshenv$|
-            dot_zsh/aliases$|
-            dot_zsh/custom/functions/.*\.zsh$
+            home/dot_zshrc$|
+            home/dot_zshenv$|
+            home/dot_zsh/aliases$|
+            home/dot_zsh/custom/functions/.*\.zsh$
           )$
 
   # Shell-script linting for the install scripts in scripts/. Exclude:
   #   - chezmoi .tmpl files (Go template syntax is not valid sh)
-  #   - dot_zsh/* — zsh is not supported by shellcheck (SC1071)
+  #   - home/dot_zsh/* — zsh is not supported by shellcheck (SC1071)
   # -x follows `# shellcheck source=...` directives inside scripts.
   - repo: https://github.com/shellcheck-py/shellcheck-py
     rev: v0.10.0.1
@@ -65,7 +65,7 @@ repos:
         exclude: |
           (?x)^(
             .*\.tmpl$|
-            dot_zsh/.*
+            home/dot_zsh/.*
           )$
 
   # GitHub Actions workflow linting. golang-language hook: pre-commit builds
@@ -81,29 +81,30 @@ repos:
     rev: v0.43.0
     hooks:
       - id: markdownlint
-        args: [--config=.markdownlint.yaml]
+        args: [--config=config/linters/markdownlint.yaml]
 
   # Lua formatting. stylua-github downloads a prebuilt binary, so no rust/cargo
-  # or system stylua is required. Config: .stylua.toml.
+  # or system stylua is required.
   - repo: https://github.com/JohnnyMorganz/StyLua
     rev: v2.5.2
     hooks:
       - id: stylua-github
+        args: [--config-path, config/linters/stylua.toml]
 
   # Lua linting (static analysis). Run as a system hook, not the hosted
   # language:lua hook: luacheck 1.2.0 crashes on Lua 5.5 (Homebrew's default),
   # so install-neovim.sh installs it against Lua 5.4 and puts it on PATH, and
-  # the CI workflow installs it via apt luarocks. Config: .luacheckrc.
+  # the CI workflow installs it via apt luarocks.
   - repo: local
     hooks:
       - id: luacheck
         name: luacheck
-        entry: luacheck
+        entry: luacheck --config config/linters/luacheckrc
         language: system
         types: [lua]
 
   # Render the component-gated chezmoi templates across combinations and parse
-  # the result. check-toml skips .chezmoiexternal.toml (it is a Go template), so
+  # the result. check-toml skips home/.chezmoiexternal.toml (it is a Go template), so
   # this is what actually validates the rendered TOML before it reaches a host.
   - repo: local
     hooks:
@@ -112,14 +113,14 @@ repos:
         entry: scripts/validate-templates.sh
         language: script
         pass_filenames: false
-        files: ^(\.chezmoiexternal\.toml|\.chezmoi(ignore|\.toml\.tmpl)|dot_gitconfig|private_dot_gitconfig\.personal\.tmpl|scripts/(confirm-install|package-plan|validate-templates)\.sh)$
+        files: ^(home/(\.chezmoiexternal\.toml|\.chezmoi(ignore|\.toml\.tmpl)|dot_gitconfig|private_dot_gitconfig\.personal\.tmpl)|scripts/(confirm-install|package-plan|validate-templates)\.sh)$
 
       - id: validate-palettes
         name: validate shared palettes render
         entry: scripts/validate-palettes.sh
         language: script
         pass_filenames: false
-        files: ^(\.chezmoidata/palettes\.yaml|dot_(config/(ghostty|iterm2|notify|nvim|statusline)|tmux/conf\.d|codex/themes|zsh/theme).*)$
+        files: ^home/(\.chezmoidata/palettes\.yaml|dot_(config/(ghostty|iterm2|notify|nvim|statusline)|tmux/conf\.d|codex/themes|zsh/theme).*)$
 
       - id: build-palettes-check
         name: palette catalog matches base16 schemes
@@ -128,28 +129,28 @@ repos:
         pass_filenames: false
         # Skips itself when the vendor/tinted-schemes submodule is absent (local
         # dev); CI checks out submodules, so it enforces there.
-        files: ^(scripts/build-palettes\.py|\.chezmoidata/palettes\.yaml|\.chezmoi\.toml\.tmpl)$
+        files: ^(scripts/build-palettes\.py|home/(\.chezmoidata/palettes\.yaml|\.chezmoi\.toml\.tmpl))$
 
       - id: pytest-notify
         name: pytest notify (modify_settings.json.tmpl)
         entry: uv run --with pytest pytest tests/test_merge_settings.py -v
         language: system
         pass_filenames: false
-        files: ^(dot_claude/modify_settings\.json\.tmpl|tests/test_merge_settings\.py)$
+        files: ^(home/dot_claude/modify_settings\.json\.tmpl|tests/test_merge_settings\.py)$
 
       - id: pytest-notify-codex
         name: pytest notify (modify_private_config.toml.tmpl)
         entry: uv run --with pytest pytest tests/test_merge_codex_config.py -v
         language: system
         pass_filenames: false
-        files: ^(dot_codex/modify_private_config\.toml\.tmpl|tests/test_merge_codex_config\.py)$
+        files: ^(home/dot_codex/modify_private_config\.toml\.tmpl|tests/test_merge_codex_config\.py)$
 
       - id: pytest-statusline-tokens
         name: pytest statusline (statusline-tokens.py)
         entry: uv run --with pytest pytest tests/test_statusline_tokens.py -v
         language: system
         pass_filenames: false
-        files: ^(dot_claude/executable_statusline-tokens\.py|tests/test_statusline_tokens\.py|tests/fixtures/statusline/.*)$
+        files: ^(home/dot_claude/executable_statusline-tokens\.py|tests/test_statusline_tokens\.py|tests/fixtures/statusline/.*)$
 
       - id: bats-notify
         name: bats (installer + notify + statusline + render-shim + package-plan + tooling)
@@ -157,7 +158,7 @@ repos:
         args: [tests/test_confirm_install.bats, tests/test_install_gate.bats, tests/test_lib.bats, tests/test_process.bats, tests/test_statusline_command.bats, tests/test_render_modify_shim.bats, tests/test_package_plan.bats, tests/test_tooling.bats]
         language: system
         pass_filenames: false
-        files: ^(\.gitignore|\.gitleaks\.toml|\.pre-commit-config\.yaml|dot_config/notify/.*|dot_config/nvim/(init\.lua|lua/gitleaks\.lua)|dot_zsh/custom/functions/notify-process\.zsh|dot_claude/executable_statusline-command\.sh|scripts/(common|confirm-install|install-neovim|install-notify|install|package-plan)\.sh|dot_claude/modify_settings\.json\.tmpl|dot_codex/modify_private_config\.toml\.tmpl|tests/test_(confirm_install|install_gate|lib|process|statusline_command|render_modify_shim|package_plan|tooling)\.bats|tests/fixtures/.*)$
+        files: ^(\.gitignore|config/linters/gitleaks\.toml|\.pre-commit-config\.yaml|home/dot_config/notify/.*|home/dot_config/nvim/(init\.lua|lua/gitleaks\.lua)|home/dot_zsh/custom/functions/notify-process\.zsh|home/dot_claude/executable_statusline-command\.sh|scripts/(common|confirm-install|install-neovim|install-notify|install|package-plan)\.sh|home/dot_claude/modify_settings\.json\.tmpl|home/dot_codex/modify_private_config\.toml\.tmpl|tests/test_(confirm_install|install_gate|lib|process|statusline_command|render_modify_shim|package_plan|tooling)\.bats|tests/fixtures/.*)$
 
       - id: bats-tmux-startup
         name: bats (tmux startup config selection)
@@ -165,4 +166,12 @@ repos:
         args: [tests/test_tmux_startup.bats]
         language: system
         pass_filenames: false
-        files: ^(dot_zshrc|dot_tmux/conf\.d/notify\.conf|tests/test_tmux_startup\.bats)$
+        files: ^(home/dot_zshrc|home/dot_tmux/conf\.d/notify\.conf|tests/test_tmux_startup\.bats)$
+
+      - id: bats-source-layout
+        name: bats (chezmoi source-root layout)
+        entry: bats
+        args: [tests/test_source_layout.bats]
+        language: system
+        pass_filenames: false
+        files: ^(\.chezmoiroot|home/|config/linters/|scripts/|tests/test_source_layout\.bats)$

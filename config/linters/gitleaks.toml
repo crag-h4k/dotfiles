@@ -15,6 +15,6 @@ paths = [
 [[allowlists]]
 description = "Binary media assets"
 paths = [
-  '''^dot_config/notify/sounds/''',
-  '''^dot_zsh/custom/functions/resources/''',
+  '''^home/dot_config/notify/sounds/''',
+  '''^home/dot_zsh/custom/functions/resources/''',
 ]

@@ -1,6 +1,6 @@
 #!/usr/bin/env bats
 # tests/test_process.bats
-# Tests for _notify_resolve_bin in dot_zsh/custom/functions/notify-process.zsh.
+# Tests for _notify_resolve_bin in home/dot_zsh/custom/functions/notify-process.zsh.
 # Each test runs zsh as a subprocess: the function uses zsh-specific syntax
 # (${(@s:|:)line}, ${aliases[...]}) that cannot be tested in bash.
 #
@@ -9,7 +9,7 @@
 # with exit 127. Bats fails the test automatically on any non-zero exit.
 
 CHEZMOI_DIR="$(cd "${BATS_TEST_DIRNAME}/.." && pwd)"
-NOTIFY_PROCESS="${CHEZMOI_DIR}/dot_zsh/custom/functions/notify-process.zsh"
+NOTIFY_PROCESS="${CHEZMOI_DIR}/home/dot_zsh/custom/functions/notify-process.zsh"
 FIXTURES="${BATS_TEST_DIRNAME}/fixtures"
 
 # Resolve a command line through _notify_resolve_bin.

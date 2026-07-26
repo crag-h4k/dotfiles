@@ -9,7 +9,8 @@
 # needs nothing here: its hook (stylua-github) downloads its own prebuilt binary.
 #
 # When the ai > codecompanion sub-feature is selected (exported as
-# INSTALL_AI_CODECOMPANION by run_once_after_00-install.sh), the Claude Code ACP
+# INSTALL_AI_CODECOMPANION by
+# home/.chezmoiscripts/run_once_after_00-install.sh.tmpl), the Claude Code ACP
 # bridge `claude-agent-acp` is installed too - CodeCompanion's chat adapter spawns it.
 #
 # Rust support is intentionally not installed here (the rustup/brew toolchain

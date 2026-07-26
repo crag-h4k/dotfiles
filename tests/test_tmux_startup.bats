@@ -3,7 +3,7 @@
 # ownership when a foreground TUI has enabled application mouse reporting.
 
 REPO_ROOT="$(cd "${BATS_TEST_DIRNAME}/.." && pwd)"
-NOTIFY_CONF="${REPO_ROOT}/dot_tmux/conf.d/notify.conf"
+NOTIFY_CONF="${REPO_ROOT}/home/dot_tmux/conf.d/notify.conf"
 
 setup() {
   TEST_HOME="${BATS_TEST_TMPDIR}/home"
@@ -35,7 +35,7 @@ STUB
     ZSH_CUSTOM="$TEST_HOME/custom" \
     TMUX_CONFIG_CAPTURE="$TEST_HOME/captured-tmux-config" \
     ZSH_TMUX_CONFIG="/stale/inherited/tmux.conf" \
-    zsh -dfc "source '$REPO_ROOT/dot_zshrc'"
+    zsh -dfc "source '$REPO_ROOT/home/dot_zshrc'"
 
   [ "$status" -eq 0 ]
   [ "$(cat "$TEST_HOME/captured-tmux-config")" = "$TEST_HOME/.tmux.conf" ]
