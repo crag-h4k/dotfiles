@@ -1,0 +1,58 @@
+#!/usr/bin/env bash
+# Render one sticky PR comment covering the independently visible build,
+# installation, and smoke-test phases for both deployment environments.
+set -euo pipefail
+
+[[ "$#" -eq 1 ]] || {
+    printf 'usage: render-deployment-summary.sh OUTPUT_FILE\n' >&2
+    exit 1
+}
+
+format_status() {
+    case "$1" in
+        success) printf ':white_check_mark: passed' ;;
+        failure) printf ':x: failed' ;;
+        skipped) printf ':fast_forward: skipped' ;;
+        cancelled) printf ':warning: cancelled' ;;
+        *) printf ':warning: unavailable' ;;
+    esac
+}
+
+overall_status() {
+    if [[ "$1" == success && "$2" == success && "$3" == success ]]; then
+        printf ':white_check_mark: passed'
+    elif [[ "$1" == failure || "$2" == failure || "$3" == failure ]]; then
+        printf ':x: failed'
+    else
+        printf ':warning: incomplete'
+    fi
+}
+
+output_file="$1"
+{
+    printf '### Deployment validation\n\n'
+    printf '| Environment | Build | Install | Smoke test | Overall |\n'
+    printf '| --- | --- | --- | --- | --- |\n'
+    printf '| Debian Trixie | %s | %s | %s | %s |\n' \
+        "$(format_status "${TRIXIE_BUILD:-}")" \
+        "$(format_status "${TRIXIE_INSTALL:-}")" \
+        "$(format_status "${TRIXIE_SMOKE:-}")" \
+        "$(overall_status \
+            "${TRIXIE_BUILD:-}" \
+            "${TRIXIE_INSTALL:-}" \
+            "${TRIXIE_SMOKE:-}")"
+    printf '| macOS | %s | %s | %s | %s |\n' \
+        "$(format_status "${MACOS_BUILD:-}")" \
+        "$(format_status "${MACOS_INSTALL:-}")" \
+        "$(format_status "${MACOS_SMOKE:-}")" \
+        "$(overall_status \
+            "${MACOS_BUILD:-}" \
+            "${MACOS_INSTALL:-}" \
+            "${MACOS_SMOKE:-}")"
+    if [[ -n "${GITHUB_SERVER_URL:-}" &&
+        -n "${GITHUB_REPOSITORY:-}" &&
+        -n "${GITHUB_RUN_ID:-}" ]]; then
+        printf '\n[Open the workflow run](%s/%s/actions/runs/%s)\n' \
+            "$GITHUB_SERVER_URL" "$GITHUB_REPOSITORY" "$GITHUB_RUN_ID"
+    fi
+} >"$output_file"
