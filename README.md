@@ -5,12 +5,12 @@
 Professionally overengineered, personally unhinged dotfiles for people with
 enterprise-level trust issues who think tmux has a spirit and deserves deployment CI.
 
-Chezmoi wrangles Zsh, Neovim, Ghostty/iTerm2, Claude/Codex hooks, palettes, and tools.
-
 Gum picks the loadout; headless macOS/Trixie runners make sure nothing shits the bed.
 
 
 ## What this thing does
+
+Chezmoi wrangles Zsh, Neovim, Ghostty/iTerm2, Claude/Codex hooks, palettes, and tools.
 
 - [tmux notifier](docs/notifications.md)
   - Bespoke and fully customizable
