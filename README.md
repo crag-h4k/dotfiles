@@ -7,7 +7,6 @@ enterprise-level trust issues who think tmux has a spirit and deserves deploymen
 
 Gum picks the loadout; headless macOS/Trixie runners make sure nothing shits the bed.
 
-
 ## What this thing does
 
 Chezmoi wrangles Zsh, Neovim, Ghostty/iTerm2, Claude/Codex hooks, palettes, and tools.
