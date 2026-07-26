@@ -3,19 +3,25 @@
 [![CI](https://github.com/crag-h4k/dotfiles/actions/workflows/ci.yaml/badge.svg?branch=main)](https://github.com/crag-h4k/dotfiles/actions/workflows/ci.yaml) [![Managed by chezmoi](https://img.shields.io/badge/managed%20by-chezmoi-2d3142)](https://chezmoi.io) [![Debian Trixie](https://img.shields.io/badge/Debian%20Trixie-A81D33?logo=debian&logoColor=white)](docs/ci.md) [![macOS](https://img.shields.io/badge/macOS-252525?logo=apple&logoColor=white)](docs/ci.md) [![Gum](https://img.shields.io/badge/picker-Gum-FF69B4)](https://github.com/charmbracelet/gum)
 
 Professionally overengineered, personally unhinged dotfiles for people with
-enterprise-level trust issues who think tmux deserves deployment CI. Chezmoi
-wrangles Zsh, Neovim, Ghostty/iTerm2, Claude/Codex hooks, palettes, and tools.
-Its home-grown notifier chirps or beeps and makes tmux change colors at you
-when a long job, Claude, or Codex needs attention. Gum picks the loadout;
-headless macOS/Trixie runners make sure nothing shits the bed.
+enterprise-level trust issues who think tmux has a spirit and deserves deployment CI.
+
+Chezmoi wrangles Zsh, Neovim, Ghostty/iTerm2, Claude/Codex hooks, palettes, and tools.
+
+Gum picks the loadout; headless macOS/Trixie runners make sure nothing shits the bed.
+
 
 ## What this thing does
 
-- Chirps or beeps and recolors the tmux pane and status flag when a long job,
-  Claude, or Codex needs attention.
-- Installs only the components and sub-features selected for a host.
+- [tmux notifier](docs/notifications.md)
+  - Bespoke and fully customizable
+  - tmux's pane color, then chirps, beeps, or cracks a whip to keep focus
+    when a long process finishes, something errors, or when Claude/Codex
+    needs attention.
+  - Configure volume, duration, process groupings for different notifications,
+    enable/disable settings 
+- Selectively installs only the components and sub-features selected for a host.
 - Keeps Ghostty, iTerm2, tmux, Neovim, Claude, and Codex on one shared palette.
-- Handles the Ghostty → SSH → tmux mouse, clipboard, and scrollback gauntlet.
+- Handles the Ghostty > SSH > tmux mouse, clipboard, and scrollback gauntlet.
 - Gives Neovim modern LSP activation, missing-only Mason installs, and
   non-blocking Gitleaks warnings.
 - Plans and deduplicates packages before Homebrew or APT gets to touch anything.
@@ -83,10 +89,6 @@ DOTFILES_INSTALL_MODE=packages DOTFILES_ASSUME_YES=1 \
 Mason and Lazy install missing state, but they do not reconcile every host to
 one exact runtime revision. `lazy-lock.json` stays ignored on purpose, so a
 normal plugin update does not turn the dotfiles checkout dirty.
-
-`markdownlint-cli2` is the deliberate exception to Mason ownership. It remains
-shell-visible through Homebrew on macOS or user-global npm on Debian, and
-Neovim's `nvim-lint` uses that same binary.
 
 ## Documentation
 
