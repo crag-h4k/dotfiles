@@ -175,3 +175,11 @@ repos:
         language: system
         pass_filenames: false
         files: ^(\.chezmoiroot|home/|config/linters/|scripts/|tests/test_source_layout\.bats)$
+
+      - id: bats-ci-summary
+        name: bats (deployment PR summary)
+        entry: bats
+        args: [tests/test_ci_summary.bats]
+        language: system
+        pass_filenames: false
+        files: ^(\.github/(scripts/render-deployment-summary\.sh|workflows/ci\.yaml)|tests/test_ci_summary\.bats)$

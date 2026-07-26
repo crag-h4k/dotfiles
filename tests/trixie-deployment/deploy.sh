@@ -17,14 +17,15 @@ if [[ -t 0 ]]; then
 fi
 sudo -n true
 
-# promptStringOnce reads existing data during init. Seed Zsh and Git so CI is
-# fully headless and runs the real GitHub CLI package/repository path without
-# paying to install a complete Neovim workstation on every pull request.
+# promptStringOnce reads existing data during init. Seed Zsh, tmux, and shared
+# Git configuration so CI is fully headless and runs the real package/repository
+# path without paying to install a complete Neovim workstation on every pull
+# request. Personal Git identity remains deliberately disabled.
 mkdir -p "$CONFIG_DIR"
 printf '%s\n' \
     '[data]' \
-    'componentSelection = "1 4"' \
-    'gitSelection = "3"' \
+    'componentSelection = "1 2 4"' \
+    'gitSelection = "1 3"' \
     'aiSelection = ""' \
     'terminalSelection = ""' \
     'palette = "dracula"' \
@@ -68,7 +69,7 @@ test -f /etc/apt/sources.list.d/apt.sources
 test ! -e /etc/apt/sources.list.d/github-cli.sources
 apt-cache policy gh | grep -F 'https://cli.github.com/packages' >/dev/null
 
-for command_name in chezmoi git gh zsh; do
+for command_name in chezmoi git gh tmux zoxide zsh; do
     command -v "$command_name" >/dev/null || {
         printf 'expected deployed command missing: %s\n' "$command_name" >&2
         exit 1
@@ -76,8 +77,9 @@ for command_name in chezmoi git gh zsh; do
 done
 
 test -f "$HOME/.zshrc"
+test -f "$HOME/.tmux.conf"
+test -f "$HOME/.gitconfig"
 test -f "$HOME/.gitignore_global"
-test ! -e "$HOME/.tmux.conf"
 test ! -e "$HOME/.config/nvim/init.lua"
 
 printf 'Focused Trixie package-mode chezmoi deployment passed as uid=%s\n' "$(id -u)"

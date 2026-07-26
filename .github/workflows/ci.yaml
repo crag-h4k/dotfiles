@@ -1,12 +1,10 @@
 ---
 name: ci
 
-# One file for the whole tag/release lifecycle: pre-commit gates both event
-# types, then a PR gets a tag preview and a push to main gets the real tag +
-# release. anothrNick/github-tag-action runs in dry-run mode in both
-# downstream jobs: it only computes the next version and never pushes, so
-# softprops/action-gh-release is the one that creates the tag and the
-# release together, atomically.
+# Pull requests and main pushes run the same stable gate. Trixie and macOS
+# deployment jobs are independent siblings so GitHub schedules them in parallel.
+# A normal main merge only updates the Release Please PR; an actual release is
+# created only when that accumulated release PR is deliberately merged.
 on:
   push:
     branches: [main]
@@ -14,76 +12,207 @@ on:
     branches: [main]
 
 permissions:
-  contents: write
+  contents: read
   pull-requests: write
+
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 jobs:
   pre-commit:
     uses: ./.github/workflows/pre-commit.yaml
 
-  trixie-build:
-    name: trixie build
+  trixie-deployment:
+    name: Trixie deployment
     runs-on: ubuntu-latest
     environment: trixie
-    timeout-minutes: 15
+    timeout-minutes: 20
+    outputs:
+      build: ${{ steps.outcomes.outputs.build }}
+      install: ${{ steps.outcomes.outputs.install }}
+      smoke: ${{ steps.outcomes.outputs.smoke }}
     steps:
       - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7
 
       - name: Build Trixie deployment image
-        run: docker build --file tests/trixie-deployment/Dockerfile.trixie --tag dotfiles-trixie-deployment .
+        id: build
+        continue-on-error: true
+        run: >-
+          docker build
+          --file tests/trixie-deployment/Dockerfile.trixie
+          --tag dotfiles-trixie-deployment
+          .
 
-      - name: Run focused headless Trixie package deployment
-        run: docker run --rm dotfiles-trixie-deployment
+      - name: Install dotfiles in Trixie
+        id: install
+        if: steps.build.outcome == 'success'
+        continue-on-error: true
+        run: |
+          docker run \
+            --detach \
+            --name dotfiles-trixie-deployment \
+            dotfiles-trixie-deployment \
+            sleep infinity
+          docker exec dotfiles-trixie-deployment \
+            bash /home/dotfiles/source/tests/trixie-deployment/deploy.sh
 
-  tag-preview:
-    needs: [pre-commit, trixie-build]
-    if: github.event_name == 'pull_request'
+      - name: Smoke test Trixie deployment
+        id: smoke
+        if: steps.install.outcome == 'success'
+        continue-on-error: true
+        run: >-
+          docker exec dotfiles-trixie-deployment
+          bash /home/dotfiles/source/tests/deployment-smoke.sh
+
+      - name: Stop Trixie deployment container
+        if: always()
+        run: docker rm --force dotfiles-trixie-deployment 2>/dev/null || true
+
+      - name: Export Trixie phase outcomes
+        id: outcomes
+        if: always()
+        env:
+          BUILD_OUTCOME: ${{ steps.build.outcome }}
+          INSTALL_OUTCOME: ${{ steps.install.outcome }}
+          SMOKE_OUTCOME: ${{ steps.smoke.outcome }}
+        run: |
+          {
+            printf 'build=%s\n' "$BUILD_OUTCOME"
+            printf 'install=%s\n' "$INSTALL_OUTCOME"
+            printf 'smoke=%s\n' "$SMOKE_OUTCOME"
+          } >> "$GITHUB_OUTPUT"
+
+      - name: Enforce successful Trixie deployment
+        if: >-
+          always() &&
+          (steps.build.outcome != 'success' ||
+          steps.install.outcome != 'success' ||
+          steps.smoke.outcome != 'success')
+        run: exit 1
+
+  macos-deployment:
+    name: macOS deployment
+    runs-on: macos-15
+    environment: macos
+    timeout-minutes: 20
+    env:
+      HOMEBREW_NO_ANALYTICS: "1"
+      HOMEBREW_NO_AUTO_UPDATE: "1"
+      HOMEBREW_NO_ENV_HINTS: "1"
+      HOMEBREW_NO_INSTALL_CLEANUP: "1"
+    outputs:
+      build: ${{ steps.outcomes.outputs.build }}
+      install: ${{ steps.outcomes.outputs.install }}
+      smoke: ${{ steps.outcomes.outputs.smoke }}
+    steps:
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7
+
+      - name: Build clean macOS deployment source
+        id: build
+        continue-on-error: true
+        run: |
+          mkdir -p "$RUNNER_TEMP/bin"
+          sh -c "$(curl -fsLS get.chezmoi.io)" -- \
+            -b "$RUNNER_TEMP/bin"
+          export PATH="$RUNNER_TEMP/bin:$PATH"
+          printf '%s\n' "$RUNNER_TEMP/bin" >> "$GITHUB_PATH"
+          tests/macos-deployment/build.sh \
+            "$RUNNER_TEMP/dotfiles-source"
+
+      - name: Install dotfiles on macOS
+        id: install
+        if: steps.build.outcome == 'success'
+        continue-on-error: true
+        run: tests/macos-deployment/deploy.sh
+
+      - name: Smoke test macOS deployment
+        id: smoke
+        if: steps.install.outcome == 'success'
+        continue-on-error: true
+        run: tests/deployment-smoke.sh
+
+      - name: Export macOS phase outcomes
+        id: outcomes
+        if: always()
+        env:
+          BUILD_OUTCOME: ${{ steps.build.outcome }}
+          INSTALL_OUTCOME: ${{ steps.install.outcome }}
+          SMOKE_OUTCOME: ${{ steps.smoke.outcome }}
+        run: |
+          {
+            printf 'build=%s\n' "$BUILD_OUTCOME"
+            printf 'install=%s\n' "$INSTALL_OUTCOME"
+            printf 'smoke=%s\n' "$SMOKE_OUTCOME"
+          } >> "$GITHUB_OUTPUT"
+
+      - name: Enforce successful macOS deployment
+        if: >-
+          always() &&
+          (steps.build.outcome != 'success' ||
+          steps.install.outcome != 'success' ||
+          steps.smoke.outcome != 'success')
+        run: exit 1
+
+  deployment-summary:
+    name: Deployment PR summary
+    needs: [trixie-deployment, macos-deployment]
+    if: always() && github.event_name == 'pull_request'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7
-        with:
-          fetch-depth: 0
 
-      - name: Compute next tag
-        id: tag
-        uses: anothrNick/github-tag-action@4ed44965e0db8dab2b466a16da04aec3cc312fd8 # 1.75.0
+      - name: Render deployment summary
         env:
-          GITHUB_TOKEN: ${{ github.token }}
-          DEFAULT_BUMP: patch
-          TAG_PREFIX: v
-          DEFAULT_BRANCH: main
-          DRY_RUN: "true"
+          TRIXIE_BUILD: ${{ needs.trixie-deployment.outputs.build }}
+          TRIXIE_INSTALL: ${{ needs.trixie-deployment.outputs.install }}
+          TRIXIE_SMOKE: ${{ needs.trixie-deployment.outputs.smoke }}
+          MACOS_BUILD: ${{ needs.macos-deployment.outputs.build }}
+          MACOS_INSTALL: ${{ needs.macos-deployment.outputs.install }}
+          MACOS_SMOKE: ${{ needs.macos-deployment.outputs.smoke }}
+        run: >-
+          .github/scripts/render-deployment-summary.sh
+          deployment-summary.md
 
-      - name: Comment tag preview
+      - name: Update deployment summary comment
+        continue-on-error: true
         uses: marocchino/sticky-pull-request-comment@5770ad5eb8f42dd2c4f34da00c94c5381e49af88 # v3.0.5
         with:
-          header: tag-preview
-          message: |
-            Current tag: `${{ steps.tag.outputs.old_tag }}`
-            Merging this PR will cut: `${{ steps.tag.outputs.new_tag }}`
+          header: deployment-validation
+          path: deployment-summary.md
 
-  release:
-    needs: [pre-commit, trixie-build]
-    if: github.event_name == 'push'
+  ci:
+    name: CI
+    needs: [pre-commit, trixie-deployment, macos-deployment]
+    if: always()
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7
-        with:
-          fetch-depth: 0
-
-      - name: Compute next tag
-        id: tag
-        uses: anothrNick/github-tag-action@4ed44965e0db8dab2b466a16da04aec3cc312fd8 # 1.75.0
+      - name: Enforce required CI jobs
         env:
-          GITHUB_TOKEN: ${{ github.token }}
-          DEFAULT_BUMP: patch
-          TAG_PREFIX: v
-          DEFAULT_BRANCH: main
-          DRY_RUN: "true"
+          PRE_COMMIT_RESULT: ${{ needs.pre-commit.result }}
+          TRIXIE_RESULT: ${{ needs.trixie-deployment.result }}
+          MACOS_RESULT: ${{ needs.macos-deployment.result }}
+        run: |
+          printf 'pre-commit: %s\n' "$PRE_COMMIT_RESULT"
+          printf 'Trixie deployment: %s\n' "$TRIXIE_RESULT"
+          printf 'macOS deployment: %s\n' "$MACOS_RESULT"
+          test "$PRE_COMMIT_RESULT" = success
+          test "$TRIXIE_RESULT" = success
+          test "$MACOS_RESULT" = success
 
-      - name: Create tag and release
-        uses: softprops/action-gh-release@3d0d9888cb7fd7b750713d6e236d1fcb99157228 # v3.0.2
+  release-please:
+    name: Release Please
+    needs: ci
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      issues: write
+      pull-requests: write
+    steps:
+      - name: Open or update the release PR
+        uses: googleapis/release-please-action@45996ed1f6d02564a971a2fa1b5860e934307cf7 # v5.0.0
         with:
-          tag_name: ${{ steps.tag.outputs.new_tag }}
-          target_commitish: ${{ github.sha }}
-          generate_release_notes: true
+          token: ${{ secrets.RELEASE_PLEASE_TOKEN }}
+          config-file: .github/release-please/config.json
+          manifest-file: .github/release-please/manifest.json
