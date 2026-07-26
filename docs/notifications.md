@@ -4,102 +4,153 @@
 ## Table of Contents
 
 - [Overview](#overview)
+- [Configuration and rendering](#configuration-and-rendering)
+- [Process notifications](#process-notifications)
+- [Claude and Codex](#claude-and-codex)
+- [Debugging](#debugging)
+- [Dependencies](#dependencies)
 - [Standalone install (no chezmoi)](#standalone-install-no-chezmoi)
 
 ## Overview
 
-Terminal-native attention cues when a long process finishes or Claude/Codex needs you. Visual
-cue always; sound optional per group (empty sound = silent). No notification-center popups.
+This subsystem marks a tmux pane when a long process finishes or an AI tool
+needs attention. The visual cue is always present. Sound is optional per group,
+and an empty sound disables it.
 
-- **All notification behavior lives in one file**, `~/.config/notify/notify.yaml`, read via
-  [`yq`](https://github.com/mikefarah/yq) (mikefarah, v4): per-group `bg`/`accent`/`sound`,
-  default and per-group `volume`/`threshold`, the binary-to-group map, the ignore-list, and
-  debug logging. `groups` are triggered by a finished command's binary; `integrations`
-  (claude/codex) are triggered by an event hook and are auto-added to the ignore-list (so
-  launching the CLI never fires the command path). Palette names resolve to hex; a raw `#hex`
-  or `default` passes through. The named colors are rendered from
-  `home/.chezmoidata/palettes.yaml`;
-  edit behavior in the YAML template and shared colors in the palette catalog. New shells
-  re-read it; `tmux source-file ~/.tmux.conf` reloads the renderer.
-- **Shared logic in `~/.config/notify/lib.sh`** (array-free POSIX, sourced by both the zsh
-  notifier and the bash hooks) reads the config and does the recolor + sound. It resolves a
-  mikefarah `yq` even under a stripped PATH (preferring `~/.local/bin/yq`, ignoring a stray
-  apt/kislyuk `yq`) and locates tmux the same way, bypassing the oh-my-zsh tmux wrapper.
-- **`~/.tmux/conf.d/notify.conf` renders** the status-bar flag and pane tint. It clears
-  only the receiving flagged pane on focus, ordinary keyboard input, primary click, drag, or
-  scrolling in normal and copy modes. Right-click menus remain tmux defaults. Outside tmux the
-  system is inert by design.
-- **`~/.zsh/custom/functions/notify-process.zsh` handles detection**: it builds its
-  binary-to-group map, per-group thresholds, and ignore-list once at shell init (a single `yq`
-  call), then `preexec`/`precmd` flag the pane when a named binary (terraform, brew, ...)
-  finishes at/above its group's threshold, or any command runs past the catch-all `default`
-  threshold. A nonzero exit uses the `error` group.
-- **Claude Code drives AI attention** through its `Stop`, `Notification`, and
-  `PreToolUse:AskUserQuestion` events, which call `notify-tmux.sh`, registered in
-  `~/.claude/settings.json` via the `modify_` template
-  (`home/dot_claude/modify_settings.json.tmpl`)
-  that merges the hooks on each `chezmoi apply` without clobbering model/effort/plugins.
-  Matcher-less `Notification` covers permission prompts and idle; `PreToolUse:AskUserQuestion`
-  covers the question tool (which emits no `Notification` event). `~/.claude/settings.local.json`
-  is never loaded and `.claude` settings do not merge up the directory tree; the externally
-  managed `~/.claude.json` is left untouched. A fresh `claude` session picks up the hooks. Codex
-  is wired the same way via `~/.codex/config.toml` (the `modify_private_config.toml.tmpl` merge,
-  gated on `ai > codex_hooks`): its external `notify` program calls `notify-tmux.sh` on
-  `agent-turn-complete` (the color+sound "your turn" flag). Codex never sends the notify program
-  an approval event, so `notify` cannot cover permission prompts; the merge also sets
-  `tui.notifications` (`approval-requested`), Codex's own alert, which is a no-op under tmux
-  today ([openai/codex#16855](https://github.com/openai/codex/issues/16855)) and activates once
-  that lands. A restart of `codex` picks up the config.
-- **Debug logging is off by default.** Set `settings.debug: true` (or `export NOTIFY_DEBUG=1`)
-  to trace fires to `settings.log` (default `~/.config/notify/notify.log`); the log self-caps at
-  ~1 MB.
-- **The `yq` dependency installs** whenever Zsh, tmux, Claude hooks, or Codex hooks need
-  notify: `brew install yq` on macOS, or the mikefarah binary under `~/.local/bin` on Debian. Do
-  **not** `apt install yq` on Debian; that is a different tool with incompatible syntax.
+There are no notification-center popups. Outside tmux, the system deliberately
+does nothing.
+
+## Configuration and rendering
+
+All behavior lives in `~/.config/notify/notify.yaml`. It contains group colors
+and sounds, volume and duration thresholds, the command map, ignored commands,
+and debug settings.
+
+Each group has `bg`, `accent`, and `sound` values. `volume` and `threshold` can
+be set globally or overridden by a group.
+
+Entries under `groups` fire after a matching binary finishes. Claude and Codex
+live under `integrations`, so their binaries are automatically excluded from
+command detection. Starting `claude` should not immediately notify you about
+starting Claude.
+
+Named palette colors are rendered from `home/.chezmoidata/palettes.yaml`. Raw
+`#hex` colors and `default` pass through unchanged. Edit behavior in the notify
+template; edit shared colors in the palette catalog.
+
+`~/.config/notify/lib.sh` contains the shared POSIX shell code for reading the
+config, tinting panes, and playing sounds. It finds mikefarah `yq` and the real
+tmux binary even with a stripped `PATH`, bypassing the Oh My Zsh tmux wrapper
+and ignoring the incompatible kislyuk `yq`.
+
+The lookup prefers `~/.local/bin/yq`, where the Debian installer puts the
+mikefarah binary.
+
+`~/.tmux/conf.d/notify.conf` renders the status flag and pane tint. A flagged
+pane clears when it receives focus, keyboard input, a primary click, a drag, or
+a scroll event. Right-click menus keep their normal tmux behavior.
+
+New shells re-read the YAML. Reload tmux rendering with:
+
+```sh
+tmux source-file ~/.tmux.conf
+```
+
+## Process notifications
+
+`~/.zsh/custom/functions/notify-process.zsh` reads the command map, thresholds,
+and ignore list once during shell startup.
+
+Its `preexec` and `precmd` hooks notify after a named binary, such as `terraform`
+or `brew`, exceeds its group's threshold. The catch-all `default` group handles
+other long-running commands. A failed command uses the `error` group.
+
+## Claude and Codex
+
+Claude Code calls `notify-tmux.sh` for `Stop`, `Notification`, and
+`PreToolUse:AskUserQuestion` events. The matcher-less `Notification` event
+covers permission prompts and idle state. `PreToolUse:AskUserQuestion` covers
+the question tool, which does not emit a notification event.
+
+The chezmoi `modify_` template at
+`home/dot_claude/modify_settings.json.tmpl` merges these hooks into
+`~/.claude/settings.json` without clobbering model, effort, or plugin settings.
+Claude does not load `~/.claude/settings.local.json`, and `.claude` settings do
+not merge up the directory tree. The external `~/.claude.json` remains
+untouched.
+
+Codex uses the same hook through `~/.codex/config.toml`. Its
+`modify_private_config.toml.tmpl`, gated by
+`ai > codex_hooks`, registers it for `agent-turn-complete`.
+
+Codex does not send approval events to the external notify program. The merge
+also enables its native `approval-requested` notification, but that alert is
+currently ineffective under tmux. The upstream work is tracked in
+[openai/codex#16855](https://github.com/openai/codex/issues/16855).
+
+Restart Claude or Codex after changing their hook configuration.
+
+## Debugging
+
+Debug logging is off by default. Set `settings.debug: true` in the YAML or
+export `NOTIFY_DEBUG=1`.
+
+Events are written to `settings.log`, which defaults to
+`~/.config/notify/notify.log`. The log caps itself at roughly 1 MB.
+
+## Dependencies
+
+The configuration uses [`yq`](https://github.com/mikefarah/yq) v4 from
+mikefarah. It is installed whenever Zsh, tmux, Claude hooks, or Codex hooks need
+the notification subsystem.
+
+On macOS, the installer runs `brew install yq`. On Debian, it installs the
+mikefarah binary under `~/.local/bin`.
+
+Do not run `apt install yq` on Debian. That package is a different program with
+incompatible syntax.
 
 ### Standalone install (no chezmoi)
 
-To install only the notify subsystem on a machine that does not use the full chezmoi dotfiles,
-run the standalone installer from a checkout of this repo:
+To install only this subsystem on a machine without the full dotfiles, run:
 
 ```sh
 scripts/install-notify.sh          # --force to overwrite an existing notify.yaml
 ```
 
-It copies the same files into `~/.config/notify/` (including `sounds/`), `~/.tmux/conf.d/`, and
-`~/.claude/hooks/`, installs mikefarah `yq` (brew on macOS, binary to `~/.local/bin` on Debian),
-and wires `~/.zshrc`, `~/.tmux.conf`, and `~/.claude/settings.json`. When the `codex` CLI is
-present it also installs `~/.codex/hooks/notify-tmux.sh` and merges `notify` + `tui.notifications`
-into `~/.codex/config.toml` (mode 600 preserved). It is idempotent. When mikefarah `yq` is
-missing it confirms `[y/N]` before installing it (or set `DOTFILES_ASSUME_YES=1`); `yq` is
-required here, so declining aborts with a message rather than writing broken colors. If you use
-`chezmoi apply`,
-notify is already installed - do **not** also run this (the zsh notifier would load twice); the
-script refuses unless you pass `--force`. This is the same layout `chezmoi apply`
-installs.
+The script copies the notify files, sounds, tmux renderer, and Claude hooks. It
+installs mikefarah `yq` and wires `~/.zshrc`, `~/.tmux.conf`, and
+`~/.claude/settings.json`.
+
+If Codex is installed, the script also adds its hook and merges `notify` and
+`tui.notifications` into `~/.codex/config.toml`, preserving mode 600.
+
+The installer is idempotent. If `yq` is missing, it asks before installing it;
+set `DOTFILES_ASSUME_YES=1` for an unattended run. Declining stops the install
+instead of leaving a notification setup that cannot read its colors.
+
+Do not run the standalone installer after `chezmoi apply`. That would load the
+Zsh notifier twice, so the script refuses unless you pass `--force`.
 
 Manual equivalent, if you prefer not to run the script:
 
 1. `mkdir -p ~/.config/notify/sounds ~/.tmux/conf.d ~/.claude/hooks`
-2. Render `home/dot_config/notify/notify.yaml.tmpl`, then copy it as `notify.yaml`. Copy
-   `home/dot_config/notify/lib.sh`, `home/dot_config/notify/executable_clear-pane.sh`, and
-   `home/dot_config/notify/sounds/*.mp3` to `~/.config/notify/` (sounds go in
-   `~/.config/notify/sounds/`); `home/dot_zsh/custom/functions/notify-process.zsh` to
-   `~/.config/notify/notify-process.zsh`; copy the clear helper as
-   `~/.config/notify/clear-pane.sh`; copy `home/dot_tmux/conf.d/notify.conf` to
-   `~/.tmux/conf.d/`; and `home/dot_claude/hooks/executable_notify-tmux.sh` /
-   `executable_notify-clear.sh` to
-   `~/.claude/hooks/notify-tmux.sh` / `notify-clear.sh` (then mark all three helpers executable).
+2. Render `home/dot_config/notify/notify.yaml.tmpl` as `notify.yaml`. Copy
+   `lib.sh`, the clear helper, and sounds from `home/dot_config/notify/` into the
+   matching notify directories. Copy `notify-process.zsh` from
+   `home/dot_zsh/custom/functions/`. Copy `notify.conf` from
+   `home/dot_tmux/conf.d/`, and copy the two notification hooks from
+   `home/dot_claude/hooks/`. Remove the `executable_` prefix at their targets
+   and mark the three helper scripts executable.
 3. Install mikefarah `yq`: `brew install yq` (macOS) or fetch the `yq_linux_<arch>` binary to
    `~/.local/bin` (Debian; do **not** `apt install yq` - that is a different tool).
 4. Add to `~/.zshrc`: `[ -f ~/.config/notify/notify-process.zsh ] && source ~/.config/notify/notify-process.zsh`
 5. Add to `~/.tmux.conf`: `source-file ~/.tmux/conf.d/notify.conf` (this overrides
    `window-status-format` / `pane-border-format` - reconcile with your status bar).
-6. Register the Claude hooks. The merger is now a chezmoi template
-   (`home/dot_claude/modify_settings.json.tmpl`), so render it with the hooks gate on before running
-   it. Easiest is to let `scripts/install-notify.sh` do this step (it renders the template for the
-   notify path and merges it, preserving your existing settings). To do it by hand with chezmoi
-   available: `printf '[data.components.ai]\n    claude_hooks = true\n' > /tmp/g.toml && chezmoi
-   execute-template --config /tmp/g.toml < home/dot_claude/modify_settings.json.tmpl > /tmp/m.py && python3
-   /tmp/m.py < ~/.claude/settings.json > /tmp/s && mv /tmp/s ~/.claude/settings.json`.
+6. Register the Claude hooks. The safest path is to let
+   `scripts/install-notify.sh` render and run
+   `home/dot_claude/modify_settings.json.tmpl`; it preserves existing settings.
+   If doing this by hand, render that template with
+   `data.components.ai.claude_hooks = true`, then run the generated modifier
+   against `~/.claude/settings.json`.
 7. Reload: `tmux source-file ~/.tmux.conf`, open a new shell, restart Claude Code.

@@ -4,50 +4,74 @@
 ## Table of Contents
 
 - [How it works](#how-it-works)
+- [Who owns what](#who-owns-what)
 - [What lives where](#what-lives-where)
 
 ## How it works
 
-- **Managed content** lives under `home/`, selected by the repository-level `.chezmoiroot`.
-  Files there follow chezmoi naming conventions (`home/dot_zshrc` -> `~/.zshrc`,
-  `home/dot_zsh/aliases` -> `~/.zsh/aliases`, etc.). Project scripts, tests, docs, workflows,
-  linter policy, and `vendor/` stay outside that source root and therefore cannot become host
-  targets accidentally.
-- **Component selection** is a chezmoi-native concern. `home/.chezmoi.toml.tmpl` prompts at
-  `chezmoi init` - a `gum` checkbox TUI when gum is on `PATH`, else a typed `promptStringOnce`
-  numbered menu - parses the answer, and writes `[data.components]` (plus the nested `.git` /
-  `.ai` sub-feature tables) into the per-host config. The `git` and `ai` components each open a
-  second submenu for their sub-features. Both the gum options and the typed menu are generated
-  from one `$components` list (with `$gitFeatures` / `$aiFeatures`) in that file.
-  `home/.chezmoiignore` and `home/.chezmoiexternal.toml` are both templated off `.components.*` (down to
-  `dig`-ing the sub-feature tables): an off component or sub-feature has its targets ignored and
-  its externals skipped.
-- **Upstream plugins** are chezmoi externals (`home/.chezmoiexternal.toml`), fetched and refreshed by
-  `chezmoi apply` on a weekly `refreshPeriod`. Only the selected components' externals are
-  declared.
-- **Shared palette** data lives in `home/.chezmoidata/palettes.yaml`. Templates render the selected
-  semantic colors into Ghostty, iTerm2, tmux, notify, Claude, and Codex; Neovim selects the
-  corresponding pinned flavor. Consumers do not carry independent color copies.
-- **System packages** are planned by `scripts/package-plan.sh`. The init template shows the
-  deduped, source-grouped records before apply and saves `installMode`. `scripts/install.sh`
-  consumes the same records for one Homebrew or apt batch plus the displayed cask, release,
-  npm, pip, and LuaRocks work. It confirms before any package-manager mutation: a `[y/N]` prompt
-  on the controlling terminal, or `DOTFILES_ASSUME_YES=1` to skip it. A decline (or a
-  no-terminal apply with no opt-in) degrades to configs-only for that run and leaves `installMode`
-  unchanged, so the choice never becomes sticky. Configs-only skips package and login-shell side
-  effects.
-- **Development toolchain.** The cross-platform Neovim package plan owns shell-visible
-  markdownlint-cli2, ShellCheck, yamllint, TFLint, Trivy, and Luacheck. Mason owns the desired
-  language-server set and editor-only Gitleaks, installing only packages that are absent rather
-  than updating or reconciling installed versions. On Debian, NodeSource and Aqua Security are
-  explicit signed apt sources; TFLint and tenv release archives are checksum-verified before
-  their binaries are installed. tenv's `terraform` proxy selects project versions and verifies
-  HashiCorp signatures.
-- **The status-bar network indicator** (`↓ • ↑` throughput) comes from the
-  `xamut/tmux-network-bandwidth` plugin (cross-platform, replaces the Linux-only
-  `tmux-net-speed`). It needs `coreutils`+`gawk` on macOS and `gawk`+`net-tools` on Debian;
-  those ride along in the tmux package set. It sums all interfaces, so VPN and VM-bridge traffic
-  are included in the number.
+Managed content lives under `home/`, selected by the repository-level
+`.chezmoiroot`. Files there use chezmoi naming conventions:
+`home/dot_zshrc` becomes `~/.zshrc`, for example.
+
+Project scripts, tests, docs, workflows, linter policy, and `vendor/` stay
+outside the managed source root. They cannot accidentally become files in a
+host's home directory.
+
+`home/.chezmoi.toml.tmpl` handles component selection during `chezmoi init`.
+It uses a `gum` checkbox when Gum is on `PATH` and a numbered
+`promptStringOnce` menu otherwise.
+
+Both interfaces come from `$components`, with `$gitFeatures`, `$aiFeatures`,
+and `$terminalFeatures` supplying the nested menus.
+
+The resolved choices live in the host's `[data.components]` tables.
+`home/.chezmoiignore` and `home/.chezmoiexternal.toml` read those values, so an
+unselected component has neither local targets nor downloaded externals.
+Both templates use `dig` for nested feature tables.
+
+Selected upstream plugins are chezmoi externals. `chezmoi apply` refreshes them
+weekly according to their `refreshPeriod`.
+
+Shared palette data lives in `home/.chezmoidata/palettes.yaml`. Templates render
+one selection into Ghostty, iTerm2, tmux, notifications, Claude, Codex, and
+Neovim. Consumers do not keep their own slightly different copies.
+
+Package planning starts in `scripts/package-plan.sh`. The init template displays
+the deduplicated plan, and `scripts/install.sh` uses those same records for
+Homebrew, APT, casks, release archives, npm, pip, and LuaRocks.
+
+Every package-manager mutation requires a `[y/N]` confirmation. Set
+`DOTFILES_ASSUME_YES=1` for an unattended deployment. Declining, or running
+headlessly without that opt-in, applies configuration only and does not change
+the stored `installMode`.
+
+On Debian, NodeSource and Aqua Security use explicit signed APT sources. TFLint
+and tenv release archives are checksum-verified. tenv also verifies HashiCorp
+signatures when its `terraform` proxy installs a project version.
+
+The tmux `↓ • ↑` network indicator uses `xamut/tmux-network-bandwidth`,
+replacing the Linux-only `tmux-net-speed`. Its package set includes
+`coreutils` and `gawk` on macOS, and `gawk` and `net-tools` on Debian.
+
+It sums every interface, so VPN and VM-bridge traffic is included.
+
+## Who owns what
+
+| Layer | Responsibility |
+| --- | --- |
+| Chezmoi | component declarations, templates, configuration, and selected externals |
+| Package installer | general-purpose CLI tools that should work outside Neovim |
+| Mason | Neovim language servers and editor-only executables |
+| Lazy | Neovim plugins |
+
+The package installer owns shell-visible markdownlint-cli2, ShellCheck,
+yamllint, TFLint, Trivy, and Luacheck. Mason owns the configured language
+servers and editor-only Gitleaks.
+
+Mason installs missing packages but does not update or reconcile versions
+between hosts. Lazy and Mason revision state is deliberately local; routine
+plugin updates should not dirty the dotfiles repository. See
+[Neovim tooling](neovim.md) for the full split.
 
 ## What lives where
 
@@ -96,10 +120,11 @@
 | `home/.chezmoiscripts/run_before_00-backup.sh` | apply hook | snapshots existing targets before changes |
 | `home/.chezmoiscripts/run_once_after_00-install.sh.tmpl` | apply hook | delegates package/config setup to the project scripts |
 
-Repository-only lint policy lives under `config/linters/` (`gitleaks.toml`,
-`luacheckrc`, `markdownlint.yaml`, and `stylua.toml`). Pre-commit passes those
-paths explicitly, keeping project validation separate from the similarly named
-configs that chezmoi installs into a host's home directory.
+Repository-only lint policy lives under `config/linters/`: `gitleaks.toml`,
+`luacheckrc`, `markdownlint.yaml`, and `stylua.toml`.
 
-The runtime token cache at `~/.cache/claude-statusline/` is not chezmoi-managed: the statusline
-script creates it on demand and tolerates a wipe.
+Pre-commit passes those paths explicitly. This keeps project validation
+separate from similarly named configs installed in a host's home directory.
+
+The runtime token cache at `~/.cache/claude-statusline/` is not managed. The
+statusline creates it when needed and tolerates it being wiped.
