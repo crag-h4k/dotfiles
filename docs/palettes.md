@@ -1,9 +1,9 @@
 <!-- docs/palettes.md -->
 # Palette catalog
 
-The shared color palette that themes every terminal surface. One selection
-(`data.palette`) drives Ghostty, iTerm2, tmux, notify, the Claude statusline, the
-Codex theme, and Neovim, so they stay in lockstep.
+One palette selection drives Ghostty, iTerm2, tmux, notifications, Claude,
+Codex, and Neovim. The point is to change the colors once and avoid seven
+nearly-matching copies.
 
 ## Table of Contents
 
@@ -17,16 +17,19 @@ Codex theme, and Neovim, so they stay in lockstep.
 
 ## How it works
 
-`home/.chezmoidata/palettes.yaml` is the committed catalog. Each entry holds the raw 16
-base16 colors, the semantic keys the consumers read, a 16-entry ANSI array, and the
-notify tints. `scripts/build-palettes.py` generates that file from the
-`tinted-theming/schemes` collection, vendored as the `vendor/tinted-schemes` git
-submodule.
+`home/.chezmoidata/palettes.yaml` is the committed catalog. Each entry contains
+the raw base16 colors, semantic keys, a 16-color ANSI array, and notification
+tints.
 
-The generator runs at authoring time and its output is committed. `chezmoi apply` only
-renders the committed YAML, so it works on a bare machine that never fetched the submodule
-or ran the generator. Neovim reads the same 16 colors through `RRethy/base16-nvim`, so its
-syntax matches the terminal ANSI byte for byte.
+`scripts/build-palettes.py` generates it from the `tinted-theming/schemes`
+collection in the `vendor/tinted-schemes` submodule.
+
+The generator is an authoring tool. `chezmoi apply` consumes the committed
+YAML, so a new machine can render colors without the submodule, Python, or a
+network connection.
+
+Neovim reads the same 16 colors through `RRethy/base16-nvim`, keeping its
+syntax colors aligned with the terminal ANSI palette.
 
 ## What determines the palettes
 
@@ -37,11 +40,11 @@ The `CURATED` list in `scripts/build-palettes.py`. Each row is
 - `display_name` is the label in the picker.
 - `source_scheme_file` is the base16 or base24 YAML under the submodule.
 
-The submodule carries the full collection (hundreds of schemes); only the rows in
-`CURATED` are materialized into the catalog and validated. The first row is the
-default (`dracula`). `gruvbox-dark` and `tokyo-night` keep their historical ids so a
-persisted `data.palette` never breaks, while sourcing from the tinted-theming files
-named in the list.
+The submodule contains hundreds of schemes. Only rows in `CURATED` are emitted
+and validated. The first row, `dracula`, is the default.
+
+`gruvbox-dark` and `tokyo-night` retain their historical IDs so existing
+`data.palette` values keep working.
 
 ## When to run the generator
 
@@ -50,10 +53,9 @@ Authoring time only, never at `chezmoi apply` or `init`. Run it when you:
 - edit the `CURATED` list (add, remove, or repoint a scheme), or
 - bump the `vendor/tinted-schemes` submodule to a newer upstream commit.
 
-There is no schedule. CI runs `build-palettes.py --check` on every push and fails if
-the committed catalog drifted from a fresh generation, so a stale commit is caught
-without regenerating on every host. The same `--check` runs as a local pre-commit
-hook and skips itself when the submodule is not initialized.
+There is no regeneration schedule. CI runs `build-palettes.py --check` and
+fails when the committed catalog differs from fresh output. The same check runs
+in pre-commit and skips itself if the submodule is not initialized.
 
 ## base16 to semantic mapping
 
@@ -70,11 +72,14 @@ hook and skips itself when the submodule is not initialized.
 | purple / pink | base0E | base16 has no separate pink |
 | orange | base09 | |
 
-ANSI normal 0-7 map to base00, base08, base0B, base0A, base0D, base0E, base0C,
-base05. ANSI bright 8-15 anchor the ends with base03 and base07; the middle brights
-use the base24 bright slots when the source is base24, otherwise the normals
-lightened about 12% in HLS. Notify tints blend each accent toward base00 and darken
-until the accent clears roughly 3:1 contrast against the tint.
+ANSI normal 0–7 map to base00, base08, base0B, base0A, base0D, base0E, base0C,
+and base05. ANSI bright 8–15 anchor the ends with base03 and base07.
+
+Middle bright colors use base24 slots when available. For base16 sources, the
+normal colors are lightened by about 12% in HLS.
+
+Notification tints blend each accent toward base00, then darken until the
+accent reaches roughly 3:1 contrast against the tint.
 
 ## Add a scheme
 

@@ -1,108 +1,105 @@
 # dotfiles
 
-[![CI](https://github.com/crag-h4k/dotfiles/actions/workflows/ci.yaml/badge.svg?branch=main)](https://github.com/crag-h4k/dotfiles/actions/workflows/ci.yaml) [![Managed by chezmoi](https://img.shields.io/badge/managed%20by-chezmoi-2d3142)](https://chezmoi.io) [![Platforms](https://img.shields.io/badge/platforms-macOS%20%C2%B7%20Debian-2d3142)](docs/operation.md)
+[![CI](https://github.com/crag-h4k/dotfiles/actions/workflows/ci.yaml/badge.svg?branch=main)](https://github.com/crag-h4k/dotfiles/actions/workflows/ci.yaml) [![Managed by chezmoi](https://img.shields.io/badge/managed%20by-chezmoi-2d3142)](https://chezmoi.io) [![Debian Trixie](https://img.shields.io/badge/Debian%20Trixie-A81D33?logo=debian&logoColor=white)](docs/ci.md) [![macOS](https://img.shields.io/badge/macOS-252525?logo=apple&logoColor=white)](docs/ci.md) [![Gum](https://img.shields.io/badge/picker-Gum-FF69B4)](https://github.com/charmbracelet/gum)
 
-Single-repo dotfile deployment using [chezmoi](https://chezmoi.io). `~` is the
-only repo you need to clone on a new host.
+Professionally overengineered, personally unhinged dotfiles for people with
+enterprise-level trust issues who think tmux has a spirit and deserves deployment CI.
 
-Consolidates my zsh, tmux, and Neovim configuration (formerly split across
-`gud-zsh`, `gud-vim`, `gud-tmux`) into one chezmoi source tree. Upstream plugins
-(oh-my-zsh, tpm, `tmux-*`, `zsh-*`) come from chezmoi externals, so nothing is
-vendored and plugins refresh on their own.
+Gum picks the loadout; headless macOS/Trixie runners make sure nothing shits the bed.
 
-chezmoi owns component selection, the shared color palette, and install mode.
-The choices persist in `~/.config/chezmoi/chezmoi.toml`. `chezmoi apply` then
-writes only the selected components and optionally installs the exact deduped
-package plan shown during init. The repository-level `.chezmoiroot` points
-chezmoi at `home/`; project scripts, tests, docs, workflows, and vendored
-authoring inputs stay outside the managed source root.
+## What this thing does
+
+Chezmoi wrangles Zsh, Neovim, Ghostty/iTerm2, Claude/Codex hooks, palettes, and tools.
+
+- [tmux notifier](docs/notifications.md)
+  - Bespoke and fully customizable
+  - tmux's pane color, then chirps, beeps, or cracks a whip to keep focus
+    when a long process finishes, something errors, or when Claude/Codex
+    needs attention
+  - Configure volume, duration, process groupings for different notifications,
+    enable/disable settings
+- Selectively installs only the components and sub-features selected for a host
+- Keeps Ghostty, iTerm2, tmux, Neovim, Claude, and Codex on one shared palette
+- Handles the Ghostty > SSH > tmux mouse, clipboard, and scrollback gauntlet
+- Gives Neovim modern LSP activation, missing-only Mason installs, and
+  non-blocking Gitleaks warnings
+- Plans and deduplicates packages before Homebrew or APT gets to touch anything
+- Proves clean, unattended installs on native macOS and Debian Trixie before
+  `main` gets the privilege
+- Accumulates intentional releases instead of spraying tags after every merge
+
+## Quick start
+
+Install `gum` for the checkbox picker, then let chezmoi bootstrap the rest:
+
+```sh
+# macOS
+command -v gum >/dev/null || brew install gum
+sh -c "$(curl -fsLS get.chezmoi.io)" -- init --apply crag-h4k
+
+# Debian Trixie
+command -v gum >/dev/null || { sudo apt-get update && sudo apt-get install -y gum; }
+sh -c "$(curl -fsLS get.chezmoi.io)" -- init --apply crag-h4k
+```
+
+Without `gum`, the same choices appear as typed menus. Local terminals and
+interactive SSH sessions both work.
+
+The bootstrap:
+
+1. Installs chezmoi and clones the source into
+   `~/.local/share/chezmoi/`.
+1. Opens the component, sub-feature, palette, and install-mode pickers.
+1. Shows the deduplicated package plan before anything mutates a package
+   manager.
+1. Backs up managed files and nearby local state under
+   `~/.dotfiles-backup/<timestamp>/`.
+1. Applies the selected configuration and, in package mode, installs the
+   approved tools.
+
+Split init from apply if you want to inspect the plan first:
+
+```sh
+chezmoi init crag-h4k
+chezmoi diff
+chezmoi apply
+```
+
+For automation, choose the mode explicitly. Package mode also needs the
+confirmation override; without it, a headless apply falls back to configs only.
+
+```sh
+DOTFILES_INSTALL_MODE=configs \
+  chezmoi init --apply --no-tty crag-h4k
+
+DOTFILES_INSTALL_MODE=packages DOTFILES_ASSUME_YES=1 \
+  chezmoi init --apply --no-tty crag-h4k
+```
+
+## Who owns what
+
+| Owner | Responsibility |
+| --- | --- |
+| Chezmoi | Component declarations, templates, configuration, externals, and host rendering |
+| Package installer | General-purpose shell-visible tools from Homebrew, APT, GitHub releases, npm, pip, and LuaRocks |
+| Mason | Neovim-only executables and the desired LSP server set |
+| Lazy | Neovim plugins on the local machine |
+
+Mason and Lazy install missing state, but they do not reconcile every host to
+one exact runtime revision. `lazy-lock.json` stays ignored on purpose, so a
+normal plugin update does not turn the dotfiles checkout dirty.
 
 ## Documentation
 
-| Doc | What's inside |
+| Guide | Use it for |
 | --- | --- |
-| [Components](docs/components.md) | Choosing components, the git/ai/terminal sub-feature submenus, and changing your selection later |
-| [Architecture](docs/architecture.md) | How chezmoi drives the repo, and a full table of what file lands where |
-| [Notifications](docs/notifications.md) | The tmux-native notify subsystem and its standalone (no-chezmoi) installer |
-| [Operation](docs/operation.md) | Daily chezmoi commands, tmux mouse/naming behavior, the statusline, platforms, and uninstall |
-
-## Quick start (new host)
-
-Install `gum` first so the component picker shows a checkbox TUI, then
-bootstrap chezmoi:
-
-```sh
-# macOS
-command -v gum >/dev/null || brew install gum
-sh -c "$(curl -fsLS get.chezmoi.io)" -- init --apply crag-h4k
-
-# Debian Trixie
-command -v gum >/dev/null || { sudo apt-get update && sudo apt-get install -y gum; }
-sh -c "$(curl -fsLS get.chezmoi.io)" -- init --apply crag-h4k
-```
-
-Without `gum` the pickers fall back to typed menus. Interactive local and SSH
-sessions work normally because they have a controlling TTY.
-
-The chezmoi bootstrap line:
-
-1. Installs `chezmoi` if missing.
-1. Clones this repo into `~/.local/share/chezmoi/`.
-1. Prompts for components and a shared palette. Dracula is the default; the
-   other choices are Catppuccin Mocha, Gruvbox Dark, and Tokyo Night.
-1. Shows every deduped download grouped by source and marked `installed` or
-   `planned`, then asks whether to install configs and packages, install configs
-   only, or exit. Exit stops before any target file is applied.
-1. Runs `chezmoi apply`, which:
-   - Fetches the upstream plugins declared in `home/.chezmoiexternal.toml` for the
-     selected components and drops them under `~/.zsh/ohmyzsh`,
-     `~/.zsh/custom/plugins/*`, `~/.tmux/plugins/*`.
-   - Places the selected components' files: `~/.zshrc`, `~/.zshenv`,
-     `~/.tmux.conf` as real files and populates `~/.zsh/`, `~/.tmux/`,
-     `~/.config/nvim/` with the tracked config.
-   - Places the linter configs at their own conventional paths (`~/.darglint`,
-     `~/.flake8`, `~/.tflint.hcl`, `~/.markdownlint.yaml`, `~/.config/yamllint`).
-   - With Neovim selected, the cross-platform installer owns the shell-visible
-     markdownlint-cli2, ShellCheck, yamllint, TFLint, Trivy, and Luacheck CLIs.
-     Mason installs missing language servers plus editor-only Gitleaks; it does
-     not update or reconcile installed Mason package versions at startup.
-   - Runs `home/.chezmoiscripts/run_before_00-backup.sh` first, which snapshots the previous
-     (pre-apply) version of your configs into `~/.dotfiles-backup/<timestamp>/`
-     before anything is overwritten - every managed file plus colocated
-     non-managed state / local additions (e.g. the git-ignored `lazy-lock.json`, a hand-added
-     `~/.tmux/conf.d/*.conf`). Re-fetchable git externals (oh-my-zsh, tmux/zsh
-     plugins) and app-state dirs with secrets/logs (`~/.claude`, `~/.codex`) are
-     skipped. Runs on every apply; keeps the most recent `DOTFILES_BACKUP_KEEP`
-     (default 20) snapshots.
-   - Runs `home/.chezmoiscripts/run_once_after_00-install.sh.tmpl`, which exports the component selection
-     and saved install mode. Package mode installs the displayed Homebrew, apt,
-     cask, GitHub release, npm, pip, and LuaRocks work. Configs-only mode skips
-     those side effects but still applies configs, selected git externals, safe
-     symlinks, iTerm2 defaults, and feature sentinels.
-
-When it finishes, open a new terminal. `zsh` should be your login shell
-already; if not, `sudo chsh -s "$(command -v zsh)" "$USER"`.
-
-To answer the prompts before applying, split the steps:
-
-```sh
-# macOS
-command -v gum >/dev/null || brew install gum
-
-# Debian Trixie
-command -v gum >/dev/null || { sudo apt-get update && sudo apt-get install -y gum; }
-
-chezmoi init crag-h4k      # clone + prompt for components
-chezmoi apply              # write only the selected components
-```
-
-Non-interactive init must choose a mode explicitly so automation cannot apply
-or install by accident. Installing packages unattended also needs
-`DOTFILES_ASSUME_YES=1`; it answers the confirmation that `install.sh` shows
-before touching a package manager, so without it a no-terminal apply declines
-and writes configs only.
-
-```sh
-DOTFILES_INSTALL_MODE=configs chezmoi init --apply crag-h4k
-DOTFILES_INSTALL_MODE=packages DOTFILES_ASSUME_YES=1 chezmoi init --apply crag-h4k
-```
+| [Components](docs/components.md) | Pickers, sub-features, package mode, and changing a host later |
+| [Architecture](docs/architecture.md) | Source-root boundaries, ownership, and rendered paths |
+| [Operation](docs/operation.md) | Daily chezmoi work, tmux behavior, statuslines, and removal |
+| [Neovim](docs/neovim.md) | Lazy, Mason, LSPs, linters, and local revision state |
+| [Gitleaks](docs/gitleaks.md) | Editor warnings, project allowlists, exclusions, and pre-commit enforcement |
+| [Notifications](docs/notifications.md) | tmux-native process and Claude/Codex attention cues |
+| [Palettes](docs/palettes.md) | Shared base16 catalog and authoring workflow |
+| [CI](docs/ci.md) | PR metadata, pre-commit, and parallel macOS/Trixie deployments |
+| [Releases](docs/releases.md) | Conventional titles, Release Please, SemVer, and deliberate publishing |
+| [Contributing](CONTRIBUTING.md) | Branches, worktrees, tests, and squash-merge rules |

@@ -20,6 +20,19 @@ concurrency:
   cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 jobs:
+  pr-metadata:
+    name: PR metadata
+    if: github.event_name == 'pull_request'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7
+
+      - name: Validate branch and squash-merge title
+        env:
+          PR_HEAD_REF: ${{ github.head_ref }}
+          PR_TITLE: ${{ github.event.pull_request.title }}
+        run: scripts/validate-pr-metadata.sh
+
   pre-commit:
     uses: ./.github/workflows/pre-commit.yaml
 
@@ -183,19 +196,27 @@ jobs:
 
   ci:
     name: CI
-    needs: [pre-commit, trixie-deployment, macos-deployment]
+    needs: [pr-metadata, pre-commit, trixie-deployment, macos-deployment]
     if: always()
     runs-on: ubuntu-latest
     steps:
       - name: Enforce required CI jobs
         env:
+          EVENT_NAME: ${{ github.event_name }}
+          PR_METADATA_RESULT: ${{ needs.pr-metadata.result }}
           PRE_COMMIT_RESULT: ${{ needs.pre-commit.result }}
           TRIXIE_RESULT: ${{ needs.trixie-deployment.result }}
           MACOS_RESULT: ${{ needs.macos-deployment.result }}
         run: |
+          printf 'PR metadata: %s\n' "$PR_METADATA_RESULT"
           printf 'pre-commit: %s\n' "$PRE_COMMIT_RESULT"
           printf 'Trixie deployment: %s\n' "$TRIXIE_RESULT"
           printf 'macOS deployment: %s\n' "$MACOS_RESULT"
+          if [[ "$EVENT_NAME" = pull_request ]]; then
+            test "$PR_METADATA_RESULT" = success
+          else
+            test "$PR_METADATA_RESULT" = skipped
+          fi
           test "$PRE_COMMIT_RESULT" = success
           test "$TRIXIE_RESULT" = success
           test "$MACOS_RESULT" = success

@@ -14,9 +14,8 @@
 ## Daily operation
 
 ```sh
-# Edit a config file via chezmoi (so the source tree stays the source of truth):
-chezmoi edit ~/.zshrc
-chezmoi apply                      # materialize the edit into $HOME
+# Edit the source and apply it in one command:
+chezmoi edit --apply ~/.zshrc
 
 # Or edit the source tree directly and then apply (~/dotfiles is a symlink to
 # ~/.local/share/chezmoi, created by scripts/install.sh):
@@ -41,30 +40,44 @@ chezmoi diff
 chezmoi update                     # git pull in source + apply
 ```
 
+From a feature worktree, point chezmoi at that checkout explicitly:
+
+```sh
+cd /path/to/dotfiles-worktree
+chezmoi --source "$PWD" diff
+chezmoi --source "$PWD" apply
+```
+
+The repository-level `.chezmoiroot` still directs chezmoi into `home/`. It is
+safe to review a worktree this way without replacing your normal source
+directory.
+
 ## Terminal (tmux) behavior
 
-`prefix + m` toggles tmux mouse capture. The two states trade tmux-native selection against
-Ghostty-native selection:
+`prefix + m` toggles tmux mouse capture. The two states trade tmux-native
+selection against Ghostty-native selection:
 
 | `prefix + m` | Behavior |
 | --- | --- |
 | on | tmux mouse capture: tmux drag-select and `tmux-yank` copy to the system clipboard with no Shift |
 | off | Ghostty native selection across panes; this also disables tmux scroll and mouse pane-select until you toggle back (by design) |
 
-Single-pane copy needs no toggle: enter copy-mode, drag to select, and `y` copies (tmux mouse is
-on by default). `prefix + m` is only for cross-pane native selection, when you want the terminal
-to own the whole grid.
+Single-pane copy needs no toggle. Enter copy mode, drag to select, and press `y`
+to copy. Mouse capture is on by default.
+
+Use `prefix + m` for cross-pane native selection, when you want the terminal to
+own the whole grid.
 
 A wheel-up event always enters tmux copy mode, even when the foreground TUI has requested
 application mouse reporting. Ghostty-over-SSH therefore scrolls tmux history instead of handing
 the wheel to the TUI.
 
-A flagged notify pane clears when it regains focus or receives ordinary keyboard input, a
-primary click, a drag, or a scroll event. The binding targets only the receiving pane, preserves
-normal and copy-mode mouse behavior, and leaves right-click menus untouched.
+A flagged notification pane clears when it regains focus or receives ordinary
+keyboard input, a primary click, a drag, or a scroll event. Only that pane is
+cleared. Normal mouse behavior and right-click menus are left alone.
 
-Session and window names are set automatically so `tmux ls` reads by project while the window
-tabs read by task:
+Session and window names are set automatically. `tmux ls` reads by project,
+while window tabs read by task:
 
 | Name | Source |
 | --- | --- |
@@ -75,11 +88,12 @@ So `tmux ls` shows project names while the window tabs show `1:zsh`, `2:nvim`, `
 
 ## Statusline (Claude / Codex)
 
-The `ai > statusline` sub-feature installs the custom statusline renderer for Claude Code and a
-matching selected-palette theme for Codex. Enabling it also pulls `jq` and `python3` as runtime deps: the
-renderer parses its stdin JSON with `jq`, and a detached `python3` updater refreshes the
-subagent-inclusive token total off the render path. The Claude statusline clusters its segments
-into groups joined by a grey `│`; items inside a group are joined by a grey `·`:
+The `ai > statusline` sub-feature installs a custom Claude Code statusline and a
+matching Codex theme. It also installs `jq` and `python3`.
+
+The renderer parses stdin with `jq`. A detached Python updater calculates the
+subagent-inclusive token total away from the render path. Claude groups related
+segments with a grey `│` and separates items inside a group with `·`:
 
 | Group | Segments |
 | --- | --- |
@@ -88,15 +102,16 @@ into groups joined by a grey `│`; items inside a group are joined by a grey `�
 | limits | 5-hour and weekly rate bars |
 | git | branch and dirty state |
 
-The rate bars auto-hide when `rate_limits` is absent from the payload. Corporate and enterprise
-Claude contracts carry no `rate_limits`, so the 5-hour and weekly bars will typically not appear.
+Rate bars disappear when the payload has no `rate_limits`. Corporate and
+enterprise Claude contracts commonly omit that field.
 
 ### Auto-width
 
-Claude Code (v2.1.153+) exports `COLUMNS` and `LINES` to the statusline command. Its stdout is
-captured, so `tput cols` cannot read the terminal, and the stdin JSON carries no width, which
-leaves `COLUMNS` as the only width signal. The renderer reads it and picks a layout tier, widening
-the bars when there is room and dropping lower-priority segments when space is tight:
+Claude Code v2.1.153 and later exports `COLUMNS` and `LINES` to the statusline
+command. Because stdout is captured, `tput cols` cannot inspect the terminal.
+The stdin JSON has no width either, leaving `COLUMNS` as the useful signal.
+
+The renderer uses it to widen bars or drop lower-priority segments:
 
 | Tier | `COLUMNS` | Context bar | Rate bar | Drops |
 | --- | --- | --- | --- | --- |
@@ -105,41 +120,45 @@ the bars when there is room and dropping lower-priority segments when space is t
 | narrow | 55 to 79 | 8 | 6 | used/max detail |
 | tiny | under 55 | 6 | hidden | used/max, duration, rate bars |
 
-When `COLUMNS` is unset (an older Claude Code, a pipe, a non-interactive caller) the renderer
-falls back to the `med` tier, which mirrors the previous fixed layout. The per-tier bar widths,
-the segment drops, and the divider glyphs are one-line tunables near the top of
-`~/.claude/statusline-command.sh`.
+When `COLUMNS` is unset, the renderer uses the `med` tier. This covers older
+Claude versions, pipes, and non-interactive callers.
 
-Codex uses its native footer with the same selected palette. The configured order is model and
-reasoning, run-state, active task progress, context use, session tokens, 5-hour and weekly limits,
-project root, and Git branch. Unavailable values are omitted automatically. The palette gives each
-field family a distinct accent through `~/.codex/themes/dotfiles.tmTheme`: cyan model, pink state,
-green progress and branch, purple usage, orange limits, and yellow paths.
+Bar widths, dropped segments, and divider glyphs are simple settings near the
+top of `~/.claude/statusline-command.sh`.
 
-This is Codex's built-in `tui.status_line`, configured by the chezmoi merge template. Codex does
-not currently support a command-backed footer, so it cannot use the Claude renderer's custom
-glyphs, subagent token total, session duration, or adaptive width tiers.
+Codex uses its native footer with the same selected palette. It shows model and
+reasoning, run state, task progress, context use, session tokens, limits,
+project root, and Git branch. Unavailable values are omitted.
+
+The theme uses cyan for the model, pink for state, green for progress and
+branch, purple for usage, orange for limits, and yellow for paths. It is
+rendered to `~/.codex/themes/dotfiles.tmTheme`.
+
+This is Codex's built-in `tui.status_line`, configured by the chezmoi merge
+template. Codex does not currently support a command-backed footer, so it
+cannot use Claude's custom glyphs, subagent token total, session duration, or
+adaptive width tiers.
 
 ## Secret scanning
 
-Mason installs Gitleaks for Neovim only. Normal file buffers are scanned asynchronously after
-read and save; findings appear as warning diagnostics and never block either operation. Plugin,
-dependency, generated-state, and special buffers are excluded. A project-root `.gitleaks.toml`
-is passed explicitly when present, so project allowlists apply to editor scans. The dotfiles
-repo's own policy extends the Gitleaks defaults and allowlists only its vendored and binary media
-assets.
+Mason installs Gitleaks for Neovim. Normal buffers are scanned asynchronously
+after read and save. Findings are warning diagnostics and never block either
+operation.
 
-The official pinned pre-commit hook is the enforcement boundary. It scans staged changes with
-redaction enabled, while the editor integration is intentionally advisory:
+The official pinned pre-commit hook is the enforcement boundary:
 
 ```sh
 pre-commit run gitleaks --all-files
 ```
 
+See [Gitleaks](gitleaks.md) for exclusions, project allowlists, and
+troubleshooting.
+
 ## Docker and Terraform checks
 
-Neovim uses Docker's official language server for Dockerfiles and standard Compose filenames.
-For repository checks, use the first-party validators and Trivy:
+Neovim uses Docker's official language server for Dockerfiles and standard
+Compose filenames. For repository checks, use the first-party validators and
+Trivy:
 
 ```sh
 docker build --check .
@@ -147,9 +166,9 @@ docker compose config --quiet
 trivy config .
 ```
 
-Terraform is exposed through tenv's project-aware `terraform` proxy. It honors project version
-files and `required_version`, automatically installs a missing version, and verifies HashiCorp's
-checksum signature. Common operations are:
+Terraform runs through tenv's project-aware proxy. It honors project version
+files and `required_version`, installs missing versions, and verifies HashiCorp
+signatures.
 
 ```sh
 tenv tf install 1.15.7       # explicitly install a Terraform release
@@ -161,19 +180,20 @@ tflint --init && tflint
 trivy config .
 ```
 
-The managed `~/.tflint.hcl` enables only TFLint's portable recommended Terraform rules.
-Cloud-provider rulesets belong in each project so an AWS plugin is not loaded for every
-Terraform repository.
+The managed `~/.tflint.hcl` enables only TFLint's portable recommended rules.
+Cloud-provider rulesets belong in each project; an AWS plugin has no business
+loading in every Terraform repository.
 
 ## Supported platforms
 
 | Platform | Package manager |
 | --- | --- |
 | macOS | Homebrew |
-| Debian / Ubuntu | `apt-get`, with sudo |
+| Debian Trixie | `apt-get`, with sudo |
 
-Other Linux distros work if you install the listed binaries yourself; the config is
-distro-agnostic.
+Headless CI deploys both rows from scratch. Ubuntu and other Linux
+distributions may work when the listed binaries are installed, but they are not
+deployment-gated.
 
 ## Uninstall
 

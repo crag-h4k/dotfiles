@@ -183,3 +183,11 @@ repos:
         language: system
         pass_filenames: false
         files: ^(\.github/(scripts/render-deployment-summary\.sh|workflows/ci\.yaml)|tests/test_ci_summary\.bats)$
+
+      - id: bats-pr-metadata
+        name: bats (branch and PR title convention)
+        entry: bats
+        args: [tests/test_pr_metadata.bats]
+        language: system
+        pass_filenames: false
+        files: ^(\.github/workflows/ci\.yaml|scripts/validate-pr-metadata\.sh|tests/test_pr_metadata\.bats)$
