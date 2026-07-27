@@ -167,16 +167,20 @@ jobs:
           steps.smoke.outcome != 'success')
         run: exit 1
 
-  deployment-summary:
-    name: Deployment PR summary
-    needs: [trixie-deployment, macos-deployment]
+  ci-summary:
+    name: CI summary
+    # always() + every gate so the comment reflects the real per-run outcome
+    # (including a red PR metadata / pre-commit), not just the deployment jobs.
+    needs: [pr-metadata, pre-commit, trixie-deployment, macos-deployment]
     if: always() && github.event_name == 'pull_request'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7
 
-      - name: Render deployment summary
+      - name: Render CI summary
         env:
+          PR_METADATA_RESULT: ${{ needs.pr-metadata.result }}
+          PRE_COMMIT_RESULT: ${{ needs.pre-commit.result }}
           TRIXIE_BUILD: ${{ needs.trixie-deployment.outputs.build }}
           TRIXIE_INSTALL: ${{ needs.trixie-deployment.outputs.install }}
           TRIXIE_SMOKE: ${{ needs.trixie-deployment.outputs.smoke }}
@@ -187,12 +191,21 @@ jobs:
           .github/scripts/render-deployment-summary.sh
           deployment-summary.md
 
-      - name: Update deployment summary comment
+      - name: Update CI summary comment
         continue-on-error: true
         uses: marocchino/sticky-pull-request-comment@5770ad5eb8f42dd2c4f34da00c94c5381e49af88 # v3.0.5
         with:
           header: deployment-validation
           path: deployment-summary.md
+
+      # The pre-commit job used to post its own sticky comment; its status now
+      # lives in the table above. Remove the superseded comment (no-op once gone).
+      - name: Remove the superseded pre-commit comment
+        continue-on-error: true
+        uses: marocchino/sticky-pull-request-comment@5770ad5eb8f42dd2c4f34da00c94c5381e49af88 # v3.0.5
+        with:
+          header: pre-commit
+          delete: true
 
   ci:
     name: CI
