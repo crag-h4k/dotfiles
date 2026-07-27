@@ -73,13 +73,25 @@ main() {
         case "$os" in
             macos)
                 require_cmd brew
-                while IFS= read -r pkg; do [[ -n "$pkg" ]] && packages+=("$pkg"); done < <("$planner" --names brew-formula)
-                if (( ${#packages[@]} > 0 )); then
-                    brew install "${packages[@]}"
-                    # Bring already-installed managed formulae up to date, so the
-                    # plan's "To update" tier clears. brew upgrade skips any that
-                    # are already current.
-                    brew upgrade "${packages[@]}" || warn "some formula upgrades failed; continuing"
+                # Install only missing formulae and upgrade only outdated ones, so
+                # formulae already present (many are preinstalled on the CI runner)
+                # do not emit "already installed" warnings. The planner's status is
+                # brew-inventory-aware (alias matching), so read it rather than
+                # re-deriving install state here.
+                local src name status
+                local -a to_install=() to_upgrade=()
+                while IFS=$'\t' read -r src name status _; do
+                    [[ "$src" == brew-formula ]] || continue
+                    case "$status" in
+                        planned) to_install+=("$name") ;;
+                        update)  to_upgrade+=("$name") ;;
+                    esac
+                done < <("$planner" --records)
+                if (( ${#to_install[@]} > 0 )); then
+                    brew install "${to_install[@]}"
+                fi
+                if (( ${#to_upgrade[@]} > 0 )); then
+                    brew upgrade "${to_upgrade[@]}" || warn "some formula upgrades failed; continuing"
                 fi
                 while IFS= read -r pkg; do [[ -n "$pkg" ]] && casks+=("$pkg"); done < <("$planner" --names brew-cask)
                 if (( ${#casks[@]} > 0 )); then
@@ -95,16 +107,43 @@ main() {
                 fi
                 ;;
             debian)
-                [[ "$INSTALL_ZSH" == true ]] && ensure_gh_apt_repo
+                # Third-party apt repos, each confirm-gated on Debian (bypassed by
+                # DOTFILES_ASSUME_YES, which CI/containers export). Soft: a declined
+                # repo warns and the run continues on the reachable packages.
+                [[ "$INSTALL_ZSH" == true ]] &&
+                    { ensure_gh_apt_repo || warn "GitHub CLI apt repo not added; gh may be unavailable"; }
+                if [[ "$INSTALL_ZSH" == true || "$INSTALL_NEOVIM" == true || "$INSTALL_TERMINAL_GHOSTTY" == true ]]; then
+                    ensure_griffo_apt_repo ||
+                        warn "deb.griffo.io not added; ghostty unavailable and neovim/fzf/zoxide use Debian versions"
+                fi
                 if [[ "$INSTALL_NEOVIM" == true ]]; then
-                    ensure_nodesource_apt_repo
-                    ensure_trivy_apt_repo
+                    ensure_nodesource_apt_repo || warn "NodeSource apt repo not added; Node.js 24 will be unavailable"
+                    ensure_trivy_apt_repo || warn "Trivy apt repo not added; trivy will be unavailable"
                 fi
                 while IFS= read -r pkg; do [[ -n "$pkg" ]] && packages+=("$pkg"); done < <("$planner" --names apt)
                 if (( ${#packages[@]} > 0 )); then
                     sudo apt-get update
-                    pkg_install_many "${packages[@]}"
+                    # Batch first; on failure (a declined repo can make a package
+                    # unavailable) retry individually so reachable packages still
+                    # install and only the missing ones warn.
+                    if ! pkg_install_many "${packages[@]}"; then
+                        warn "batch apt install failed; retrying packages individually"
+                        for pkg in "${packages[@]}"; do
+                            pkg_install_many "$pkg" || warn "apt package unavailable, skipping: $pkg"
+                        done
+                    fi
                 fi
+                # deb.griffo.io-only packages (ghostty): separate soft install so a
+                # declined repo never fails the main batch.
+                local -a griffo_pkgs=()
+                while IFS= read -r pkg; do [[ -n "$pkg" ]] && griffo_pkgs+=("$pkg"); done < <("$planner" --names apt-griffo)
+                if (( ${#griffo_pkgs[@]} > 0 )); then
+                    pkg_install_many "${griffo_pkgs[@]}" ||
+                        warn "deb.griffo.io packages unavailable (repo may have been declined): ${griffo_pkgs[*]}"
+                fi
+                # neovim now comes from deb.griffo.io apt; this stays as the fallback
+                # for a declined/absent repo and self-skips when neovim is already
+                # >= 0.11 (i.e. griffo already provided it).
                 [[ "$INSTALL_NEOVIM" == true ]] && { install_neovim_debian || warn "neovim install failed; continuing without a neovim upgrade"; }
                 if [[ "$INSTALL_NEOVIM" == true ]]; then
                     verify_node_major 24 || die "NodeSource install did not provide Node.js 24"
@@ -112,7 +151,6 @@ main() {
                     install_tenv_debian || warn "tenv install failed; the existing terraform command is unchanged"
                 fi
                 [[ "$INSTALL_NOTIFY" == true ]] && { install_yq_debian || warn "yq install failed; notifications use built-in fallback colors until yq is installed"; }
-                [[ "$INSTALL_TERMINAL_GHOSTTY" == true ]] && info "ghostty: config applied; skipping binary install on Debian. See README."
                 ;;
             *) die "unsupported OS: $(uname -s)" ;;
         esac

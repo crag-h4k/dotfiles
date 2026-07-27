@@ -36,6 +36,38 @@ require_cmd() {
     command -v "$1" >/dev/null 2>&1 || die "required command not found: $1"
 }
 
+# debian_codename → the running Debian/Ubuntu suite codename (e.g. "trixie").
+# Order: explicit override (tests/containers), /etc/os-release VERSION_CODENAME,
+# lsb_release, then a "trixie" default so a codename-less minimal image still
+# targets a real suite. Repos with a fixed suite (NodeSource "nodistro", Trivy
+# "generic", gh "stable") do not need this; deb.griffo.io keys its suite to the
+# codename, so it does.
+debian_codename() {
+    if [[ -n "${DOTFILES_DEBIAN_CODENAME:-}" ]]; then
+        printf '%s\n' "$DOTFILES_DEBIAN_CODENAME"
+        return 0
+    fi
+    local os_release codename
+    os_release=$(_apt_root_path /etc/os-release)
+    if [[ -r "$os_release" ]]; then
+        codename=$(awk -F= '$1 == "VERSION_CODENAME" {
+            gsub(/"/, "", $2); print $2; exit
+        }' "$os_release")
+        if [[ -n "$codename" ]]; then
+            printf '%s\n' "$codename"
+            return 0
+        fi
+    fi
+    if command -v lsb_release >/dev/null 2>&1; then
+        codename=$(lsb_release -sc 2>/dev/null) || codename=""
+        if [[ -n "$codename" ]]; then
+            printf '%s\n' "$codename"
+            return 0
+        fi
+    fi
+    printf 'trixie\n'
+}
+
 _apt_root_path() {
     printf '%s%s\n' "${DOTFILES_APT_ROOT:-}" "$1"
 }
@@ -126,6 +158,30 @@ render_deb822_source() {
     printf 'Signed-By: %s\n' "$keyring"
 }
 
+# Confirm before adding a NEW apt repository. install_debian_apt_repo calls this
+# only when it is about to write a key + source, never when the repo is already
+# present. Only gates on Debian (where we actually mutate apt). Bypassed by
+# DOTFILES_ASSUME_YES, which CI and containers export. With neither an opt-in nor
+# a usable terminal it declines, so an unattended host never silently gains a
+# third-party repo. Returns 0 to proceed, non-zero to skip.
+apt_repo_confirm() {
+    local label="$1" uri="$2" dev resp
+    [[ "$(os_detect)" == debian ]] || return 0
+    if _is_truthy "${DOTFILES_ASSUME_YES:-}"; then
+        return 0
+    fi
+    dev="${DOTFILES_TTY:-/dev/tty}"
+    if [[ -e "$dev" ]] && (: <"$dev") 2>/dev/null; then
+        printf 'dotfiles: add apt repository %s (%s)? [y/N] ' "$label" "$uri" >>"$dev"
+        IFS= read -r resp <"$dev" || resp=""
+        case "$resp" in
+            [Yy]|[Yy][Ee][Ss]) return 0 ;;
+            *) return 1 ;;
+        esac
+    fi
+    return 1
+}
+
 install_debian_apt_repo() {
     local label="$1" uri="$2" suite="$3" key_url="$4" keyring="$5" source_file="$6"
     local keyring_target source_target tmp_dir key_tmp source_tmp
@@ -160,6 +216,12 @@ install_debian_apt_repo() {
         info "$label apt repo already configured"
         rm -rf "$tmp_dir"
         return 0
+    fi
+
+    if ! apt_repo_confirm "$label" "$uri"; then
+        warn "declined to add the $label apt repo"
+        rm -rf "$tmp_dir"
+        return 1
     fi
 
     require_cmd curl
@@ -208,6 +270,19 @@ ensure_gh_apt_repo() {
         "https://cli.github.com/packages/githubcli-archive-keyring.gpg" \
         "/etc/apt/keyrings/githubcli-archive-keyring.gpg" \
         "/etc/apt/sources.list.d/github-cli.sources"
+}
+
+# Manage the deb.griffo.io Deb822 repository (current neovim/fzf/ghostty/zoxide
+# for Debian). Unlike the fixed-suite repos above, its suite is the running
+# codename, so it resolves debian_codename() at call time.
+ensure_griffo_apt_repo() {
+    install_debian_apt_repo \
+        "deb.griffo.io" \
+        "https://deb.griffo.io/apt" \
+        "$(debian_codename)" \
+        "https://deb.griffo.io/EA0F721D231FDD3A0A17B9AC7808B4DD62C41256.asc" \
+        "/etc/apt/keyrings/deb.griffo.io.asc" \
+        "/etc/apt/sources.list.d/deb.griffo.io.sources"
 }
 
 # Install chezmoi to ~/.local/bin if it is not already in PATH.

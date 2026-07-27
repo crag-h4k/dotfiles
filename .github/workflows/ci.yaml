@@ -121,6 +121,11 @@ jobs:
     steps:
       - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7
 
+      # The runner preinstalls aws/tap, which Homebrew now flags as untrusted on
+      # every brew command. We do not use it, so drop it to keep the logs clean.
+      - name: Drop the untrusted aws/tap
+        run: brew untap aws/tap 2>/dev/null || true
+
       - name: Build clean macOS deployment source
         id: build
         continue-on-error: true

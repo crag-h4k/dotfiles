@@ -5,6 +5,7 @@
 
 - [Choosing components](#choosing-components)
   - [Palette and install confirmation](#palette-and-install-confirmation)
+  - [Adding APT repositories](#adding-apt-repositories)
   - [Sub-feature submenus (git, ai, terminal)](#sub-feature-submenus-git-ai-terminal)
   - [Terminal (Ghostty, iTerm2)](#terminal-ghostty-iterm2)
     - [Ghostty](#ghostty)
@@ -178,6 +179,30 @@ Non-interactive init requires `DOTFILES_INSTALL_MODE=configs` or
 An unattended package install also needs `DOTFILES_ASSUME_YES=1`. Without it, a
 headless apply declines package changes and writes configuration only.
 
+### Adding APT repositories
+
+Some tools are not in Debian main and install from third-party APT repositories:
+[deb.griffo.io](https://deb.griffo.io) (Neovim, fzf, Ghostty, zoxide),
+NodeSource (Node.js 24), Aqua Security (Trivy), and the GitHub CLI. The installer
+adds each one only when a selected component needs it, and only if the host does
+not already provide it.
+
+On Debian, adding a repository asks first:
+
+```text
+dotfiles: add apt repository deb.griffo.io (https://deb.griffo.io/apt)? [y/N]
+```
+
+Answer `y` to add it. Declining skips only that repository. Packages that also
+exist in Debian main (Neovim, fzf, zoxide) fall back to the Debian version, and
+repository-only packages (Ghostty) are skipped with a warning instead of failing
+the run.
+
+`DOTFILES_ASSUME_YES=1` adds the repositories without prompting. The Trixie
+container and CI already set it, so unattended installs stay silent. The
+deb.griffo.io suite tracks the running codename, for example `trixie`; override
+it with `DOTFILES_DEBIAN_CODENAME` when needed.
+
 ### Terminal (Ghostty, iTerm2)
 
 Terminal configuration is opt-in. Ghostty is the cross-platform submenu
@@ -209,14 +234,15 @@ if it shadows the managed file.
 On macOS, selecting Ghostty installs the Homebrew cask unless the app or cask is
 already present.
 
-Debian receives configuration only. Ghostty has no official Debian APT package,
-and the Trixie deployment target is headless. Install the application separately
-on a real Linux desktop, then apply the managed config.
+On Debian, Ghostty is not in Debian main, so it installs from the
+[deb.griffo.io](https://deb.griffo.io) community repository. Selecting the
+terminal component adds that repo (after confirmation; see
+[Adding APT repositories](#adding-apt-repositories)) and installs the `ghostty`
+package. The managed config applies either way, so a headless target still gets
+the config even if the binary install is skipped.
 
-The selection reaches the installer as `INSTALL_TERMINAL_GHOSTTY`. Linux
-installation options are documented by
-[Ghostty](https://ghostty.org/docs/linux); a community Debian repository is
-available from [debian.griffo.io](https://debian.griffo.io).
+The selection reaches the installer as `INSTALL_TERMINAL_GHOSTTY`. Other Linux
+installation options are documented by [Ghostty](https://ghostty.org/docs/linux).
 
 #### iTerm2
 

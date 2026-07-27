@@ -113,7 +113,7 @@ _status() {
                 _brew_member "$lookup" "$_brew_outdated_casks" && _status_result=update
             fi
             ;;
-        apt)
+        apt|apt-griffo)
             if command -v dpkg-query >/dev/null 2>&1 &&
                 [[ "$(dpkg-query -W -f='${Status}' "$name" 2>/dev/null || true)" == "install ok installed" ]]; then
                 _status_result=installed
@@ -223,9 +223,14 @@ _build() {
                 _add apt "$pkg" "Debian apt repository"
             done
             if [[ "$INSTALL_ZSH" == true ]]; then
-                for pkg in zsh gh zoxide gnupg command-not-found fzf; do
-                    _add apt "$pkg" "Debian or GitHub CLI apt repository"
+                for pkg in zsh gnupg command-not-found; do
+                    _add apt "$pkg" "Debian apt repository"
                 done
+                _add apt gh "GitHub CLI apt repository"
+                # zoxide and fzf ship in Debian main too, so a declined
+                # deb.griffo.io repo still installs the Debian version.
+                _add apt zoxide "deb.griffo.io apt repository"
+                _add apt fzf "deb.griffo.io apt repository"
             fi
             if [[ "$INSTALL_TMUX" == true ]]; then
                 for pkg in tmux xclip wl-clipboard mpg123 gawk net-tools; do
@@ -238,7 +243,10 @@ _build() {
                 done
                 _add apt nodejs "NodeSource Node.js 24 apt repository"
                 _add apt trivy "Aqua Security apt repository"
-                _add github-release neovim "https://github.com/neovim/neovim/releases" nvim
+                # neovim from deb.griffo.io (current upstream build, complete
+                # runtime). Debian main also ships neovim, so a declined repo
+                # falls back to it and install_neovim_debian upgrades if < 0.11.
+                _add apt neovim "deb.griffo.io apt repository" nvim
                 _add github-release tflint "https://github.com/terraform-linters/tflint/releases" tflint
                 _add github-release tenv "https://github.com/tofuutils/tenv/releases" tenv
                 _add github-release terraform "https://releases.hashicorp.com/terraform/" terraform
@@ -249,6 +257,11 @@ _build() {
                 _add apt jq "Debian apt repository"
                 _add apt python3 "Debian apt repository"
             fi
+            # ghostty is deb.griffo.io-only on Debian (not in Debian main), so it
+            # gets its own source tag and install.sh installs it in a separate
+            # soft step - a declined repo warns instead of failing the apt batch.
+            [[ "$INSTALL_TERMINAL_GHOSTTY" == true ]] &&
+                _add apt-griffo ghostty "deb.griffo.io apt repository"
             ;;
         *)
             printf 'package-plan: unsupported platform\n' >&2
@@ -308,7 +321,7 @@ _display() {
         esac
         printf '\n%s%s (%d)%s\n' "$c_hdr" "$label" "$n" "$c_rst"
         # Cluster by source within the tier, following the install order.
-        for wanted in brew-formula brew-cask apt github-release npm pip luarocks neovim-plugin git-external; do
+        for wanted in brew-formula brew-cask apt apt-griffo github-release npm pip luarocks neovim-plugin git-external; do
             for record in "${_records[@]}"; do
                 IFS=$'\t' read -r source name status origin <<< "$record"
                 [[ "$source" == "$wanted" && "$status" == "$tier" ]] || continue
@@ -324,6 +337,10 @@ _names() {
         IFS=$'\t' read -r source name status origin <<< "$record"
         [[ "$source" == "$wanted" ]] && printf '%s\n' "$name"
     done
+    # Return 0 explicitly: the final loop iteration's `[[ ... ]] && printf` leaves
+    # $? at 1 whenever the last record isn't $wanted (e.g. trailing git-externals),
+    # which would surface as a spurious non-zero exit to a `set -e` caller.
+    return 0
 }
 
 _build
