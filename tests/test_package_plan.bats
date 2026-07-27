@@ -28,6 +28,33 @@ PLANNER="${BATS_TEST_DIRNAME}/../scripts/package-plan.sh"
   [[ "$output" != *$'git-external\ttmux-plugins/tpm\t'* ]]
 }
 
+@test "Debian plan routes ghostty/neovim/fzf/zoxide through deb.griffo.io" {
+  run env DOTFILES_PLAN_OS=debian DOTFILES_PLAN_ASSUME_MISSING=1 \
+    INSTALL_ZSH=true INSTALL_NEOVIM=true INSTALL_TERMINAL_GHOSTTY=true \
+    bash "$PLANNER" --records
+  [ "$status" -eq 0 ]
+  # ghostty is griffo-only -> its own source tag, kept out of the main apt batch.
+  [[ "$output" == *$'apt-griffo\tghostty\tplanned\tdeb.griffo.io apt repository'* ]]
+  # neovim/fzf/zoxide are plain apt (Debian-main fallback) with a griffo origin.
+  [[ "$output" == *$'apt\tneovim\tplanned\tdeb.griffo.io apt repository'* ]]
+  [[ "$output" == *$'apt\tfzf\tplanned\tdeb.griffo.io apt repository'* ]]
+  [[ "$output" == *$'apt\tzoxide\tplanned\tdeb.griffo.io apt repository'* ]]
+  # neovim must no longer be a github-release binary download.
+  [[ "$output" != *$'github-release\tneovim\t'* ]]
+}
+
+@test "Debian griffo-only ghostty stays out of the main apt name list" {
+  run env DOTFILES_PLAN_OS=debian DOTFILES_PLAN_ASSUME_MISSING=1 \
+    INSTALL_ZSH=true INSTALL_NEOVIM=true INSTALL_TERMINAL_GHOSTTY=true \
+    bash "$PLANNER" --names apt
+  [ "$status" -eq 0 ]
+  [[ "$output" != *ghostty* ]]
+  run env DOTFILES_PLAN_OS=debian DOTFILES_PLAN_ASSUME_MISSING=1 \
+    INSTALL_TERMINAL_GHOSTTY=true bash "$PLANNER" --names apt-griffo
+  [ "$status" -eq 0 ]
+  [ "$output" = "ghostty" ]
+}
+
 @test "configs-only installer does not invoke package or component installers" {
   export HOME="${BATS_TEST_TMPDIR}/home"
   mkdir -p "$HOME"

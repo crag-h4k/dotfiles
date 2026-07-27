@@ -4,6 +4,11 @@ setup() {
   REPO_ROOT="$(cd "$BATS_TEST_DIRNAME/.." && pwd)"
   # shellcheck disable=SC1091
   source "$REPO_ROOT/scripts/common.sh"
+  # These tests exercise repo-management mechanics assuming the operator has
+  # consented, so bypass the interactive add-apt-repo confirmation (which would
+  # otherwise decline on the tty-less CI runner). The dedicated confirmation test
+  # overrides this locally with `env -u DOTFILES_ASSUME_YES`.
+  export DOTFILES_ASSUME_YES=1
 }
 
 @test "NodeSource deb822 source uses Node 24 nodistro" {
@@ -281,6 +286,37 @@ STUB
   grep -q '^URIs: https://deb.nodesource.com/node_24.x$' "$source_file"
   [ "$(wc -l <"$sudo_log")" -eq 3 ]
   [ "$(wc -l <"$curl_log")" -eq 1 ]
+}
+
+@test "deb.griffo.io source keys its suite to the running codename" {
+  local apt_root="${BATS_TEST_TMPDIR}/griffo-codename"
+  mkdir -p "$apt_root/etc"
+  printf '%s\n' 'PRETTY_NAME="Debian GNU/Linux 13 (trixie)"' 'VERSION_CODENAME=trixie' \
+    >"$apt_root/etc/os-release"
+  run env -u DOTFILES_DEBIAN_CODENAME DOTFILES_APT_ROOT="$apt_root" \
+    bash -c "source '$REPO_ROOT/scripts/common.sh'; debian_codename"
+  [ "$status" -eq 0 ]
+  [ "$output" = "trixie" ]
+}
+
+@test "debian_codename honors the explicit override" {
+  run env DOTFILES_DEBIAN_CODENAME=bookworm \
+    bash -c "source '$REPO_ROOT/scripts/common.sh'; debian_codename"
+  [ "$status" -eq 0 ]
+  [ "$output" = "bookworm" ]
+}
+
+@test "adding an apt repo is declined without consent or a usable tty" {
+  local apt_root="${BATS_TEST_TMPDIR}/decline-root"
+  mkdir -p "$apt_root/etc/apt/sources.list.d" "$apt_root/etc/apt/keyrings"
+  # os_detect forced to debian so the gate engages; no DOTFILES_ASSUME_YES and a
+  # readable-but-empty DOTFILES_TTY (an EOF answer) -> decline, nothing written.
+  run env -u DOTFILES_ASSUME_YES DOTFILES_PLAN_OS=debian \
+    DOTFILES_APT_ROOT="$apt_root" DOTFILES_APT_ARCH=arm64 DOTFILES_TTY=/dev/null \
+    bash -c "source '$REPO_ROOT/scripts/common.sh'; ensure_griffo_apt_repo"
+  [ "$status" -ne 0 ]
+  [[ "$output" == *"declined to add the deb.griffo.io apt repo"* ]]
+  [ ! -e "$apt_root/etc/apt/sources.list.d/deb.griffo.io.sources" ]
 }
 
 @test "release architecture mappings cover Debian amd64 and arm64" {
