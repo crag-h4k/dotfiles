@@ -290,16 +290,18 @@ def main():
                          "generation (CI drift gate); skips if the submodule is absent")
     args = ap.parse_args()
 
-    if not os.path.isdir(args.schemes_dir):
-        # The submodule is only needed to (re)generate. Downstream apply and a
-        # dev machine without it initialized should not be blocked.
+    if not os.path.isdir(args.schemes_dir) or not os.listdir(args.schemes_dir):
+        # The submodule is only needed to (re)generate. A dev machine without it
+        # initialized - or a fresh git worktree, where the submodule dir exists
+        # but is unpopulated - should not be blocked. Treat an empty dir the same
+        # as an absent one.
         if args.check:
-            print(f"schemes dir {args.schemes_dir} absent; skipping palette drift check")
+            print(f"schemes dir {args.schemes_dir} absent or empty; skipping palette drift check")
             return 0
         raise SystemExit(
-            f"schemes dir not found: {args.schemes_dir}\n"
-            "add the submodule first: "
-            "git submodule add https://github.com/tinted-theming/schemes vendor/tinted-schemes")
+            f"schemes dir not found or empty: {args.schemes_dir}\n"
+            "initialize the submodule first: "
+            "git submodule update --init vendor/tinted-schemes")
 
     entries = build(args.schemes_dir)
     yaml_text = emit_yaml(entries)
