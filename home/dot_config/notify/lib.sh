@@ -211,9 +211,11 @@ notify_fire() {
   notify_play "$snd" "$vol"
 }
 
-# notify_clear <pane id>. Idempotent (unsetting an unset option is a no-op).
+# notify_clear <pane id> [reason]. Idempotent (unsetting an unset option is a
+# no-op). The optional reason is only logged (debug), so we can tell which path
+# cleared a pane - key, mouse, zle-keypress, preexec, claude-prompt, ...
 notify_clear() {
-  local pane="$1"
+  local pane="$1" reason="${2:-}"
   [ -n "$pane" ] || return 0
   _notify_tmux \
     set-option -pu -t "$pane" window-style \; \
@@ -222,6 +224,6 @@ notify_clear() {
     set-option -w  -t "$pane" @notify '' \; \
     set-option -p  -t "$pane" @notify_accent '' \; \
     set-option -w  -t "$pane" @notify_accent '' 2>/dev/null
-  notify_log "clear pane=$pane"
+  notify_log "clear pane=$pane${reason:+ via $reason}"
   return 0
 }
