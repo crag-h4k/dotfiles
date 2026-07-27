@@ -108,7 +108,7 @@ typeset -gi _notify_active=0
 _notify_preexec() {
   [[ -n "$TMUX_PANE" ]] || return
   if (( _notify_active )); then
-    notify_clear "$TMUX_PANE"
+    notify_clear "$TMUX_PANE" preexec
     _notify_active=0
   fi
   _notify_start=$EPOCHSECONDS
@@ -146,7 +146,7 @@ _notify_precmd() {
 # notification from this shell is active and you've started typing.
 _notify_zle_clear() {
   if (( _notify_active )) && [[ -n $BUFFER ]]; then
-    [[ -n "$TMUX_PANE" ]] && notify_clear "$TMUX_PANE"
+    [[ -n "$TMUX_PANE" ]] && notify_clear "$TMUX_PANE" zle-keypress
     _notify_active=0
   fi
 }

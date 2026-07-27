@@ -7,4 +7,4 @@
 export NOTIFY_SRC=claude-hook
 # shellcheck source=/dev/null  # resolved at runtime from $HOME
 . "$HOME/.config/notify/lib.sh"
-notify_clear "$TMUX_PANE"
+notify_clear "$TMUX_PANE" claude-prompt
