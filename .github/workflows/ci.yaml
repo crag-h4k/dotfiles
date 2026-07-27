@@ -224,7 +224,15 @@ jobs:
   release-please:
     name: Release Please
     needs: ci
-    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    # always() is required: `ci` fans in over the PR-only `pr-metadata` job, which
+    # is skipped on push. Without always(), that skipped sibling propagates through
+    # the needs chain and skips this job even when `ci` itself succeeds. Re-gate
+    # explicitly on the `ci` result so the release still only runs on a green main push.
+    if: >-
+      ${{ always()
+      && needs.ci.result == 'success'
+      && github.event_name == 'push'
+      && github.ref == 'refs/heads/main' }}
     runs-on: ubuntu-latest
     permissions:
       contents: write
