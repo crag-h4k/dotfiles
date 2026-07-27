@@ -37,6 +37,11 @@ After the stable `CI` gate passes on a push to `main`, the Release Please action
 The action uses the dedicated `RELEASE_PLEASE_TOKEN`. A fine-grained token lets
 the generated PR trigger the same required CI as a human-authored PR.
 
+The job guards on `always() && needs.ci.result == 'success'`. The `CI` gate fans
+in over the PR-only `pr-metadata` job, which is skipped on a push. A plain `if:`
+would let that skipped sibling propagate down the `needs` chain and skip Release
+Please even on a green `main` push, so the `always()` form is required.
+
 Its repository permissions are:
 
 - Contents: read/write

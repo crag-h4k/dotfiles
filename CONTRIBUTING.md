@@ -4,7 +4,7 @@ This is a personal workstation repo, not a standards committee. The rules are
 here so the next change is easy to review and Release Please does not stare at
 an unparseable squash commit and quietly wander off.
 
-## Branches and pull requests
+## Branches and PRs
 
 Start from current `main` and use a worktree:
 

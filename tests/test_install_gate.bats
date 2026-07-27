@@ -185,7 +185,23 @@ export_install_base() {
 
 # --- install-notify.sh gate -----------------------------------------------------
 
+# Shadow any real yq on PATH (the CI runner ships /usr/bin/yq) with a
+# non-mikefarah build. STUB_DIR is first in PATH, so have_mikefarah_yq is
+# deterministically false and the "mikefarah yq missing" gate runs regardless of
+# the host. Without this, a runner that provides yq skips the gate entirely.
+stub_non_mikefarah_yq() {
+  cat > "${STUB_DIR}/yq" <<'STUB'
+#!/bin/sh
+case "$1" in
+  --version) echo "yq 3.4.3" ;;
+esac
+exit 0
+STUB
+  chmod +x "${STUB_DIR}/yq"
+}
+
 @test "install-notify.sh: yq missing, no tty/env -> dies mentioning yq" {
+  stub_non_mikefarah_yq
   run env PATH="${STUB_DIR}:/usr/bin:/bin" HOME="${TEST_HOME}" \
     DOTFILES_TTY="${NO_TTY}" DOTFILES_PKG_CONFIRM_SENTINEL="${NO_SENTINEL}" \
     bash "$NOTIFY"
@@ -196,6 +212,7 @@ export_install_base() {
 }
 
 @test "install-notify.sh: yq missing + DOTFILES_ASSUME_YES=1 reaches ensure_yq (brew)" {
+  stub_non_mikefarah_yq
   run env PATH="${STUB_DIR}:/usr/bin:/bin" HOME="${TEST_HOME}" \
     DOTFILES_PLAN_OS=macos \
     DOTFILES_ASSUME_YES=1 DOTFILES_TTY="${NO_TTY}" \
