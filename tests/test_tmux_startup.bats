@@ -50,14 +50,28 @@ binding_block() {
   ' "$NOTIFY_CONF"
 }
 
-@test "root wheel enters tmux copy mode instead of forwarding to mouse-aware TUIs" {
+@test "root wheel forwards to mouse-aware TUIs and never clears the flag" {
   local wheel_up wheel_down
   wheel_up=$(binding_block root WheelUpPane)
   wheel_down=$(binding_block root WheelDownPane)
 
+  # Forward the wheel to a foreground TUI that requested mouse mode, so Claude
+  # Code scrolls its OWN conversation; fall back to copy-mode for a plain shell.
+  [[ "$wheel_up" == *"mouse_any_flag"* ]]
+  [[ "$wheel_up" == *"send-keys -M"* ]]
   [[ "$wheel_up" == *"copy-mode -e"* ]]
-  [[ "$wheel_up" != *"mouse_any_flag"* ]]
-  [[ "$wheel_up" != *"send-keys -M"* ]]
-  [[ "$wheel_down" != *"mouse_any_flag"* ]]
-  [[ "$wheel_down" != *"send-keys -M"* ]]
+  [[ "$wheel_down" == *"send-keys -M"* ]]
+
+  # Apple trackpads emit wheel events on the faintest touch, so the wheel must
+  # never be a clear trigger.
+  [[ "$wheel_up" != *"clear-pane"* ]]
+  [[ "$wheel_down" != *"clear-pane"* ]]
+}
+
+@test "the flag clears on a click but not on a drag" {
+  # Left- and right-click clear; the drag override was removed (tmux default),
+  # so dragging never clears - a MouseDown already precedes any drag.
+  [[ "$(binding_block root MouseDown1Pane)" == *"clear-pane"* ]]
+  [[ "$(binding_block root MouseDown3Pane)" == *"clear-pane"* ]]
+  [[ -z "$(binding_block root MouseDrag1Pane)" ]]
 }
