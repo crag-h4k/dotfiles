@@ -225,8 +225,8 @@ vim.diagnostic.config({
   virtual_lines = false,
 })
 
--- Statusline (Lightline)
-require("statusline")
+-- Statusline (lualine) is configured by the lualine plugin spec below, which
+-- calls require("statusline").setup() once the plugin and palette are loaded.
 
 -- Bootstrap lazy.nvim (plugin manager for Neovim-only plugins)
 local lazypath = vim.fn.stdpath("data") .. "/lazy/lazy.nvim"
@@ -270,8 +270,16 @@ require("lazy").setup({
   -- Shared palette selected by chezmoi and rendered into dotfiles_palette.lua.
   { dotfiles_palette.plugin, name = dotfiles_palette.lazy_name, lazy = false, priority = 1000 },
 
-  -- Statusline (matches vimrc's lightline settings)
-  { "itchyny/lightline.vim", lazy = false },
+  -- Statusline: lualine themed from the shared base16 palette (dotfiles_palette).
+  -- Pure Lua, no compiled deps; devicons is already pulled in by oil/fzf-lua.
+  {
+    "nvim-lualine/lualine.nvim",
+    dependencies = { "nvim-tree/nvim-web-devicons" },
+    lazy = false,
+    config = function()
+      require("statusline").setup()
+    end,
+  },
 
   -- File explorer / mass rename by editing a directory buffer
   {
@@ -416,6 +424,112 @@ require("lazy").setup({
     end,
   },
 
+  -- Treesitter: syntax-aware highlighting for the languages this config edits.
+  -- Promoted to a top-level spec (it used to be only a CodeCompanion dependency,
+  -- so a host without the AI opt-in fell back to `syntax on` and nothing else).
+  -- base16-nvim already ships treesitter highlight groups, so this lights up
+  -- under the house palette with no extra theme. Highlight only: the existing
+  -- cindent / per-filetype indent rules above stay authoritative.
+  {
+    "nvim-treesitter/nvim-treesitter",
+    branch = "master",
+    build = ":TSUpdate",
+    event = { "BufReadPost", "BufNewFile" },
+    config = function()
+      local parsers = {
+        "bash",
+        "dockerfile",
+        "go",
+        "hcl",
+        "json",
+        "lua",
+        "markdown",
+        "markdown_inline",
+        "python",
+        "rust",
+        "terraform",
+        "yaml",
+      }
+      -- Branch-proof: the master branch exposes nvim-treesitter.configs; the
+      -- newer main rewrite drops it for an install() API. Support either and
+      -- never hard-error if neither matches.
+      local ok, configs = pcall(require, "nvim-treesitter.configs")
+      if ok then
+        configs.setup({
+          ensure_installed = parsers,
+          highlight = { enable = true },
+        })
+      else
+        pcall(function()
+          require("nvim-treesitter").install(parsers)
+        end)
+      end
+    end,
+  },
+
+  -- Git gutter signs + hunk stage/reset/preview for a git-heavy day.
+  {
+    "lewis6991/gitsigns.nvim",
+    event = { "BufReadPre", "BufNewFile" },
+    opts = {
+      on_attach = function(bufnr)
+        local gs = require("gitsigns")
+        local function map(mode, lhs, rhs, opts)
+          opts = opts or {}
+          opts.buffer = bufnr
+          vim.keymap.set(mode, lhs, rhs, opts)
+        end
+        -- Hunk navigation, falling through to vim's default ]c/[c in diff mode.
+        map("n", "]c", function()
+          if vim.wo.diff then
+            return "]c"
+          end
+          vim.schedule(function()
+            gs.nav_hunk("next")
+          end)
+          return "<Ignore>"
+        end, { expr = true, desc = "Gitsigns: next hunk" })
+        map("n", "[c", function()
+          if vim.wo.diff then
+            return "[c"
+          end
+          vim.schedule(function()
+            gs.nav_hunk("prev")
+          end)
+          return "<Ignore>"
+        end, { expr = true, desc = "Gitsigns: prev hunk" })
+        map("n", "<leader>hs", gs.stage_hunk, { desc = "Gitsigns: stage hunk" })
+        map("n", "<leader>hr", gs.reset_hunk, { desc = "Gitsigns: reset hunk" })
+        map("n", "<leader>hp", gs.preview_hunk, { desc = "Gitsigns: preview hunk" })
+        map("n", "<leader>hb", function()
+          gs.blame_line({ full = true })
+        end, { desc = "Gitsigns: blame line" })
+      end,
+    },
+  },
+
+  -- Popup that surfaces the <leader> keymaps (CodeCompanion, gitsigns, fzf-lua).
+  {
+    "folke/which-key.nvim",
+    event = "VeryLazy",
+    opts = {},
+  },
+
+  -- Fuzzy finder reusing the fzf binary already on PATH (lighter than telescope:
+  -- no compiled fzf-native, no plenary). Grep uses ripgrep, also installed.
+  {
+    "ibhagwan/fzf-lua",
+    dependencies = { "nvim-tree/nvim-web-devicons" },
+    cmd = "FzfLua",
+    keys = {
+      { "<leader>ff", "<cmd>FzfLua files<cr>", desc = "FzfLua: files" },
+      { "<leader>fg", "<cmd>FzfLua live_grep<cr>", desc = "FzfLua: live grep" },
+      { "<leader>fb", "<cmd>FzfLua buffers<cr>", desc = "FzfLua: buffers" },
+      { "<leader>fh", "<cmd>FzfLua help_tags<cr>", desc = "FzfLua: help tags" },
+    },
+    opts = {},
+  },
+
   -- AI chat / coding assistant (CodeCompanion). Gated by the sentinel file above,
   -- so this whole spec is invisible to lazy.nvim on hosts that did not opt in.
   --
@@ -439,25 +553,9 @@ require("lazy").setup({
     dependencies = {
       "nvim-lua/plenary.nvim",
       -- render-markdown needs the markdown treesitter parsers to render the chat.
-      -- Pin master, but stay branch-proof: nvim-treesitter's default branch is now
-      -- the `main` rewrite (no `nvim-treesitter.configs`). Support whichever branch
-      -- lazy actually has checked out, and never hard-error if neither matches.
-      {
-        "nvim-treesitter/nvim-treesitter",
-        branch = "master",
-        build = ":TSUpdate",
-        config = function()
-          local parsers = { "markdown", "markdown_inline" }
-          local ok, configs = pcall(require, "nvim-treesitter.configs")
-          if ok then
-            configs.setup({ ensure_installed = parsers }) -- master branch API
-          else
-            pcall(function()
-              require("nvim-treesitter").install(parsers) -- main branch API
-            end)
-          end
-        end,
-      },
+      -- Treesitter (markdown + markdown_inline included) is configured by the
+      -- top-level spec above; depend on it by name so it loads first.
+      "nvim-treesitter/nvim-treesitter",
       -- Pretty chat buffer: render markdown in the `codecompanion` filetype, not
       -- just plain `markdown` files. This is what makes the chat look like the
       -- CodeCompanion screenshots (needs a Nerd Font in the terminal for icons).

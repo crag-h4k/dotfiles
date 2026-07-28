@@ -197,6 +197,8 @@ _build() {
                 _add brew-formula zoxide "Homebrew core"
                 _add brew-formula gnupg "Homebrew core"
                 _add brew-formula fzf "Homebrew core"
+                # git-delta: formula is git-delta, binary is delta.
+                _add brew-formula git-delta "Homebrew core" delta
             fi
             if [[ "$INSTALL_TMUX" == true ]]; then
                 _add brew-formula tmux "Homebrew core"
@@ -231,6 +233,9 @@ _build() {
                 # deb.griffo.io repo still installs the Debian version.
                 _add apt zoxide "deb.griffo.io apt repository"
                 _add apt fzf "deb.griffo.io apt repository"
+                # git-delta: in Debian main (trixie ships 0.18.2), NOT in
+                # deb.griffo.io. apt package is git-delta, binary is delta.
+                _add apt git-delta "Debian apt repository" delta
             fi
             if [[ "$INSTALL_TMUX" == true ]]; then
                 for pkg in tmux xclip wl-clipboard mpg123 gawk net-tools; do
