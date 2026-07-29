@@ -432,9 +432,9 @@ require("lazy").setup({
   -- cindent / per-filetype indent rules above stay authoritative.
   {
     "nvim-treesitter/nvim-treesitter",
-    branch = "master",
+    branch = "main",
+    lazy = false,
     build = ":TSUpdate",
-    event = { "BufReadPost", "BufNewFile" },
     config = function()
       local parsers = {
         "bash",
@@ -450,20 +450,36 @@ require("lazy").setup({
         "terraform",
         "yaml",
       }
-      -- Branch-proof: the master branch exposes nvim-treesitter.configs; the
-      -- newer main rewrite drops it for an install() API. Support either and
-      -- never hard-error if neither matches.
-      local ok, configs = pcall(require, "nvim-treesitter.configs")
-      if ok then
-        configs.setup({
-          ensure_installed = parsers,
-          highlight = { enable = true },
-        })
-      else
-        pcall(function()
-          require("nvim-treesitter").install(parsers)
-        end)
-      end
+      local treesitter = require("nvim-treesitter")
+      treesitter.setup()
+      treesitter.install(parsers)
+
+      -- The main-branch rewrite delegates highlighting to Neovim. Parser names
+      -- and filetypes are not always identical (bash -> sh; markdown_inline is
+      -- an injection), so attach only to the filetypes backed by the list above.
+      -- A missing/in-flight parser falls back to `syntax on` without breaking
+      -- the buffer; reopening it after installation attaches Treesitter.
+      vim.api.nvim_create_autocmd("FileType", {
+        pattern = {
+          "bash",
+          "dockerfile",
+          "go",
+          "hcl",
+          "json",
+          "jsonc",
+          "lua",
+          "markdown",
+          "python",
+          "rust",
+          "sh",
+          "terraform",
+          "terraform-vars",
+          "yaml",
+        },
+        callback = function(args)
+          pcall(vim.treesitter.start, args.buf)
+        end,
+      })
     end,
   },
 

@@ -135,6 +135,7 @@ main() {
                 [[ "$INSTALL_NEOVIM" == true ]] && { install_neovim_debian || warn "neovim install failed; continuing without a neovim upgrade"; }
                 if [[ "$INSTALL_NEOVIM" == true ]]; then
                     verify_node_major 24 || die "NodeSource install did not provide Node.js 24"
+                    install_tree_sitter_cli_debian || warn "tree-sitter CLI install failed; Neovim will use syntax highlighting until it is available"
                     install_tflint_debian || warn "tflint install failed; continuing without the CLI/LSP"
                     install_tenv_debian || warn "tenv install failed; the existing terraform command is unchanged"
                 fi

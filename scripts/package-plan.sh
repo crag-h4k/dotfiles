@@ -207,7 +207,7 @@ _build() {
                 _add brew-formula gawk "Homebrew core"
             fi
             if [[ "$INSTALL_NEOVIM" == true ]]; then
-                for pkg in cmake go llvm lua@5.4 luarocks markdownlint-cli2 neovim node python3 shellcheck tenv trivy yamllint; do
+                for pkg in cmake go llvm lua@5.4 luarocks markdownlint-cli2 neovim node python3 shellcheck tenv tree-sitter trivy yamllint; do
                     _add brew-formula "$pkg" "Homebrew core"
                 done
                 _add brew-formula terraform-linters/tap/tflint "Homebrew tap terraform-linters/tap" tflint
@@ -253,6 +253,7 @@ _build() {
                 _add github-release tflint "https://github.com/terraform-linters/tflint/releases" tflint
                 _add github-release tenv "https://github.com/tofuutils/tenv/releases" tenv
                 _add github-release terraform "https://releases.hashicorp.com/terraform/" terraform
+                _add github-release tree-sitter-cli "https://github.com/tree-sitter/tree-sitter/releases" tree-sitter
                 _add npm markdownlint-cli2 "https://www.npmjs.com/package/markdownlint-cli2"
             fi
             [[ "$INSTALL_NOTIFY" == true ]] && _add github-release yq "https://github.com/mikefarah/yq/releases" yq
