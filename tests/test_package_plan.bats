@@ -28,31 +28,27 @@ PLANNER="${BATS_TEST_DIRNAME}/../scripts/package-plan.sh"
   [[ "$output" != *$'git-external\ttmux-plugins/tpm\t'* ]]
 }
 
-@test "Debian plan routes ghostty/neovim/fzf/zoxide through deb.griffo.io" {
+@test "Debian plan routes neovim/fzf/zoxide through Debian main and drops ghostty" {
   run env DOTFILES_PLAN_OS=debian DOTFILES_PLAN_ASSUME_MISSING=1 \
     INSTALL_ZSH=true INSTALL_NEOVIM=true INSTALL_TERMINAL_GHOSTTY=true \
     bash "$PLANNER" --records
   [ "$status" -eq 0 ]
-  # ghostty is griffo-only -> its own source tag, kept out of the main apt batch.
-  [[ "$output" == *$'apt-griffo\tghostty\tplanned\tdeb.griffo.io apt repository'* ]]
-  # neovim/fzf/zoxide are plain apt (Debian-main fallback) with a griffo origin.
-  [[ "$output" == *$'apt\tneovim\tplanned\tdeb.griffo.io apt repository'* ]]
-  [[ "$output" == *$'apt\tfzf\tplanned\tdeb.griffo.io apt repository'* ]]
-  [[ "$output" == *$'apt\tzoxide\tplanned\tdeb.griffo.io apt repository'* ]]
+  # neovim/fzf/zoxide now install straight from Debian main.
+  [[ "$output" == *$'apt\tneovim\tplanned\tDebian apt repository'* ]]
+  [[ "$output" == *$'apt\tfzf\tplanned\tDebian apt repository'* ]]
+  [[ "$output" == *$'apt\tzoxide\tplanned\tDebian apt repository'* ]]
   # neovim must no longer be a github-release binary download.
   [[ "$output" != *$'github-release\tneovim\t'* ]]
+  # ghostty is no longer part of the Debian plan even when its component is on.
+  [[ "$output" != *ghostty* ]]
 }
 
-@test "Debian griffo-only ghostty stays out of the main apt name list" {
+@test "Debian ghostty never appears in the apt name list" {
   run env DOTFILES_PLAN_OS=debian DOTFILES_PLAN_ASSUME_MISSING=1 \
     INSTALL_ZSH=true INSTALL_NEOVIM=true INSTALL_TERMINAL_GHOSTTY=true \
     bash "$PLANNER" --names apt
   [ "$status" -eq 0 ]
   [[ "$output" != *ghostty* ]]
-  run env DOTFILES_PLAN_OS=debian DOTFILES_PLAN_ASSUME_MISSING=1 \
-    INSTALL_TERMINAL_GHOSTTY=true bash "$PLANNER" --names apt-griffo
-  [ "$status" -eq 0 ]
-  [ "$output" = "ghostty" ]
 }
 
 @test "configs-only installer does not invoke package or component installers" {

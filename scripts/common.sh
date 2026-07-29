@@ -40,8 +40,8 @@ require_cmd() {
 # Order: explicit override (tests/containers), /etc/os-release VERSION_CODENAME,
 # lsb_release, then a "trixie" default so a codename-less minimal image still
 # targets a real suite. Repos with a fixed suite (NodeSource "nodistro", Trivy
-# "generic", gh "stable") do not need this; deb.griffo.io keys its suite to the
-# codename, so it does.
+# "generic", gh "stable") do not need this; it is for any repo that keys its
+# suite to the running codename.
 debian_codename() {
     if [[ -n "${DOTFILES_DEBIAN_CODENAME:-}" ]]; then
         printf '%s\n' "$DOTFILES_DEBIAN_CODENAME"
@@ -270,19 +270,6 @@ ensure_gh_apt_repo() {
         "https://cli.github.com/packages/githubcli-archive-keyring.gpg" \
         "/etc/apt/keyrings/githubcli-archive-keyring.gpg" \
         "/etc/apt/sources.list.d/github-cli.sources"
-}
-
-# Manage the deb.griffo.io Deb822 repository (current neovim/fzf/ghostty/zoxide
-# for Debian). Unlike the fixed-suite repos above, its suite is the running
-# codename, so it resolves debian_codename() at call time.
-ensure_griffo_apt_repo() {
-    install_debian_apt_repo \
-        "deb.griffo.io" \
-        "https://deb.griffo.io/apt" \
-        "$(debian_codename)" \
-        "https://deb.griffo.io/EA0F721D231FDD3A0A17B9AC7808B4DD62C41256.asc" \
-        "/etc/apt/keyrings/deb.griffo.io.asc" \
-        "/etc/apt/sources.list.d/deb.griffo.io.sources"
 }
 
 # Install chezmoi to ~/.local/bin if it is not already in PATH.

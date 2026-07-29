@@ -112,10 +112,6 @@ main() {
                 # repo warns and the run continues on the reachable packages.
                 [[ "$INSTALL_ZSH" == true ]] &&
                     { ensure_gh_apt_repo || warn "GitHub CLI apt repo not added; gh may be unavailable"; }
-                if [[ "$INSTALL_ZSH" == true || "$INSTALL_NEOVIM" == true || "$INSTALL_TERMINAL_GHOSTTY" == true ]]; then
-                    ensure_griffo_apt_repo ||
-                        warn "deb.griffo.io not added; ghostty unavailable and neovim/fzf/zoxide use Debian versions"
-                fi
                 if [[ "$INSTALL_NEOVIM" == true ]]; then
                     ensure_nodesource_apt_repo || warn "NodeSource apt repo not added; Node.js 24 will be unavailable"
                     ensure_trivy_apt_repo || warn "Trivy apt repo not added; trivy will be unavailable"
@@ -133,17 +129,9 @@ main() {
                         done
                     fi
                 fi
-                # deb.griffo.io-only packages (ghostty): separate soft install so a
-                # declined repo never fails the main batch.
-                local -a griffo_pkgs=()
-                while IFS= read -r pkg; do [[ -n "$pkg" ]] && griffo_pkgs+=("$pkg"); done < <("$planner" --names apt-griffo)
-                if (( ${#griffo_pkgs[@]} > 0 )); then
-                    pkg_install_many "${griffo_pkgs[@]}" ||
-                        warn "deb.griffo.io packages unavailable (repo may have been declined): ${griffo_pkgs[*]}"
-                fi
-                # neovim now comes from deb.griffo.io apt; this stays as the fallback
-                # for a declined/absent repo and self-skips when neovim is already
-                # >= 0.11 (i.e. griffo already provided it).
+                # neovim installs from Debian main (apt); this then upgrades to the
+                # latest upstream build and self-skips when the installed neovim is
+                # already >= 0.11 (Debian's apt version can be stale).
                 [[ "$INSTALL_NEOVIM" == true ]] && { install_neovim_debian || warn "neovim install failed; continuing without a neovim upgrade"; }
                 if [[ "$INSTALL_NEOVIM" == true ]]; then
                     verify_node_major 24 || die "NodeSource install did not provide Node.js 24"

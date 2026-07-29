@@ -113,7 +113,7 @@ _status() {
                 _brew_member "$lookup" "$_brew_outdated_casks" && _status_result=update
             fi
             ;;
-        apt|apt-griffo)
+        apt)
             if command -v dpkg-query >/dev/null 2>&1 &&
                 [[ "$(dpkg-query -W -f='${Status}' "$name" 2>/dev/null || true)" == "install ok installed" ]]; then
                 _status_result=installed
@@ -229,12 +229,11 @@ _build() {
                     _add apt "$pkg" "Debian apt repository"
                 done
                 _add apt gh "GitHub CLI apt repository"
-                # zoxide and fzf ship in Debian main too, so a declined
-                # deb.griffo.io repo still installs the Debian version.
-                _add apt zoxide "deb.griffo.io apt repository"
-                _add apt fzf "deb.griffo.io apt repository"
-                # git-delta: in Debian main (trixie ships 0.18.2), NOT in
-                # deb.griffo.io. apt package is git-delta, binary is delta.
+                # zoxide and fzf ship in Debian main.
+                _add apt zoxide "Debian apt repository"
+                _add apt fzf "Debian apt repository"
+                # git-delta: in Debian main (trixie ships 0.18.2). apt package is
+                # git-delta, binary is delta.
                 _add apt git-delta "Debian apt repository" delta
             fi
             if [[ "$INSTALL_TMUX" == true ]]; then
@@ -248,10 +247,9 @@ _build() {
                 done
                 _add apt nodejs "NodeSource Node.js 24 apt repository"
                 _add apt trivy "Aqua Security apt repository"
-                # neovim from deb.griffo.io (current upstream build, complete
-                # runtime). Debian main also ships neovim, so a declined repo
-                # falls back to it and install_neovim_debian upgrades if < 0.11.
-                _add apt neovim "deb.griffo.io apt repository" nvim
+                # neovim from Debian main; install_neovim_debian upgrades to the
+                # latest upstream build when the apt version is < 0.11.
+                _add apt neovim "Debian apt repository" nvim
                 _add github-release tflint "https://github.com/terraform-linters/tflint/releases" tflint
                 _add github-release tenv "https://github.com/tofuutils/tenv/releases" tenv
                 _add github-release terraform "https://releases.hashicorp.com/terraform/" terraform
@@ -262,11 +260,9 @@ _build() {
                 _add apt jq "Debian apt repository"
                 _add apt python3 "Debian apt repository"
             fi
-            # ghostty is deb.griffo.io-only on Debian (not in Debian main), so it
-            # gets its own source tag and install.sh installs it in a separate
-            # soft step - a declined repo warns instead of failing the apt batch.
-            [[ "$INSTALL_TERMINAL_GHOSTTY" == true ]] &&
-                _add apt-griffo ghostty "deb.griffo.io apt repository"
+            # ghostty is not in Debian main and is no longer auto-installed on
+            # Debian (see docs/components.md). The managed config still applies;
+            # the binary is a documented manual install.
             ;;
         *)
             printf 'package-plan: unsupported platform\n' >&2
@@ -326,7 +322,7 @@ _display() {
         esac
         printf '\n%s%s (%d)%s\n' "$c_hdr" "$label" "$n" "$c_rst"
         # Cluster by source within the tier, following the install order.
-        for wanted in brew-formula brew-cask apt apt-griffo github-release npm pip luarocks neovim-plugin git-external; do
+        for wanted in brew-formula brew-cask apt github-release npm pip luarocks neovim-plugin git-external; do
             for record in "${_records[@]}"; do
                 IFS=$'\t' read -r source name status origin <<< "$record"
                 [[ "$source" == "$wanted" && "$status" == "$tier" ]] || continue

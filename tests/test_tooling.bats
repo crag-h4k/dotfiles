@@ -288,8 +288,8 @@ STUB
   [ "$(wc -l <"$curl_log")" -eq 1 ]
 }
 
-@test "deb.griffo.io source keys its suite to the running codename" {
-  local apt_root="${BATS_TEST_TMPDIR}/griffo-codename"
+@test "debian_codename resolves the running suite from os-release" {
+  local apt_root="${BATS_TEST_TMPDIR}/codename-os-release"
   mkdir -p "$apt_root/etc"
   printf '%s\n' 'PRETTY_NAME="Debian GNU/Linux 13 (trixie)"' 'VERSION_CODENAME=trixie' \
     >"$apt_root/etc/os-release"
@@ -313,10 +313,10 @@ STUB
   # readable-but-empty DOTFILES_TTY (an EOF answer) -> decline, nothing written.
   run env -u DOTFILES_ASSUME_YES DOTFILES_PLAN_OS=debian \
     DOTFILES_APT_ROOT="$apt_root" DOTFILES_APT_ARCH=arm64 DOTFILES_TTY=/dev/null \
-    bash -c "source '$REPO_ROOT/scripts/common.sh'; ensure_griffo_apt_repo"
+    bash -c "source '$REPO_ROOT/scripts/common.sh'; ensure_gh_apt_repo"
   [ "$status" -ne 0 ]
-  [[ "$output" == *"declined to add the deb.griffo.io apt repo"* ]]
-  [ ! -e "$apt_root/etc/apt/sources.list.d/deb.griffo.io.sources" ]
+  [[ "$output" == *"declined to add the GitHub CLI apt repo"* ]]
+  [ ! -e "$apt_root/etc/apt/sources.list.d/github-cli.sources" ]
 }
 
 @test "release architecture mappings cover Debian amd64 and arm64" {
