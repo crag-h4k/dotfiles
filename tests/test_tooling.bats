@@ -1,5 +1,7 @@
 #!/usr/bin/env bats
 
+bats_require_minimum_version 1.5.0
+
 setup() {
   REPO_ROOT="$(cd "$BATS_TEST_DIRNAME/.." && pwd)"
   # shellcheck disable=SC1091
@@ -288,8 +290,8 @@ STUB
   [ "$(wc -l <"$curl_log")" -eq 1 ]
 }
 
-@test "deb.griffo.io source keys its suite to the running codename" {
-  local apt_root="${BATS_TEST_TMPDIR}/griffo-codename"
+@test "debian_codename resolves the running suite from os-release" {
+  local apt_root="${BATS_TEST_TMPDIR}/codename-os-release"
   mkdir -p "$apt_root/etc"
   printf '%s\n' 'PRETTY_NAME="Debian GNU/Linux 13 (trixie)"' 'VERSION_CODENAME=trixie' \
     >"$apt_root/etc/os-release"
@@ -313,10 +315,10 @@ STUB
   # readable-but-empty DOTFILES_TTY (an EOF answer) -> decline, nothing written.
   run env -u DOTFILES_ASSUME_YES DOTFILES_PLAN_OS=debian \
     DOTFILES_APT_ROOT="$apt_root" DOTFILES_APT_ARCH=arm64 DOTFILES_TTY=/dev/null \
-    bash -c "source '$REPO_ROOT/scripts/common.sh'; ensure_griffo_apt_repo"
+    bash -c "source '$REPO_ROOT/scripts/common.sh'; ensure_gh_apt_repo"
   [ "$status" -ne 0 ]
-  [[ "$output" == *"declined to add the deb.griffo.io apt repo"* ]]
-  [ ! -e "$apt_root/etc/apt/sources.list.d/deb.griffo.io.sources" ]
+  [[ "$output" == *"declined to add the GitHub CLI apt repo"* ]]
+  [ ! -e "$apt_root/etc/apt/sources.list.d/github-cli.sources" ]
 }
 
 @test "release architecture mappings cover Debian amd64 and arm64" {
@@ -324,8 +326,14 @@ STUB
   [ "$(tflint_release_arch aarch64)" = "arm64" ]
   [ "$(tenv_release_arch x86_64)" = "x86_64" ]
   [ "$(tenv_release_arch aarch64)" = "arm64" ]
+  [ "$(tree_sitter_cli_release_asset x86_64)" = "tree-sitter-cli-linux-x64.zip" ]
+  [ "$(tree_sitter_cli_release_asset aarch64)" = "tree-sitter-cli-linux-arm64.zip" ]
+  [ "$(tree_sitter_cli_release_sha256 x86_64)" = "ff1b7f9863f2faafd78dc0e66d902ee85b37f709b314b22c009f51caf233eebd" ]
+  [ "$(tree_sitter_cli_release_sha256 aarch64)" = "db28509fe6db8902f9d14c43c486858c7486b42c3a96b30e811e73f105762336" ]
   run ! tflint_release_arch riscv64
   run ! tenv_release_arch riscv64
+  run ! tree_sitter_cli_release_asset riscv64
+  run ! tree_sitter_cli_release_sha256 riscv64
 }
 
 @test "release checksum verification accepts the selected asset only" {
@@ -370,6 +378,7 @@ STUB
   [[ "$output" == *$'apt\ttrivy\tplanned\tAqua Security apt repository'* ]]
   [[ "$output" == *$'github-release\ttflint\tplanned\t'* ]]
   [[ "$output" == *$'github-release\ttenv\tplanned\t'* ]]
+  [[ "$output" == *$'github-release\ttree-sitter-cli\tplanned\t'* ]]
   [[ "$output" == *$'npm\tmarkdownlint-cli2\tplanned\t'* ]]
   [[ "$output" == *$'apt\tshellcheck\tplanned\t'* ]]
   [[ "$output" == *$'apt\tyamllint\tplanned\t'* ]]
@@ -387,6 +396,7 @@ STUB
   [[ "$output" == *$'brew-formula\ttrivy\tplanned\t'* ]]
   [[ "$output" == *$'brew-formula\tyamllint\tplanned\t'* ]]
   [[ "$output" == *$'brew-formula\tterraform-linters/tap/tflint\tplanned\t'* ]]
+  [[ "$output" == *$'brew-formula\ttree-sitter\tplanned\t'* ]]
   [[ "$output" == *$'luarocks\tluacheck\tplanned\t'* ]]
   [[ "$output" != *$'\tgitleaks\t'* ]]
   [[ "$output" != *$'\thadolint\t'* ]]
@@ -413,6 +423,16 @@ STUB
   grep -Fq 'vim.bo[bufnr].buftype ~= ""' "$scanner"
   grep -Fq -- '"--redact"' "$scanner"
   grep -Fq '.gitleaks.toml' "$scanner"
+
+  grep -Fq 'branch = "main"' "$init"
+  grep -Fq 'lazy = false' "$init"
+  grep -Fq 'treesitter.install(parsers)' "$init"
+  grep -Fq 'pcall(vim.treesitter.start, args.buf)' "$init"
+  run grep -Fq 'nvim-treesitter.configs' "$init"
+  [ "$status" -ne 0 ]
+
+  grep -Fq 'local tag="v0.26.11"' "$REPO_ROOT/scripts/common.sh"
+  grep -Fq 'install_tree_sitter_cli_debian' "$REPO_ROOT/scripts/install.sh"
 }
 
 @test "Gitleaks policy extends defaults and lazy lock state stays untracked" {

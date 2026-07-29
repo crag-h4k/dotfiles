@@ -182,7 +182,6 @@ headless apply declines package changes and writes configuration only.
 ### Adding APT repositories
 
 Some tools are not in Debian main and install from third-party APT repositories:
-[deb.griffo.io](https://deb.griffo.io) (Neovim, fzf, Ghostty, zoxide),
 NodeSource (Node.js 24), Aqua Security (Trivy), and the GitHub CLI. The installer
 adds each one only when a selected component needs it, and only if the host does
 not already provide it.
@@ -190,18 +189,14 @@ not already provide it.
 On Debian, adding a repository asks first:
 
 ```text
-dotfiles: add apt repository deb.griffo.io (https://deb.griffo.io/apt)? [y/N]
+dotfiles: add apt repository GitHub CLI (https://cli.github.com/packages)? [y/N]
 ```
 
-Answer `y` to add it. Declining skips only that repository. Packages that also
-exist in Debian main (Neovim, fzf, zoxide) fall back to the Debian version, and
-repository-only packages (Ghostty) are skipped with a warning instead of failing
-the run.
+Answer `y` to add it. Declining skips only that repository; the affected tool is
+skipped with a warning instead of failing the run.
 
 `DOTFILES_ASSUME_YES=1` adds the repositories without prompting. The Trixie
-container and CI already set it, so unattended installs stay silent. The
-deb.griffo.io suite tracks the running codename, for example `trixie`; override
-it with `DOTFILES_DEBIAN_CODENAME` when needed.
+container and CI already set it, so unattended installs stay silent.
 
 ### Terminal (Ghostty, iTerm2)
 
@@ -234,15 +229,26 @@ if it shadows the managed file.
 On macOS, selecting Ghostty installs the Homebrew cask unless the app or cask is
 already present.
 
-On Debian, Ghostty is not in Debian main, so it installs from the
-[deb.griffo.io](https://deb.griffo.io) community repository. Selecting the
-terminal component adds that repo (after confirmation; see
-[Adding APT repositories](#adding-apt-repositories)) and installs the `ghostty`
-package. The managed config applies either way, so a headless target still gets
-the config even if the binary install is skipped.
+##### Ghostty on Debian
 
-The selection reaches the installer as `INSTALL_TERMINAL_GHOSTTY`. Other Linux
-installation options are documented by [Ghostty](https://ghostty.org/docs/linux).
+Ghostty is not in Debian main and is no longer auto-installed. The third-party
+apt repository it previously used goes subscription-only on 2026-10-01, so the
+automated Debian path is dropped. Selecting the component still applies the
+managed config; install the binary manually.
+
+The free replacement is the community `mkasberg/ghostty-ubuntu` build (Trixie,
+amd64 and arm64, per-asset SHA256). apt resolves the GTK dependencies from Trixie
+main:
+
+```zsh
+arch=$(dpkg --print-architecture)
+curl -fLO https://github.com/mkasberg/ghostty-ubuntu/releases/download/1.3.1-0-ppa2/ghostty_1.3.1-0.ppa2_${arch}_trixie.deb
+sudo apt install ./ghostty_1.3.1-0.ppa2_${arch}_trixie.deb
+```
+
+The selection reaches the installer as `INSTALL_TERMINAL_GHOSTTY`; on Debian it
+gates only the config, not a binary install. Other Linux installation options are
+documented by [Ghostty](https://ghostty.org/docs/linux).
 
 #### iTerm2
 

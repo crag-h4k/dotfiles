@@ -40,8 +40,8 @@ require_cmd() {
 # Order: explicit override (tests/containers), /etc/os-release VERSION_CODENAME,
 # lsb_release, then a "trixie" default so a codename-less minimal image still
 # targets a real suite. Repos with a fixed suite (NodeSource "nodistro", Trivy
-# "generic", gh "stable") do not need this; deb.griffo.io keys its suite to the
-# codename, so it does.
+# "generic", gh "stable") do not need this; it is for any repo that keys its
+# suite to the running codename.
 debian_codename() {
     if [[ -n "${DOTFILES_DEBIAN_CODENAME:-}" ]]; then
         printf '%s\n' "$DOTFILES_DEBIAN_CODENAME"
@@ -272,19 +272,6 @@ ensure_gh_apt_repo() {
         "/etc/apt/sources.list.d/github-cli.sources"
 }
 
-# Manage the deb.griffo.io Deb822 repository (current neovim/fzf/ghostty/zoxide
-# for Debian). Unlike the fixed-suite repos above, its suite is the running
-# codename, so it resolves debian_codename() at call time.
-ensure_griffo_apt_repo() {
-    install_debian_apt_repo \
-        "deb.griffo.io" \
-        "https://deb.griffo.io/apt" \
-        "$(debian_codename)" \
-        "https://deb.griffo.io/EA0F721D231FDD3A0A17B9AC7808B4DD62C41256.asc" \
-        "/etc/apt/keyrings/deb.griffo.io.asc" \
-        "/etc/apt/sources.list.d/deb.griffo.io.sources"
-}
-
 # Install chezmoi to ~/.local/bin if it is not already in PATH.
 ensure_chezmoi() {
     if command -v chezmoi >/dev/null 2>&1; then
@@ -340,6 +327,22 @@ tenv_release_arch() {
     esac
 }
 
+tree_sitter_cli_release_asset() {
+    case "$1" in
+        x86_64|amd64)  echo "tree-sitter-cli-linux-x64.zip" ;;
+        aarch64|arm64) echo "tree-sitter-cli-linux-arm64.zip" ;;
+        *) return 1 ;;
+    esac
+}
+
+tree_sitter_cli_release_sha256() {
+    case "$1" in
+        x86_64|amd64)  echo "ff1b7f9863f2faafd78dc0e66d902ee85b37f709b314b22c009f51caf233eebd" ;;
+        aarch64|arm64) echo "db28509fe6db8902f9d14c43c486858c7486b42c3a96b30e811e73f105762336" ;;
+        *) return 1 ;;
+    esac
+}
+
 verify_release_checksum() {
     local dir="$1" checksums="$2" asset="$3"
     (
@@ -349,6 +352,45 @@ verify_release_checksum() {
         [[ -s selected-checksum.txt ]]
         sha256sum -c selected-checksum.txt
     )
+}
+
+install_tree_sitter_cli_debian() {
+    local version_line major=0 minor=0
+    if command -v tree-sitter >/dev/null 2>&1; then
+        version_line=$(tree-sitter --version 2>/dev/null || true)
+        if [[ "$version_line" =~ tree-sitter[[:space:]]+([0-9]+)\.([0-9]+) ]]; then
+            major="${BASH_REMATCH[1]}"
+            minor="${BASH_REMATCH[2]}"
+        fi
+        if (( major > 0 || minor >= 26 )); then
+            info "tree-sitter CLI ${major}.${minor} already >= 0.26, skipping"
+            return 0
+        fi
+    fi
+
+    require_cmd curl
+    require_cmd unzip
+    local tag="v0.26.11" asset expected_sha tmp_dir
+    asset=$(tree_sitter_cli_release_asset "$(uname -m)") \
+        || { warn "unsupported arch $(uname -m) for tree-sitter CLI"; return 1; }
+    expected_sha=$(tree_sitter_cli_release_sha256 "$(uname -m)") \
+        || { warn "no tree-sitter CLI checksum for $(uname -m)"; return 1; }
+    tmp_dir=$(mktemp -d)
+    info "fetching tree-sitter CLI ${tag} ($(uname -m))"
+    if ! curl -fsSL -o "$tmp_dir/$asset" \
+        "https://github.com/tree-sitter/tree-sitter/releases/download/${tag}/${asset}" \
+        || ! printf '%s  %s\n' "$expected_sha" "$tmp_dir/$asset" | sha256sum -c -; then
+        warn "tree-sitter CLI download or checksum verification failed"
+        rm -rf "$tmp_dir"
+        return 1
+    fi
+    mkdir -p "$tmp_dir/unpack" "$HOME/.local/bin"
+    unzip -oq "$tmp_dir/$asset" -d "$tmp_dir/unpack"
+    [[ -x "$tmp_dir/unpack/tree-sitter" ]] \
+        || { warn "tree-sitter CLI archive did not contain the expected binary"; rm -rf "$tmp_dir"; return 1; }
+    install -m 0755 "$tmp_dir/unpack/tree-sitter" "$HOME/.local/bin/tree-sitter"
+    rm -rf "$tmp_dir"
+    info "tree-sitter CLI installed: $("$HOME/.local/bin/tree-sitter" --version 2>/dev/null)"
 }
 
 install_tflint_debian() {

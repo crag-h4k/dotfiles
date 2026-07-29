@@ -69,15 +69,10 @@ test -f /etc/apt/sources.list.d/apt.sources
 test ! -e /etc/apt/sources.list.d/github-cli.sources
 apt-cache policy gh | grep -F 'https://cli.github.com/packages' >/dev/null
 
-# The deb.griffo.io repo is added for the Zsh component (fzf + zoxide) and keys
-# its suite to the running codename. fzf/zoxide install from it; ghostty is only
-# reachable (not installed) since the terminal component is off in this run.
-test -f /etc/apt/sources.list.d/deb.griffo.io.sources
-grep -Fq 'URIs: https://deb.griffo.io/apt' /etc/apt/sources.list.d/deb.griffo.io.sources
-grep -Fq 'Suites: trixie' /etc/apt/sources.list.d/deb.griffo.io.sources
-apt-cache policy fzf | grep -F 'deb.griffo.io' >/dev/null
-apt-cache policy zoxide | grep -F 'deb.griffo.io' >/dev/null
-apt-cache policy ghostty | grep -F 'deb.griffo.io' >/dev/null
+# fzf and zoxide install from Debian main for the Zsh component. Confirm APT sees
+# them as installed (ghostty is no longer auto-installed on Debian).
+dpkg-query -W -f='${Status}\n' fzf | grep -q 'install ok installed'
+dpkg-query -W -f='${Status}\n' zoxide | grep -q 'install ok installed'
 
 for command_name in chezmoi git gh tmux zoxide zsh fzf; do
     command -v "$command_name" >/dev/null || {
