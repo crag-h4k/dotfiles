@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.2.0](https://github.com/crag-h4k/dotfiles/compare/v0.1.0...v0.2.0) (2026-07-29)
+
+
+### Features
+
+* **git-delta:** add git-delta, fix nvim treesitter, add better nvim statusline ([#47](https://github.com/crag-h4k/dotfiles/issues/47)) ([117d984](https://github.com/crag-h4k/dotfiles/commit/117d984d3a7187df3700112735836e70519adf06))
+
 ## [0.1.0](https://github.com/crag-h4k/dotfiles/compare/v0.0.7...v0.1.0) (2026-07-28)
 
 
