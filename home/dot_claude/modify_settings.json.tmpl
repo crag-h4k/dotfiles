@@ -6,15 +6,19 @@
 # enabledPlugins / editorMode and anything else Claude Code writes here. Stable
 # across `chezmoi apply` runs.
 #
-# Two independent, gated injections:
+# Three independent, gated injections:
 #   ai > claude_hooks : the tmux attention-notification hooks + managed env.
 #   ai > statusline   : the dotfiles statusline command (statusLine is ours to own;
 #                       Claude never writes it, so assert it canonically).
-# The file is managed when EITHER sub-feature is on (see .chezmoiignore); each
+#   ai > shared_workspace : shared plan and auto-memory directories.
+# The file is managed when ANY sub-feature is on (see .chezmoiignore); each
 # block below is compiled in only for its sub-feature, so a statusline-only host
 # gets no notify hooks and a hooks-only host gets no statusLine.
 import json
+import os
 import sys
+
+AI_DIR = os.path.expanduser({{ dig "aiDirectory" (joinPath .chezmoi.homeDir "ai") . | quote }})
 
 try:
     data = json.load(sys.stdin)
@@ -24,6 +28,33 @@ except Exception:
     data = {}
 {{ if dig "components" "ai" "claude_hooks" false . }}
 hooks = data.setdefault("hooks", {})
+notify_hook = os.path.join(AI_DIR, "hooks", "claude", "notify-tmux.sh")
+clear_hook = os.path.join(AI_DIR, "hooks", "claude", "notify-clear.sh")
+legacy_hooks = {
+    "~/.claude/hooks/notify-tmux.sh",
+    "~/.claude/hooks/notify-clear.sh",
+    os.path.expanduser("~/.claude/hooks/notify-tmux.sh"),
+    os.path.expanduser("~/.claude/hooks/notify-clear.sh"),
+}
+
+
+def remove_legacy_hooks():
+    """Remove adapters formerly installed directly beneath ~/.claude."""
+    for event, groups in list(hooks.items()):
+        kept_groups = []
+        for group in groups:
+            kept_handlers = [
+                handler
+                for handler in group.get("hooks", [])
+                if handler.get("command") not in legacy_hooks
+            ]
+            if kept_handlers:
+                group["hooks"] = kept_handlers
+                kept_groups.append(group)
+        if kept_groups:
+            hooks[event] = kept_groups
+        else:
+            hooks.pop(event, None)
 
 
 def ensure(event, command, matcher=None):
@@ -47,11 +78,12 @@ def ensure(event, command, matcher=None):
     entries.append(group)
 
 
-ensure("Stop", "~/.claude/hooks/notify-tmux.sh")
-ensure("Notification", "~/.claude/hooks/notify-tmux.sh")
+remove_legacy_hooks()
+ensure("Stop", notify_hook)
+ensure("Notification", notify_hook)
 # AskUserQuestion emits no Notification event, so flag it via its tool call.
-ensure("PreToolUse", "~/.claude/hooks/notify-tmux.sh", matcher="AskUserQuestion")
-ensure("UserPromptSubmit", "~/.claude/hooks/notify-clear.sh")
+ensure("PreToolUse", notify_hook, matcher="AskUserQuestion")
+ensure("UserPromptSubmit", clear_hook)
 
 # CLAUDE_CODE_DISABLE_MOUSE_CLICKS removed: it only suppressed click *handling*
 # while leaving mouse *reporting* on, so the fullscreen TUI still captured drags
@@ -64,6 +96,14 @@ if isinstance(env, dict):
     env.pop("CLAUDE_CODE_DISABLE_MOUSE_CLICKS", None)
     if not env:
         data.pop("env", None)
+{{ end }}
+{{ if dig "components" "ai" "shared_workspace" false . }}
+# These are documented user settings. They redirect only authored/explicit
+# Claude state; transcripts, auth, caches, and checkpoints stay under ~/.claude.
+data["autoMemoryDirectory"] = os.path.join(AI_DIR, "memory")
+data["plansDirectory"] = os.path.join(AI_DIR, "plans")
+env = data.setdefault("env", {})
+env["AI_WORKSPACE"] = AI_DIR
 {{ end }}
 {{ if dig "components" "ai" "statusline" false . }}
 # statusLine is ours to own (Claude never writes it), so assert it canonically

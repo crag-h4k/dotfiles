@@ -1,0 +1,19 @@
+#!/usr/bin/env bash
+# Shared AI workspace layout revision: 2
+# The revision intentionally changes when the managed asset list or migration
+# behavior changes, causing chezmoi to run this script again.
+set -euo pipefail
+
+{{ if or
+     (dig "components" "ai" "shared_workspace" false .)
+     (dig "components" "ai" "claude_hooks" false .)
+     (dig "components" "ai" "codex_hooks" false .) -}}
+export DOTFILES_AI_DIR={{ dig "aiDirectory" (joinPath .chezmoi.homeDir "ai") . | quote }}
+export INSTALL_AI_SHARED_WORKSPACE={{ dig "components" "ai" "shared_workspace" false . }}
+export INSTALL_AI_CLAUDE_HOOKS={{ dig "components" "ai" "claude_hooks" false . }}
+export INSTALL_AI_CODEX_HOOKS={{ dig "components" "ai" "codex_hooks" false . }}
+bash "{{ .chezmoi.sourceDir | dir }}/scripts/install-ai-workspace.sh"
+{{ else -}}
+# Shared workspace and AI hooks are disabled for this host.
+exit 0
+{{ end -}}

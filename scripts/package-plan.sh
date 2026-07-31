@@ -10,6 +10,7 @@ INSTALL_NEOVIM="${INSTALL_NEOVIM:-false}"
 INSTALL_NOTIFY="${INSTALL_NOTIFY:-false}"
 INSTALL_AI_CODECOMPANION="${INSTALL_AI_CODECOMPANION:-false}"
 INSTALL_AI_STATUSLINE="${INSTALL_AI_STATUSLINE:-false}"
+INSTALL_AI_SHARED_WORKSPACE="${INSTALL_AI_SHARED_WORKSPACE:-false}"
 INSTALL_TERMINAL_GHOSTTY="${INSTALL_TERMINAL_GHOSTTY:-false}"
 INSTALL_TERMINAL_ITERM2="${INSTALL_TERMINAL_ITERM2:-false}"
 _plan_mode="${1:---records}"
@@ -122,6 +123,9 @@ _status() {
             fi
             ;;
         github-release)
+            command -v "$probe" >/dev/null 2>&1 && _status_result=installed
+            ;;
+        vendor-installer)
             command -v "$probe" >/dev/null 2>&1 && _status_result=installed
             ;;
         npm)
@@ -279,6 +283,10 @@ _build() {
     fi
     [[ "$INSTALL_AI_CODECOMPANION" == true ]] &&
         _add npm @agentclientprotocol/claude-agent-acp "https://www.npmjs.com/package/@agentclientprotocol/claude-agent-acp" claude-agent-acp
+    if [[ "$INSTALL_AI_SHARED_WORKSPACE" == true ]]; then
+        _add vendor-installer claude-code "https://claude.ai/install.sh" claude
+        _add vendor-installer codex-cli "https://chatgpt.com/codex/install.sh" codex
+    fi
 
     if [[ "$INSTALL_ZSH" == true ]]; then
         _add git-external ohmyzsh/ohmyzsh "https://github.com/ohmyzsh/ohmyzsh.git" "$HOME/.zsh/ohmyzsh"
@@ -323,7 +331,7 @@ _display() {
         esac
         printf '\n%s%s (%d)%s\n' "$c_hdr" "$label" "$n" "$c_rst"
         # Cluster by source within the tier, following the install order.
-        for wanted in brew-formula brew-cask apt github-release npm pip luarocks neovim-plugin git-external; do
+        for wanted in brew-formula brew-cask apt github-release vendor-installer npm pip luarocks neovim-plugin git-external; do
             for record in "${_records[@]}"; do
                 IFS=$'\t' read -r source name status origin <<< "$record"
                 [[ "$source" == "$wanted" && "$status" == "$tier" ]] || continue

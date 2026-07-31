@@ -6,25 +6,29 @@
 # the [tui.*] subtables Codex writes at runtime (e.g. [tui.model_availability_nux])
 # and leaves model / effort / mcp_servers untouched.
 #
-# Two independent, gated injections, folded through ONE path so a second [tui]
+# Three independent, gated injections, folded through ONE path so a second [tui]
 # table is never created (that would make config.toml unparseable and Codex would
 # fail to launch):
 #   ai > codex_hooks : top-level `notify` + `tui.notifications`.
 #   ai > statusline  : `tui.status_line` + `tui.theme` + `tui.status_line_use_colors`.
+#   ai > shared_workspace : a Codex agent role loaded from the common AI root.
 # TUI keys are emitted INSIDE an existing bare [tui] table when one exists, else as
 # top-level `tui.<key>` dotted keys (which coexist with Codex's [tui.subtable]
 # headers). The file is managed when EITHER sub-feature is on (see .chezmoiignore).
+import json
 import os
 import re
 import sys
 
-HOOK = os.path.expanduser("~/.codex/hooks/notify-tmux.sh")
+AI_DIR = os.path.expanduser({{ dig "aiDirectory" (joinPath .chezmoi.homeDir "ai") . | quote }})
+HOOK = os.path.join(AI_DIR, "hooks", "codex", "notify-tmux.sh")
 
 # What we inject, decided at render time by the component gates.
 notify_line = None
+agent_lines = []
 tui_items = []  # ordered list of (key, value_toml) to live in the [tui] table
 {{ if dig "components" "ai" "codex_hooks" false . }}
-notify_line = 'notify = ["%s"]' % HOOK
+notify_line = "notify = [%s]" % json.dumps(HOOK)
 tui_items.append(("notifications", '["agent-turn-complete", "approval-requested"]'))
 {{ end }}
 {{ if dig "components" "ai" "statusline" false . }}
@@ -35,13 +39,22 @@ tui_items.append(("status_line", '["model-with-reasoning", "run-state", "task-pr
 tui_items.append(("theme", '"dotfiles"'))
 tui_items.append(("status_line_use_colors", "true"))
 {{ end }}
+{{ if dig "components" "ai" "shared_workspace" false . }}
+agent_lines.extend([
+    'agents.dotfiles-maintainer.description = "Maintain this chezmoi dotfiles repository"',
+    "agents.dotfiles-maintainer.config_file = %s"
+    % json.dumps(os.path.join(AI_DIR, "agents", "codex", "dotfiles-maintainer.toml")),
+])
+{{ end }}
 
 # Merge-only: strip and re-add ONLY the keys we are injecting under the current
 # gates, so a user's own tui.theme / tui.notifications is preserved when the
 # matching sub-feature is off, and no owned key is ever emitted twice or scattered.
 strip_tui = tuple(k for k, _ in tui_items)
 strip_top = (("notify",) if notify_line is not None else ()) \
-    + tuple("tui." + k for k in strip_tui)
+    + tuple("tui." + k for k in strip_tui) \
+    + (("agents.dotfiles-maintainer.description", "agents.dotfiles-maintainer.config_file")
+       if agent_lines else ())
 
 key_re = re.compile(r'^\s*([A-Za-z0-9_."-]+)\s*=')
 table_re = re.compile(r"^\s*\[")
@@ -95,6 +108,7 @@ if has_bare_tui:
 out = []
 if notify_line is not None:
     out.append(notify_line)
+out.extend(agent_lines)
 if not has_bare_tui:
     for key, val in tui_items:
         out.append("tui.%s = %s" % (key, val))

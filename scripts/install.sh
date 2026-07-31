@@ -31,6 +31,9 @@ INSTALL_AI_CODECOMPANION="${INSTALL_AI_CODECOMPANION:-false}"
 # home/.chezmoiignore; this var gates only the runtime deps (jq + python3) the
 # statusline shells out to.
 INSTALL_AI_STATUSLINE="${INSTALL_AI_STATUSLINE:-false}"
+# Installing the shared Claude/Codex workspace also installs both terminal
+# clients through their official user-local standalone installers.
+INSTALL_AI_SHARED_WORKSPACE="${INSTALL_AI_SHARED_WORKSPACE:-false}"
 # Shared notify runtime. AI-hook-only hosts still need notify.yaml, lib.sh, and
 # mikefarah yq even when neither Zsh nor tmux is selected as a component.
 INSTALL_NOTIFY="${INSTALL_NOTIFY:-false}"
@@ -51,7 +54,7 @@ main() {
     local os
     os=$(os_detect)
     info "dotfiles installer: platform=$os"
-    info "components: zsh=$INSTALL_ZSH tmux=$INSTALL_TMUX neovim=$INSTALL_NEOVIM ai.codecompanion=$INSTALL_AI_CODECOMPANION notify=$INSTALL_NOTIFY terminal.ghostty=$INSTALL_TERMINAL_GHOSTTY terminal.iterm2=$INSTALL_TERMINAL_ITERM2"
+    info "components: zsh=$INSTALL_ZSH tmux=$INSTALL_TMUX neovim=$INSTALL_NEOVIM ai.codecompanion=$INSTALL_AI_CODECOMPANION ai.shared_workspace=$INSTALL_AI_SHARED_WORKSPACE notify=$INSTALL_NOTIFY terminal.ghostty=$INSTALL_TERMINAL_GHOSTTY terminal.iterm2=$INSTALL_TERMINAL_ITERM2"
 
     # Confirm before any package-manager mutation. Decline degrades to the same
     # configs-only tail this function already runs for `configs` mode, for THIS
@@ -150,6 +153,9 @@ main() {
         ensure_chezmoi
         [[ "$INSTALL_ZSH" == true ]] && bash "$SCRIPT_DIR/install-zsh.sh"
         [[ "$INSTALL_NEOVIM" == true ]] && bash "$SCRIPT_DIR/install-neovim.sh"
+        [[ "$INSTALL_AI_SHARED_WORKSPACE" == true ]] &&
+            { bash "$SCRIPT_DIR/install-ai-clis.sh" ||
+                warn "one or more AI CLIs could not be installed; shared configuration was still applied"; }
         local pkg_elapsed=$(( SECONDS - pkg_started ))
         info "packages: installed/updated in ${pkg_elapsed}s"
     else

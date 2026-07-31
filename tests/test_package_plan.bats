@@ -8,6 +8,7 @@ PLANNER="${BATS_TEST_DIRNAME}/../scripts/package-plan.sh"
   run env DOTFILES_PLAN_OS=macos DOTFILES_PLAN_ASSUME_MISSING=1 \
     INSTALL_ZSH=true INSTALL_TMUX=true INSTALL_NEOVIM=true INSTALL_NOTIFY=true \
     INSTALL_AI_CODECOMPANION=true INSTALL_AI_STATUSLINE=true \
+    INSTALL_AI_SHARED_WORKSPACE=true \
     INSTALL_TERMINAL_GHOSTTY=true INSTALL_TERMINAL_ITERM2=true \
     bash "$PLANNER" --records
   [ "$status" -eq 0 ]
@@ -15,8 +16,18 @@ PLANNER="${BATS_TEST_DIRNAME}/../scripts/package-plan.sh"
   [ "$(printf '%s\n' "$output" | grep -c $'^brew-formula\tpython3\t')" -eq 1 ]
   [[ "$output" == *$'brew-cask\tghostty\tplanned\tHomebrew cask'* ]]
   [[ "$output" == *$'npm\t@agentclientprotocol/claude-agent-acp\tplanned\t'* ]]
+  [[ "$output" == *$'vendor-installer\tclaude-code\tplanned\thttps://claude.ai/install.sh'* ]]
+  [[ "$output" == *$'vendor-installer\tcodex-cli\tplanned\thttps://chatgpt.com/codex/install.sh'* ]]
   [[ "$output" == *$'git-external\ttmux-plugins/tpm\tplanned\t'* ]]
   [[ "$output" == *$'neovim-plugin\tlazy.nvim plugin set\tplanned\t'* ]]
+}
+
+@test "shared AI workspace plans both native CLIs on Debian" {
+  run env DOTFILES_PLAN_OS=debian DOTFILES_PLAN_ASSUME_MISSING=1 \
+    INSTALL_AI_SHARED_WORKSPACE=true bash "$PLANNER" --records
+  [ "$status" -eq 0 ]
+  [[ "$output" == *$'vendor-installer\tclaude-code\tplanned\thttps://claude.ai/install.sh'* ]]
+  [[ "$output" == *$'vendor-installer\tcodex-cli\tplanned\thttps://chatgpt.com/codex/install.sh'* ]]
 }
 
 @test "Debian AI-hook-only notify plan includes yq without Zsh or tmux externals" {

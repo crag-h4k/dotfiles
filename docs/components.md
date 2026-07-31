@@ -36,7 +36,7 @@ Components to install:
   2) tmux         tmux + plugins (tpm, resurrect, sensible, yank)
   3) neovim       neovim, lazy.nvim, language servers, linters
   4) git          git config files (config, personal, ignore_global)
-  5) ai           AI tools (claude_hooks, codex_hooks, statusline, codecompanion)
+  5) ai           AI tools (shared workspace, hooks, statusline, codecompanion)
   6) terminal     terminal emulator config (ghostty, iterm2)
   7) colorscheme  re-pick the shared color scheme (unchecked keeps the current one)
   8) install_mode re-choose packages vs configs (unchecked keeps the current one)
@@ -83,6 +83,7 @@ Git is in the default component set. AI and terminal configuration are opt-in.
 | `ai` | `codex_hooks` | `~/.codex/config.toml` (merge) | off | merges the Codex notify hook + `tui.notifications` |
 | `ai` | `statusline` | `~/.claude/settings.json` + `~/.codex/config.toml` (merge) | off | Claude renderer plus a matching selected-palette Codex theme; keeps those files managed even when notify hooks are off; not enabled by `all` or `all+` |
 | `ai` | `codecompanion` | CodeCompanion.nvim + `claude-agent-acp` bridge | on (within the `ai` submenu, if `ai` is picked) | heaviest sub-feature - pulls in node, npm, and the npm-installed bridge; listed last for that reason |
+| `ai` | `shared_workspace` | `data.aiDirectory` (default `~/ai`) | on (within the `ai` submenu, if `ai` is picked) | installs Claude Code and Codex CLI, then gives both one authored workspace for instructions, agents, skills, memory, plans, scripts, specs, hooks, rules, and workflows |
 | `terminal` | `ghostty` | Ghostty config + quick-terminal dropdown | on | macOS and Linux |
 | `terminal` | `iterm2` | iTerm2 Dynamic Profiles | off | macOS only; hidden in the submenu on non-macOS (data key still emitted for column parity), also gated in `home/.chezmoiignore` |
 
@@ -95,6 +96,64 @@ Gum treats commas as selection separators, which otherwise breaks preselection.
 The submenu only appears when its parent is selected.
 
 Nothing AI-related installs unless the AI component is selected.
+
+In package mode, `shared_workspace` installs missing Claude Code and Codex CLI
+releases with their official user-local standalone installers. Existing
+installations are retained: Claude Code's native installation updates itself,
+and Codex exposes its own update command. Configs-only mode skips both
+downloads.
+
+The shared workspace defaults to `~/ai`. Set `DOTFILES_AI_DIR` to an absolute
+path during `chezmoi init` to choose another location:
+
+```sh
+DOTFILES_AI_DIR=/path/to/ai chezmoi init
+```
+
+The selected path is persisted as `data.aiDirectory`. The apply hook creates
+the workspace and links each share-safe repository asset individually into the
+native Claude and Codex directories. Those directories remain real,
+user-writable directories: unrelated native entries are never adopted, deleted,
+or replaced. A same-named native entry wins and produces a warning.
+
+`<aiDirectory>/overlays.conf` is a private, installer-created configuration file
+with mode 600. Add one absolute or `~/` path per line to merge additional work
+or private roots. Each root uses the same conventional layout:
+
+```text
+skills/
+agents/{claude,codex}/
+rules/{claude,codex}/
+hooks/{claude,codex}/
+workflows/
+agent-memory/
+memory/
+plans/
+scripts/
+specs/
+```
+
+The root's entries are linked into `<aiDirectory>` individually and then
+overlaid into each tool. `skills/` is common to both tools; agent, rule, and
+hook formats remain tool-specific. After editing an overlay or the root list,
+run `<aiDirectory>/scripts/sync-overlays`. A private state file records only
+links created from configured roots, allowing disabled roots to be removed
+without touching native entries. The configuration, state, and referenced
+private content are not part of the dotfiles repository.
+
+The installer migrates only exact whole-directory links created by the first
+shared-workspace revision. It turns those back into real native directories and
+links their existing shared entries individually.
+
+Claude's documented `autoMemoryDirectory` and `plansDirectory` settings point
+to the shared `memory/` and `plans/` directories; chezmoi does not manage their
+contents. Claude agent memory, custom agents, rules, workflows, and hooks use
+per-entry overlays. Codex loads its compatible agent-role file from
+`agents/codex/`, and its agents, rules, and hooks use the same overlay model.
+
+Authentication, session transcripts, checkpoints, caches, plugins, and Codex
+SQLite stores remain in their native tool directories. These formats are
+tool-owned runtime state and are deliberately not merged.
 
 CodeCompanion can send buffer contents to an LLM, so
 `~/.config/nvim/.codecompanion-enabled` gates it at startup. Add or remove that
@@ -155,8 +214,9 @@ update, then current. Colors honor `NO_COLOR`, and every line names its package
 source.
 
 Homebrew uses `brew outdated`, and APT uses `apt list --upgradable`, to report
-real update state. Slower sources such as GitHub releases, npm, pip, LuaRocks,
-externals, and Neovim plugins report only missing or installed state.
+real update state. Slower sources such as vendor installers, GitHub releases,
+npm, pip, LuaRocks, externals, and Neovim plugins report only missing or
+installed state.
 
 Package mode installs missing tools and updates the managed set. Config-only
 mode still fetches selected chezmoi externals and runs safe finalizers, but
@@ -323,6 +383,7 @@ There are two ways to change the selection.
   [data]
       palette = "dracula"
       zshTheme = "gud"
+      aiDirectory = "/absolute/path/to/ai"
       installMode = "configs"
       gitName = "Your Name"
       gitEmail = "you@example.com"
@@ -340,6 +401,8 @@ There are two ways to change the selection.
   [data.components.ai]
       codecompanion = false
       claude_hooks = false
+      codex_hooks = false
+      shared_workspace = true
       statusline = false
 
   [data.components.terminal]

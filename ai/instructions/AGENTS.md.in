@@ -1,0 +1,27 @@
+# Shared AI Workspace
+
+Claude Code and Codex use the same authored workspace at
+`@@AI_DIRECTORY@@`.
+
+- Put persistent, human-authored notes in `memory/`.
+- Put subagent memory in `agent-memory/`.
+- Put plans in `plans/`, implementation specifications in `specs/`, and reusable
+  utilities in `scripts/`.
+- Reusable skills live in `skills/`.
+- Custom agent definitions live in `agents/claude/` and `agents/codex/`. The
+  formats differ, but the roles should remain behaviorally aligned.
+- Additional private or work roots may be listed in `overlays.conf`. Their
+  conventional subdirectories are merged one entry at a time. Run
+  `scripts/sync-overlays` after adding or removing an overlay entry.
+- Claude and Codex extension directories remain open for native, tool-local
+  additions. Existing same-named native entries take precedence over overlays.
+- Tool-specific hook adapters live in `hooks/claude/` and `hooks/codex/`.
+- Tool-specific enforcement rules live in `rules/claude/` and `rules/codex/`.
+- Do not place credentials, authentication files, session transcripts, caches,
+  or tool-owned databases in this workspace.
+- In agents and skills intended for the public dotfiles repository, never record
+  usernames, hostnames, private network addresses, employer names, or absolute
+  machine paths. Private overlay content is not part of that repository.
+- Do not commit or push unless the user explicitly asks.
+- Do not run privileged local commands. Give the user the exact command when
+  privileged access is required.
