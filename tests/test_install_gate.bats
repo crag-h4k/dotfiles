@@ -52,6 +52,7 @@ export_install_base() {
   export DOTFILES_INSTALL_MODE=packages
   export INSTALL_ZSH=false INSTALL_TMUX=false INSTALL_NEOVIM=false INSTALL_NOTIFY=false
   export INSTALL_AI_CODECOMPANION=false INSTALL_AI_STATUSLINE=false
+  export INSTALL_AI_SHARED_WORKSPACE=false
   export INSTALL_TERMINAL_GHOSTTY=false INSTALL_TERMINAL_ITERM2=false
   export HOME="${TEST_HOME}" PATH="${STUB_DIR}:${PATH}"
 }

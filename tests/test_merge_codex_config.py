@@ -8,7 +8,6 @@ merge script. It injects the top-level `notify` (tmux hook) and `tui.notificatio
 sub-feature ON (statusline off) and assert the notify-merge behavior. A separate
 render asserts the exact themed statusline fields.
 """
-import os
 import subprocess
 import sys
 import tempfile
@@ -16,7 +15,8 @@ import tomllib
 from pathlib import Path
 
 TMPL = Path(__file__).parent.parent / "home" / "dot_codex" / "modify_private_config.toml.tmpl"
-HOOK = os.path.expanduser("~/.codex/hooks/notify-tmux.sh")
+AI_DIR = "/tmp/dotfiles-ai-test"
+HOOK = f"{AI_DIR}/hooks/codex/notify-tmux.sh"
 NOTIFS = ["agent-turn-complete", "approval-requested"]
 STATUS_ITEMS = [
     "model-with-reasoning",
@@ -31,14 +31,16 @@ STATUS_ITEMS = [
 ]
 
 
-def _render(codex_hooks: bool, statusline: bool) -> str:
+def _render(codex_hooks: bool, statusline: bool, shared_workspace: bool = False) -> str:
     """Render the modify_ template under the given ai gates; return script path."""
     d = tempfile.mkdtemp()
     cfg = Path(d) / "chezmoi.toml"
     cfg.write_text(
+        f'[data]\n    aiDirectory = "{AI_DIR}"\n'
         "[data.components.ai]\n"
         f"    codex_hooks = {str(codex_hooks).lower()}\n"
         f"    statusline = {str(statusline).lower()}\n"
+        f"    shared_workspace = {str(shared_workspace).lower()}\n"
     )
     out = subprocess.run(
         ["chezmoi", "execute-template", "--config", str(cfg)],
@@ -55,6 +57,7 @@ def _render(codex_hooks: bool, statusline: bool) -> str:
 # Render once with the notify hook on (statusline off) for the notify assertions.
 SCRIPT = _render(codex_hooks=True, statusline=False)
 STATUS_SCRIPT = _render(codex_hooks=False, statusline=True)
+SHARED_SCRIPT = _render(codex_hooks=False, statusline=False, shared_workspace=True)
 
 
 def run_script(config_toml: str, script: str = SCRIPT) -> subprocess.CompletedProcess:
@@ -153,4 +156,28 @@ def test_bare_tui_idempotent_and_replaces_stale_notifications():
     assert first.count("notifications =") == 1
     # Re-running is a no-op.
     second = run_script(first).stdout
+    assert first == second
+
+
+def test_shared_workspace_adds_portable_agent_role():
+    result = run_script('model = "gpt-5.6"\n', SHARED_SCRIPT)
+    assert result.returncode == 0
+    data = tomllib.loads(result.stdout)
+    role = data["agents"]["dotfiles-maintainer"]
+    assert role["description"] == "Maintain this chezmoi dotfiles repository"
+    assert role["config_file"] == f"{AI_DIR}/agents/codex/dotfiles-maintainer.toml"
+    assert data["model"] == "gpt-5.6"
+
+
+def test_shared_workspace_replaces_stale_agent_path_idempotently():
+    stale = (
+        'agents.dotfiles-maintainer.description = "old"\n'
+        'agents.dotfiles-maintainer.config_file = "/old/path"\n'
+    )
+    first = run_script(stale, SHARED_SCRIPT).stdout
+    second = run_script(first, SHARED_SCRIPT).stdout
+    data = tomllib.loads(first)
+    assert data["agents"]["dotfiles-maintainer"]["config_file"] == (
+        f"{AI_DIR}/agents/codex/dotfiles-maintainer.toml"
+    )
     assert first == second

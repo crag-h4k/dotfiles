@@ -9,8 +9,7 @@
 # Installs to this layout:
 #   ~/.config/notify/{notify.yaml,lib.sh,notify-process.zsh,sounds/*.mp3}
 #   ~/.tmux/conf.d/notify.conf
-#   ~/.claude/hooks/notify-{tmux,clear}.sh
-#   ~/.codex/hooks/notify-tmux.sh        (only when the codex CLI is present)
+#   ${DOTFILES_AI_DIR:-~/ai}/hooks/{claude,codex}/
 # and wires ~/.zshrc, ~/.tmux.conf, ~/.claude/settings.json, ~/.codex/config.toml.
 set -euo pipefail
 
@@ -45,7 +44,7 @@ fi
 ensure_yq
 
 # --- copy from the repo's chezmoi-source files (single source of truth) --------
-mkdir -p "$HOME/.config/notify/sounds" "$HOME/.tmux/conf.d" "$HOME/.claude/hooks"
+mkdir -p "$HOME/.config/notify/sounds" "$HOME/.tmux/conf.d"
 
 # notify.yaml: preserve user edits unless --force.
 if [[ -f "$HOME/.config/notify/notify.yaml" && "$FORCE" -ne 1 ]]; then
@@ -78,11 +77,16 @@ cp "$SOURCE/dot_config/notify/executable_clear-pane.sh"     "$HOME/.config/notif
 cp "$SOURCE/dot_zsh/custom/functions/notify-process.zsh"    "$HOME/.config/notify/notify-process.zsh"
 cp "$SOURCE/dot_tmux/conf.d/notify.conf"                    "$HOME/.tmux/conf.d/notify.conf"
 cp "$SOURCE"/dot_config/notify/sounds/*.mp3                 "$HOME/.config/notify/sounds/" 2>/dev/null || warn "no sound files copied"
-cp "$SOURCE/dot_claude/hooks/executable_notify-tmux.sh"     "$HOME/.claude/hooks/notify-tmux.sh"
-cp "$SOURCE/dot_claude/hooks/executable_notify-clear.sh"    "$HOME/.claude/hooks/notify-clear.sh"
-chmod +x "$HOME/.claude/hooks/notify-tmux.sh" "$HOME/.claude/hooks/notify-clear.sh"
 chmod +x "$HOME/.config/notify/clear-pane.sh"
-info "copied lib + zsh notifier + tmux render + sounds + claude hooks"
+info "copied lib + zsh notifier + tmux render + sounds"
+
+codex_hooks=false
+command -v codex >/dev/null 2>&1 && codex_hooks=true
+DOTFILES_AI_DIR="${DOTFILES_AI_DIR:-$HOME/ai}" \
+INSTALL_AI_SHARED_WORKSPACE=false \
+INSTALL_AI_CLAUDE_HOOKS=true \
+INSTALL_AI_CODEX_HOOKS="$codex_hooks" \
+    bash "$SCRIPT_DIR/install-ai-workspace.sh"
 
 # --- wire-ups (idempotent) ----------------------------------------------------
 ensure_line '[ -f ~/.config/notify/notify-process.zsh ] && source ~/.config/notify/notify-process.zsh' "$HOME/.zshrc"
@@ -96,10 +100,18 @@ warn "notify.conf overrides window-status-format / pane-border-format. If you cu
 # renderer, then run the resulting Python merge script exactly as before.
 render_modify() { # $1 = modify_*.tmpl -> rendered Python merge script on stdout
     python3 - "$1" <<'PY'
-import re, sys
-GATES = {"claude_hooks": True, "codex_hooks": True, "statusline": False}
+import json, os, re, sys
+GATES = dict(
+    claude_hooks=True,
+    codex_hooks=True,
+    shared_workspace=False,
+    statusline=False,
+)
 if_re = re.compile(r'\{\{-?\s*if\s+dig\s+"components"\s+"ai"\s+"(\w+)".*?\}\}')
 end_re = re.compile(r'\{\{-?\s*end\s*-?\}\}')
+ai_dir_re = re.compile(
+    r'\{\{\s*dig\s+"aiDirectory"\s+\(joinPath\s+\.chezmoi\.homeDir\s+"ai"\)\s+\.\s+\|\s+quote\s*\}\}'
+)
 stack, skip, out = [], 0, []
 with open(sys.argv[1]) as f:
     for line in f:
@@ -115,7 +127,8 @@ with open(sys.argv[1]) as f:
                 skip -= 1
             continue
         if skip == 0:
-            out.append(line)
+            ai_dir = os.environ.get("DOTFILES_AI_DIR", os.path.expanduser("~/ai"))
+            out.append(ai_dir_re.sub(json.dumps(ai_dir), line))
 sys.stdout.write("".join(out))
 PY
 }
@@ -158,10 +171,7 @@ fi
 # active once that lands). config.toml is merged, not overwritten, so Codex's
 # [projects.*] trust and [tui.*] entries survive; mode stays 600.
 if command -v codex >/dev/null 2>&1; then
-    mkdir -p "$HOME/.codex/hooks"
-    cp "$SOURCE/dot_codex/hooks/executable_notify-tmux.sh" "$HOME/.codex/hooks/notify-tmux.sh"
-    chmod +x "$HOME/.codex/hooks/notify-tmux.sh"
-    info "installed codex notify hook (~/.codex/hooks/notify-tmux.sh)"
+    info "installed Codex notify hook in ${DOTFILES_AI_DIR:-$HOME/ai}/hooks/codex"
     CODEX_CFG="$HOME/.codex/config.toml"
     CODEX_MERGE_TMPL="$SOURCE/dot_codex/modify_private_config.toml.tmpl"
     if ! command -v python3 >/dev/null 2>&1; then

@@ -45,7 +45,7 @@ parse_toml() {
 # Render home/.chezmoi.toml.tmpl with componentSelection (and optionally gitSelection
 # / aiSelection / terminalSelection) pre-seeded, then echo the component booleans
 # in the fixed column order:
-#   zsh tmux neovim  git.config git.personal git.ignore_global  ai.codecompanion ai.claude_hooks ai.codex_hooks ai.statusline  terminal.ghostty terminal.iterm2
+#   zsh tmux neovim  git.config git.personal git.ignore_global  ai.codecompanion ai.claude_hooks ai.codex_hooks ai.statusline ai.shared_workspace  terminal.ghostty terminal.iterm2
 # zsh/tmux/neovim are bare [data.components] bools; the rest live in the nested
 # [data.components.git] / [data.components.ai] / [data.components.terminal] tables.
 # terminal.ghostty/terminal.iterm2 are emitted for BOTH OSes (the .chezmoi.os gate
@@ -78,7 +78,7 @@ render_components() {
     fi
     # Pull the booleans out by key name (each is unique across the rendered
     # config), so reordering the lists later does not silently break assertions.
-    local zsh tmux neovim gconfig gpersonal gignore aicc aihooks aicodex aistatus ghostty iterm2
+    local zsh tmux neovim gconfig gpersonal gignore aicc aihooks aicodex aistatus aishared ghostty iterm2
     zsh=$(printf '%s\n' "$out" | sed -n 's/^[[:space:]]*zsh = \(.*\)$/\1/p')
     tmux=$(printf '%s\n' "$out" | sed -n 's/^[[:space:]]*tmux = \(.*\)$/\1/p')
     neovim=$(printf '%s\n' "$out" | sed -n 's/^[[:space:]]*neovim = \(.*\)$/\1/p')
@@ -89,10 +89,11 @@ render_components() {
     aihooks=$(printf '%s\n' "$out" | sed -n 's/^[[:space:]]*claude_hooks = \(.*\)$/\1/p')
     aicodex=$(printf '%s\n' "$out" | sed -n 's/^[[:space:]]*codex_hooks = \(.*\)$/\1/p')
     aistatus=$(printf '%s\n' "$out" | sed -n 's/^[[:space:]]*statusline = \(.*\)$/\1/p')
+    aishared=$(printf '%s\n' "$out" | sed -n 's/^[[:space:]]*shared_workspace = \(.*\)$/\1/p')
     ghostty=$(printf '%s\n' "$out" | sed -n 's/^[[:space:]]*ghostty = \(.*\)$/\1/p')
     iterm2=$(printf '%s\n' "$out" | sed -n 's/^[[:space:]]*iterm2 = \(.*\)$/\1/p')
-    printf '%s %s %s %s %s %s %s %s %s %s %s %s' \
-        "$zsh" "$tmux" "$neovim" "$gconfig" "$gpersonal" "$gignore" "$aicc" "$aihooks" "$aicodex" "$aistatus" "$ghostty" "$iterm2"
+    printf '%s %s %s %s %s %s %s %s %s %s %s %s %s' \
+        "$zsh" "$tmux" "$neovim" "$gconfig" "$gpersonal" "$gignore" "$aicc" "$aihooks" "$aicodex" "$aistatus" "$aishared" "$ghostty" "$iterm2"
 }
 
 # bool "true" if digit d (1..5) is present in the numeric string, else "false".
@@ -103,17 +104,18 @@ has_digit() {
     esac
 }
 
-COLS="zsh tmux neovim git.config git.personal git.ignore_global ai.codecompanion ai.claude_hooks ai.codex_hooks ai.statusline terminal.ghostty terminal.iterm2"
+COLS="zsh tmux neovim git.config git.personal git.ignore_global ai.codecompanion ai.claude_hooks ai.codex_hooks ai.statusline ai.shared_workspace terminal.ghostty terminal.iterm2"
 
 # Assert a selection WITHOUT a sub-seed renders the expected top-level state.
 # The git/ai/terminal PARENTS map to their default sub-feature (git.ignore_global /
-# ai.codecompanion / terminal.ghostty); the opt-in sub-features (config, personal,
-# claude_hooks, codex_hooks, statusline, iterm2) stay off unless explicitly selected.
+# ai.codecompanion + ai.shared_workspace / terminal.ghostty); the opt-in
+# sub-features (config, personal, hooks, statusline, iterm2) stay off unless
+# explicitly selected.
 # Args: selection ezsh etmux eneovim egit eai eghostty eiterm2
-# (egit=git.ignore_global, eai=ai.codecompanion, eghostty=terminal.ghostty when the
-# respective parent is on; eiterm2 stays off without an explicit sub-seed.)
+# (egit=git.ignore_global, eai=both default AI sub-features, and
+# eghostty=terminal.ghostty when the respective parent is on.)
 assert_top() {
-    local selection="$1" want="$2 $3 $4 false false $5 $6 false false false $7 $8" got
+    local selection="$1" want="$2 $3 $4 false false $5 $6 false false false $6 $7 $8" got
     got=$(render_components "$selection") || {
         echo "validate-templates: FAILED to render/parse (sel='$selection'): $got" >&2
         fail=1
@@ -129,12 +131,12 @@ assert_top() {
 }
 
 # Assert a selection WITH explicit sub-selections renders the expected booleans.
-# Args: selection gitSel aiSel termSel  e1..e12 (in COLS order). Pass an empty
+# Args: selection gitSel aiSel termSel  e1..e13 (in COLS order). Pass an empty
 # seed ("") for any sub-menu you are not exercising.
 assert_sub() {
     local selection="$1" gitsel="$2" aisel="$3" termsel="$4"
     shift 4
-    local want="$1 $2 $3 $4 $5 $6 $7 $8 $9 ${10} ${11} ${12}" got
+    local want="$1 $2 $3 $4 $5 $6 $7 $8 $9 ${10} ${11} ${12} ${13}" got
     got=$(render_components "$selection" "$gitsel" "$aisel" "$termsel") || {
         echo "validate-templates: FAILED to render/parse (sel='$selection' git='$gitsel' ai='$aisel' term='$termsel'): $got" >&2
         fail=1
@@ -179,7 +181,8 @@ done; done; done; done; done
 #        its ignore_global sub-feature only.
 assert_top "all"  true true true true false false false
 # all+ = everything: every parent on, each at its default sub-feature only
-#        (git.ignore_global, ai.codecompanion, terminal.ghostty). iterm2 is NOT a
+#        (git.ignore_global, ai.codecompanion + ai.shared_workspace,
+#        terminal.ghostty). iterm2 is NOT a
 #        default sub-feature, so all+ leaves it off (select it explicitly to add it).
 assert_top "all+" true true true true true true false
 
@@ -211,27 +214,28 @@ assert_top "1 6" true  false false false false true  false
 # git parent on (4) with explicit sub-selection, by key and by number; overrides
 # the ignore_global default. ai parent on (5) likewise; terminal parent on (6)
 # below. The 4th assert_sub arg is the terminalSelection seed ("" = none). Columns
-# are the full 12 in COLS order, ending terminal.ghostty terminal.iterm2.
-assert_sub "4"   "config personal" "" "" false false false  true  true  false  false false false false  false false
-assert_sub "4"   "1 3"             "" "" false false false  true  false true   false false false false  false false
-assert_sub "3 5" "" "codecompanion claude_hooks" ""  false false true  false false false  true  true  false false  false false
-assert_sub "3 5" "" "codecompanion codex_hooks"  ""  false false true  false false false  true  false true  false  false false
-assert_sub "3 5" "" "statusline"                 ""  false false true  false false false  false false false true  false false
-assert_sub "4 5" "config" "claude_hooks"         ""  false false false  true  false false  false true  false false  false false
+# are the full 13 in COLS order, ending terminal.ghostty terminal.iterm2.
+assert_sub "4"   "config personal" "" "" false false false  true  true  false  false false false false false  false false
+assert_sub "4"   "1 3"             "" "" false false false  true  false true   false false false false false  false false
+assert_sub "3 5" "" "codecompanion claude_hooks" ""  false false true  false false false  true  true  false false false  false false
+assert_sub "3 5" "" "codecompanion codex_hooks"  ""  false false true  false false false  true  false true  false false  false false
+assert_sub "3 5" "" "statusline"                 ""  false false true  false false false  false false false true false  false false
+assert_sub "3 5" "" "shared_workspace"           ""  false false true  false false false  false false false false true  false false
+assert_sub "4 5" "config" "claude_hooks"         ""  false false false  true  false false  false true  false false false  false false
 # gum submenu output is stored as the leading key plus visible label text on
 # older-compatible gum builds, so resolving by key containment must keep working.
 assert_sub "4 5" "config - ~/.gitconfig" "codecompanion - CodeCompanion.nvim assistant (needs neovim)" "" \
-    false false false  true false false  true false false false  false false
+    false false false  true false false  true false false false false  false false
 
 # terminal parent on (6) with explicit sub-selection, by key and by number.
 # ghostty is the default; iterm2 is added only when explicitly selected. iterm2's
 # data key is emitted on every OS (the .chezmoi.os gate lives in the file layer,
 # not the data keys), so these assert identically on macOS pre-commit and Linux CI.
-assert_sub "6"   "" "" "ghostty iterm2"  false false false  false false false  false false false false  true  true
-assert_sub "6"   "" "" "iterm2"          false false false  false false false  false false false false  false true
-assert_sub "6"   "" "" "1 2"             false false false  false false false  false false false false  true  true
-assert_sub "6"   "" "" "2"               false false false  false false false  false false false false  false true
-assert_sub "1 6" "" "" "ghostty"         true  false false  false false false  false false false false  true  false
+assert_sub "6"   "" "" "ghostty iterm2"  false false false  false false false  false false false false false  true  true
+assert_sub "6"   "" "" "iterm2"          false false false  false false false  false false false false false  false true
+assert_sub "6"   "" "" "1 2"             false false false  false false false  false false false false false  true  true
+assert_sub "6"   "" "" "2"               false false false  false false false  false false false false false  false true
+assert_sub "1 6" "" "" "ghostty"         true  false false  false false false  false false false false false  true  false
 
 # --- home/.chezmoiexternal.toml: render + parse under each component combo --
 # The externals file only branches on zsh and tmux, so vary those two and pin
@@ -267,7 +271,7 @@ assert_notify_gate() { # zsh tmux claude_hooks codex_hooks want_enabled
     {
         printf '[data]\ninstallMode = "configs"\n'
         printf '[data.components]\nzsh = %s\ntmux = %s\n' "$zsh" "$tmux"
-        printf '[data.components.ai]\nclaude_hooks = %s\ncodex_hooks = %s\nstatusline = false\ncodecompanion = false\n' "$claude" "$codex"
+        printf '[data.components.ai]\nclaude_hooks = %s\ncodex_hooks = %s\nstatusline = false\ncodecompanion = false\nshared_workspace = false\n' "$claude" "$codex"
     } > "$cfgdir/chezmoi.toml"
     ignored=$(chezmoi execute-template --source "$REPO_DIR" --config "$cfgdir/chezmoi.toml" < "$IGNORE")
     runout=$(chezmoi execute-template --source "$REPO_DIR" --config "$cfgdir/chezmoi.toml" < "$RUNONCE")
@@ -372,6 +376,26 @@ assert_install_ghostty() {
 assert_install_ghostty true  true
 assert_install_ghostty false false
 
+assert_install_ai_workspace() {
+    local shared="$1" want="$2" cfgdir out got
+    cfgdir=$(mktemp -d)
+    printf '[data.components.ai]\n    shared_workspace = %s\n' "$shared" >"$cfgdir/chezmoi.toml"
+    if ! out=$(chezmoi execute-template --source "$REPO_DIR" --config "$cfgdir/chezmoi.toml" <"$RUNONCE" 2>&1); then
+        echo "validate-templates: run_once render FAILED (shared_workspace=$shared): $out" >&2
+        fail=1
+        rm -rf "$cfgdir"
+        return
+    fi
+    rm -rf "$cfgdir"
+    got=$(printf '%s\n' "$out" | sed -n 's/^export INSTALL_AI_SHARED_WORKSPACE=\(.*\)$/\1/p')
+    if [[ "$got" != "$want" ]]; then
+        echo "validate-templates: run_once INSTALL_AI_SHARED_WORKSPACE mismatch (shared_workspace=$shared): expected=$want got=$got" >&2
+        fail=1
+    fi
+}
+assert_install_ai_workspace true  true
+assert_install_ai_workspace false false
+
 # --- modify_ templates: gated JSON/TOML merge scripts ----------------------
 # Render each modify_*.tmpl under an ai sub-feature config, run the emitted merge
 # script against a representative target file, and assert the result parses. The
@@ -381,10 +405,10 @@ assert_install_ghostty false false
 CLAUDE_MOD="$SOURCE_DIR/dot_claude/modify_settings.json.tmpl"
 CODEX_MOD="$SOURCE_DIR/dot_codex/modify_private_config.toml.tmpl"
 
-ai_cfg() { # claude_hooks codex_hooks statusline -> path to a temp chezmoi config
+ai_cfg() { # claude_hooks codex_hooks statusline [shared_workspace] -> temp config
     local d; d=$(mktemp -d)
-    printf '[data.components.ai]\n    claude_hooks = %s\n    codex_hooks = %s\n    statusline = %s\n' \
-        "$1" "$2" "$3" >"$d/chezmoi.toml"
+    printf '[data]\n    aiDirectory = "/tmp/dotfiles-ai-test"\n[data.components.ai]\n    claude_hooks = %s\n    codex_hooks = %s\n    statusline = %s\n    shared_workspace = %s\n' \
+        "$1" "$2" "$3" "${4:-false}" >"$d/chezmoi.toml"
     printf '%s' "$d/chezmoi.toml"
 }
 
@@ -450,6 +474,26 @@ assert_modify_codex  "$(ai_cfg true true true)" "$CODEX_BARE_TUI" true true
 # Hooks on, statusline off: no statusLine / status_line, notify hooks intact.
 assert_modify_claude "$(ai_cfg true false false)" false
 assert_modify_codex  "$(ai_cfg false true false)" "$CODEX_PLAIN" false true
+
+# Shared workspace on, hooks/statusline off: Claude gets explicit memory/plan
+# roots and Codex gets the shared agent-role config.
+shared_cfg="$(ai_cfg false false false true)"
+shared_claude=$(run_modify "$CLAUDE_MOD" "$shared_cfg" "$CLA_SAMPLE")
+shared_codex=$(run_modify "$CODEX_MOD" "$shared_cfg" "$CODEX_PLAIN")
+if ! printf '%s' "$shared_claude" | python3 -c 'import json,sys
+d=json.load(sys.stdin)
+assert d["autoMemoryDirectory"] == "/tmp/dotfiles-ai-test/memory"
+assert d["plansDirectory"] == "/tmp/dotfiles-ai-test/plans"
+assert d["env"]["AI_WORKSPACE"] == "/tmp/dotfiles-ai-test"'; then
+    echo "validate-templates: Claude shared workspace settings missing" >&2
+    fail=1
+fi
+if (( have_tomllib )) && ! printf '%s' "$shared_codex" | python3 -c 'import sys,tomllib
+d=tomllib.loads(sys.stdin.read())
+assert d["agents"]["dotfiles-maintainer"]["config_file"] == "/tmp/dotfiles-ai-test/agents/codex/dotfiles-maintainer.toml"'; then
+    echo "validate-templates: Codex shared agent role missing" >&2
+    fail=1
+fi
 
 if (( fail )); then
     exit 1

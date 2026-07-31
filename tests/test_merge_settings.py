@@ -14,18 +14,21 @@ import tempfile
 from pathlib import Path
 
 TMPL = Path(__file__).parent.parent / "home" / "dot_claude" / "modify_settings.json.tmpl"
-HOOK = "~/.claude/hooks/notify-tmux.sh"
-CLEAR = "~/.claude/hooks/notify-clear.sh"
+AI_DIR = "/tmp/dotfiles-ai-test"
+HOOK = f"{AI_DIR}/hooks/claude/notify-tmux.sh"
+CLEAR = f"{AI_DIR}/hooks/claude/notify-clear.sh"
 
 
-def _render(claude_hooks: bool, statusline: bool) -> str:
+def _render(claude_hooks: bool, statusline: bool, shared_workspace: bool = False) -> str:
     """Render the modify_ template under the given ai gates; return script path."""
     d = tempfile.mkdtemp()
     cfg = Path(d) / "chezmoi.toml"
     cfg.write_text(
+        f'[data]\n    aiDirectory = "{AI_DIR}"\n'
         "[data.components.ai]\n"
         f"    claude_hooks = {str(claude_hooks).lower()}\n"
         f"    statusline = {str(statusline).lower()}\n"
+        f"    shared_workspace = {str(shared_workspace).lower()}\n"
     )
     out = subprocess.run(
         ["chezmoi", "execute-template", "--config", str(cfg)],
@@ -41,11 +44,12 @@ def _render(claude_hooks: bool, statusline: bool) -> str:
 
 # Render once with the notify hooks on (statusline off) for the hook assertions.
 SCRIPT = _render(claude_hooks=True, statusline=False)
+SHARED_SCRIPT = _render(claude_hooks=False, statusline=False, shared_workspace=True)
 
 
-def run_script(settings_json: str) -> subprocess.CompletedProcess:
+def run_script(settings_json: str, script: str = SCRIPT) -> subprocess.CompletedProcess:
     return subprocess.run(
-        [sys.executable, SCRIPT],
+        [sys.executable, script],
         input=settings_json,
         capture_output=True,
         text=True,
@@ -96,3 +100,33 @@ def test_preserves_unrelated_settings():
     data = json.loads(result.stdout)
     assert data["model"] == "claude-sonnet-4-6"
     assert data["effortLevel"] == "high"
+
+
+def test_migrates_legacy_hook_paths():
+    legacy = {
+        "hooks": {
+            "Stop": [
+                {
+                    "hooks": [
+                        {"type": "command", "command": "~/.claude/hooks/notify-tmux.sh"}
+                    ]
+                }
+            ]
+        }
+    }
+    data = json.loads(run_script(json.dumps(legacy)).stdout)
+    serialized = json.dumps(data)
+    assert "~/.claude/hooks/notify-tmux.sh" not in serialized
+    assert all_hooks_present(data)
+
+
+def test_shared_workspace_sets_memory_plans_and_environment():
+    existing = {"model": "claude-sonnet-4-6", "env": {"KEEP_ME": "yes"}}
+    result = run_script(json.dumps(existing), SHARED_SCRIPT)
+    assert result.returncode == 0
+    data = json.loads(result.stdout)
+    assert data["autoMemoryDirectory"] == f"{AI_DIR}/memory"
+    assert data["plansDirectory"] == f"{AI_DIR}/plans"
+    assert data["env"]["AI_WORKSPACE"] == AI_DIR
+    assert data["env"]["KEEP_ME"] == "yes"
+    assert data["model"] == "claude-sonnet-4-6"

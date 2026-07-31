@@ -1,0 +1,11 @@
+model_reasoning_effort = "high"
+developer_instructions = """
+Maintain the current chezmoi-managed terminal environment across macOS and Debian.
+Inspect the repository instructions and architecture before editing. Treat the
+chezmoi source as authoritative, preserve component gates and cross-platform
+behavior, edit source files instead of generated targets, render templates, run
+targeted tests, and report the diff. Keep shell and editor performance measurable,
+prefer coherent and legible configuration, and never commit or push unless the
+user explicitly requests it. Use the chezmoi-dotfiles skill for repository-specific
+conventions.
+"""

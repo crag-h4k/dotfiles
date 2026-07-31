@@ -30,6 +30,7 @@
     (dict "num" "2" "key" "codex_hooks"   "label" "codex_hooks"   "desc" "Codex config.toml notify hook"               "all" false)
     (dict "num" "3" "key" "statusline"    "label" "statusline"    "desc" "Claude token/context statusline + matching Codex theme" "all" false)
     (dict "num" "4" "key" "codecompanion" "label" "codecompanion" "desc" "CodeCompanion.nvim assistant (needs neovim; pulls in node, npm + claude-agent-acp)" "all" true)
+    (dict "num" "5" "key" "shared_workspace" "label" "shared_workspace" "desc" "Shared Claude/Codex agents, skills, memory, plans, hooks, rules, scripts, and specs" "all" true)
 -}}
 {{- /* Terminal-emulator sub-features. MULTI-select (like git/ai): installing more */ -}}
 {{- /* than one emulator's config is harmless and Dane runs both, so this is not a  */ -}}
@@ -52,7 +53,7 @@
     (dict "num" "2" "key" "tmux"   "label" "tmux"   "desc" "tmux + plugins (tpm, resurrect, sensible, yank)" "all" true  "sub" (list))
     (dict "num" "3" "key" "neovim" "label" "neovim" "desc" "neovim, lazy.nvim, language servers, linters"    "all" true  "sub" (list))
     (dict "num" "4" "key" "git"    "label" "git"    "desc" "git config files (config, personal, ignore_global)" "all" true  "sub" $gitFeatures "selKey" "gitSelection" "header" "git sub-features")
-    (dict "num" "5" "key" "ai"     "label" "ai"     "desc" "AI tools (claude_hooks, codex_hooks, statusline, codecompanion)"  "all" false "sub" $aiFeatures  "selKey" "aiSelection"  "header" "AI sub-features")
+    (dict "num" "5" "key" "ai"     "label" "ai"     "desc" "AI tools (shared workspace, hooks, statusline, codecompanion)"  "all" false "sub" $aiFeatures  "selKey" "aiSelection"  "header" "AI sub-features")
     (dict "num" "6" "key" "terminal" "label" "terminal" "desc" "terminal emulator config (ghostty, iterm2)"  "all" false "sub" $terminalFeatures "selKey" "terminalSelection" "header" "terminal emulator")
     (dict "num" "7" "key" "colorscheme" "label" "colorscheme" "desc" (printf "re-pick the color scheme (current: %s; unchecked keeps it)" (dig "palette" "dracula" .)) "all" false "sub" (list) "action" true)
     (dict "num" "8" "key" "install_mode" "label" "install_mode" "desc" (printf "re-choose packages vs configs (current: %s; unchecked keeps it)" (dig "installMode" "packages" .)) "all" false "sub" (list) "action" true)
@@ -297,6 +298,12 @@
 {{-   $_ := output "sh" "-c" (printf "printf '%%s\\n' %s >/dev/tty 2>/dev/null || true" (squote $msg)) -}}
 {{- end -}}
 {{- $zshTheme := dig "zshTheme" "gud" $root -}}
+{{- /* One portable root for authored Claude/Codex resources. The environment   */ -}}
+{{- /* override is intended for initial provisioning and automation; subsequent */ -}}
+{{- /* init runs reuse the persisted path. Runtime-only tool state stays outside. */ -}}
+{{- $aiDirectory := trim (env "DOTFILES_AI_DIR") -}}
+{{- if eq $aiDirectory "" }}{{- $aiDirectory = dig "aiDirectory" (joinPath .chezmoi.homeDir "ai") $root }}{{- end -}}
+{{- if not (hasPrefix "/" $aiDirectory) }}{{- fail "DOTFILES_AI_DIR/data.aiDirectory must be an absolute path" }}{{- end -}}
 {{- /* Personal Git identity is host-private chezmoi data, never repository data. */ -}}
 {{- $gitName := dig "gitName" "" $root -}}
 {{- $gitEmail := dig "gitEmail" "" $root -}}
@@ -325,6 +332,7 @@
       (printf "INSTALL_NOTIFY=%t" $notifyEnabled)
       (printf "INSTALL_AI_CODECOMPANION=%t" (get (get $subResolved "ai") "codecompanion"))
       (printf "INSTALL_AI_STATUSLINE=%t" (get (get $subResolved "ai") "statusline"))
+      (printf "INSTALL_AI_SHARED_WORKSPACE=%t" (get (get $subResolved "ai") "shared_workspace"))
       (printf "INSTALL_TERMINAL_GHOSTTY=%t" (get (get $subResolved "terminal") "ghostty"))
       (printf "INSTALL_TERMINAL_ITERM2=%t" (get (get $subResolved "terminal") "iterm2"))
 -}}
@@ -362,6 +370,7 @@ progress = true
     terminalSelection = {{ get $subSelStore "terminal" | quote }}
     palette = {{ $palette | quote }}
     zshTheme = {{ $zshTheme | quote }}
+    aiDirectory = {{ $aiDirectory | quote }}
     installMode = {{ $installMode | quote }}
 {{ if get (get $subResolved "git") "personal" }}    gitName = {{ $gitName | quote }}
     gitEmail = {{ $gitEmail | quote }}

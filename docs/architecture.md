@@ -13,7 +13,8 @@ Managed content lives under `home/`, selected by the repository-level
 `.chezmoiroot`. Files there use chezmoi naming conventions:
 `home/dot_zshrc` becomes `~/.zshrc`, for example.
 
-Project scripts, tests, docs, workflows, linter policy, and `vendor/` stay
+Project scripts, tests, docs, workflows, linter policy, share-safe `ai/`
+assets, and `vendor/` stay
 outside the managed source root. They cannot accidentally become files in a
 host's home directory.
 
@@ -38,7 +39,9 @@ Neovim. Consumers do not keep their own slightly different copies.
 
 Package planning starts in `scripts/package-plan.sh`. The init template displays
 the deduplicated plan, and `scripts/install.sh` uses those same records for
-Homebrew, APT, casks, release archives, npm, pip, and LuaRocks.
+Homebrew, APT, casks, vendor installers, release archives, npm, pip, and
+LuaRocks. The shared AI selection invokes the official user-local Claude Code
+and Codex CLI installers.
 
 Every package-manager mutation requires a `[y/N]` confirmation. Set
 `DOTFILES_ASSUME_YES=1` for an unattended deployment. Declining, or running
@@ -61,6 +64,7 @@ It sums every interface, so VPN and VM-bridge traffic is included.
 | --- | --- |
 | Chezmoi | component declarations, templates, configuration, and selected externals |
 | Package installer | general-purpose CLI tools that should work outside Neovim |
+| Shared AI workspace installer | collision-safe per-entry overlays for authored Claude/Codex resources; never owns complete extension directories |
 | Mason | Neovim language servers and editor-only executables |
 | Lazy | Neovim plugins |
 
@@ -90,11 +94,14 @@ plugin updates should not dirty the dotfiles repository. See
 | `home/dot_config/notify/notify.yaml.tmpl` | `~/.config/notify/notify.yaml` | notify behavior plus colors rendered from the selected palette; gated on every notify consumer |
 | `home/dot_config/notify/lib.sh` | `~/.config/notify/lib.sh` | shared `notify_fire`/`notify_clear`/`notify_play` + yq reader (array-free POSIX) |
 | `home/dot_config/notify/executable_clear-pane.sh` | `~/.config/notify/clear-pane.sh` | clears one flagged pane from tmux keyboard and mouse bindings |
-| `home/dot_claude/hooks/notify-tmux.sh` | `~/.claude/hooks/notify-tmux.sh` | Claude `Stop`/`Notification`/`PreToolUse:AskUserQuestion` hook; gated on `ai > claude_hooks` |
-| `home/dot_claude/hooks/notify-clear.sh` | `~/.claude/hooks/notify-clear.sh` | Claude `UserPromptSubmit` hook (clears); gated on `ai > claude_hooks` |
-| `home/dot_claude/modify_settings.json.tmpl` | `~/.claude/settings.json` (merge) | chezmoi `modify_` template: injects the notify hooks under `ai > claude_hooks` and asserts the `statusLine` command under `ai > statusline`, preserving your other settings |
-| `home/dot_codex/hooks/notify-tmux.sh` | `~/.codex/hooks/notify-tmux.sh` | Codex `agent-turn-complete` notify hook (color+sound); gated on `ai > codex_hooks` |
-| `home/dot_codex/modify_private_config.toml.tmpl` | `~/.codex/config.toml` (merge) | chezmoi `modify_` template: injects `notify` + `tui.notifications` under `ai > codex_hooks` and `tui.status_line` + `tui.theme` + `tui.status_line_use_colors` under `ai > statusline`, folded into a single `[tui]` table; preserves Codex's `[projects.*]` tables, keeps mode 600 |
+| `ai/hooks/claude/*.sh` | `<aiDirectory>/hooks/claude/*.sh` and per-entry `~/.claude/hooks/*` links | Claude hook adapters; gated on `ai > claude_hooks` |
+| `ai/hooks/codex/*.sh` | `<aiDirectory>/hooks/codex/*.sh` and per-entry `~/.codex/hooks/*` links | Codex hook adapters; gated on `ai > codex_hooks` |
+| `ai/agents/{claude,codex}/` | `<aiDirectory>/agents/{claude,codex}/` and per-entry native links | behaviorally aligned, format-specific custom agents |
+| `ai/skills/` | `<aiDirectory>/skills/` and per-entry links in both tools | share-safe common skills; unrelated native skills remain untouched |
+| `ai/instructions/AGENTS.md.in` | `<aiDirectory>/AGENTS.md` | common global guidance linked as Claude's `CLAUDE.md` and Codex's `AGENTS.md` |
+| `scripts/sync-ai-overlays.sh` | `<aiDirectory>/scripts/sync-overlays` | reloads the private `overlays.conf` root list and refreshes per-entry links |
+| `home/dot_claude/modify_settings.json.tmpl` | `~/.claude/settings.json` (merge) | injects shared hook paths, plan/memory roots, and statusline without replacing unrelated settings |
+| `home/dot_codex/modify_private_config.toml.tmpl` | `~/.codex/config.toml` (merge) | injects shared hook and agent-role paths plus statusline fields; preserves runtime-written tables |
 | `home/dot_claude/executable_statusline-command.sh` | `~/.claude/statusline-command.sh` | Claude statusline renderer; gated on `ai > statusline` |
 | `home/dot_claude/executable_statusline-tokens.py` | `~/.claude/statusline-tokens.py` | detached updater that walks the transcript + subagents for a token total; gated on `ai > statusline` |
 | `home/dot_config/statusline/palette.sh.tmpl` | `~/.config/statusline/palette.sh` | semantic truecolor exports rendered from the selected palette |
@@ -119,6 +126,7 @@ plugin updates should not dirty the dotfiles repository. See
 | `home/.chezmoiexternal.toml` | (templated externals) | plugins gated by `.components.zsh` / `.components.tmux` |
 | `home/.chezmoiscripts/run_before_00-backup.sh` | apply hook | snapshots existing targets before changes |
 | `home/.chezmoiscripts/run_once_after_00-install.sh.tmpl` | apply hook | delegates package/config setup to the project scripts |
+| `home/.chezmoiscripts/run_onchange_after_10-install-ai-workspace.sh.tmpl` | apply hook | provisions or refreshes the selected shared AI workspace |
 
 Repository-only lint policy lives under `config/linters/`: `gitleaks.toml`,
 `luacheckrc`, `markdownlint.yaml`, and `stylua.toml`.
