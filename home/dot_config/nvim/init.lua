@@ -452,7 +452,27 @@ require("lazy").setup({
       }
       local treesitter = require("nvim-treesitter")
       treesitter.setup()
-      treesitter.install(parsers)
+
+      -- Install only the parsers this host is missing. The main branch's
+      -- install() re-stages into a shared working dir under ~/.local/share/nvim,
+      -- so calling it unconditionally on every startup re-downloads parsers that
+      -- are already compiled and races when two nvim instances launch at once -
+      -- that race, plus stale *-tmp extraction dirs, is what produces the
+      -- "mv ... No such file or directory" errors. Diff against what is already
+      -- installed and install the remainder once; use :TSUpdate to refresh.
+      local installed = {}
+      for _, name in ipairs(treesitter.get_installed("parsers")) do
+        installed[name] = true
+      end
+      local missing = {}
+      for _, name in ipairs(parsers) do
+        if not installed[name] then
+          missing[#missing + 1] = name
+        end
+      end
+      if #missing > 0 then
+        treesitter.install(missing)
+      end
 
       -- The main-branch rewrite delegates highlighting to Neovim. Parser names
       -- and filetypes are not always identical (bash -> sh; markdown_inline is
@@ -611,6 +631,32 @@ require("lazy").setup({
         end,
       })
     end,
+  },
+
+  -- Formatting via conform.nvim, backed by prettierd (a persistent Prettier
+  -- daemon on PATH). Scoped to the structured-config filetypes prettier handles
+  -- well; terraform/python/go/rust/lua/bash keep their own tools, and markdown
+  -- is left to markdownlint above. Manual only: <leader>f formats the buffer,
+  -- nothing reformats on save.
+  {
+    "stevearc/conform.nvim",
+    keys = {
+      {
+        "<leader>f",
+        function()
+          require("conform").format({ async = true, lsp_format = "never" })
+        end,
+        mode = { "n", "v" },
+        desc = "Conform: format buffer (prettierd)",
+      },
+    },
+    opts = {
+      formatters_by_ft = {
+        json = { "prettierd" },
+        jsonc = { "prettierd" },
+        yaml = { "prettierd" },
+      },
+    },
   },
 })
 

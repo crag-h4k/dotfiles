@@ -42,6 +42,18 @@ main() {
             || warn "markdownlint-cli2 npm install failed; continuing"
     fi
 
+    # prettierd: persistent Prettier daemon that conform.nvim shells out to for
+    # json/jsonc/yaml formatting. npm-only (no Homebrew formula), so install on
+    # both platforms; node comes from the neovim package set (brew node on
+    # macOS, NodeSource on Debian). Install only when absent, like the others.
+    if ! command -v prettierd >/dev/null 2>&1; then
+        info "installing prettierd (conform.nvim formatter)"
+        npm install -g --prefix "$HOME/.local" @fsouza/prettierd \
+            || warn "prettierd npm install failed; conform.nvim will skip formatting until it is on PATH"
+    else
+        info "prettierd already on PATH: $(command -v prettierd)"
+    fi
+
     # Python venv used as the py3 provider. Kept OUTSIDE the chezmoi-managed
     # ~/.config/nvim tree so `chezmoi apply`/purge never collides with it, and
     # created unconditionally (init.lua points python3_host_prog here).

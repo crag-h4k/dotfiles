@@ -207,10 +207,17 @@ _build() {
                 _add brew-formula gawk "Homebrew core"
             fi
             if [[ "$INSTALL_NEOVIM" == true ]]; then
-                for pkg in cmake go llvm lua@5.4 luarocks markdownlint-cli2 neovim node python3 shellcheck tenv tree-sitter trivy yamllint; do
+                # tree-sitter is the C library; tree-sitter-cli is the parser
+                # generator binary (`tree-sitter`) that nvim-treesitter's main
+                # branch needs to build parsers. Homebrew split them, so both are
+                # required on macOS (Debian gets the CLI via github-release below).
+                for pkg in cmake go llvm lua@5.4 luarocks markdownlint-cli2 neovim node python3 shellcheck tenv tree-sitter tree-sitter-cli trivy yamllint; do
                     _add brew-formula "$pkg" "Homebrew core"
                 done
                 _add brew-formula terraform-linters/tap/tflint "Homebrew tap terraform-linters/tap" tflint
+                # prettierd has no Homebrew formula; install-neovim.sh installs it
+                # via npm on both platforms (conform.nvim formatter for json/yaml).
+                _add npm prettierd "https://www.npmjs.com/package/@fsouza/prettierd"
             fi
             [[ "$INSTALL_NOTIFY" == true ]] && _add brew-formula yq "Homebrew core"
             if [[ "$INSTALL_AI_STATUSLINE" == true ]]; then
@@ -255,6 +262,7 @@ _build() {
                 _add github-release terraform "https://releases.hashicorp.com/terraform/" terraform
                 _add github-release tree-sitter-cli "https://github.com/tree-sitter/tree-sitter/releases" tree-sitter
                 _add npm markdownlint-cli2 "https://www.npmjs.com/package/markdownlint-cli2"
+                _add npm prettierd "https://www.npmjs.com/package/@fsouza/prettierd"
             fi
             [[ "$INSTALL_NOTIFY" == true ]] && _add github-release yq "https://github.com/mikefarah/yq/releases" yq
             if [[ "$INSTALL_AI_STATUSLINE" == true ]]; then
