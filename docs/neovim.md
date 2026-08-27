@@ -14,13 +14,31 @@ build the local runtime.
 | Mason | Neovim-specific executables and the desired LSP server set |
 | Lazy | Neovim plugins installed on this machine |
 
-The package installer owns `markdownlint-cli2`, ShellCheck, yamllint, TFLint,
-Trivy, and Luacheck. They remain available in a shell and can be reused by CI or
-other editors.
+The package installer owns `markdownlint-cli2`, `prettierd`, ShellCheck,
+yamllint, TFLint, Trivy, and Luacheck. They remain available in a shell and can
+be reused by CI or other editors.
 
 On macOS, Homebrew installs `markdownlint-cli2`. On Debian, it is installed
 user-globally through npm under `~/.local`. `nvim-lint` uses that same binary;
 Mason does not install a duplicate.
+
+`prettierd` has no Homebrew formula, so the Neovim installer installs it through
+npm under `~/.local` on both platforms. `conform.nvim` shells out to that
+binary; Mason does not install a duplicate.
+
+nvim-treesitter's `main` branch builds parsers with the `tree-sitter` CLI, which
+is a separate package from the C library. On macOS, Homebrew split them: the
+`tree-sitter` formula ships only `libtree-sitter`, and the CLI lives in
+`tree-sitter-cli` (installs the `tree-sitter` binary). The package plan installs
+both. On Debian, the library comes from apt and the CLI from a github-release
+binary under `~/.local`. Without the CLI, parser builds fail and
+`~/.local/share/nvim/site/parser` stays empty, so startup keeps retrying the
+install. If a rebuilt machine hits that, confirm `tree-sitter --version` resolves
+before debugging further.
+
+Parser install is diffed against what is already present: `init.lua` installs
+only the parsers missing from the install dir, rather than the whole set on every
+launch. Run `:TSUpdate` to refresh installed parsers.
 
 Mason owns editor-only Gitleaks and the language servers. It installs packages
 only when missing. Startup does not update an installed package or reconcile
@@ -86,6 +104,15 @@ pre-commit and project CI.
 Gitleaks is the exception on the executable side because its read/save scans
 exist only for Neovim. See [Gitleaks](gitleaks.md) for exclusions, project
 allowlists, and why warnings never block a save.
+
+## Formatting
+
+`conform.nvim` runs `prettierd` against `json`, `jsonc`, and `yaml` buffers.
+Other languages keep their own tooling, and markdown is left to markdownlint so
+Prettier does not fight the linter's rules.
+
+Formatting is manual, never on save. `<leader>f` (space, then `f`) formats the
+buffer in normal mode, or the selection in visual mode.
 
 ## CodeCompanion
 

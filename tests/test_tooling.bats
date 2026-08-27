@@ -380,6 +380,7 @@ STUB
   [[ "$output" == *$'github-release\ttenv\tplanned\t'* ]]
   [[ "$output" == *$'github-release\ttree-sitter-cli\tplanned\t'* ]]
   [[ "$output" == *$'npm\tmarkdownlint-cli2\tplanned\t'* ]]
+  [[ "$output" == *$'npm\tprettierd\tplanned\t'* ]]
   [[ "$output" == *$'apt\tshellcheck\tplanned\t'* ]]
   [[ "$output" == *$'apt\tyamllint\tplanned\t'* ]]
   [[ "$output" == *$'luarocks\tluacheck\tplanned\t'* ]]
@@ -397,6 +398,8 @@ STUB
   [[ "$output" == *$'brew-formula\tyamllint\tplanned\t'* ]]
   [[ "$output" == *$'brew-formula\tterraform-linters/tap/tflint\tplanned\t'* ]]
   [[ "$output" == *$'brew-formula\ttree-sitter\tplanned\t'* ]]
+  [[ "$output" == *$'brew-formula\ttree-sitter-cli\tplanned\t'* ]]
+  [[ "$output" == *$'npm\tprettierd\tplanned\t'* ]]
   [[ "$output" == *$'luarocks\tluacheck\tplanned\t'* ]]
   [[ "$output" != *$'\tgitleaks\t'* ]]
   [[ "$output" != *$'\thadolint\t'* ]]
@@ -426,7 +429,10 @@ STUB
 
   grep -Fq 'branch = "main"' "$init"
   grep -Fq 'lazy = false' "$init"
-  grep -Fq 'treesitter.install(parsers)' "$init"
+  # Startup installs only the parsers this host is missing (diffed against
+  # get_installed), not the whole set on every launch.
+  grep -Fq 'treesitter.get_installed("parsers")' "$init"
+  grep -Fq 'treesitter.install(missing)' "$init"
   grep -Fq 'pcall(vim.treesitter.start, args.buf)' "$init"
   run grep -Fq 'nvim-treesitter.configs' "$init"
   [ "$status" -ne 0 ]
