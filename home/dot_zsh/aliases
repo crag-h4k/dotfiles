@@ -85,6 +85,9 @@ alias "bim"="nvim"
 alias "cd.."="cd .."
 alias "vm"="mv"
 alias "calude"="claude"
+alias "clank"="claude"
+alias "clanka"="claude"
+alias "clanker"="claude"
 #
 ######
 case "$OSTYPE" in
