@@ -1,0 +1,903 @@
+#!/usr/bin/env python3
+# ~/.zsh/bin/dns-sniff
+# DNS capture engine: wrap a command and log every DNS query it makes, for
+# building firewall/proxy allowlists before running tools on restricted
+# corporate CI runners (terraform, pre-commit, pip, etc.).
+#
+# Captures via tcpdump (built-in on macOS; apt-installed on Debian); needs sudo
+# for raw socket access. The sudo credential prompt appears once at startup.
+#
+# Three entry points:
+#   dns-sniff <cmd> [args...]         run <cmd> yourself and capture (fallback,
+#                                     used for non-interactive/scripted calls)
+#   dns-sniff _start  --state F -- .. bring capture up, write state to F, return
+#   dns-sniff _finish --state F --status N   tear capture down, parse, log
+#
+# The interactive zsh function `dns-sniff` (custom/functions/dns-sniff.zsh)
+# drives the _start / _finish pair so the wrapped command runs in the caller's
+# live shell (aliases, functions, plugins all apply). A zsh function outranks a
+# PATH command, so interactive use hits the function and scripts hit this binary.
+#
+# Usage: dns-sniff [--no-log] [--pcap] [--flush] [--log-dir PATH] [--iface IFACE] <cmd> [args...]
+
+import argparse
+import datetime
+import errno
+import json
+import os
+import pathlib
+import re
+import shlex
+import shutil
+import subprocess
+import sys
+import tempfile
+import termios
+import time
+
+
+QUERY_RE = re.compile(r'\b(A|AAAA|CNAME|MX|NS|TXT|PTR|SRV)\?\s+([\w._-]+\.)')
+TS_RE = re.compile(r'^(\d+\.\d+)')
+UTUN_RE = re.compile(r'^utun\d+$')
+NAMESERVER_RE = re.compile(r'nameserver\[\d+\]\s*:\s*(\S+)')
+DROPPED_RE = re.compile(r'(\d+)\s+packets?\s+dropped\s+by\s+kernel')
+
+TMP_DIR = '/private/tmp' if sys.platform == 'darwin' else '/tmp'
+
+
+def sudo_prefix():
+    return [] if os.getuid() == 0 else ['sudo']
+
+
+def _serialize_termios(attrs):
+    """Turn a termios attribute list into a JSON-safe structure. The cc slots are
+    a mix of length-1 bytes (control chars) and ints (VMIN/VTIME); tag each so the
+    round-trip is exact."""
+    iflag, oflag, cflag, lflag, ispeed, ospeed, cc = attrs
+    enc = []
+    for c in cc:
+        if isinstance(c, (bytes, bytearray)):
+            enc.append(['b', c[0] if len(c) else 0])
+        else:
+            enc.append(['i', int(c)])
+    return [iflag, oflag, cflag, lflag, ispeed, ospeed, enc]
+
+
+def _deserialize_termios(data):
+    iflag, oflag, cflag, lflag, ispeed, ospeed, enc = data
+    cc = [bytes([v]) if t == 'b' else int(v) for t, v in enc]
+    return [iflag, oflag, cflag, lflag, ispeed, ospeed, cc]
+
+
+def capture_termios_attrs():
+    """Serialize the controlling terminal's current attributes (JSON-safe), or
+    None if there is no controlling tty. Opens /dev/tty directly so it works even
+    when stdout is redirected to a file."""
+    try:
+        fd = os.open('/dev/tty', os.O_RDWR | os.O_NOCTTY)
+    except OSError:
+        return None
+    try:
+        return _serialize_termios(termios.tcgetattr(fd))
+    except (termios.error, OSError, ValueError):
+        return None
+    finally:
+        try:
+            os.close(fd)
+        except OSError:
+            pass
+
+
+class _TtySaver:
+    """Restores previously-captured controlling-terminal attributes, at most once
+    successfully. Holds the attribute VALUES (serialized, not an open fd) so it
+    survives the JSON round-trip between the separate _start and _finish
+    processes, and opens /dev/tty fresh at restore time.
+
+    Why this exists: sudo runs commands in a pseudo-terminal by default
+    (`use_pty`, on since sudo 1.9.14 - confirmed in this box's sudoers(5) man
+    page: use_pty "has no effect" only when sudo is not attached to a terminal,
+    which redirecting a child's std fds does NOT achieve). A backgrounded `sudo
+    tcpdump` retains the terminal, and the teardown-time `sudo` that stops it
+    races on saving/restoring the real tty, which can leave it raw (no OPOST):
+    output then loses its \\n -> \\r\\n translation and "staircases". Capturing
+    the attributes BEFORE anything runs and re-asserting them before we print is
+    the load-bearing fix, independent of which sudo lost the race."""
+
+    def __init__(self, attrs_data):
+        self.attrs_data = attrs_data  # serialized attrs or None
+        self._done = False
+
+    def restore(self):
+        if self._done or not self.attrs_data:
+            return
+        try:
+            fd = os.open('/dev/tty', os.O_RDWR | os.O_NOCTTY)
+        except OSError:
+            return
+        try:
+            self._tcsetattr_retry(fd, _deserialize_termios(self.attrs_data))
+            self._done = True  # only mark done after a SUCCESSFUL restore
+        except (termios.error, OSError, ValueError, IndexError, TypeError):
+            pass  # leave _done False so a later attempt (finally) can retry
+        finally:
+            try:
+                os.close(fd)
+            except OSError:
+                pass
+
+    @staticmethod
+    def _tcsetattr_retry(fd, attrs):
+        while True:
+            try:
+                termios.tcsetattr(fd, termios.TCSADRAIN, attrs)
+                return
+            except InterruptedError:
+                continue
+            except termios.error as e:
+                if e.args and e.args[0] == errno.EINTR:
+                    continue
+                raise
+
+
+def tty_restore(saver):
+    if saver is not None:
+        saver.restore()
+
+
+def read_tcpdump_err(path):
+    """Best-effort read of a tcpdump stderr-capture file, keeping only lines that
+    look like a real error (permission/bind), not the benign startup banner or
+    packet-count stats. Returns a short single-line summary or ''."""
+    try:
+        text = pathlib.Path(path).read_text(errors='replace')
+    except OSError:
+        return ''
+    lines = [ln.strip() for ln in text.splitlines() if ln.strip()]
+    keep = [ln for ln in lines
+            if 'listening on' not in ln and 'packets' not in ln]
+    return ' '.join(keep)[:200]
+
+
+def tcpdump_dropped(path):
+    """Total 'N packets dropped by kernel' across a tcpdump stderr-capture file.
+    A nonzero drop means the capture buffer overflowed and the DNS allowlist may
+    be incomplete, so it is surfaced rather than swallowed."""
+    try:
+        text = pathlib.Path(path).read_text(errors='replace')
+    except OSError:
+        return 0
+    return sum(int(m.group(1)) for m in DROPPED_RE.finditer(text))
+
+
+def _owned_by_us(path):
+    """True if `path` is a regular file owned by the current uid, so it can be
+    read/copied/removed without sudo. The temp pcap is created 0600 by us and
+    tcpdump -w only truncates it (keeping ownership), but we stat to confirm - a
+    future rotated shard could be root-owned."""
+    try:
+        return os.stat(path).st_uid == os.getuid()
+    except OSError:
+        return False
+
+
+def route_iface(*route_args):
+    """Interface for a route lookup, or None if there's no such route (e.g. no IPv6 default)."""
+    out = subprocess.run(
+        ['route', '-n', 'get', *route_args],
+        capture_output=True, text=True, check=False,
+    ).stdout
+    for line in out.splitlines():
+        if line.strip().startswith('interface:'):
+            return line.split()[-1]
+    return None
+
+
+def resolver_nameservers():
+    """Every resolver nameserver IP (v4 and v6) from `scutil --dns`, order-deduped.
+
+    scutil reflects the LIVE resolver config, so this is what makes capture track
+    VPN state by construction: on a full-tunnel VPN the corporate nameservers all
+    route through the tunnel; off VPN the LAN resolver routes through en0."""
+    out = subprocess.run(['scutil', '--dns'], capture_output=True, text=True,
+                         check=False).stdout
+    seen = []
+    for m in NAMESERVER_RE.finditer(out):
+        ip = m.group(1)
+        if ip not in seen:
+            seen.append(ip)
+    return seen
+
+
+def detect_ifaces():
+    """Interfaces the resolver actually sends DNS queries on, so capture works
+    whether or not the VPN is up.
+
+    Routes every `scutil --dns` nameserver to its egress interface and unions
+    that with the current default-route interface(s). On VPN the nameservers (and
+    the default route) resolve to the tunnel utunN; off VPN the LAN resolver
+    resolves to en0; split-tunnel yields both. The utunN index drifts between
+    connections, so it is discovered, never hardcoded. A 127.0.0.1 nameserver
+    routes to lo0 naturally, no special case. Falls back to the default route
+    alone if scutil yields nothing."""
+    if sys.platform != 'darwin':
+        return ['any']
+
+    order = []
+
+    def add(iface):
+        if iface and iface not in order:
+            order.append(iface)
+
+    for ip in resolver_nameservers():
+        if ':' in ip:
+            add(route_iface('-inet6', ip))
+        else:
+            add(route_iface(ip))
+
+    # Union with the default route(s): if scutil's resolver view and the actual
+    # egress ever diverge, we still capture the path packets really take.
+    v4 = route_iface('default')
+    v6 = route_iface('-inet6', 'default')
+    add(v4)
+    add(v6)
+
+    if not order:
+        print('dns-sniff: warning: no resolver or default interface found; '
+              'falling back to en0', file=sys.stderr)
+        return ['en0']
+    return order
+
+
+def annotate(iface):
+    return f'{iface} (VPN tunnel)' if sys.platform == 'darwin' and UTUN_RE.match(iface) else iface
+
+
+def _ere_escape(s):
+    """Escape POSIX ERE metacharacters so a literal path can be used as a
+    pgrep/pkill -f pattern without a stray '.' matching anything. '/' is not an
+    ERE metacharacter (and '\\/' is undefined in BSD regex), so it is left alone."""
+    return re.sub(r'([.\[\]{}()*+?^$|\\])', r'\\\1', s)
+
+
+def proc_incarnation(pid):
+    """Best-effort identity of the process holding `pid`, for PID-reuse detection
+    in the pkill-unavailable fallback path: (lstart, uid, comm) via `ps`.
+
+    NOT libproc proc_pidinfo (it returns EPERM for a root process from a non-root
+    user) and NOT argv (the kernel hides a root process's args from a non-root
+    reader). `ps` lstart is only 1-second resolution, which is why this is a
+    fallback: the primary teardown targets the unique pcap path, not a pid.
+    Returns None if the pid is gone."""
+    r = subprocess.run(['ps', '-p', str(pid), '-o', 'lstart=,uid=,comm='],
+                       stdin=subprocess.DEVNULL, capture_output=True, text=True)
+    parts = r.stdout.split()
+    if r.returncode != 0 or len(parts) < 7:
+        return None
+    # lstart is a fixed 5-token 'Day Mon DD HH:MM:SS YYYY', then uid, then comm.
+    return [' '.join(parts[:5]), parts[5], ' '.join(parts[6:])]
+
+
+def parse_pcap(pcap_path, iface):
+    """Decode a pcap and extract DNS query entries. Reads WITHOUT sudo when the
+    temp pcap is ours (which it is: 0600 from mkstemp, tcpdump -w only truncates),
+    keeping a use_pty sudo out of the teardown/print path; falls back to sudo only
+    if a stat says the file is not ours. Returns (entries, ok, err_text)."""
+    reader = [] if _owned_by_us(pcap_path) else sudo_prefix()
+    result = subprocess.run(
+        reader + ['tcpdump', '-r', str(pcap_path), '-n', '-tt'],
+        stdin=subprocess.DEVNULL,
+        capture_output=True,
+        text=True,
+    )
+    entries = []
+    for line in result.stdout.splitlines():
+        ts_m = TS_RE.match(line)
+        q_m = QUERY_RE.search(line)
+        if not ts_m or not q_m:
+            continue
+        dt = datetime.datetime.fromtimestamp(float(ts_m.group(1)))
+        time_str = dt.strftime('%H:%M:%S.') + f'{dt.microsecond // 1000:03d}'
+        entries.append((float(ts_m.group(1)), time_str, q_m.group(1), q_m.group(2).rstrip('.'), iface))
+    return entries, result.returncode == 0, result.stderr.strip()
+
+
+def _wait_ready(procs, err_files, timeout=3.0):
+    """Split launched tcpdumps into (ready, crashed).
+
+    Readiness is the real "capture is live" signal: tcpdump prints
+    'listening on <iface>' to stderr (which we redirect to the err file) even
+    under -q/-w, once the BPF device is open and bound. proc.poll() only proves
+    "didn't crash yet", not "ready". Any proc still alive at the timeout without a
+    banner is treated as ready (bounded fallback) rather than dropped."""
+    pending = dict(procs)
+    ready = []
+    crashed = []
+    deadline = time.time() + timeout
+    while pending and time.time() < deadline:
+        for iface in list(pending):
+            proc = pending[iface]
+            if proc.poll() is not None:
+                crashed.append(iface)
+                del pending[iface]
+            elif 'listening on' in read_err_raw(err_files[iface]):
+                ready.append(iface)
+                del pending[iface]
+        if pending:
+            time.sleep(0.05)
+    for iface, proc in pending.items():  # timed out but alive -> keep
+        (crashed if proc.poll() is not None else ready).append(iface)
+    return ready, crashed
+
+
+def read_err_raw(path):
+    try:
+        return pathlib.Path(path).read_text(errors='replace')
+    except OSError:
+        return ''
+
+
+def _spawn_tcpdump(iface, sudo):
+    """Launch one tcpdump for `iface`; return (pcap_path, proc, err_path).
+
+    Per-interface BPF filter: 'udp port 53' on a real link (Ethernet-ish DLT)
+    keeps the pcap small on a busy interface. On a utun tunnel the filter matched
+    zero packets against utun's DLT_NULL, so tunnels capture FILTERLESS; the
+    DNS-line regex in parse_pcap() does the real filtering and dedup against every
+    merged pcap regardless.
+
+    tcpdump's chatter (the 'listening on' banner, and the packet stats it prints
+    on SIGTERM) goes to the err file, never the terminal: stdout+stderr both point
+    at it so it is captured whether or not use_pty merges them onto the pty, and
+    stdin=/dev/null gives this backgrounded process no terminal input to consume.
+    (This does NOT stop use_pty from touching the tty - stdin=/dev/null does not
+    detach sudo from the controlling terminal. The raw-tty flip is undone by the
+    termios restore; see _TtySaver.)
+
+    TODO (bounded pcap): Apple's tcpdump won't cleanly give both a size and a time
+    bound (`-W` is ignored when `-C`+`-G` are both set; `-G` rotates shards rather
+    than capping total size), and rotation would interact with the pcap-path
+    teardown (numbered, possibly root-owned shards). The 'udp port 53' filter
+    already blunts the en0 volume risk and utun DNS is low-volume, so a naive cap
+    is not urgent. Verify flag semantics against `man tcpdump` and handle shard
+    discovery/ownership before adding one."""
+    fd, tmp_str = tempfile.mkstemp(prefix='dns-sniff-', suffix='.pcap', dir=TMP_DIR)
+    os.close(fd)
+    pcap = pathlib.Path(tmp_str)
+    efd, err_str = tempfile.mkstemp(prefix='dns-sniff-', suffix='.tcpdump.err', dir=TMP_DIR)
+    # -U (packet-buffered): write each packet to the savefile as it arrives
+    # instead of block-buffering. Without it, the last-captured packets sit in
+    # tcpdump's buffer and are lost when teardown kills it: stop_tcpdumps does
+    # `pkill -f <pcap path>`, which matches BOTH tcpdump and its use_pty sudo
+    # monitor, and the monitor being signalled can SIGKILL tcpdump before its own
+    # SIGTERM handler flushes. A manual `pkill tcpdump` (tcpdump only, clean
+    # SIGTERM) flushed fine; -U removes the buffered tail entirely so the outcome
+    # no longer depends on which process the kill races.
+    tcpdump_cmd = ['tcpdump', '-U', '-q', '-i', iface, '-w', str(pcap)]
+    if not UTUN_RE.match(iface):
+        tcpdump_cmd += ['udp', 'port', '53']
+    proc = subprocess.Popen(
+        sudo + tcpdump_cmd, stdin=subprocess.DEVNULL, stdout=efd, stderr=efd,
+    )
+    os.close(efd)
+    return pcap, proc, err_str
+
+
+def _drop_crashed(iface, procs, pcaps, err_files):
+    """Warn about a tcpdump that failed to come up and remove its temp files."""
+    detail = read_tcpdump_err(err_files[iface])
+    msg = (f'dns-sniff: warning: tcpdump on {iface} did not come up '
+           f'(code {procs[iface].returncode}); dropping it from capture')
+    if detail:
+        msg += f'\n  {detail}'
+    print(msg, file=sys.stderr)
+    pcaps[iface].unlink(missing_ok=True)
+    pathlib.Path(err_files[iface]).unlink(missing_ok=True)
+    err_files.pop(iface, None)
+    pcaps.pop(iface, None)
+
+
+def _run_quiet(sudo, argv):
+    return subprocess.run(sudo + argv, stdin=subprocess.DEVNULL,
+                          stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL).returncode
+
+
+def flush_dns_cache(sudo):
+    """Flush the system DNS resolver cache so the wrapped command resolves every
+    name cold and its queries hit the wire (opt-in via --flush). Best-effort: a
+    flush failure never aborts the capture.
+
+    macOS: mDNSResponder is machine-wide (no per-process cache), so this is a
+    global transient side effect (brief re-resolve latency for all apps, a
+    momentary mDNS/Bonjour blip). Linux: whatever local cache exists -
+    systemd-resolved (resolvectl) or nscd. Many Debian hosts, especially
+    containers, run NO local resolver cache (resolv.conf points straight at a
+    nameserver), so there is nothing to flush and queries already hit the wire -
+    capture is complete without --flush there."""
+    if sys.platform == 'darwin':
+        ok = _run_quiet(sudo, ['dscacheutil', '-flushcache']) == 0
+        ok = _run_quiet(sudo, ['killall', '-HUP', 'mDNSResponder']) == 0 and ok
+        print('dns-sniff: flushed system DNS cache' if ok
+              else 'dns-sniff: warning: DNS cache flush failed (capture continues)',
+              flush=True)
+        return
+    # Linux: use whichever local cache is present.
+    if shutil.which('resolvectl'):
+        ok = _run_quiet(sudo, ['resolvectl', 'flush-caches']) == 0
+        print('dns-sniff: flushed systemd-resolved cache' if ok
+              else 'dns-sniff: warning: resolvectl flush-caches failed (capture continues)',
+              flush=True)
+    elif shutil.which('nscd'):
+        _run_quiet(sudo, ['nscd', '-i', 'hosts'])
+        print('dns-sniff: invalidated nscd hosts cache', flush=True)
+    else:
+        print('dns-sniff: no local DNS cache detected to flush '
+              '(queries already hit the wire)', flush=True)
+
+
+def start_capture(cmd, iface_override, log_dir, flush=False):
+    """Bring capture up: snapshot the tty, warm sudo, resolve interfaces, launch a
+    tcpdump per interface, wait for each to go live, drop any that crash. Returns
+    a dict describing the live capture, or exits (restoring the tty first) on
+    fatal error. Does NOT run the command - the caller does."""
+    if not shutil.which('tcpdump'):
+        sys.exit('dns-sniff: tcpdump not found on PATH')
+
+    sudo = sudo_prefix()
+
+    # Snapshot the controlling terminal FIRST, while it is still in its pristine
+    # cooked state - before sudo -v or the wrapped command run. Serialized so the
+    # separate _finish process can re-assert it; taking it here (not at teardown)
+    # means a wrapped TUI/pager that leaves the tty raw can't taint the baseline.
+    tty_attrs = capture_termios_attrs()
+
+    def die(message):
+        _TtySaver(tty_attrs).restore()
+        sys.exit(message)
+
+    # Warm up sudo credentials upfront so the password prompt appears before the
+    # background tcpdumps (which can't display a prompt mid-capture). The cached
+    # per-tty ticket is reused by the later _finish call on the same terminal.
+    if sudo:
+        if subprocess.run(['sudo', '-v'], check=False).returncode != 0:
+            die('dns-sniff: sudo credential check failed')
+
+    log_dir.mkdir(parents=True, exist_ok=True)
+
+    timestamp = datetime.datetime.now().strftime('%Y-%m-%d_%H%M%S')
+    basename = f'dns-{os.path.basename(cmd[0])}-{timestamp}'
+    header = f'dns-sniff: {shlex.join(cmd)} @ {timestamp}'
+
+    ifaces = [iface_override] if iface_override else detect_ifaces()
+
+    print(f'=== {header} ===', flush=True)
+    print(f'interfaces: {", ".join(annotate(i) for i in ifaces)}', flush=True)
+
+    pcaps = {}
+    procs = {}
+    err_files = {}
+    for iface in ifaces:
+        pcaps[iface], procs[iface], err_files[iface] = _spawn_tcpdump(iface, sudo)
+
+    active, crashed = _wait_ready(procs, err_files)
+    for iface in crashed:
+        _drop_crashed(iface, procs, pcaps, err_files)
+    if not active:
+        cleanup_temps(pcaps, err_files)
+        die('dns-sniff: no capture interface came up; try --iface explicitly')
+
+    # Flush AFTER capture is live and BEFORE returning (the caller runs the command
+    # next), so the command resolves cold and its queries are captured. Flushing
+    # earlier would drop the cache before tcpdump could see the re-resolutions.
+    if flush:
+        flush_dns_cache(sudo)
+
+    # Fingerprint each capture process now, for the pkill-unavailable fallback in
+    # stop_tcpdumps. OPEN QUESTION for the live run: under use_pty the persisted
+    # Popen.pid may be the sudo monitor rather than tcpdump - the primary teardown
+    # (pkill -f on the unique pcap path) matches both and is pid-agnostic, so this
+    # only matters if pkill is missing.
+    incarnations = {str(procs[i].pid): proc_incarnation(procs[i].pid) for i in active}
+
+    return {
+        'sudo': sudo,
+        'pcaps': {i: pcaps[i] for i in active},
+        'procs': procs,
+        'pids': {i: procs[i].pid for i in active},
+        'incarnations': incarnations,
+        'active': active,
+        'basename': basename,
+        'header': header,
+        'log_dir': str(log_dir),
+        'err_files': {i: err_files[i] for i in active if i in err_files},
+        'tty_attrs': tty_attrs,
+    }
+
+
+def cleanup_temps(pcaps, err_files):
+    """Remove temp pcaps and err files. pcaps are ours (unlink); a not-ours pcap
+    falls back to sudo rm. Safe to call more than once."""
+    for path in (pcaps or {}).values():
+        path = pathlib.Path(path)
+        if _owned_by_us(path):
+            path.unlink(missing_ok=True)
+        elif not path.exists():
+            continue
+        else:
+            subprocess.run(sudo_prefix() + ['rm', '-f', str(path)], stdin=subprocess.DEVNULL,
+                           check=False, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+    for path in (err_files or {}).values():
+        pathlib.Path(path).unlink(missing_ok=True)
+
+
+def _collect_entries(active, pcaps):
+    """Parse every active pcap into a merged, time-sorted DNS entry list, plus a
+    warning per pcap that failed to read (rather than a silent 0-result)."""
+    entries = []
+    warnings = []
+    for iface in active:
+        e, ok, err = parse_pcap(pcaps[iface], iface)
+        entries.extend(e)
+        if not ok:
+            warnings.append(f'dns-sniff: warning: reading the {iface} pcap failed'
+                            f'{": " + err if err else ""}; results may be incomplete')
+    entries.sort(key=lambda e: e[0])
+    return entries, warnings
+
+
+def _dropped_warnings(err_files):
+    """One warning per interface where tcpdump reported kernel packet drops."""
+    warnings = []
+    for iface, epath in (err_files or {}).items():
+        dropped = tcpdump_dropped(epath)
+        if dropped:
+            warnings.append(f'dns-sniff: warning: {dropped} packet(s) dropped by the '
+                            f'kernel on {iface}; the DNS allowlist may be incomplete')
+    return warnings
+
+
+def _copy_out_pcaps(active, pcaps, log_dir, basename):
+    """Copy each temp pcap out to a durable path (--pcap). Returns (lines,
+    warnings); warns on an empty copy rather than reporting a bogus success."""
+    lines = []
+    warnings = []
+    multi = len(active) > 1
+    for iface in active:
+        dest = log_dir / (f'{basename}.{iface}.pcap' if multi else f'{basename}.pcap')
+        src = pathlib.Path(pcaps[iface])
+        if _owned_by_us(src):
+            shutil.copyfile(src, dest)
+        else:
+            dest.write_bytes(subprocess.run(
+                sudo_prefix() + ['cat', str(src)], stdin=subprocess.DEVNULL,
+                capture_output=True).stdout)
+        if dest.exists() and dest.stat().st_size == 0:
+            warnings.append(f'dns-sniff: warning: copied-out pcap {dest} is empty')
+        lines.append(f'Pcap: {dest}')
+    return lines, warnings
+
+
+def emit_results(pcaps, active, log_dir, basename, header, want_pcap, no_log,
+                 saved_tty=None, err_files=None):
+    """Parse the captured pcaps, print the DNS summary, optionally copy out the
+    raw pcap(s), write the .dns.log, and remove temp pcaps. Shared by the
+    non-interactive fallback and _finish.
+
+    Ordering matters: all file/subprocess work runs first; then `saved_tty` is
+    re-asserted; only then do we write to the terminal, so our output can never
+    land while a teardown sudo has the tty mid-corruption (it would staircase).
+    Reads/copies/removes the temp pcaps without sudo (they are ours), keeping a
+    use_pty sudo out of this path entirely."""
+    log_dir = pathlib.Path(log_dir)
+    warnings = []
+
+    entries, parse_warnings = _collect_entries(active, pcaps)
+    warnings.extend(parse_warnings)
+    warnings.extend(_dropped_warnings(err_files))
+
+    pcap_lines, copy_warnings = ([], [])
+    if want_pcap:
+        pcap_lines, copy_warnings = _copy_out_pcaps(active, pcaps, log_dir, basename)
+    warnings.extend(copy_warnings)
+
+    cleanup_temps(pcaps, err_files)
+
+    n = len({e[3] for e in entries})
+    multi = len(active) > 1
+    output_lines = [f'=== {header} ===']
+    for _, time_str, qtype, host, iface in entries:
+        suffix = f'  [{iface}]' if multi else ''
+        output_lines.append(f'{time_str}  {qtype:<5}  {host}{suffix}')
+    output_lines.append('')
+    output_lines.append(f'{n} unique hostname{"s" if n != 1 else ""}.')
+
+    # All file work is done; hand the tty back to a sane (OPOST) state before
+    # emitting a single byte, so nothing staircases.
+    tty_restore(saved_tty)
+
+    for line in warnings:
+        print(line, file=sys.stderr, flush=True)
+    for line in pcap_lines:
+        print(line, flush=True)
+    for line in output_lines[1:]:
+        print(line, flush=True)
+
+    if not no_log:
+        log_path = log_dir / f'{basename}.dns.log'
+        log_path.write_text('\n'.join(output_lines) + '\n', encoding='utf-8')
+        print(f'Log: {log_path}', flush=True)
+
+
+def _sudo_pkill(sudo, sig, pattern):
+    return subprocess.run(sudo + ['pkill', f'-{sig}', '-f', pattern],
+                          stdin=subprocess.DEVNULL, stdout=subprocess.DEVNULL,
+                          stderr=subprocess.DEVNULL).returncode
+
+
+def _sudo_pgrep_alive(sudo, pattern):
+    """True while any process still matches. Uses sudo pgrep because a non-root
+    user cannot read a root process's argv, so an unprivileged pgrep -f would
+    never match our root tcpdump. rc 0 = matched, 1 = none; any other rc (e.g. a
+    sudo/pgrep failure) is treated as 'not alive' so we stop polling rather than
+    spin - the SIGKILL escalation still fires if it really was alive."""
+    return subprocess.run(sudo + ['pgrep', '-f', pattern], stdin=subprocess.DEVNULL,
+                          stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL).returncode == 0
+
+
+def stop_tcpdumps(pcaps, sudo, pids=None, incarnations=None):
+    """Stop each per-interface tcpdump by its unique -w pcap path (via pkill -f),
+    not by a stored pid.
+
+    Targeting the kill on the unique temp path is immune to PID reuse (a recycled
+    pid can never match our path) and sidesteps the use_pty question of whether
+    the stored pid is the sudo monitor or tcpdump: both carry the path in argv, so
+    pkill -f signals the pair and SIGTERM to either shuts the capture down cleanly
+    and flushes its stats. `pids`/`incarnations` are only used as a fallback where
+    pkill/pgrep are unavailable, and even then the pid is re-fingerprinted and
+    skipped on mismatch so a recycled pid is never SIGTERM'd as root.
+
+    A 0.5s settle first lets tcpdump drain packets already in the kernel capture
+    buffer; killing too eagerly after a fast command yields '0 packets captured'."""
+    time.sleep(0.5)
+    patterns = [_ere_escape(str(p)) for p in pcaps.values()]
+    have_pkill = shutil.which('pkill') and shutil.which('pgrep')
+
+    if have_pkill:
+        for pat in patterns:
+            _sudo_pkill(sudo, 'TERM', pat)
+        for pat in patterns:
+            deadline = time.time() + 5.0
+            while time.time() < deadline and _sudo_pgrep_alive(sudo, pat):
+                time.sleep(0.1)
+            if _sudo_pgrep_alive(sudo, pat):
+                print('dns-sniff: warning: a capture did not stop on SIGTERM; '
+                      'sending SIGKILL', file=sys.stderr)
+                _sudo_pkill(sudo, 'KILL', pat)
+    else:
+        _stop_by_pid_fallback(pids or {}, incarnations or {}, sudo)
+    time.sleep(0.3)  # flush margin after exit, before reading the pcap
+
+
+def _stop_by_pid_fallback(pids, incarnations, sudo):
+    """Fallback teardown when pkill/pgrep are absent: SIGTERM the stored pids,
+    but re-fingerprint each pid first and skip on mismatch so a recycled pid is
+    never signalled. Escalates to SIGKILL past a 5s deadline."""
+    def matches(pid):
+        want = incarnations.get(str(pid))
+        cur = proc_incarnation(pid)
+        if cur is None:
+            return False  # already gone
+        return want is None or cur == want  # can't verify -> proceed
+
+    signalled = []
+    for pid in pids.values():
+        if matches(pid):
+            subprocess.run(sudo + ['kill', str(pid)], check=False, stdin=subprocess.DEVNULL,
+                           stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+            signalled.append(pid)
+        else:
+            want = incarnations.get(str(pid))
+            print(f'dns-sniff: warning: pid {pid} is gone or was recycled '
+                  f'(was {want}); not killing it', file=sys.stderr)
+    for pid in signalled:
+        deadline = time.time() + 5.0
+        while time.time() < deadline and proc_incarnation(pid) is not None:
+            time.sleep(0.1)
+        if proc_incarnation(pid) is not None and matches(pid):
+            subprocess.run(sudo + ['kill', '-KILL', str(pid)], check=False,
+                           stdin=subprocess.DEVNULL, stdout=subprocess.DEVNULL,
+                           stderr=subprocess.DEVNULL)
+
+
+# ---- entry points -----------------------------------------------------------
+
+def add_capture_flags(parser):
+    parser.add_argument('--no-log', action='store_true',
+                        help='print results to stdout only; do not write a .dns.log file')
+    parser.add_argument('--pcap', action='store_true',
+                        help='also save a raw .pcap capture file alongside the log')
+    parser.add_argument('--log-dir', default=None, metavar='PATH',
+                        help='directory for output files (default: current working directory)')
+    parser.add_argument('--iface', default=None, metavar='IFACE',
+                        help='force a specific interface, skipping auto-detection')
+    parser.add_argument('--flush', action='store_true',
+                        help='flush the system DNS resolver cache before running so '
+                             'every name is forced onto the wire (complete cold-cache '
+                             'capture, like a fresh CI runner). System-wide side effect.')
+
+
+def resolve_cmd(rest):
+    cmd = [c for c in rest if c != '--']
+    return cmd
+
+
+def cmd_start(argv):
+    parser = argparse.ArgumentParser(prog='dns-sniff _start', add_help=False)
+    parser.add_argument('--state', required=True)
+    add_capture_flags(parser)
+    parser.add_argument('command', nargs=argparse.REMAINDER)
+    args = parser.parse_args(argv)
+
+    cmd = resolve_cmd(args.command)
+    if not cmd:
+        parser.error('no command given')
+
+    log_dir = pathlib.Path(args.log_dir).expanduser() if args.log_dir else pathlib.Path.cwd()
+    state = start_capture(cmd, args.iface, log_dir, flush=args.flush)
+
+    # Persist only what _finish needs; the sudo tcpdumps keep running past our
+    # exit (nothing signals them), and _finish stops them by their unique pcap
+    # path. tty_attrs is the pre-command terminal snapshot _finish restores.
+    with open(args.state, 'w', encoding='utf-8') as f:
+        json.dump({
+            'pcaps': {i: str(state['pcaps'][i]) for i in state['active']},
+            'pids': state['pids'],
+            'incarnations': state['incarnations'],
+            'active': state['active'],
+            'basename': state['basename'],
+            'header': state['header'],
+            'log_dir': state['log_dir'],
+            'err_files': state['err_files'],
+            'tty_attrs': state['tty_attrs'],
+            'pcap': args.pcap,
+            'no_log': args.no_log,
+        }, f)
+    return 0
+
+
+def cmd_finish(argv):
+    parser = argparse.ArgumentParser(prog='dns-sniff _finish', add_help=False)
+    parser.add_argument('--state', required=True)
+    parser.add_argument('--status', type=int, required=True)
+    args = parser.parse_args(argv)
+
+    with open(args.state, encoding='utf-8') as f:
+        st = json.load(f)
+
+    sudo = sudo_prefix()
+    pcaps = {i: pathlib.Path(p) for i, p in st['pcaps'].items()}
+    err_files = st.get('err_files')
+
+    # Restore the terminal to the pre-command snapshot _start captured (serialized
+    # in the state). Re-asserted inside emit_results before printing; the finally
+    # is the belt for any exit path, and the temp cleanup covers an emit crash.
+    saved_tty = _TtySaver(st.get('tty_attrs'))
+    emitted = False
+    try:
+        stop_tcpdumps(pcaps, sudo, pids=st.get('pids'), incarnations=st.get('incarnations'))
+        emit_results(pcaps, st['active'], st['log_dir'], st['basename'],
+                     st['header'], st['pcap'], st['no_log'],
+                     saved_tty=saved_tty, err_files=err_files)
+        emitted = True
+    finally:
+        saved_tty.restore()
+        if not emitted:
+            cleanup_temps(pcaps, err_files)
+    return args.status
+
+
+def run_foreground(argv):
+    """Non-interactive fallback: parse args, bring capture up, run the command
+    ourselves, tear down. Used when this binary is invoked directly (scripts,
+    non-interactive shells) rather than through the interactive zsh function."""
+    parser = argparse.ArgumentParser(
+        prog='dns-sniff',
+        description=(
+            'Wrap a command and log all DNS queries it makes during execution.\n'
+            'Useful for building firewall/proxy allowlists before running dev tools\n'
+            'on restricted corporate CI runners.\n\n'
+            'Requires tcpdump (built-in on macOS, apt-installed on Debian) and\n'
+            'sudo for raw socket access. The sudo prompt appears once at startup.\n\n'
+            'Capture interface(s) are auto-detected so capture works whether or\n'
+            'not the VPN is up. macOS: route every resolver nameserver\n'
+            '(scutil --dns) to its egress interface, unioned with the default\n'
+            'route (on VPN the tunnel, off VPN en0). Linux: tcpdump -i any, which\n'
+            'captures every interface. Override either with --iface.\n\n'
+            'Interactively, a zsh function of the same name runs the command in\n'
+            'your live shell so aliases and functions resolve; this binary is the\n'
+            'capture engine and the non-interactive fallback.\n\n'
+            'Output files land in the current directory by default:\n'
+            '  dns-<cmd>-<YYYY-MM-DD_HHMMSS>.dns.log   (default; skip with --no-log)\n'
+            '  dns-<cmd>-<YYYY-MM-DD_HHMMSS>.pcap       (opt-in with --pcap)\n\n'
+            'Examples:\n'
+            '  dns-sniff terraform init\n'
+            '  dns-sniff --pcap pre-commit run --all-files\n'
+            '  dns-sniff --no-log curl -s https://example.com\n'
+            '  dns-sniff --log-dir /tmp pip install -r requirements.txt\n'
+            '  dns-sniff --iface en0 curl -s https://example.com\n'
+            '  dns-sniff --flush terraform init   (cold-cache: catch every name)'
+        ),
+        formatter_class=argparse.RawDescriptionHelpFormatter,
+    )
+    add_capture_flags(parser)
+    parser.add_argument('command', nargs=argparse.REMAINDER)
+    args = parser.parse_args(argv)
+
+    cmd = resolve_cmd(args.command)
+    if not cmd:
+        parser.error('no command given')
+
+    log_dir = pathlib.Path(args.log_dir).expanduser() if args.log_dir else pathlib.Path.cwd()
+    state = start_capture(cmd, args.iface, log_dir, flush=args.flush)
+    sudo = state['sudo']
+
+    # Pre-command terminal snapshot (from start_capture). One outer finally
+    # restores the tty and cleans up temps on EVERY exit path - including a
+    # KeyboardInterrupt out of the wrapped command or a zsh-launch failure, where
+    # run_foreground has no zsh stty net to fall back on.
+    saved_tty = _TtySaver(state.get('tty_attrs'))
+    cmd_status = 1
+    emitted = False
+    try:
+        # Run the command in a non-interactive zsh that sources the alias and
+        # private-var files so common aliases still resolve in scripted use.
+        # Full interactive alias/function coverage (oh-my-zsh plugins etc.) is
+        # only available through the interactive dns-sniff zsh function; this
+        # fallback deliberately does not load oh-my-zsh (that path reloads ZLE
+        # plugins and corrupts an interactive parent terminal). Written to a
+        # script file, not `zsh -c`, so alias substitution (a parse-time step in
+        # zsh) sees the just-sourced aliases.
+        script_lines = [
+            'if [ -r "$ZSH_BASE/aliases" ]; then source "$ZSH_BASE/aliases"; fi',
+            'if [ -r "$HOME/.zsh_private" ]; then source "$HOME/.zsh_private"; fi',
+            shlex.join(cmd),
+        ]
+        script_fd, script_path = tempfile.mkstemp(prefix='dns-sniff-cmd-', suffix='.zsh', dir=TMP_DIR)
+        try:
+            with os.fdopen(script_fd, 'w') as f:
+                f.write('\n'.join(script_lines) + '\n')
+            try:
+                cmd_status = subprocess.run(['zsh', script_path]).returncode
+            finally:
+                # Stop + reap on EVERY path (normal return, KeyboardInterrupt, a
+                # failed zsh launch) so a Ctrl-C never leaves an orphan root
+                # tcpdump behind.
+                stop_tcpdumps(state['pcaps'], sudo, pids=state['pids'],
+                              incarnations=state['incarnations'])
+                for i in state['active']:
+                    state['procs'][i].wait()  # reap; we own these Popen objects
+        finally:
+            os.unlink(script_path)
+
+        emit_results(state['pcaps'], state['active'], state['log_dir'],
+                     state['basename'], state['header'], args.pcap, args.no_log,
+                     saved_tty=saved_tty, err_files=state.get('err_files'))
+        emitted = True
+    finally:
+        saved_tty.restore()
+        if not emitted:
+            cleanup_temps(state.get('pcaps'), state.get('err_files'))
+    return cmd_status
+
+
+def main():
+    argv = sys.argv[1:]
+    if argv and argv[0] == '_start':
+        return cmd_start(argv[1:])
+    if argv and argv[0] == '_finish':
+        return cmd_finish(argv[1:])
+    return run_foreground(argv)
+
+
+if __name__ == '__main__':
+    sys.exit(main())
