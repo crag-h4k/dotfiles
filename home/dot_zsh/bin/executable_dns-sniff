@@ -373,7 +373,16 @@ def _spawn_tcpdump(iface, sudo):
     # SIGTERM handler flushes. A manual `pkill tcpdump` (tcpdump only, clean
     # SIGTERM) flushed fine; -U removes the buffered tail entirely so the outcome
     # no longer depends on which process the kill races.
-    tcpdump_cmd = ['tcpdump', '-U', '-q', '-i', iface, '-w', str(pcap)]
+    # -p: don't enable promiscuous mode. We only want THIS host's own DNS, and
+    # on Linux `-i any` doesn't support promiscuous mode (tcpdump would warn).
+    tcpdump_cmd = ['tcpdump', '-U', '-p', '-q', '-i', iface, '-w', str(pcap)]
+    if sys.platform != 'darwin':
+        # Debian/Ubuntu tcpdump drops privileges to the unprivileged `tcpdump`
+        # user after opening the device (built-in -Z default), so a sudo'd
+        # `tcpdump -w` then can't write our user-owned 0600 pcap in /tmp
+        # ("Permission denied"). Keep it root so it can write the savefile.
+        # macOS tcpdump doesn't drop privileges, so this is Linux-only.
+        tcpdump_cmd += ['-Z', 'root']
     if not UTUN_RE.match(iface):
         tcpdump_cmd += ['udp', 'port', '53']
     proc = subprocess.Popen(
