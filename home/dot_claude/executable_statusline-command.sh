@@ -2,9 +2,12 @@
 # ~/.claude/statusline-command.sh
 # Dotfiles statusline for Claude Code. Fast renderer: one jq spawn off
 # stdin, integer math in bash, no per-render token walk. The subagent-inclusive
-# cumulative total is served from a cache file that a detached Python updater
-# (~/.claude/statusline-tokens.py) refreshes off the critical path, so render stays
-# flat regardless of transcript length.
+# cumulative total (tokens) and cumulative cost (USD) are both served from cache
+# files that a detached Python updater (~/.claude/statusline-tokens.py) refreshes
+# off the critical path, so render stays flat regardless of transcript length. The
+# cost figure is NOT read from stdin's cost.total_cost_usd - Claude Code only
+# populates that for the orchestrator session, not subagents - so it is priced
+# here from the same subagent-inclusive transcript walk as the token total.
 #
 # Semantic colors come from ~/.config/statusline/palette.sh, rendered from the
 # shared chezmoi palette. ANSI fallbacks keep the renderer usable on its own.
@@ -40,6 +43,7 @@ G_TIMER=$'\xef\x89\x92'       # U+F252  nf-fa-hourglass-half (5h rate)
 G_CAL=$'\xef\x81\xb3'         # U+F073  nf-fa-calendar       (weekly rate)
 G_BRANCH=$'\xee\x82\xa0'      # U+E0A0  powerline branch     (git)
 G_SIGMA=$'\xce\xa3'           # U+03A3  greek capital sigma  (total)
+G_DOLLAR=$'\xef\x85\x95'      # U+F155  nf-fa-dollar         (cost)
 G_SEP=$'\xe2\x94\x82'         # U+2502  box drawings light vertical (separator)
 G_BLOCK=$'\xe2\x96\x88'       # U+2588  full block           (bar cell)
 G_DOT=$'\xe2\x97\x8f'         # U+25CF  black circle         (dirty marker)
@@ -144,7 +148,7 @@ GSEP="${GREY}${gpad}${G_SEP}${gpad}${RESET}"
 GDOT="${GREY} ${G_MIDDOT} ${RESET}"
 
 # --- build each segment (any may stay empty) -------------------------------
-model_seg=""; ctx_seg=""; total_seg=""; dur_seg=""; r5_seg=""; r7_seg=""; git_seg=""
+model_seg=""; ctx_seg=""; total_seg=""; cost_seg=""; dur_seg=""; r5_seg=""; r7_seg=""; git_seg=""
 
 # Model (purple glyph, default-fg text)
 [ -n "$model" ] && model_seg="${PURPLE}${G_ROBOT}${RESET} ${model}"
@@ -171,6 +175,20 @@ if [ -n "$sid" ]; then
   fi
 fi
 total_seg="${CYAN}${G_SIGMA} ${total_h}${RESET}"
+
+# Cost (cyan $) from the same cached, subagent-inclusive walk, priced per-model.
+# Shares Sigma's cyan on purpose: cost is that same usage (tokens x price), so the
+# two read as one usage pair, told apart by glyph (Sigma vs $) and the GDOT, not hue.
+# Dropped at the tiny tier alongside duration - both are secondary to Sigma.
+if [ "$show_dur" -eq 1 ] && [ -n "$sid" ]; then
+  cost_h="..."
+  costfile="$cachedir/$sid.cost"
+  if [ -r "$costfile" ]; then
+    read -r cost_raw < "$costfile" 2>/dev/null || cost_raw=""
+    [ -n "$cost_raw" ] && cost_h="$cost_raw"
+  fi
+  cost_seg="${CYAN}${G_DOLLAR} ${cost_h}${RESET}"
+fi
 
 # Duration from cost.total_duration_ms (grey), dropped at the tiny tier
 if [ "$show_dur" -eq 1 ] && [ -n "$dur_ms" ]; then
@@ -222,14 +240,14 @@ fi
 
 # --- compose groups, then join groups with the heavier divider -------------
 # Grouping clusters related info so the line reads in chunks, not one long run:
-#   identity (model, context)  usage (total, duration)  limits (5h, weekly)  git
+#   identity (model, context)  usage (total, cost, duration)  limits (5h, weekly)  git
 # Items inside a group join with GDOT; groups join with GSEP.
 g1=""; g2=""; g3=""; g4="$git_seg"
 for s in "$model_seg" "$ctx_seg"; do
   [ -n "$s" ] || continue
   if [ -n "$g1" ]; then g1="$g1$GDOT$s"; else g1="$s"; fi
 done
-for s in "$total_seg" "$dur_seg"; do
+for s in "$total_seg" "$cost_seg" "$dur_seg"; do
   [ -n "$s" ] || continue
   if [ -n "$g2" ]; then g2="$g2$GDOT$s"; else g2="$s"; fi
 done

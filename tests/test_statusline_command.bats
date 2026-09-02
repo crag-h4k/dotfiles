@@ -40,6 +40,13 @@ seed_total() {
   printf '%s\n' "$2" > "${XDG_CACHE_HOME}/claude-statusline/$1.total"
 }
 
+# Seed the cost cache the renderer reads. $1 = session_id, $2 = formatted string
+# (no '$' prefix - matches what statusline-tokens.py's fmt_cost() writes).
+seed_cost() {
+  mkdir -p "${XDG_CACHE_HOME}/claude-statusline"
+  printf '%s\n' "$2" > "${XDG_CACHE_HOME}/claude-statusline/$1.cost"
+}
+
 # Build a stdin file from a fixture, optionally patched with a jq filter.
 # $1 = fixture basename, $2 = jq filter (default '.'). Echoes the file path.
 mkstdin() {
@@ -59,8 +66,9 @@ git_repo() {
 }
 
 # --- composite render ------------------------------------------------------
-@test "renders model, context bar+pct, used/max, sigma, duration, separators" {
+@test "renders model, context bar+pct, used/max, sigma, cost, duration, separators" {
   seed_total test-session 1200000
+  seed_cost test-session "1.23"
   run bash "$SCRIPT" < "$(mkstdin stdin-normal.json)"
   [ "$status" -eq 0 ]
   [[ "$output" == *"Sonnet 4.6"* ]]          # model
@@ -70,6 +78,7 @@ git_repo() {
   [[ "$output" == *$'\xe2\x96\x88'* ]]       # full-block bar cell
   [[ "$output" == *"(120k/200k)"* ]]         # used/max, human-formatted
   [[ "$output" == *"Σ 1.2M"* ]]              # seeded cumulative total
+  [[ "$output" == *$'\xef\x85\x95'" 1.23"* ]] # dollar glyph + seeded cost
   [[ "$output" == *"1h30m"* ]]               # duration from total_duration_ms
   [[ "$output" == *"│"* ]]                    # grey segment separator
 }
@@ -93,6 +102,12 @@ git_repo() {
   seed_total test-session 1200000
   run bash "$SCRIPT" < "$(mkstdin stdin-normal.json)"
   [[ "$output" == *"Σ 1.2M"* ]]
+}
+
+@test "cost shows placeholder when the cost cache is absent" {
+  run bash "$SCRIPT" < "$(mkstdin stdin-normal.json)"
+  [ "$status" -eq 0 ]
+  [[ "$output" == *$'\xef\x85\x95'" ..."* ]]  # dollar glyph + placeholder
 }
 
 @test "heavy payload: 90%+ context, rate limits, hours duration" {
@@ -196,18 +211,22 @@ git_repo() {
   [ "$wide" -gt "$med" ]
 }
 
-@test "narrow tier drops the (used/max) detail but keeps context and total" {
+@test "narrow tier drops the (used/max) detail but keeps context, total, and cost" {
   seed_total test-session 1200000
+  seed_cost test-session "1.23"
   run env COLUMNS=60 bash "$SCRIPT" < "$(mkstdin stdin-normal.json)"
   [ "$status" -eq 0 ]
   [[ "$output" == *"42%"* ]]                 # context still present
   [[ "$output" == *"Σ 1.2M"* ]]             # total still present
+  [[ "$output" == *"1.23"* ]]                # cost still present
   [[ "$output" != *"(120k/200k)"* ]]         # used/max detail dropped
 }
 
-@test "tiny tier drops rate bars and duration, keeps model/context/total" {
+@test "tiny tier drops rate bars, duration, and cost, keeps model/context/total" {
   seed_total test-session 1200000
-  # stdin-normal carries rate_limits AND a duration; the tiny tier drops both.
+  seed_cost test-session "1.23"
+  # stdin-normal carries rate_limits AND a duration; the tiny tier drops both
+  # (and cost, gated on the same show_dur flag).
   run env COLUMNS=40 bash "$SCRIPT" < "$(mkstdin stdin-normal.json)"
   [ "$status" -eq 0 ]
   [[ "$output" == *"Sonnet 4.6"* ]]
@@ -216,6 +235,7 @@ git_repo() {
   [[ "$output" != *"5h"* ]]                  # rate segments dropped
   [[ "$output" != *"wk"* ]]
   [[ "$output" != *"1h30m"* ]]               # duration dropped
+  [[ "$output" != *"1.23"* ]]                # cost dropped
 }
 
 @test "COLUMNS unset falls back to the MED layout (used/max detail shown)" {

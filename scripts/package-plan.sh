@@ -235,9 +235,11 @@ _build() {
                 for pkg in zsh gnupg command-not-found; do
                     _add apt "$pkg" "Debian apt repository"
                 done
-                # tcpdump: dns-sniff's capture engine (~/.zsh/bin/dns-sniff).
-                # Built-in on macOS, not installed by default on Debian.
+                # dns-sniff (~/.zsh/bin/dns-sniff) deps: tcpdump is its capture
+                # engine; python3 is its interpreter. Both are built-in on macOS
+                # but not installed by default on Debian.
                 _add apt tcpdump "Debian apt repository"
+                _add apt python3 "Debian apt repository"
                 _add apt gh "GitHub CLI apt repository"
                 # zoxide and fzf ship in Debian main.
                 _add apt zoxide "Debian apt repository"
