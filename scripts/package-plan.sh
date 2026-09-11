@@ -10,6 +10,9 @@ INSTALL_NEOVIM="${INSTALL_NEOVIM:-false}"
 INSTALL_NOTIFY="${INSTALL_NOTIFY:-false}"
 INSTALL_AI_CODECOMPANION="${INSTALL_AI_CODECOMPANION:-false}"
 INSTALL_AI_STATUSLINE="${INSTALL_AI_STATUSLINE:-false}"
+INSTALL_AI_OPENCODE="${INSTALL_AI_OPENCODE:-false}"
+INSTALL_AI_OPENCODE2="${INSTALL_AI_OPENCODE2:-false}"
+INSTALL_AI_COPILOT="${INSTALL_AI_COPILOT:-false}"
 INSTALL_TERMINAL_GHOSTTY="${INSTALL_TERMINAL_GHOSTTY:-false}"
 INSTALL_TERMINAL_ITERM2="${INSTALL_TERMINAL_ITERM2:-false}"
 _plan_mode="${1:---records}"
@@ -290,8 +293,41 @@ _build() {
         _add luarocks luacheck "https://luarocks.org/modules/mpeterv/luacheck"
         _add neovim-plugin "lazy.nvim plugin set" "GitHub repositories declared in ~/.config/nvim/init.lua" "$HOME/.local/share/nvim/lazy"
     fi
+    # Node/npm runtime. Needed by Neovim AND by every Node-dependent AI feature:
+    # opencode, opencode2, and copilot install as npm globals, and codecompanion
+    # pulls the claude-agent-acp npm bridge. The neovim block above plans it inside
+    # the OS case; plan it here too, gated on ANY of those, so a Node-dependent AI
+    # feature selected WITHOUT neovim still gets a runtime instead of the installer
+    # finding no npm and soft-failing silently. _add dedups by source:name, so this
+    # is a no-op when neovim already planned it. (On Debian, install.sh only adds
+    # the NodeSource repo for neovim; an AI-only host installs Debian-packaged Node,
+    # which still provides npm.)
+    if [[ "$INSTALL_NEOVIM" == true || "$INSTALL_AI_OPENCODE" == true ||
+        "$INSTALL_AI_OPENCODE2" == true || "$INSTALL_AI_COPILOT" == true ||
+        "$INSTALL_AI_CODECOMPANION" == true ]]; then
+        case "$os" in
+            macos)  _add brew-formula node "Homebrew core" ;;
+            debian) _add apt nodejs "NodeSource Node.js 24 apt repository" ;;
+        esac
+    fi
     [[ "$INSTALL_AI_CODECOMPANION" == true ]] &&
         _add npm @agentclientprotocol/claude-agent-acp "https://www.npmjs.com/package/@agentclientprotocol/claude-agent-acp" claude-agent-acp
+    # OpenCode CLI: pinned opencode-ai npm package into the ~/.local prefix
+    # (scripts/install-opencode.sh), cross-platform, so it sits outside the OS
+    # case like the other npm globals. Probed by opencode-ai in the global list,
+    # with the opencode binary on PATH as the fallback.
+    [[ "$INSTALL_AI_OPENCODE" == true ]] &&
+        _add npm opencode-ai "https://www.npmjs.com/package/opencode-ai" opencode
+    # OpenCode v2 beta CLI: @opencode/cli npm package (opencode2 binary) into the
+    # ~/.local prefix (scripts/install-opencode2.sh), side-by-side with v1. Another
+    # cross-platform npm global, so it sits outside the OS case.
+    [[ "$INSTALL_AI_OPENCODE2" == true ]] &&
+        _add npm @opencode/cli "https://www.npmjs.com/package/@opencode/cli" opencode2
+    # GitHub Copilot CLI: @github/copilot npm package into the ~/.local prefix
+    # (scripts/install-copilot.sh), cross-platform, so it sits outside the OS case
+    # like the other npm globals. npm is the only channel (no Homebrew/apt).
+    [[ "$INSTALL_AI_COPILOT" == true ]] &&
+        _add npm @github/copilot "https://www.npmjs.com/package/@github/copilot" copilot
 
     if [[ "$INSTALL_ZSH" == true ]]; then
         _add git-external ohmyzsh/ohmyzsh "https://github.com/ohmyzsh/ohmyzsh.git" "$HOME/.zsh/ohmyzsh"

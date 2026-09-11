@@ -22,14 +22,19 @@
     (dict "num" "2" "key" "personal"      "label" "personal"      "desc" "~/.gitconfig.personal" "all" false)
     (dict "num" "3" "key" "ignore_global" "label" "ignore_global" "desc" "~/.gitignore_global"   "all" true)
 -}}
-{{- /* codecompanion is listed last: it is the heaviest sub-feature (pulls in    */ -}}
-{{- /* node/npm and the npm-installed claude-agent-acp bridge), so keep it at the */ -}}
-{{- /* end of the submenu even though it stays the default (all=true) selection.  */ -}}
+{{- /* codecompanion is listed near the end: it is the heaviest sub-feature (pulls */ -}}
+{{- /* in node/npm and the npm-installed claude-agent-acp bridge), so keep it late  */ -}}
+{{- /* in the submenu even though it stays the default (all=true) selection.        */ -}}
+{{- /* opencode2 (OpenCode v2 beta) mirrors the opencode sub-feature; both share the */ -}}
+{{- /* generic base config + notifier bridge, gated together in .chezmoiignore.      */ -}}
 {{- $aiFeatures := list
     (dict "num" "1" "key" "claude_hooks"  "label" "claude_hooks"  "desc" "Claude settings.json notify hooks"           "all" false)
     (dict "num" "2" "key" "codex_hooks"   "label" "codex_hooks"   "desc" "Codex config.toml notify hook"               "all" false)
     (dict "num" "3" "key" "statusline"    "label" "statusline"    "desc" "Claude token/context statusline + matching Codex theme" "all" false)
-    (dict "num" "4" "key" "codecompanion" "label" "codecompanion" "desc" "CodeCompanion.nvim assistant (needs neovim; pulls in node, npm + claude-agent-acp)" "all" true)
+    (dict "num" "4" "key" "opencode"      "label" "opencode"      "desc" "OpenCode CLI generic base config + tmux notifier bridge (pulls in the opencode binary)" "all" false)
+    (dict "num" "5" "key" "copilot"       "label" "copilot"       "desc" "GitHub Copilot CLI (npm @github/copilot; pulls in the copilot binary)" "all" false)
+    (dict "num" "6" "key" "codecompanion" "label" "codecompanion" "desc" "CodeCompanion.nvim assistant (needs neovim; pulls in node, npm + claude-agent-acp)" "all" true)
+    (dict "num" "7" "key" "opencode2"     "label" "opencode2"     "desc" "OpenCode v2 beta (cli.json) side-by-side; pulls @opencode/cli@beta" "all" false)
 -}}
 {{- /* Terminal-emulator sub-features. MULTI-select (like git/ai): installing more */ -}}
 {{- /* than one emulator's config is harmless and Dane runs both, so this is not a  */ -}}
@@ -52,7 +57,7 @@
     (dict "num" "2" "key" "tmux"   "label" "tmux"   "desc" "tmux + plugins (tpm, resurrect, sensible, yank)" "all" true  "sub" (list))
     (dict "num" "3" "key" "neovim" "label" "neovim" "desc" "neovim, lazy.nvim, language servers, linters"    "all" true  "sub" (list))
     (dict "num" "4" "key" "git"    "label" "git"    "desc" "git config files (config, personal, ignore_global)" "all" true  "sub" $gitFeatures "selKey" "gitSelection" "header" "git sub-features")
-    (dict "num" "5" "key" "ai"     "label" "ai"     "desc" "AI tools (claude_hooks, codex_hooks, statusline, codecompanion)"  "all" false "sub" $aiFeatures  "selKey" "aiSelection"  "header" "AI sub-features")
+    (dict "num" "5" "key" "ai"     "label" "ai"     "desc" "AI tools (claude_hooks, codex_hooks, statusline, opencode, copilot, codecompanion, opencode2)"  "all" false "sub" $aiFeatures  "selKey" "aiSelection"  "header" "AI sub-features")
     (dict "num" "6" "key" "terminal" "label" "terminal" "desc" "terminal emulator config (ghostty, iterm2)"  "all" false "sub" $terminalFeatures "selKey" "terminalSelection" "header" "terminal emulator")
     (dict "num" "7" "key" "colorscheme" "label" "colorscheme" "desc" (printf "re-pick the color scheme (current: %s; unchecked keeps it)" (dig "palette" "dracula" .)) "all" false "sub" (list) "action" true)
     (dict "num" "8" "key" "install_mode" "label" "install_mode" "desc" (printf "re-choose packages vs configs (current: %s; unchecked keeps it)" (dig "installMode" "packages" .)) "all" false "sub" (list) "action" true)
@@ -228,7 +233,14 @@
 {{-       end -}}
 {{-       end -}}
 {{-       if or (eq $subSel "") (hasPrefix $c.header $subSel) }}{{ $subSel = $subDefault }}{{ end -}}
-{{-       range $feats }}{{ $r = set $r .key (or (contains .key $subSel) (contains .num $subSel)) }}{{ end -}}
+{{- /* Match by whole token, not substring. Split $subSel on spaces/commas into a  */ -}}
+{{- /* set (gum yields leading keys; the typed menu yields keys or numbers), then a  */ -}}
+{{- /* feature is on iff its key OR its num is a token. The old substring `contains`  */ -}}
+{{- /* false-matched a superstring key or an embedded digit: selecting "opencode2"   */ -}}
+{{- /* also lit "opencode" and codex_hooks (num 2). Mirrors the top-level $selSet.    */ -}}
+{{-       $subTokens := dict -}}
+{{-       range (splitList " " (trim (replace "," " " $subSel))) }}{{ if ne . "" }}{{ $subTokens = set $subTokens . true }}{{ end }}{{ end -}}
+{{-       range $feats }}{{ $r = set $r .key (or (hasKey $subTokens .key) (hasKey $subTokens .num)) }}{{ end -}}
 {{-       $stored = $subSel -}}
 {{-     else -}}
 {{-       range $feats }}{{ $r = set $r .key false }}{{ end -}}
@@ -317,7 +329,9 @@
       (get $resolved "zsh")
       (get $resolved "tmux")
       (get (get $subResolved "ai") "claude_hooks")
-      (get (get $subResolved "ai") "codex_hooks") -}}
+      (get (get $subResolved "ai") "codex_hooks")
+      (get (get $subResolved "ai") "opencode")
+      (get (get $subResolved "ai") "opencode2") -}}
 {{- $confirmEnv := list
       (printf "INSTALL_ZSH=%t" (get $resolved "zsh"))
       (printf "INSTALL_TMUX=%t" (get $resolved "tmux"))
@@ -325,6 +339,9 @@
       (printf "INSTALL_NOTIFY=%t" $notifyEnabled)
       (printf "INSTALL_AI_CODECOMPANION=%t" (get (get $subResolved "ai") "codecompanion"))
       (printf "INSTALL_AI_STATUSLINE=%t" (get (get $subResolved "ai") "statusline"))
+      (printf "INSTALL_AI_OPENCODE=%t" (get (get $subResolved "ai") "opencode"))
+      (printf "INSTALL_AI_OPENCODE2=%t" (get (get $subResolved "ai") "opencode2"))
+      (printf "INSTALL_AI_COPILOT=%t" (get (get $subResolved "ai") "copilot"))
       (printf "INSTALL_TERMINAL_GHOSTTY=%t" (get (get $subResolved "terminal") "ghostty"))
       (printf "INSTALL_TERMINAL_ITERM2=%t" (get (get $subResolved "terminal") "iterm2"))
 -}}

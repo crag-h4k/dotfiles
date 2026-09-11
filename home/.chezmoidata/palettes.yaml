@@ -81,6 +81,7 @@ palettes:
       dark_purple: "#533a53"
       dark_green: "#305444"
       dark_orange: "#534641"
+      dark_yellow: "#505447"
       dark_cyan: "#3c505e"
       dark_pink: "#533a53"
 
@@ -144,6 +145,7 @@ palettes:
       dark_purple: "#413956"
       dark_green: "#394545"
       dark_orange: "#4a3c40"
+      dark_yellow: "#4a4548"
       dark_cyan: "#36454f"
       dark_pink: "#413956"
 
@@ -207,6 +209,7 @@ palettes:
       dark_purple: "#443f60"
       dark_green: "#3e4b4c"
       dark_orange: "#4e4148"
+      dark_yellow: "#4c4a4e"
       dark_cyan: "#394a57"
       dark_pink: "#443f60"
 
@@ -270,6 +273,7 @@ palettes:
       dark_purple: "#4f4966"
       dark_green: "#485353"
       dark_orange: "#564950"
+      dark_yellow: "#545255"
       dark_cyan: "#40525e"
       dark_pink: "#4f4966"
 
@@ -333,6 +337,7 @@ palettes:
       dark_purple: "#4a3b3f"
       dark_green: "#454528"
       dark_orange: "#533a25"
+      dark_yellow: "#524629"
       dark_cyan: "#3c4639"
       dark_pink: "#4a3b3f"
 
@@ -396,6 +401,7 @@ palettes:
       dark_purple: "#413439"
       dark_green: "#3c3f22"
       dark_orange: "#4a331f"
+      dark_yellow: "#493f24"
       dark_cyan: "#344033"
       dark_pink: "#413439"
 
@@ -459,6 +465,7 @@ palettes:
       dark_purple: "#4b3b3f"
       dark_green: "#434434"
       dark_orange: "#4f3c30"
+      dark_yellow: "#4c4131"
       dark_cyan: "#3c443a"
       dark_pink: "#4b3b3f"
 
@@ -522,6 +529,7 @@ palettes:
       dark_purple: "#423f61"
       dark_green: "#3c4944"
       dark_orange: "#3f435a"
+      dark_yellow: "#1f455a"
       dark_cyan: "#415261"
       dark_pink: "#423f61"
 
@@ -585,6 +593,7 @@ palettes:
       dark_purple: "#494656"
       dark_green: "#45504f"
       dark_orange: "#4e454a"
+      dark_yellow: "#54524f"
       dark_cyan: "#40505d"
       dark_pink: "#494656"
 
@@ -648,6 +657,7 @@ palettes:
       dark_purple: "#453935"
       dark_green: "#1c2231"
       dark_orange: "#453935"
+      dark_yellow: "#433842"
       dark_cyan: "#333c48"
       dark_pink: "#453935"
 
@@ -711,6 +721,7 @@ palettes:
       dark_purple: "#4d4143"
       dark_green: "#28374e"
       dark_orange: "#4d4143"
+      dark_yellow: "#4b3949"
       dark_cyan: "#3b4456"
       dark_pink: "#4d4143"
 
@@ -774,6 +785,7 @@ palettes:
       dark_purple: "#4f4954"
       dark_green: "#455149"
       dark_orange: "#524947"
+      dark_yellow: "#505049"
       dark_cyan: "#3e514c"
       dark_pink: "#4f4954"
 
@@ -837,6 +849,7 @@ palettes:
       dark_purple: "#373245"
       dark_green: "#303635"
       dark_orange: "#4c3934"
+      dark_yellow: "#3f3936"
       dark_cyan: "#2e373b"
       dark_pink: "#373245"
 
@@ -900,6 +913,7 @@ palettes:
       dark_purple: "#483b56"
       dark_green: "#3e4a42"
       dark_orange: "#4a423e"
+      dark_yellow: "#4e4a42"
       dark_cyan: "#314850"
       dark_pink: "#483b56"
 
@@ -963,5 +977,6 @@ palettes:
       dark_purple: "#0d3347"
       dark_green: "#1b412b"
       dark_orange: "#1c2f32"
+      dark_yellow: "#243e2b"
       dark_cyan: "#08434a"
       dark_pink: "#0d3347"

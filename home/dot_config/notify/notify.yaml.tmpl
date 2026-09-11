@@ -19,6 +19,8 @@ settings:
     - more
     - nano
     - nvim
+    - opencode
+    - opencode2
     - ssh
     - tail
     - tmux
@@ -33,12 +35,14 @@ palette:
   dark_purple: {{ $p.notify.dark_purple | quote }}
   dark_green: {{ $p.notify.dark_green | quote }}
   dark_orange: {{ $p.notify.dark_orange | quote }}
+  dark_yellow: {{ $p.notify.dark_yellow | quote }}
   dark_cyan: {{ $p.notify.dark_cyan | quote }}
   dark_pink: {{ $p.notify.dark_pink | quote }}
   bright_red: {{ $p.colors.red | quote }}
   bright_purple: {{ $p.colors.purple | quote }}
   bright_green: {{ $p.colors.green | quote }}
   bright_orange: {{ $p.colors.orange | quote }}
+  bright_yellow: {{ $p.colors.yellow | quote }}
   bright_cyan: {{ $p.colors.cyan | quote }}
   bright_pink: {{ $p.colors.pink | quote }}
 
@@ -78,4 +82,8 @@ integrations:
   codex:
     bg: dark_purple
     accent: bright_purple
+    sound: sosumi.mp3
+  opencode:
+    bg: dark_yellow
+    accent: bright_yellow
     sound: glass.mp3

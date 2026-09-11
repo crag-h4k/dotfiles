@@ -1,0 +1,74 @@
+// ~/.config/opencode/opencode.jsonc
+// Generic OpenCode base config. Provider-portable: no model/provider is pinned
+// here, so switching backends is a runtime choice (`opencode auth login` to
+// connect a provider, `/models` to pick the active model), not a config edit.
+//
+// This file is intentionally GENERIC and machine-independent. Anything personal
+// or environment-specific (MCP servers, memory/instruction files, subagents)
+// layers on top of this via a separate local config referenced by the
+// OPENCODE_CONFIG environment variable; OpenCode deep-merges that file onto this
+// one (mcp servers unioned, instructions concatenated, permission keys unioned),
+// so the local layer never has to restate this base.
+//
+// The color theme is set in tui.json (a top-level "theme" here is legacy and is
+// stripped on load); the custom "gud" theme lives in ./themes/gud.json.
+{
+  "$schema": "https://opencode.ai/config.json",
+
+  // Third-party TUI plugins, EXACT-pinned. Each runs arbitrary TypeScript at
+  // startup with the Bun shell + SDK client, so treat every entry as a
+  // code-reviewed dependency and re-review on each version bump. Bun auto-installs
+  // them into ~/.cache/opencode/node_modules. Both require the 1.x plugin SDK.
+  //   opencode-vim-plugin - inline modal (vim) editing in the prompt input.
+  //   opencode-quota      - token/cost/quota readout (the /usage + /context gap).
+  "plugin": [
+    // TEMP-DISABLED to test the paste regression: a modal editor intercepts
+    // keystrokes, so pasted multi-line text gets run as vim commands - the most
+    // likely paste-mangle cause. Re-enable (or switch to $EDITOR/Ctrl+X e) after.
+    // "@leohenon/opencode-vim-plugin@0.1.6",
+    "@slkiser/opencode-quota@4.9.0",
+    // Dynamic context pruning: trims stale tool outputs to cut token spend on the
+    // metered Copilot backend. AGPL-3.0 (local-use only; policy check accepted).
+    "@tarquinen/opencode-dcp@3.1.15",
+    // Pre-execution guard: blocks destructive git/fs commands + sensitive-file
+    // reads via tool.execute.before. Audited @2.3.4: offline at runtime, no
+    // telemetry, add-only rules (cannot disable catastrophic protection). Install
+    // the terraform/aws/azure rulebooks and run `npx cc-safety-net doctor` (it
+    // fails OPEN silently on a broken config) for full coverage.
+    "cc-safety-net@2.3.4"
+  ],
+
+  // Permission model: edit asks before writing (approve-on-write), webfetch is
+  // allowed. bash is a pattern -> action map; the last matching rule wins, so the
+  // catch-all "*": "ask" comes first and the linter/test allowlist follows.
+  // Every pattern here is a generic, widely-used linter, formatter, test runner,
+  // or the pre-commit driver.
+  "permission": {
+    "edit": "ask",
+    "webfetch": "allow",
+    "bash": {
+      "*": "ask",
+      "pre-commit *": "allow",
+      "shellcheck *": "allow",
+      "markdownlint *": "allow",
+      "markdownlint-cli2 *": "allow",
+      "bats *": "allow",
+      "luacheck *": "allow",
+      "ruff *": "allow",
+      "flake8 *": "allow",
+      "black *": "allow",
+      "yamllint *": "allow",
+      "actionlint *": "allow",
+      "stylua *": "allow",
+      "tflint *": "allow",
+      "tfsec *": "allow",
+      "checkov *": "allow",
+      "golangci-lint *": "allow",
+      "go test *": "allow",
+      "go vet *": "allow",
+      "pytest *": "allow",
+      "eslint *": "allow",
+      "prettier *": "allow"
+    }
+  }
+}

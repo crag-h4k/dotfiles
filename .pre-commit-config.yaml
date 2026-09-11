@@ -124,7 +124,7 @@ repos:
         entry: scripts/validate-palettes.sh
         language: script
         pass_filenames: false
-        files: ^home/(\.chezmoidata/palettes\.yaml|dot_(config/(ghostty|iterm2|notify|nvim|statusline)|tmux/conf\.d|codex/themes|zsh/theme).*)$
+        files: ^home/(\.chezmoidata/palettes\.yaml|dot_(config/(ghostty|iterm2|notify|nvim|opencode|statusline)|tmux/conf\.d|codex/themes|zsh/theme).*)$
 
       - id: build-palettes-check
         name: palette catalog matches base16 schemes

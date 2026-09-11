@@ -32,6 +32,17 @@ for palette in $(yq '.paletteOrder[]' "$SOURCE_DIR/.chezmoidata/palettes.yaml");
     render dot_config/notify/notify.yaml.tmpl > "$TMP_DIR/notify.yaml"
     yq '.' "$TMP_DIR/notify.yaml" >/dev/null
 
+    render dot_config/opencode/themes/gud.json.tmpl > "$TMP_DIR/opencode-gud.json"
+    # .defs.base (not .defs.background): the background def was renamed to base to
+    # avoid the theme-key self-reference. syntaxKeyword proves the full key set
+    # (chrome + syntax + diff + markdown) rendered, not just the chrome.
+    jq -e '.theme.primary.dark and .theme.syntaxKeyword.dark and .defs.base' "$TMP_DIR/opencode-gud.json" >/dev/null
+
+    # gud-lucent: the v2 translucent variant. Same keys as gud, but the three
+    # background keys resolve to "none" so terminal opacity shows through.
+    render dot_config/opencode/themes/gud-lucent.json.tmpl > "$TMP_DIR/opencode-gud-lucent.json"
+    jq -e '.theme.syntaxKeyword.dark and (.theme.background.dark == "none") and (.theme.backgroundPanel.dark == "none")' "$TMP_DIR/opencode-gud-lucent.json" >/dev/null
+
     render dot_config/iterm2/dotfiles.json.tmpl > "$TMP_DIR/iterm2.json"
     jq -e '.Profiles | length == 2' "$TMP_DIR/iterm2.json" >/dev/null
     jq -e '[.Profiles[].Name] == ["dotfiles", "dotfiles opaque"]' "$TMP_DIR/iterm2.json" >/dev/null

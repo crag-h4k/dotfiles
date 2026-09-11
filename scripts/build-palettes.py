@@ -182,6 +182,7 @@ def to_entry(out_id, name, meta, b):
         "dark_purple": notify_tint(b["base0e"], b["base00"]),
         "dark_green": notify_tint(b["base0b"], b["base00"]),
         "dark_orange": notify_tint(b["base09"], b["base00"]),
+        "dark_yellow": notify_tint(b["base0a"], b["base00"]),
         "dark_cyan": notify_tint(b["base0c"], b["base00"]),
         "dark_pink": notify_tint(b["base0e"], b["base00"]),
     }
@@ -198,7 +199,7 @@ SEMANTIC_ORDER = ["background", "surface", "selection", "foreground", "comment",
                   "cursor", "black", "red", "green", "yellow", "blue", "purple",
                   "cyan", "white", "orange", "pink"]
 NOTIFY_ORDER = ["dark_red", "dark_purple", "dark_green", "dark_orange",
-                "dark_cyan", "dark_pink"]
+                "dark_yellow", "dark_cyan", "dark_pink"]
 
 
 def emit_yaml(entries):

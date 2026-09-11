@@ -103,3 +103,8 @@ normal plugin update does not turn the dotfiles checkout dirty.
 | [CI](docs/ci.md) | PR metadata, pre-commit, and parallel macOS/Trixie deployments |
 | [Releases](docs/releases.md) | Conventional titles, Release Please, SemVer, and deliberate publishing |
 | [Contributing](CONTRIBUTING.md) | Branches, worktrees, tests, and squash-merge rules |
+
+<!--
+command -v gum >/dev/null || { sudo apt-get update && sudo apt-get install -y gum; } && sh -c "$(curl -fsLS get.chezmoi.io)" -- init --apply crag-h4k # trixie oneliner
+command -v gum >/dev/null || brew install gum && sh -c "$(curl -fsLS get.chezmoi.io)" -- init --apply crag-h4k # macOS oneliner
+-->
