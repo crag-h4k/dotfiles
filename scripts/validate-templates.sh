@@ -23,12 +23,22 @@ IGNORE="$SOURCE_DIR/.chezmoiignore"
 CONFIG_TMPL="$SOURCE_DIR/.chezmoi.toml.tmpl"
 RUNONCE="$SOURCE_DIR/.chezmoiscripts/run_once_after_00-install.sh.tmpl"
 GIT_PERSONAL="$SOURCE_DIR/private_dot_gitconfig.personal.tmpl"
+NOTIFY_TMPL="$SOURCE_DIR/dot_config/notify/notify.yaml.tmpl"
+NOTIFY_SOUNDS="$SOURCE_DIR/dot_config/notify/sounds"
 
 command -v chezmoi >/dev/null 2>&1 || { echo "validate-templates: chezmoi not found" >&2; exit 1; }
 
 have_tomllib=0
 if python3 -c 'import tomllib' 2>/dev/null; then
     have_tomllib=1
+fi
+
+# mikefarah/yq, used to assert the rendered notify config. The notify component
+# already depends on it at runtime, so this is not a new tool; skip the structural
+# assertions rather than fail if a machine lacks it.
+have_yq=0
+if command -v yq >/dev/null 2>&1 && printf 'a: 1\n' | yq -e '.a' >/dev/null 2>&1; then
+    have_yq=1
 fi
 
 fail=0
@@ -486,6 +496,49 @@ assert_modify_codex  "$(ai_cfg true true true)" "$CODEX_BARE_TUI" true true
 # Hooks on, statusline off: no statusLine / status_line, notify hooks intact.
 assert_modify_claude "$(ai_cfg true false false)" false
 assert_modify_codex  "$(ai_cfg false true false)" "$CODEX_PLAIN" false true
+
+# --- home/dot_config/notify/notify.yaml.tmpl -------------------------------
+# Colors and sounds are indirect here: a group names a palette key and a sound
+# file, and nothing else checks that either one exists. A typo, or a key present
+# in one palette but not another, renders a config that parses fine and then
+# notifies with the wrong color or in silence. Render per palette and assert
+# every reference resolves.
+assert_notify_yaml() { # palette
+    local pal="$1" cfgdir out keys refs name bg accent sound
+    cfgdir=$(mktemp -d)
+    printf '[data]\n    palette = "%s"\n' "$pal" > "$cfgdir/chezmoi.toml"
+    if ! out=$(chezmoi execute-template --source "$REPO_DIR" --config "$cfgdir/chezmoi.toml" <"$NOTIFY_TMPL" 2>&1); then
+        echo "validate-templates: notify.yaml ($pal) failed to render" >&2
+        printf '%s\n' "$out" >&2; fail=1; rm -rf "$cfgdir"; return
+    fi
+    rm -rf "$cfgdir"
+    (( have_yq )) || return
+    if ! printf '%s' "$out" | yq -e '.' >/dev/null 2>&1; then
+        echo "validate-templates: notify.yaml ($pal) is not valid YAML" >&2; fail=1; return
+    fi
+    keys=" $(printf '%s' "$out" | yq -r '.palette | keys | .[]' | tr '\n' ' ')"
+    refs=$(printf '%s' "$out" | yq -r \
+        '[(.groups // {} | to_entries), (.integrations // {} | to_entries)] | flatten | .[]
+         | .key + " " + (.value.bg // "") + " " + (.value.accent // "") + " " + (.value.sound // "")')
+    while read -r name bg accent sound; do
+        [ -n "$name" ] || continue
+        for ref in "$bg" "$accent"; do
+            [ -n "$ref" ] || continue
+            case "$keys" in
+                *" $ref "*) ;;
+                *) echo "validate-templates: notify.yaml ($pal) group '$name' uses undefined palette key '$ref'" >&2; fail=1 ;;
+            esac
+        done
+        if [ -n "$sound" ] && [ ! -f "$NOTIFY_SOUNDS/$sound" ]; then
+            echo "validate-templates: notify.yaml ($pal) group '$name' names a missing sound '$sound'" >&2; fail=1
+        fi
+    done <<< "$refs"
+}
+
+# Two palettes, so a key that only one scheme defines is caught. The catalog is
+# generated, but the template lists palette keys by hand.
+assert_notify_yaml dracula
+assert_notify_yaml catppuccin-frappe
 
 if (( fail )); then
     exit 1

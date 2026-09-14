@@ -7,6 +7,7 @@
 - [Configuration and rendering](#configuration-and-rendering)
 - [Process notifications](#process-notifications)
 - [Claude and Codex](#claude-and-codex)
+- [OpenCode](#opencode)
 - [Debugging](#debugging)
 - [Dependencies](#dependencies)
 - [Standalone install (no chezmoi)](#standalone-install-no-chezmoi)
@@ -89,6 +90,55 @@ currently ineffective under tmux. The upstream work is tracked in
 [openai/codex#16855](https://github.com/openai/codex/issues/16855).
 
 Restart Claude or Codex after changing their hook configuration.
+
+## OpenCode
+
+OpenCode has no hook mechanism, so the bridge is a plugin:
+`~/.config/opencode/plugin/notify.ts`. One file serves both binaries. The v2
+`setup()` export subscribes to the server event stream, and the v1 `server()`
+export returns the legacy event hook. Each path feature-detects, so exactly one
+runs per binary.
+
+The plugin shells out to `~/.config/notify/opencode-events.sh`, which takes the
+verb and a group name.
+
+Unlike Claude and Codex, OpenCode splits attention into three groups, so the
+pane color says what it is waiting for:
+
+- `opencode` fires when a turn finishes, on `session.idle` for v1 and
+  `session.execution.succeeded` for v2.
+- `opencode_permission` fires when a tool is blocked on approval, on
+  `permission.updated` for v1 and `permission.asked` for v2.
+- `opencode_question` fires when the agent asks a question and cannot continue
+  until you answer, on `form.created` for v2. Integration auth forms reuse the
+  same event and also block, so they notify too.
+
+Every one of those names was confirmed by subscribing a probe plugin to a live
+session. Do not add events from the SDK type union without observing them first.
+The union advertises `session.idle`, `question.asked` and `permission.v2.asked`,
+and none of the three are emitted by the v2 beta. The question case sat broken
+for exactly this reason: the plugin listened for `question.asked`, which does
+not exist, while the real event was `form.created`.
+
+Two mistakes here fail silently, and both are guarded:
+
+- **The child gets reaped.** Attention events arrive at the moment OpenCode tears
+  down the execution. A child left in OpenCode's process group dies with it, so
+  an awaited `execFile` took a `SIGTERM` before it ever reached tmux. The plugin
+  spawns the shim with `detached: true` and calls `unref()` so it survives in its
+  own process group. Do not collapse that back into an awaited call.
+- **The pane id goes stale.** A background `opencode2 serve --service` keeps the
+  `TMUX_PANE` it first started in, which can be days old. After a tmux server
+  restart that pane is gone, but the variable is still set, so the usual
+  `-z "$TMUX_PANE"` guard passes and every notification lands nowhere. The shim
+  re-resolves the pane against the live server and skips with a warning if it no
+  longer exists. Run `opencode2 service restart` when you see that warning.
+
+Prefer `oc2`, which pins `--standalone`, so the plugin shares the pane you are
+actually sitting in. Sessions served by the shared background service inherit
+whichever pane launched it.
+
+Restart OpenCode after editing the plugin.
 
 ## Debugging
 

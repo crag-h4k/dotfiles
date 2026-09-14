@@ -117,7 +117,27 @@ repos:
         entry: scripts/validate-templates.sh
         language: script
         pass_filenames: false
-        files: ^(home/(\.chezmoiexternal\.toml|\.chezmoi(ignore|\.toml\.tmpl)|\.chezmoiscripts/run_once_after_00-install\.sh\.tmpl|dot_gitconfig|private_dot_gitconfig\.personal\.tmpl|dot_claude/modify_settings\.json\.tmpl|dot_codex/modify_private_config\.toml\.tmpl)|scripts/(confirm-install|package-plan|validate-templates)\.sh)$
+        files: ^(home/(\.chezmoiexternal\.toml|\.chezmoi(ignore|\.toml\.tmpl)|\.chezmoiscripts/run_once_after_00-install\.sh\.tmpl|dot_gitconfig|private_dot_gitconfig\.personal\.tmpl|dot_claude/modify_settings\.json\.tmpl|dot_codex/modify_private_config\.toml\.tmpl|dot_config/notify/(notify\.yaml\.tmpl|sounds/.*))|home/\.chezmoidata/palettes\.yaml|scripts/(confirm-install|package-plan|validate-templates)\.sh)$
+
+      - id: zsh-syntax
+        name: zsh syntax (zsh -n)
+        entry: scripts/zsh-syntax.sh
+        language: script
+        # ShellCheck cannot parse zsh and excludes home/dot_zsh/, so without this
+        # these files have no syntax gate at all. Templates are skipped: they are
+        # not valid zsh until chezmoi renders them.
+        files: ^home/(dot_zshrc|dot_zshenv|dot_zsh/(aliases|custom/.*\.(zsh|zsh-theme)))$
+        exclude: \.tmpl$
+
+      - id: typescript-syntax
+        name: typescript syntax (opencode plugin)
+        entry: node scripts/ts-syntax.js
+        language: node
+        additional_dependencies: ['typescript@5.7.2']
+        # The OpenCode notifier plugin is TypeScript and had no gate whatsoever:
+        # a parse error would install cleanly and only fail at runtime, inside a
+        # plugin host that swallows plugin errors. Syntax only; see the script.
+        files: ^home/dot_config/opencode/plugin/.*\.ts$
 
       - id: validate-palettes
         name: validate shared palettes render
@@ -176,10 +196,10 @@ repos:
       - id: bats-notify
         name: bats (installer + notify + statusline + render-shim + package-plan + tooling)
         entry: bats
-        args: [tests/test_confirm_install.bats, tests/test_install_gate.bats, tests/test_lib.bats, tests/test_process.bats, tests/test_statusline_command.bats, tests/test_render_modify_shim.bats, tests/test_package_plan.bats, tests/test_tooling.bats]
+        args: [tests/test_confirm_install.bats, tests/test_install_gate.bats, tests/test_lib.bats, tests/test_process.bats, tests/test_statusline_command.bats, tests/test_render_modify_shim.bats, tests/test_package_plan.bats, tests/test_tooling.bats, tests/test_opencode_events.bats]
         language: system
         pass_filenames: false
-        files: ^(\.gitignore|config/linters/gitleaks\.toml|\.pre-commit-config\.yaml|home/dot_config/notify/.*|home/dot_config/nvim/(init\.lua|lua/gitleaks\.lua)|home/dot_zsh/custom/functions/notify-process\.zsh|home/dot_claude/executable_statusline-command\.sh|scripts/(common|confirm-install|install-neovim|install-notify|install|package-plan)\.sh|home/dot_claude/modify_settings\.json\.tmpl|home/dot_codex/modify_private_config\.toml\.tmpl|tests/pty_run\.py|tests/test_(confirm_install|install_gate|lib|process|statusline_command|render_modify_shim|package_plan|tooling)\.bats|tests/fixtures/.*)$
+        files: ^(\.gitignore|config/linters/gitleaks\.toml|\.pre-commit-config\.yaml|home/dot_config/notify/.*|home/dot_config/opencode/plugin/notify\.ts|home/dot_config/nvim/(init\.lua|lua/gitleaks\.lua)|home/dot_zsh/custom/functions/notify-process\.zsh|home/dot_claude/executable_statusline-command\.sh|scripts/(common|confirm-install|install-neovim|install-notify|install|package-plan)\.sh|home/dot_claude/modify_settings\.json\.tmpl|home/dot_codex/modify_private_config\.toml\.tmpl|tests/pty_run\.py|tests/test_(confirm_install|install_gate|lib|process|statusline_command|render_modify_shim|package_plan|tooling|opencode_events)\.bats|tests/fixtures/.*)$
 
       - id: bats-tmux-startup
         name: bats (tmux startup config selection)
