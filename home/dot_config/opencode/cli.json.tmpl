@@ -1,0 +1,33 @@
+{{/*
+  ~/.config/opencode/cli.json - OpenCode 2 terminal client config.
+
+  Kept as a chezmoi template purely so this rationale can live in the source
+  without shipping to the target. cli.json is named .json, the v2 docs document
+  no .jsonc variant, and the repo's check-json pre-commit hook enforces strict
+  JSON, so the rendered file must not contain // comments.
+
+  attention: v2 ships a built-in notifications plugin that raises OS
+  notifications and plays sounds. Both are suppressed so the tmux pane/window
+  recolor (plugin/notify.ts -> ~/.config/notify/opencode-events.sh) stays the
+  single attention channel: visual, tmux-only, never popups.
+
+  Preferred over "plugins": ["*", "-opencode.notifications"], which disables the
+  whole plugin and would also take out context.attention.notify.
+
+  Not set here on purpose:
+    keybinds - v2 defaults already match nvim-cmp (ctrl+n/ctrl+p navigate, tab
+               completes, return confirms, escape dismisses), so restating them
+               would be noise.
+    prompt.paste - a rendering setting for how large pastes display, unrelated to
+               the tmux assume-paste-time fix in dot_tmux/conf.d/clipboard.conf.
+*/ -}}
+{
+  "$schema": "https://opencode.ai/v2/cli.json",
+  "theme": {
+    "name": "gud-lucent"
+  },
+  "attention": {
+    "notifications": false,
+    "sound": false
+  }
+}

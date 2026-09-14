@@ -92,7 +92,7 @@ def test_idempotent_second_run():
 
 def test_preserves_existing_tables():
     existing = (
-        '[projects."/Users/dane/work"]\n'
+        '[projects."/Users/example/work"]\n'
         'trust_level = "trusted"\n\n'
         "[tui.model_availability_nux]\n"
         '"gpt-5.5" = 1\n'
@@ -104,7 +104,7 @@ def test_preserves_existing_tables():
     assert data["tui"]["notifications"] == NOTIFS
     # Injected tui.notifications coexists with Codex's tui subtable.
     assert data["tui"]["model_availability_nux"]["gpt-5.5"] == 1
-    assert data["projects"]["/Users/dane/work"]["trust_level"] == "trusted"
+    assert data["projects"]["/Users/example/work"]["trust_level"] == "trusted"
 
 
 def test_replaces_stale_keys_without_duplicating():

@@ -67,11 +67,13 @@
 {{ end -}}
 {{/* OpenCode generic base config + notifier-bridge plugin, SHARED by both the
      opencode (v1) and opencode2 (v2 beta) sub-features (they share one
-     ~/.config/opencode/ dir), so these install when EITHER is selected. The
-     private work layer (~/.config/opencode/agents, the mcp/instructions work
-     config, and work.ts) is NOT managed by chezmoi: no source entry exists for
-     .config/opencode/agents, so chezmoi leaves those unmanaged local files
-     untouched. */}}
+     ~/.config/opencode/ dir), so these install when EITHER is selected.
+     opencode.jsonc is MERGE-managed via modify_opencode.jsonc.tmpl: chezmoi
+     asserts $schema + plugin and preserves the work-only instructions/mcp keys
+     that live in the target file, so those never reach this public repo. The
+     rest of the private work layer (~/.config/opencode/agents and work.ts) is
+     NOT managed at all: no source entry exists for .config/opencode/agents, so
+     chezmoi leaves those unmanaged local files untouched. */}}
 {{ if not (or (dig "components" "ai" "opencode" false .) (dig "components" "ai" "opencode2" false .)) -}}
 .config/opencode/opencode.jsonc
 .config/opencode/tui.json

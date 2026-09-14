@@ -10,9 +10,11 @@
 # soft-fails so a fetch problem never aborts the wider `chezmoi apply`.
 #
 # The generic config (~/.config/opencode/opencode.jsonc), theme, and notifier
-# bridge (~/.config/opencode/plugins/notify.ts) are chezmoi-managed; the private
-# work layer (agents, mcp/instructions, work.ts) is unmanaged local files this
-# script never touches.
+# bridge (~/.config/opencode/plugins/notify.ts) are chezmoi-managed. opencode.jsonc
+# is MERGED, not overwritten (home/dot_config/opencode/modify_opencode.jsonc.tmpl):
+# chezmoi asserts $schema + plugin and preserves any local instructions/mcp keys in
+# place. The rest of the private work layer (agents, work.ts) is unmanaged local
+# files this script never touches.
 set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"

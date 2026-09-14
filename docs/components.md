@@ -82,10 +82,10 @@ Git is in the default component set. AI and terminal configuration are opt-in.
 | `ai` | `claude_hooks` | `~/.claude/settings.json` (merge) | off | merges the Claude notify hooks |
 | `ai` | `codex_hooks` | `~/.codex/config.toml` (merge) | off | merges the Codex notify hook + `tui.notifications` |
 | `ai` | `statusline` | `~/.claude/settings.json` + `~/.codex/config.toml` (merge) | off | Claude renderer plus a matching selected-palette Codex theme; keeps those files managed even when notify hooks are off; not enabled by `all` or `all+` |
-| `ai` | `opencode` | OpenCode CLI (`opencode-ai` npm) + generic config + tmux notifier bridge | off | pinned npm binary into `~/.local`; not enabled by `all` or `all+` |
+| `ai` | `opencode` | OpenCode CLI (`opencode-ai` npm) + generic config (merge) + tmux notifier bridge | off | pinned npm binary into `~/.local`; `~/.config/opencode/opencode.jsonc` is merge-managed - chezmoi asserts `$schema` + `plugin`, seeds `permission` only on a host that has none, and preserves every other top-level key (`instructions`, `mcp`) and its comments verbatim, so machine-local entries never reach this repo; not enabled by `all` or `all+` |
 | `ai` | `copilot` | GitHub Copilot CLI (`@github/copilot` npm, `prerelease` tag) | off | npm-only channel (no Homebrew/apt); binary into `~/.local`; needs Node 22+; not enabled by `all` or `all+` |
 | `ai` | `codecompanion` | CodeCompanion.nvim + `claude-agent-acp` bridge | on (within the `ai` submenu, if `ai` is picked) | heaviest sub-feature - pulls in node, npm, and the npm-installed bridge; listed near the end for that reason |
-| `ai` | `opencode2` | OpenCode v2 beta CLI (`@opencode/cli` npm, `beta` tag) + shared generic config + `gud-lucent` theme | off | side-by-side `opencode2` binary sharing v1's `~/.config/opencode`; shares the generic base/notifier gate with `opencode`; not enabled by `all` or `all+` |
+| `ai` | `opencode2` | OpenCode v2 beta CLI (`@opencode/cli` npm, `beta` tag) + shared generic config (merge) + `gud-lucent` theme | off | side-by-side `opencode2` binary sharing v1's `~/.config/opencode`; shares the generic base/notifier gate with `opencode`, including the merge-managed `opencode.jsonc`; not enabled by `all` or `all+` |
 | `terminal` | `ghostty` | Ghostty config + quick-terminal dropdown | on | macOS and Linux |
 | `terminal` | `iterm2` | iTerm2 Dynamic Profiles | off | macOS only; hidden in the submenu on non-macOS (data key still emitted for column parity), also gated in `home/.chezmoiignore` |
 

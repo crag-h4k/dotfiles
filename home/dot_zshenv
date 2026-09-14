@@ -12,6 +12,12 @@ export MODULAR_HOME=$HOME/.modular
 export PATH=$MAX_PATH/bin:$PATH
 
 export LANG="en_US.UTF-8"
+# EDITOR/VISUAL belong in zshenv, not zshrc: git commit, `fc`, and every
+# edit-in-editor affordance (including OpenCode's compose-in-editor, which is the
+# only reliable workaround for the OpenTUI multi-line paste bug) run from
+# non-interactive shells that never source zshrc.
+export EDITOR=nvim
+export VISUAL=nvim
 # GPG_TTY moved to .zshrc (interactive only): $(tty) is meaningless for the
 # non-interactive shells that also source .zshenv. TERM is left to the
 # terminal emulator / tmux to negotiate (tmux.conf sets tmux-256color).
