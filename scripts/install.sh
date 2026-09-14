@@ -31,6 +31,18 @@ INSTALL_AI_CODECOMPANION="${INSTALL_AI_CODECOMPANION:-false}"
 # home/.chezmoiignore; this var gates only the runtime deps (jq + python3) the
 # statusline shells out to.
 INSTALL_AI_STATUSLINE="${INSTALL_AI_STATUSLINE:-false}"
+# OpenCode CLI (opt-in, off by default). The generic config + notifier bridge are
+# file-gated in home/.chezmoiignore; this var gates the binary install
+# (scripts/install-opencode.sh).
+INSTALL_AI_OPENCODE="${INSTALL_AI_OPENCODE:-false}"
+# OpenCode v2 beta CLI (opt-in, off by default). Shares the generic config +
+# notifier bridge (file-gated with opencode in home/.chezmoiignore); this var
+# gates the binary install (scripts/install-opencode2.sh).
+INSTALL_AI_OPENCODE2="${INSTALL_AI_OPENCODE2:-false}"
+# GitHub Copilot CLI (opt-in, off by default). npm @github/copilot into the
+# ~/.local prefix (scripts/install-copilot.sh). No config to file-gate; this var
+# gates only the binary install.
+INSTALL_AI_COPILOT="${INSTALL_AI_COPILOT:-false}"
 # Shared notify runtime. AI-hook-only hosts still need notify.yaml, lib.sh, and
 # mikefarah yq even when neither Zsh nor tmux is selected as a component.
 INSTALL_NOTIFY="${INSTALL_NOTIFY:-false}"
@@ -51,7 +63,7 @@ main() {
     local os
     os=$(os_detect)
     info "dotfiles installer: platform=$os"
-    info "components: zsh=$INSTALL_ZSH tmux=$INSTALL_TMUX neovim=$INSTALL_NEOVIM ai.codecompanion=$INSTALL_AI_CODECOMPANION notify=$INSTALL_NOTIFY terminal.ghostty=$INSTALL_TERMINAL_GHOSTTY terminal.iterm2=$INSTALL_TERMINAL_ITERM2"
+    info "components: zsh=$INSTALL_ZSH tmux=$INSTALL_TMUX neovim=$INSTALL_NEOVIM ai.codecompanion=$INSTALL_AI_CODECOMPANION ai.opencode=$INSTALL_AI_OPENCODE ai.opencode2=$INSTALL_AI_OPENCODE2 ai.copilot=$INSTALL_AI_COPILOT notify=$INSTALL_NOTIFY terminal.ghostty=$INSTALL_TERMINAL_GHOSTTY terminal.iterm2=$INSTALL_TERMINAL_ITERM2"
 
     # Confirm before any package-manager mutation. Decline degrades to the same
     # configs-only tail this function already runs for `configs` mode, for THIS
@@ -150,6 +162,9 @@ main() {
         ensure_chezmoi
         [[ "$INSTALL_ZSH" == true ]] && bash "$SCRIPT_DIR/install-zsh.sh"
         [[ "$INSTALL_NEOVIM" == true ]] && bash "$SCRIPT_DIR/install-neovim.sh"
+        [[ "$INSTALL_AI_OPENCODE" == true ]] && INSTALL_AI_OPENCODE=true bash "$SCRIPT_DIR/install-opencode.sh"
+        [[ "$INSTALL_AI_OPENCODE2" == true ]] && { INSTALL_AI_OPENCODE2=true bash "$SCRIPT_DIR/install-opencode2.sh" || warn "opencode2 install step failed; continuing"; }
+        [[ "$INSTALL_AI_COPILOT" == true ]] && INSTALL_AI_COPILOT=true bash "$SCRIPT_DIR/install-copilot.sh"
         local pkg_elapsed=$(( SECONDS - pkg_started ))
         info "packages: installed/updated in ${pkg_elapsed}s"
     else

@@ -124,7 +124,7 @@ repos:
         entry: scripts/validate-palettes.sh
         language: script
         pass_filenames: false
-        files: ^home/(\.chezmoidata/palettes\.yaml|dot_(config/(ghostty|iterm2|notify|nvim|statusline)|tmux/conf\.d|codex/themes|zsh/theme).*)$
+        files: ^home/(\.chezmoidata/palettes\.yaml|dot_(config/(ghostty|iterm2|notify|nvim|opencode|statusline)|tmux/conf\.d|codex/themes|zsh/theme).*)$
 
       - id: build-palettes-check
         name: palette catalog matches base16 schemes
@@ -156,6 +156,15 @@ repos:
         language: system
         pass_filenames: false
         files: ^(home/dot_codex/modify_private_config\.toml\.tmpl|tests/test_merge_codex_config\.py)$
+
+      # json5 gives the suite a JSONC-tolerant parse, so the merged output is
+      # validated structurally rather than by grepping for braces.
+      - id: pytest-merge-opencode
+        name: pytest opencode (modify_opencode.jsonc.tmpl)
+        entry: uv run --with pytest --with json5 pytest tests/test_merge_opencode_config.py -v
+        language: system
+        pass_filenames: false
+        files: ^(home/dot_config/opencode/modify_opencode\.jsonc\.tmpl|tests/test_merge_opencode_config\.py)$
 
       - id: pytest-statusline-tokens
         name: pytest statusline (statusline-tokens.py)

@@ -99,3 +99,36 @@ STUB
   [ "$(grep -c 'list --formula' "$log")" -eq 1 ]
   [ "$(grep -c 'list --cask' "$log")" -eq 1 ]
 }
+
+@test "opencode2 alone plans @opencode/cli AND the Node runtime (macOS)" {
+  # Node-dependent AI feature without neovim must still plan node (provides npm),
+  # else install-opencode2.sh finds no npm and soft-fails silently.
+  run env DOTFILES_PLAN_OS=macos DOTFILES_PLAN_ASSUME_MISSING=1 \
+    INSTALL_AI_OPENCODE2=true bash "$PLANNER" --records
+  [ "$status" -eq 0 ]
+  [[ "$output" == *$'npm\t@opencode/cli\tplanned\t'* ]]
+  [[ "$output" == *$'brew-formula\tnode\tplanned\t'* ]]
+}
+
+@test "opencode2 alone plans @opencode/cli AND the Node runtime (Debian)" {
+  run env DOTFILES_PLAN_OS=debian DOTFILES_PLAN_ASSUME_MISSING=1 \
+    INSTALL_AI_OPENCODE2=true bash "$PLANNER" --records
+  [ "$status" -eq 0 ]
+  [[ "$output" == *$'npm\t@opencode/cli\tplanned\t'* ]]
+  [[ "$output" == *$'apt\tnodejs\tplanned\t'* ]]
+}
+
+@test "copilot alone also plans the Node runtime (latent case fixed)" {
+  run env DOTFILES_PLAN_OS=macos DOTFILES_PLAN_ASSUME_MISSING=1 \
+    INSTALL_AI_COPILOT=true bash "$PLANNER" --records
+  [ "$status" -eq 0 ]
+  [[ "$output" == *$'npm\t@github/copilot\tplanned\t'* ]]
+  [[ "$output" == *$'brew-formula\tnode\tplanned\t'* ]]
+}
+
+@test "opencode2 off keeps @opencode/cli out of the plan" {
+  run env DOTFILES_PLAN_OS=macos DOTFILES_PLAN_ASSUME_MISSING=1 \
+    INSTALL_ZSH=true INSTALL_TMUX=true INSTALL_NEOVIM=true bash "$PLANNER" --records
+  [ "$status" -eq 0 ]
+  [[ "$output" != *'@opencode/cli'* ]]
+}

@@ -45,7 +45,7 @@ parse_toml() {
 # Render home/.chezmoi.toml.tmpl with componentSelection (and optionally gitSelection
 # / aiSelection / terminalSelection) pre-seeded, then echo the component booleans
 # in the fixed column order:
-#   zsh tmux neovim  git.config git.personal git.ignore_global  ai.codecompanion ai.claude_hooks ai.codex_hooks ai.statusline  terminal.ghostty terminal.iterm2
+#   zsh tmux neovim  git.config git.personal git.ignore_global  ai.codecompanion ai.claude_hooks ai.codex_hooks ai.statusline ai.opencode ai.copilot  terminal.ghostty terminal.iterm2
 # zsh/tmux/neovim are bare [data.components] bools; the rest live in the nested
 # [data.components.git] / [data.components.ai] / [data.components.terminal] tables.
 # terminal.ghostty/terminal.iterm2 are emitted for BOTH OSes (the .chezmoi.os gate
@@ -78,7 +78,7 @@ render_components() {
     fi
     # Pull the booleans out by key name (each is unique across the rendered
     # config), so reordering the lists later does not silently break assertions.
-    local zsh tmux neovim gconfig gpersonal gignore aicc aihooks aicodex aistatus ghostty iterm2
+    local zsh tmux neovim gconfig gpersonal gignore aicc aihooks aicodex aistatus aiopencode aicopilot ghostty iterm2
     zsh=$(printf '%s\n' "$out" | sed -n 's/^[[:space:]]*zsh = \(.*\)$/\1/p')
     tmux=$(printf '%s\n' "$out" | sed -n 's/^[[:space:]]*tmux = \(.*\)$/\1/p')
     neovim=$(printf '%s\n' "$out" | sed -n 's/^[[:space:]]*neovim = \(.*\)$/\1/p')
@@ -89,10 +89,12 @@ render_components() {
     aihooks=$(printf '%s\n' "$out" | sed -n 's/^[[:space:]]*claude_hooks = \(.*\)$/\1/p')
     aicodex=$(printf '%s\n' "$out" | sed -n 's/^[[:space:]]*codex_hooks = \(.*\)$/\1/p')
     aistatus=$(printf '%s\n' "$out" | sed -n 's/^[[:space:]]*statusline = \(.*\)$/\1/p')
+    aiopencode=$(printf '%s\n' "$out" | sed -n 's/^[[:space:]]*opencode = \(.*\)$/\1/p')
+    aicopilot=$(printf '%s\n' "$out" | sed -n 's/^[[:space:]]*copilot = \(.*\)$/\1/p')
     ghostty=$(printf '%s\n' "$out" | sed -n 's/^[[:space:]]*ghostty = \(.*\)$/\1/p')
     iterm2=$(printf '%s\n' "$out" | sed -n 's/^[[:space:]]*iterm2 = \(.*\)$/\1/p')
-    printf '%s %s %s %s %s %s %s %s %s %s %s %s' \
-        "$zsh" "$tmux" "$neovim" "$gconfig" "$gpersonal" "$gignore" "$aicc" "$aihooks" "$aicodex" "$aistatus" "$ghostty" "$iterm2"
+    printf '%s %s %s %s %s %s %s %s %s %s %s %s %s %s' \
+        "$zsh" "$tmux" "$neovim" "$gconfig" "$gpersonal" "$gignore" "$aicc" "$aihooks" "$aicodex" "$aistatus" "$aiopencode" "$aicopilot" "$ghostty" "$iterm2"
 }
 
 # bool "true" if digit d (1..5) is present in the numeric string, else "false".
@@ -103,7 +105,7 @@ has_digit() {
     esac
 }
 
-COLS="zsh tmux neovim git.config git.personal git.ignore_global ai.codecompanion ai.claude_hooks ai.codex_hooks ai.statusline terminal.ghostty terminal.iterm2"
+COLS="zsh tmux neovim git.config git.personal git.ignore_global ai.codecompanion ai.claude_hooks ai.codex_hooks ai.statusline ai.opencode ai.copilot terminal.ghostty terminal.iterm2"
 
 # Assert a selection WITHOUT a sub-seed renders the expected top-level state.
 # The git/ai/terminal PARENTS map to their default sub-feature (git.ignore_global /
@@ -113,7 +115,7 @@ COLS="zsh tmux neovim git.config git.personal git.ignore_global ai.codecompanion
 # (egit=git.ignore_global, eai=ai.codecompanion, eghostty=terminal.ghostty when the
 # respective parent is on; eiterm2 stays off without an explicit sub-seed.)
 assert_top() {
-    local selection="$1" want="$2 $3 $4 false false $5 $6 false false false $7 $8" got
+    local selection="$1" want="$2 $3 $4 false false $5 $6 false false false false false $7 $8" got
     got=$(render_components "$selection") || {
         echo "validate-templates: FAILED to render/parse (sel='$selection'): $got" >&2
         fail=1
@@ -129,12 +131,12 @@ assert_top() {
 }
 
 # Assert a selection WITH explicit sub-selections renders the expected booleans.
-# Args: selection gitSel aiSel termSel  e1..e12 (in COLS order). Pass an empty
+# Args: selection gitSel aiSel termSel  e1..e14 (in COLS order). Pass an empty
 # seed ("") for any sub-menu you are not exercising.
 assert_sub() {
     local selection="$1" gitsel="$2" aisel="$3" termsel="$4"
     shift 4
-    local want="$1 $2 $3 $4 $5 $6 $7 $8 $9 ${10} ${11} ${12}" got
+    local want="$1 $2 $3 $4 $5 $6 $7 $8 $9 ${10} ${11} ${12} ${13} ${14}" got
     got=$(render_components "$selection" "$gitsel" "$aisel" "$termsel") || {
         echo "validate-templates: FAILED to render/parse (sel='$selection' git='$gitsel' ai='$aisel' term='$termsel'): $got" >&2
         fail=1
@@ -211,27 +213,61 @@ assert_top "1 6" true  false false false false true  false
 # git parent on (4) with explicit sub-selection, by key and by number; overrides
 # the ignore_global default. ai parent on (5) likewise; terminal parent on (6)
 # below. The 4th assert_sub arg is the terminalSelection seed ("" = none). Columns
-# are the full 12 in COLS order, ending terminal.ghostty terminal.iterm2.
-assert_sub "4"   "config personal" "" "" false false false  true  true  false  false false false false  false false
-assert_sub "4"   "1 3"             "" "" false false false  true  false true   false false false false  false false
-assert_sub "3 5" "" "codecompanion claude_hooks" ""  false false true  false false false  true  true  false false  false false
-assert_sub "3 5" "" "codecompanion codex_hooks"  ""  false false true  false false false  true  false true  false  false false
-assert_sub "3 5" "" "statusline"                 ""  false false true  false false false  false false false true  false false
-assert_sub "4 5" "config" "claude_hooks"         ""  false false false  true  false false  false true  false false  false false
+# are the full 14 in COLS order: the ai group is codecompanion claude_hooks
+# codex_hooks statusline opencode copilot, ending terminal.ghostty terminal.iterm2.
+assert_sub "4"   "config personal" "" "" false false false  true  true  false  false false false false false false  false false
+assert_sub "4"   "1 3"             "" "" false false false  true  false true   false false false false false false  false false
+assert_sub "3 5" "" "codecompanion claude_hooks" ""  false false true  false false false  true  true  false false false false  false false
+assert_sub "3 5" "" "codecompanion codex_hooks"  ""  false false true  false false false  true  false true  false false false  false false
+assert_sub "3 5" "" "statusline"                 ""  false false true  false false false  false false false true  false false  false false
+# ai parent on (5) with the opencode sub-feature only: opt-in, off by default, so
+# this is its dedicated on-path (codecompanion, the ai default sub, stays off).
+assert_sub "5"   "" "opencode"                   ""  false false false  false false false  false false false false true false  false false
+# ai parent on (5) with the copilot sub-feature only: opt-in npm CLI binary like
+# opencode, off by default; its dedicated on-path (codecompanion stays off).
+assert_sub "5"   "" "copilot"                    ""  false false false  false false false  false false false false false true  false false
+assert_sub "4 5" "config" "claude_hooks"         ""  false false false  true  false false  false true  false false false false  false false
 # gum submenu output is stored as the leading key plus visible label text on
 # older-compatible gum builds, so resolving by key containment must keep working.
 assert_sub "4 5" "config - ~/.gitconfig" "codecompanion - CodeCompanion.nvim assistant (needs neovim)" "" \
-    false false false  true false false  true false false false  false false
+    false false false  true false false  true false false false false false  false false
 
 # terminal parent on (6) with explicit sub-selection, by key and by number.
 # ghostty is the default; iterm2 is added only when explicitly selected. iterm2's
 # data key is emitted on every OS (the .chezmoi.os gate lives in the file layer,
 # not the data keys), so these assert identically on macOS pre-commit and Linux CI.
-assert_sub "6"   "" "" "ghostty iterm2"  false false false  false false false  false false false false  true  true
-assert_sub "6"   "" "" "iterm2"          false false false  false false false  false false false false  false true
-assert_sub "6"   "" "" "1 2"             false false false  false false false  false false false false  true  true
-assert_sub "6"   "" "" "2"               false false false  false false false  false false false false  false true
-assert_sub "1 6" "" "" "ghostty"         true  false false  false false false  false false false false  true  false
+assert_sub "6"   "" "" "ghostty iterm2"  false false false  false false false  false false false false false false  true  true
+assert_sub "6"   "" "" "iterm2"          false false false  false false false  false false false false false false  false true
+assert_sub "6"   "" "" "1 2"             false false false  false false false  false false false false false false  true  true
+assert_sub "6"   "" "" "2"               false false false  false false false  false false false false false false  false true
+assert_sub "1 6" "" "" "ghostty"         true  false false  false false false  false false false false false false  true  false
+
+# --- ai submenu whole-token resolution (opencode2 collision guard) ----------
+# opencode2's key superstrings "opencode" and its num (2) is a substring of the
+# key text, so the sub-feature resolver must match whole tokens, not substrings.
+# Selecting one ai sub-feature must enable exactly that one. This is the
+# regression guard for the substring->token fix in the resolver.
+assert_ai_only() { # aiSelection expected_on_key
+    local aisel="$1" want_key="$2" out cfgdir key val
+    cfgdir=$(mktemp -d)
+    printf '[data]\n    componentSelection = "5"\n    aiSelection = "%s"\n' "$aisel" >"$cfgdir/chezmoi.toml"
+    if ! out=$(chezmoi execute-template --init --source "$REPO_DIR" --config "$cfgdir/chezmoi.toml" <"$CONFIG_TMPL" 2>&1); then
+        echo "validate-templates: ai-only render FAILED (ai='$aisel'): $out" >&2
+        fail=1; rm -rf "$cfgdir"; return
+    fi
+    rm -rf "$cfgdir"
+    for key in claude_hooks codex_hooks statusline opencode copilot codecompanion opencode2; do
+        val=$(printf '%s\n' "$out" | sed -n "s/^[[:space:]]*${key} = \\(.*\\)\$/\\1/p")
+        if [[ "$key" == "$want_key" ]]; then
+            [[ "$val" == true ]] || { echo "validate-templates: ai '$aisel' expected $key=true, got '$val'" >&2; fail=1; }
+        else
+            [[ "$val" == false ]] || { echo "validate-templates: ai '$aisel' expected $key=false, got '$val' (substring false-match?)" >&2; fail=1; }
+        fi
+    done
+}
+assert_ai_only "opencode2"    "opencode2"
+assert_ai_only "opencode"     "opencode"
+assert_ai_only "codex_hooks"  "codex_hooks"
 
 # --- home/.chezmoiexternal.toml: render + parse under each component combo --
 # The externals file only branches on zsh and tmux, so vary those two and pin

@@ -36,7 +36,7 @@ Components to install:
   2) tmux         tmux + plugins (tpm, resurrect, sensible, yank)
   3) neovim       neovim, lazy.nvim, language servers, linters
   4) git          git config files (config, personal, ignore_global)
-  5) ai           AI tools (claude_hooks, codex_hooks, statusline, codecompanion)
+  5) ai           AI tools (claude_hooks, codex_hooks, statusline, opencode, copilot, codecompanion, opencode2)
   6) terminal     terminal emulator config (ghostty, iterm2)
   7) colorscheme  re-pick the shared color scheme (unchecked keeps the current one)
   8) install_mode re-choose packages vs configs (unchecked keeps the current one)
@@ -82,7 +82,10 @@ Git is in the default component set. AI and terminal configuration are opt-in.
 | `ai` | `claude_hooks` | `~/.claude/settings.json` (merge) | off | merges the Claude notify hooks |
 | `ai` | `codex_hooks` | `~/.codex/config.toml` (merge) | off | merges the Codex notify hook + `tui.notifications` |
 | `ai` | `statusline` | `~/.claude/settings.json` + `~/.codex/config.toml` (merge) | off | Claude renderer plus a matching selected-palette Codex theme; keeps those files managed even when notify hooks are off; not enabled by `all` or `all+` |
-| `ai` | `codecompanion` | CodeCompanion.nvim + `claude-agent-acp` bridge | on (within the `ai` submenu, if `ai` is picked) | heaviest sub-feature - pulls in node, npm, and the npm-installed bridge; listed last for that reason |
+| `ai` | `opencode` | OpenCode CLI (`opencode-ai` npm) + generic config (merge) + tmux notifier bridge | off | pinned npm binary into `~/.local`; `~/.config/opencode/opencode.jsonc` is merge-managed - chezmoi asserts `$schema` + `plugin`, seeds `permission` only on a host that has none, and preserves every other top-level key (`instructions`, `mcp`) and its comments verbatim, so machine-local entries never reach this repo; not enabled by `all` or `all+` |
+| `ai` | `copilot` | GitHub Copilot CLI (`@github/copilot` npm, `prerelease` tag) | off | npm-only channel (no Homebrew/apt); binary into `~/.local`; needs Node 22+; not enabled by `all` or `all+` |
+| `ai` | `codecompanion` | CodeCompanion.nvim + `claude-agent-acp` bridge | on (within the `ai` submenu, if `ai` is picked) | heaviest sub-feature - pulls in node, npm, and the npm-installed bridge; listed near the end for that reason |
+| `ai` | `opencode2` | OpenCode v2 beta CLI (`@opencode/cli` npm, `beta` tag) + shared generic config (merge) + `gud-lucent` theme | off | side-by-side `opencode2` binary sharing v1's `~/.config/opencode`; shares the generic base/notifier gate with `opencode`, including the merge-managed `opencode.jsonc`; not enabled by `all` or `all+` |
 | `terminal` | `ghostty` | Ghostty config + quick-terminal dropdown | on | macOS and Linux |
 | `terminal` | `iterm2` | iTerm2 Dynamic Profiles | off | macOS only; hidden in the submenu on non-macOS (data key still emitted for column parity), also gated in `home/.chezmoiignore` |
 
@@ -102,6 +105,18 @@ file to toggle the plugin on one host without re-running init.
 
 The npm-installed `claude-agent-acp` bridge lives in `~/.local/bin` and reuses
 the existing Claude login. CodeCompanion does nothing without Neovim.
+
+The npm-based AI CLIs (`opencode`, `opencode2`, and `copilot`) and the
+`claude-agent-acp` bridge all need a Node runtime, so selecting any of them plans
+Node and npm automatically; you do not also have to select Neovim. On Debian, the
+Node 24 (NodeSource) build still ships with the Neovim component, so an AI-only
+selection installs Debian's packaged Node, which is enough to provide npm.
+
+Those CLIs install into `~/.local/bin` and are reachable by name only through the
+`zsh` component, which puts `~/.local/bin` on `PATH` (via `~/.zshenv`) and defines
+the `oc` / `oc2` / `oc2bg` aliases. With `zsh` deselected the binaries install but
+are not on `PATH` by name and have no aliases; add `~/.local/bin` to `PATH`
+yourself or run them by full path.
 
 An unselected component is excluded twice. Its targets are ignored by
 `home/.chezmoiignore`, and its externals disappear from

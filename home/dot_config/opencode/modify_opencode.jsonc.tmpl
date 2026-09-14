@@ -1,0 +1,372 @@
+#!/usr/bin/env python3
+# chezmoi modify_ template for ~/.config/opencode/opencode.jsonc.
+# Rendered by chezmoi (Go template) into a Python merge script, then run with the
+# current file on stdin; the merged result is emitted on stdout. Merge-only and
+# idempotent across repeated `chezmoi apply` runs.
+#
+# opencode.jsonc is JSONC and its comments are load-bearing (the per-plugin
+# supply-chain audit, the cc-safety-net fails-OPEN warning, the permission
+# rationale), so this follows dot_codex/modify_private_config.toml.tmpl and does
+# LINE-LEVEL surgery. It never json.loads/json.dumps the target: a round trip
+# through the json module would silently delete every comment in the file.
+#
+# Ownership boundary:
+#   OWNED  - re-asserted on every apply: the file header comment, "$schema", and
+#            the "plugin" array (with its audit comments). A local edit to those
+#            is reverted, so plugin pins stay reviewed in the repo.
+#   SEEDED - written once, only when the incoming file has no "permission" key at
+#            all (fresh host, or empty stdin), so a new machine is not unguarded.
+#            An existing "permission" block is left completely alone, comments
+#            included; the permission set is deliberately unmanaged after seeding.
+#   KEPT   - copied through verbatim, comments included: every other top-level
+#            key, in its original order. That is how machine-local "instructions"
+#            and "mcp" entries live in the target file without ever reaching the
+#            public dotfiles repo.
+#
+# Comment attachment: a `//` run directly above a key (no blank line between)
+# belongs to that key and moves or dies with it. Separate a comment from the key
+# below it with a blank line if you want it treated as free-standing.
+#
+# Safety: if the incoming file is non-empty but cannot be walked as a
+# line-oriented JSONC object (no root object, or a top-level key that does not
+# start its own line), the input is emitted unchanged and a warning goes to
+# stderr. Never destroy a hand-edited target, never block the rest of the apply.
+#
+# There is no component gate in here; the file is gated wholesale in
+# home/.chezmoiignore under (ai > opencode) OR (ai > opencode2). It stays a .tmpl
+# for parity with the other two modify_ scripts, and so a gate can be added later.
+import bisect
+import sys
+
+HEADER = """\
+// ~/.config/opencode/opencode.jsonc
+// Generic OpenCode base config. Provider-portable: no model/provider is pinned
+// here, so switching backends is a runtime choice (`opencode auth login` to
+// connect a provider, `/models` to pick the active model), not a config edit.
+//
+// MERGED, NOT OVERWRITTEN. chezmoi maintains this file through the modify_
+// script home/dot_config/opencode/modify_opencode.jsonc.tmpl. It owns only the
+// header above, "$schema", and "plugin", which it re-asserts on every apply;
+// every other top-level key is copied through verbatim, comments included.
+// Machine-local keys ("instructions", "mcp", host-specific subagents) belong
+// here in the target file and never reach the dotfiles repo.
+//
+// "permission" is seeded once, on a host that has no permission key yet, so a
+// new machine is not unguarded. After that it is yours to edit; chezmoi will not
+// touch it again.
+//
+// The color theme is set in tui.json (a top-level "theme" here is legacy and is
+// stripped on load); the custom "gud" theme lives in ./themes/gud.json."""
+
+# The owned body. Kept as literal text, not as data, so the audit comments are
+# part of what gets asserted rather than something a serializer can drop.
+OWNED = """\
+  "$schema": "https://opencode.ai/config.json",
+
+  // Third-party TUI plugins, EXACT-pinned. Each runs arbitrary TypeScript at
+  // startup with the Bun shell + SDK client, so treat every entry as a
+  // code-reviewed dependency and re-review on each version bump. Bun auto-installs
+  // them into ~/.cache/opencode/node_modules. Both require the 1.x plugin SDK.
+  //   opencode-vim-plugin - inline modal (vim) editing in the prompt input.
+  //   opencode-quota      - token/cost/quota readout (the /usage + /context gap).
+  "plugin": [
+    // TEMP-DISABLED to test the paste regression: a modal editor intercepts
+    // keystrokes, so pasted multi-line text gets run as vim commands - the most
+    // likely paste-mangle cause. Re-enable (or switch to $EDITOR/Ctrl+X e) after.
+    // "@leohenon/opencode-vim-plugin@0.1.6",
+    "@slkiser/opencode-quota@4.9.0",
+    // Dynamic context pruning: trims stale tool outputs to cut token spend on the
+    // metered Copilot backend. AGPL-3.0 (local-use only; policy check accepted).
+    "@tarquinen/opencode-dcp@3.1.15",
+    // Pre-execution guard: blocks destructive git/fs commands + sensitive-file
+    // reads via tool.execute.before. Audited @2.3.4: offline at runtime, no
+    // telemetry, add-only rules (cannot disable catastrophic protection). Install
+    // the terraform/aws/azure rulebooks and run `npx cc-safety-net doctor` (it
+    // fails OPEN silently on a broken config) for full coverage.
+    "cc-safety-net@2.3.4"
+  ]"""
+
+# Seed-only. Written just once, when the target carries no "permission" key.
+# Kept byte-identical to the block a seeded host ends up with, so a fresh machine
+# and an existing one converge on the same file instead of drifting by a comment.
+SEED_PERMISSION = """\
+  // Permission model: edit asks before writing (approve-on-write), webfetch is
+  // allowed. bash is a pattern -> action map; the last matching rule wins, so the
+  // catch-all "*": "ask" comes first and the linter/test allowlist follows.
+  // Every pattern here is a generic, widely-used linter, formatter, test runner,
+  // or the pre-commit driver.
+  "permission": {
+    "edit": "ask",
+    "webfetch": "allow",
+    "bash": {
+      "*": "ask",
+      "pre-commit *": "allow",
+      "shellcheck *": "allow",
+      "markdownlint *": "allow",
+      "markdownlint-cli2 *": "allow",
+      "bats *": "allow",
+      "luacheck *": "allow",
+      "ruff *": "allow",
+      "flake8 *": "allow",
+      "black *": "allow",
+      "yamllint *": "allow",
+      "actionlint *": "allow",
+      "stylua *": "allow",
+      "tflint *": "allow",
+      "tfsec *": "allow",
+      "checkov *": "allow",
+      "golangci-lint *": "allow",
+      "go test *": "allow",
+      "go vet *": "allow",
+      "pytest *": "allow",
+      "eslint *": "allow",
+      "prettier *": "allow"
+    }
+  }"""
+
+OWNED_KEYS = ("$schema", "plugin")
+
+
+def warn(msg):
+    sys.stderr.write("modify_opencode.jsonc: %s\n" % msg)
+
+
+def skip_ws_comments(text, i):
+    """Advance past whitespace and JSONC comments starting at i."""
+    n = len(text)
+    while i < n:
+        c = text[i]
+        if c.isspace():
+            i += 1
+            continue
+        if c == "/" and i + 1 < n:
+            if text[i + 1] == "/":
+                j = text.find("\n", i)
+                i = n if j < 0 else j + 1
+                continue
+            if text[i + 1] == "*":
+                j = text.find("*/", i + 2)
+                i = n if j < 0 else j + 2
+                continue
+        break
+    return i
+
+
+def scan(text):
+    """Locate the root object and its top-level entries.
+
+    Returns (root_open, root_close, entries) as character offsets. Each entry is
+    {name, start, end, sep}: start is the opening quote of the key, sep is the
+    separating comma (None for the last entry), end is where the entry's value
+    stops. Strings and comments are skipped as units, so a `//` inside a URL and
+    a `,` inside a nested object are never mistaken for structure.
+    """
+    n = len(text)
+    i = 0
+    depth = 0
+    root_open = root_close = None
+    entries = []
+    cur = None
+    while i < n:
+        c = text[i]
+        if c == "/" and i + 1 < n and text[i + 1] == "/":
+            j = text.find("\n", i)
+            i = n if j < 0 else j
+            continue
+        if c == "/" and i + 1 < n and text[i + 1] == "*":
+            j = text.find("*/", i + 2)
+            i = n if j < 0 else j + 2
+            continue
+        if c == '"':
+            j = i + 1
+            while j < n:
+                if text[j] == "\\":
+                    j += 2
+                    continue
+                if text[j] == '"':
+                    break
+                j += 1
+            # A string at depth 1 followed by `:` is a top-level key. A top-level
+            # string VALUE sits at the same depth but is followed by `,` or `}`.
+            if depth == 1 and root_open is not None and root_close is None:
+                k = skip_ws_comments(text, j + 1)
+                if k < n and text[k] == ":":
+                    cur = {"name": text[i + 1:j], "start": i, "end": None, "sep": None}
+                    entries.append(cur)
+            i = j + 1
+            continue
+        if c in "{[":
+            if depth == 0 and c == "{" and root_open is None:
+                root_open = i
+            depth += 1
+            i += 1
+            continue
+        if c in "}]":
+            depth -= 1
+            if depth == 0 and c == "}" and root_open is not None and root_close is None:
+                root_close = i
+                if cur is not None and cur["end"] is None:
+                    cur["end"] = i
+                    cur = None
+            i += 1
+            continue
+        if c == "," and depth == 1 and root_open is not None and root_close is None:
+            if cur is not None and cur["end"] is None:
+                cur["end"] = i
+                cur["sep"] = i
+                cur = None
+            i += 1
+            continue
+        i += 1
+    return root_open, root_close, entries
+
+
+def split_line_comment(line):
+    """Split one line into (code, comment); `//` inside a string stays in code."""
+    in_str = False
+    i = 0
+    n = len(line)
+    while i < n:
+        c = line[i]
+        if in_str:
+            if c == "\\":
+                i += 2
+                continue
+            if c == '"':
+                in_str = False
+            i += 1
+            continue
+        if c == '"':
+            in_str = True
+            i += 1
+            continue
+        if c == "/" and i + 1 < n and line[i + 1] == "/":
+            return line[:i], line[i:]
+        i += 1
+    return line, ""
+
+
+def set_trailing_comma(block, want):
+    """Add or remove the trailing comma on a block's last code line, in place."""
+    for i in range(len(block) - 1, -1, -1):
+        code, comment = split_line_comment(block[i])
+        if not code.strip():
+            continue
+        stripped = code.rstrip()
+        gap = code[len(stripped):] if comment else ""
+        if stripped.endswith(","):
+            if not want:
+                stripped = stripped[:-1].rstrip()
+        elif want:
+            stripped += ","
+        block[i] = stripped + gap + comment
+        return True
+    return False
+
+
+def render(owned, seed, kept):
+    """Assemble header + root object from the owned, seeded, and kept blocks.
+
+    Each block carries a trailing comma only when another block follows it, so
+    the result is valid JSON as well as valid JSONC.
+    """
+    blocks = [list(owned)]
+    if seed is not None:
+        blocks.append(list(seed))
+    if kept:
+        blocks.append(list(kept))
+    for i, block in enumerate(blocks):
+        set_trailing_comma(block, i < len(blocks) - 1)
+    out = [HEADER, "{"]
+    for i, block in enumerate(blocks):
+        if i:
+            out.append("")
+        out.extend(block)
+    out.append("}")
+    return "\n".join(out) + "\n"
+
+
+# Decode explicitly rather than trusting the locale: chezmoi may run this under a
+# C/POSIX locale, and a non-ASCII byte anywhere in the preserved mcp block would
+# otherwise abort the apply.
+text = sys.stdin.buffer.read().decode("utf-8")
+
+
+def emit(s):
+    sys.stdout.buffer.write(s.encode("utf-8"))
+
+
+# Empty stdin means the target does not exist yet: emit the full generic file,
+# permission block included.
+if not text.strip():
+    emit(render(OWNED.split("\n"), SEED_PERMISSION.split("\n"), []))
+    raise SystemExit(0)
+
+root_open, root_close, entries = scan(text)
+lines = text.split("\n")
+offsets = []
+pos = 0
+for ln in lines:
+    offsets.append(pos)
+    pos += len(ln) + 1
+
+
+def line_of(idx):
+    return bisect.bisect_right(offsets, idx) - 1
+
+
+def column_of(idx):
+    return idx - offsets[line_of(idx)]
+
+
+def passthrough(reason):
+    warn("%s; leaving the target unchanged" % reason)
+    emit(text if text.endswith("\n") else text + "\n")
+    raise SystemExit(0)
+
+
+if root_open is None or root_close is None:
+    passthrough("no complete top-level JSON object found")
+
+open_line = line_of(root_open)
+close_line = line_of(root_close)
+if close_line <= open_line:
+    passthrough("the root object is on a single line, which line surgery cannot edit")
+if lines[open_line][column_of(root_open) + 1:].strip():
+    passthrough("content follows `{` on the opening line")
+if lines[close_line][:column_of(root_close)].strip():
+    passthrough("content precedes `}` on the closing line")
+for e in entries:
+    if lines[line_of(e["start"])][:column_of(e["start"])].strip():
+        passthrough("top-level key %r does not start its own line" % e["name"])
+
+# Line span of every owned entry: its attached leading comment block, its own
+# lines, and the blank separator that followed it. Deleting the separator with
+# the block is what keeps repeated applies from accumulating blank lines.
+body_start, body_end = open_line + 1, close_line  # body_end exclusive
+drop = set()
+for e in entries:
+    if e["name"] not in OWNED_KEYS:
+        continue
+    first = line_of(e["start"])
+    if e["sep"] is not None:
+        last = line_of(e["sep"])
+    else:
+        k = e["end"] - 1
+        while k > e["start"] and text[k].isspace():
+            k -= 1
+        last = line_of(k)
+    while first - 1 >= body_start and lines[first - 1].lstrip().startswith("//"):
+        first -= 1
+    while last + 1 < body_end and not lines[last + 1].strip():
+        last += 1
+    drop.update(range(first, last + 1))
+
+kept = [lines[i] for i in range(body_start, body_end) if i not in drop]
+while kept and not kept[0].strip():
+    kept.pop(0)
+while kept and not kept[-1].strip():
+    kept.pop()
+
+seed = None if any(e["name"] == "permission" for e in entries) else SEED_PERMISSION.split("\n")
+emit(render(OWNED.split("\n"), seed, kept))

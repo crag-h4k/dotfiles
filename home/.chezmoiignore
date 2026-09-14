@@ -18,13 +18,16 @@
 .tmux
 {{ end -}}
 {{/* notify subsystem is needed by the zsh process notifier, tmux integration,
-     Claude hooks, or Codex hooks. Keep this condition aligned with
-     INSTALL_NOTIFY in .chezmoiscripts/run_once_after_00-install.sh.tmpl. */}}
+     Claude hooks, Codex hooks, or the OpenCode notifier bridge (v1 or v2). Keep
+     this condition aligned with INSTALL_NOTIFY in
+     .chezmoiscripts/run_once_after_00-install.sh.tmpl. */}}
 {{ if and
      (not (dig "components" "zsh" true .))
      (not (dig "components" "tmux" true .))
      (not (dig "components" "ai" "claude_hooks" false .))
-     (not (dig "components" "ai" "codex_hooks" false .)) -}}
+     (not (dig "components" "ai" "codex_hooks" false .))
+     (not (dig "components" "ai" "opencode" false .))
+     (not (dig "components" "ai" "opencode2" false .)) -}}
 .config/notify
 {{ end -}}
 {{ if not (dig "components" "neovim" true .) -}}
@@ -61,6 +64,29 @@
 {{ end -}}
 {{ if not (dig "components" "ai" "codex_hooks" false .) -}}
 .codex/hooks/notify-tmux.sh
+{{ end -}}
+{{/* OpenCode generic base config + notifier-bridge plugin, SHARED by both the
+     opencode (v1) and opencode2 (v2 beta) sub-features (they share one
+     ~/.config/opencode/ dir), so these install when EITHER is selected.
+     opencode.jsonc is MERGE-managed via modify_opencode.jsonc.tmpl: chezmoi
+     asserts $schema + plugin and preserves the work-only instructions/mcp keys
+     that live in the target file, so those never reach this public repo. The
+     rest of the private work layer (~/.config/opencode/agents and work.ts) is
+     NOT managed at all: no source entry exists for .config/opencode/agents, so
+     chezmoi leaves those unmanaged local files untouched. */}}
+{{ if not (or (dig "components" "ai" "opencode" false .) (dig "components" "ai" "opencode2" false .)) -}}
+.config/opencode/opencode.jsonc
+.config/opencode/tui.json
+.config/opencode/themes/gud.json
+.config/opencode/plugin/notify.ts
+.config/opencode/commands/iac-scan.md
+{{ end -}}
+{{/* OpenCode v2-only files: cli.json (v2's config surface, replacing tui.json;
+     content owned elsewhere, gated here) and the translucent gud-lucent theme
+     v2 points at. Managed only when the opencode2 sub-feature is on. */}}
+{{ if not (dig "components" "ai" "opencode2" false .) -}}
+.config/opencode/cli.json
+.config/opencode/themes/gud-lucent.json
 {{ end -}}
 {{/* Ghostty config (~/.config/ghostty) is a terminal sub-feature. Cross-platform
      (macOS + Linux), default-on, so the dig default is true. Ignore unless the
