@@ -99,6 +99,7 @@ normal plugin update does not turn the dotfiles checkout dirty.
 | [Neovim](docs/neovim.md) | Lazy, Mason, LSPs, linters, and local revision state |
 | [Gitleaks](docs/gitleaks.md) | Editor warnings, project allowlists, exclusions, and pre-commit enforcement |
 | [Notifications](docs/notifications.md) | tmux-native process and Claude/Codex attention cues |
+| [Sounds](docs/sounds.md) | Notifier sound provenance, licensing, auditioning, and loudness targets |
 | [Palettes](docs/palettes.md) | Shared base16 catalog and authoring workflow |
 | [CI](docs/ci.md) | PR metadata, pre-commit, and parallel macOS/Trixie deployments |
 | [Releases](docs/releases.md) | Conventional titles, Release Please, SemVer, and deliberate publishing |

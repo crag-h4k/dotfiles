@@ -155,9 +155,14 @@ _notify_find() {
 }
 
 # notify_play <sound-basename> <volume 0-100>. Empty/missing sound = silent.
+# $NOTIFY_SOUNDS overrides the sound directory, mirroring how $NOTIFY_CONFIG
+# overrides the config path. Unset (the normal case) resolves to the installed
+# ~/.config/notify/sounds. scripts/audition-sounds.sh points it at the chezmoi
+# source tree so candidate sounds can be previewed through this exact code path
+# - same player chain, same gain math - before they are applied.
 notify_play() {
   [ -n "$1" ] || return 0
-  local f="$HOME/.config/notify/sounds/$1" vol="$2" afplay_bin mpg123_bin ffplay_bin vfrac
+  local f="${NOTIFY_SOUNDS:-$HOME/.config/notify/sounds}/$1" vol="$2" afplay_bin mpg123_bin ffplay_bin vfrac
   [ -f "$f" ] || return 0
   # Sanitize volume to an integer 0-100: reject anything non-numeric (fall back
   # to 75) and clamp the range.

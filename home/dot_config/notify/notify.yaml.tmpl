@@ -38,6 +38,7 @@ palette:
   dark_yellow: {{ $p.notify.dark_yellow | quote }}
   dark_cyan: {{ $p.notify.dark_cyan | quote }}
   dark_pink: {{ $p.notify.dark_pink | quote }}
+  dark_blue: {{ $p.notify.dark_blue | quote }}
   bright_red: {{ $p.colors.red | quote }}
   bright_purple: {{ $p.colors.purple | quote }}
   bright_green: {{ $p.colors.green | quote }}
@@ -45,6 +46,7 @@ palette:
   bright_yellow: {{ $p.colors.yellow | quote }}
   bright_cyan: {{ $p.colors.cyan | quote }}
   bright_pink: {{ $p.colors.pink | quote }}
+  bright_blue: {{ $p.colors.blue | quote }}
 
 groups:
   iac:
@@ -84,6 +86,17 @@ integrations:
     accent: bright_purple
     sound: sosumi.mp3
   opencode:
-    bg: dark_purple
-    accent: bright_purple
-    sound: funk.mp3
+    bg: dark_blue
+    accent: bright_blue
+    sound: glass.mp3
+  # OpenCode splits attention by what it is waiting for, because "the turn is
+  # done" and "the session is stranded until you answer" deserve different
+  # urgency. The plugin picks the group per event; see docs/notifications.md.
+  opencode_permission:
+    bg: dark_orange
+    accent: bright_orange
+    sound: toot.mp3
+  opencode_question:
+    bg: dark_yellow
+    accent: bright_yellow
+    sound: chirp.mp3

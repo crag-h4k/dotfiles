@@ -84,6 +84,7 @@ palettes:
       dark_yellow: "#505447"
       dark_cyan: "#3c505e"
       dark_pink: "#533a53"
+      dark_blue: "#463f5d"
 
   catppuccin-mocha:
     name: Catppuccin Mocha
@@ -148,6 +149,7 @@ palettes:
       dark_yellow: "#4a4548"
       dark_cyan: "#36454f"
       dark_pink: "#413956"
+      dark_blue: "#333c57"
 
   catppuccin-macchiato:
     name: Catppuccin Macchiato
@@ -212,6 +214,7 @@ palettes:
       dark_yellow: "#4c4a4e"
       dark_cyan: "#394a57"
       dark_pink: "#443f60"
+      dark_blue: "#38425f"
 
   catppuccin-frappe:
     name: Catppuccin Frappe
@@ -276,6 +279,7 @@ palettes:
       dark_yellow: "#545255"
       dark_cyan: "#40525e"
       dark_pink: "#4f4966"
+      dark_blue: "#424c68"
 
   gruvbox-dark:
     name: Gruvbox Dark
@@ -340,6 +344,7 @@ palettes:
       dark_yellow: "#524629"
       dark_cyan: "#3c4639"
       dark_pink: "#4a3b3f"
+      dark_blue: "#3a413e"
 
   gruvbox-dark-hard:
     name: Gruvbox Dark Hard
@@ -404,6 +409,7 @@ palettes:
       dark_yellow: "#493f24"
       dark_cyan: "#344033"
       dark_pink: "#413439"
+      dark_blue: "#313b39"
 
   gruvbox-material:
     name: Gruvbox Material
@@ -468,6 +474,7 @@ palettes:
       dark_yellow: "#4c4131"
       dark_cyan: "#3c443a"
       dark_pink: "#4b3b3f"
+      dark_blue: "#3a4341"
 
   tokyo-night:
     name: Tokyo Night
@@ -532,6 +539,7 @@ palettes:
       dark_yellow: "#1f455a"
       dark_cyan: "#415261"
       dark_pink: "#423f61"
+      dark_blue: "#25475c"
 
   nord:
     name: Nord
@@ -596,6 +604,7 @@ palettes:
       dark_yellow: "#54524f"
       dark_cyan: "#40505d"
       dark_pink: "#494656"
+      dark_blue: "#3f4a5a"
 
   rose-pine:
     name: Rose Pine
@@ -660,6 +669,7 @@ palettes:
       dark_yellow: "#433842"
       dark_cyan: "#333c48"
       dark_pink: "#453935"
+      dark_blue: "#3b344b"
 
   rose-pine-moon:
     name: Rose Pine Moon
@@ -724,6 +734,7 @@ palettes:
       dark_yellow: "#4b3949"
       dark_cyan: "#3b4456"
       dark_pink: "#4d4143"
+      dark_blue: "#433c59"
 
   everforest:
     name: Everforest
@@ -788,6 +799,7 @@ palettes:
       dark_yellow: "#505049"
       dark_cyan: "#3e514c"
       dark_pink: "#4f4954"
+      dark_blue: "#3d5053"
 
   kanagawa:
     name: Kanagawa
@@ -852,6 +864,7 @@ palettes:
       dark_yellow: "#3f3936"
       dark_cyan: "#2e373b"
       dark_pink: "#373245"
+      dark_blue: "#32384b"
 
   onedark:
     name: One Dark
@@ -916,6 +929,7 @@ palettes:
       dark_yellow: "#4e4a42"
       dark_cyan: "#314850"
       dark_pink: "#483b56"
+      dark_blue: "#334659"
 
   solarized-dark:
     name: Solarized Dark
@@ -980,3 +994,4 @@ palettes:
       dark_yellow: "#243e2b"
       dark_cyan: "#08434a"
       dark_pink: "#0d3347"
+      dark_blue: "#083e55"

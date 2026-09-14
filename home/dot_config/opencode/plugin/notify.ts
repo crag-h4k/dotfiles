@@ -36,34 +36,46 @@
 
 const NOTIFY_SHIM = `${process.env.HOME ?? ""}/.config/notify/opencode-events.sh`
 
-// Events that warrant attention:
-//   session.idle                    - turn finished, waiting on the user (v1, and the
-//                                     installed v2 beta SDK event union).
-//   session.execution.succeeded     - the v2 dev-branch completion event; ahead of the
-//                                     pinned beta, so listed for forward-compat.
-//   permission.updated              - a tool is blocked on an approval prompt (v1 name).
-//   permission.asked / .v2.asked    - the same, under the v2 (and v2-namespaced) names.
-//   question.asked / .v2.asked      - the agent is asking the user a question and is
-//                                     blocked on the answer (the opencode analog of an
-//                                     interactive prompt). v2 emits question.asked; this
-//                                     was the missing case that never flagged the pane.
-// Deliberately NOT *.replied / *.rejected: those fire when the user just answered, so
-// firing on them would fight the keypress-clear.
-const ATTENTION: ReadonlySet<string> = new Set([
-  "session.idle",
-  "session.execution.succeeded",
-  "permission.updated",
-  "permission.asked",
-  "permission.v2.asked",
-  "question.asked",
-  "question.v2.asked",
+// Event -> notify group. The group decides the pane color and sound, so the three
+// kinds of attention are told apart at a glance; appearance lives in
+// ~/.config/notify/notify.yaml under `integrations:`.
+//
+// Every name below was verified against opencode2 v0.0.0-beta-19425 by
+// subscribing a probe plugin and driving a real session. Do not add names from
+// the SDK type union without observing them: the union lists events this build
+// never emits, which is how the question case stayed broken.
+//
+//   session.idle                 v1 only. The v2 beta never emits it, despite the
+//                                string being present in the binary.
+//   session.execution.succeeded  v2 turn finished. This, not session.idle, is the
+//                                real v2 completion event.
+//   permission.updated           v1 name for a blocked approval prompt.
+//   permission.asked             v2 name for the same. Observed.
+//   form.created                 v2. The question tool does NOT emit a question.*
+//                                event; it opens a form, and the event carries
+//                                metadata.kind === "question". Auth forms reuse
+//                                this and also block on the user, so both notify.
+//
+// REMOVED because they do not exist on this build and never fired:
+// question.asked, question.v2.asked, permission.v2.asked.
+//
+// Deliberately NOT *.replied / *.rejected / form.cancelled: those fire when the
+// user has just answered, so firing on them would fight the keypress-clear.
+const GROUPS: ReadonlyMap<string, string> = new Map([
+  ["session.idle", "opencode"],
+  ["session.execution.succeeded", "opencode"],
+  ["permission.updated", "opencode_permission"],
+  ["permission.asked", "opencode_permission"],
+  ["form.created", "opencode_question"],
 ])
 
 // Fire the tmux notifier through the shared shim. Best-effort: gate on tmux and
 // swallow every error so a notifier hiccup never disrupts the session. The shim
 // reads TMUX_PANE from the inherited environment and self-guards, so no args are
 // needed beyond the "fire" verb. Invoked via bash so it works even without the
-// exec bit, and via child_process so it is runtime-agnostic (Bun and Node).
+// exec bit, and via child_process so it is runtime-agnostic (Bun and Node). The
+// group argument selects the appearance, so the pane color says what OpenCode is
+// waiting for.
 //
 // DETACHED ON PURPOSE, do not "simplify" this back to an awaited execFile. The
 // attention events fire at the instant OpenCode tears down the execution, and a
@@ -73,11 +85,11 @@ const ATTENTION: ReadonlySet<string> = new Set([
 // puts the shim in its own process group where the teardown cannot signal it,
 // and unref() stops it holding the event loop open. The shim finishes in ~230ms,
 // so this is fire-and-forget: nothing is awaited and no timeout is needed.
-async function fire(): Promise<void> {
+async function fire(group: string): Promise<void> {
   if (!process.env.TMUX || !process.env.TMUX_PANE) return
   try {
     const { spawn } = await import("node:child_process")
-    const child = spawn("bash", [NOTIFY_SHIM, "fire"], { detached: true, stdio: "ignore" })
+    const child = spawn("bash", [NOTIFY_SHIM, "fire", group], { detached: true, stdio: "ignore" })
     child.on("error", () => {})
     child.unref()
   } catch {
@@ -107,7 +119,8 @@ export default {
         const startedAt = Date.now()
         try {
           for await (const event of ctx.event.subscribe({ signal: controller.signal })) {
-            if (event && ATTENTION.has(event.type)) await fire()
+            const group = event && GROUPS.get(event.type)
+            if (group) await fire(group)
           }
           if (controller.signal.aborted) break
           console.error("[notify] event stream ended; reconnecting")
@@ -127,11 +140,13 @@ export default {
   },
 
   // v1 (opencode): the legacy host calls default.server(input) and uses the
-  // returned hooks. The generic `event` hook matches the same attention events.
+  // returned hooks. The generic `event` hook maps through the same table, so v1
+  // gets the split groups too; it just only ever matches the v1 event names.
   async server(_input?: any) {
     return {
       event: async ({ event }: any) => {
-        if (event && ATTENTION.has(event.type)) await fire()
+        const group = event && GROUPS.get(event.type)
+        if (group) await fire(group)
       },
     }
   },

@@ -118,6 +118,13 @@ the `oc` / `oc2` / `oc2bg` aliases. With `zsh` deselected the binaries install b
 are not on `PATH` by name and have no aliases; add `~/.local/bin` to `PATH`
 yourself or run them by full path.
 
+`oc2` pins `--standalone` on purpose. OpenCode 2 otherwise shares one background
+service, which keeps the tmux pane it first started in for its whole lifetime, so
+attention notifications from a long-lived service can target a pane that has
+since closed. `oc2bg` opts into that shared service; run `opencode2 service
+restart` if its notifications stop landing. See
+[Notifications](notifications.md#opencode).
+
 An unselected component is excluded twice. Its targets are ignored by
 `home/.chezmoiignore`, and its externals disappear from
 `home/.chezmoiexternal.toml`.

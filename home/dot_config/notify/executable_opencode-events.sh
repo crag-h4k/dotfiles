@@ -2,15 +2,19 @@
 # ~/.config/notify/opencode-events.sh
 # OpenCode attention shim: flags/clears the tmux pane via the shared notifier.
 # Called by the OpenCode notifier bridge plugin (~/.config/opencode/plugin/notify.ts):
-#   fire  - OpenCode wants attention: the turn finished (the v2 beta emits
-#           session.execution.succeeded; it has no session.idle), or it is
-#           blocked on a permission / question prompt
-#   clear - the pane was re-engaged / a new prompt started
-# Mirrors the Claude hooks (~/.claude/hooks/notify-tmux.sh, notify-clear.sh):
-# guards on $TMUX/$TMUX_PANE, sources lib.sh, and fires the 'opencode' group whose
-# appearance (dark_yellow / bright_yellow + glass.mp3) lives in
-# ~/.config/notify/notify.yaml. tmux never reads the config; notify_fire pushes the
-# per-pane color that ~/.tmux/conf.d/notify.conf renders.
+#   fire [group]  - OpenCode wants attention; the plugin passes the group that
+#                   matches what it is waiting for (see below)
+#   clear [group] - the pane was re-engaged / a new prompt started
+# Groups, all defined under `integrations:` in ~/.config/notify/notify.yaml:
+#   opencode             turn finished  (v1 session.idle, v2 session.execution.succeeded)
+#   opencode_permission  blocked on a permission prompt (v1 permission.updated,
+#                        v2 permission.asked)
+#   opencode_question    blocked on a question or auth form (v2 form.created)
+# An unknown or empty group falls back to `opencode`, so an older plugin that
+# passes no argument keeps working. Mirrors the Claude hooks
+# (~/.claude/hooks/notify-tmux.sh, notify-clear.sh): guards on $TMUX/$TMUX_PANE,
+# sources lib.sh, and lets notify_fire push the per-pane color that
+# ~/.tmux/conf.d/notify.conf renders. tmux never reads the config itself.
 [[ -z "$TMUX" || -z "$TMUX_PANE" ]] && exit 0
 export NOTIFY_SRC=opencode-hook
 # shellcheck source=/dev/null  # resolved at runtime from $HOME
@@ -29,8 +33,13 @@ if [ "$_pane" != "$TMUX_PANE" ]; then
   exit 0
 fi
 
+case "${2:-opencode}" in
+  opencode|opencode_permission|opencode_question) _group="${2:-opencode}" ;;
+  *) notify_log "unknown group ${2:-}; falling back to opencode"; _group=opencode ;;
+esac
+
 case "${1:-fire}" in
-  fire)  notify_fire  "$TMUX_PANE" opencode ;;
-  clear) notify_clear "$TMUX_PANE" opencode ;;
-  *)     printf 'usage: opencode-events.sh {fire|clear}\n' >&2; exit 2 ;;
+  fire)  notify_fire  "$TMUX_PANE" "$_group" ;;
+  clear) notify_clear "$TMUX_PANE" "$_group" ;;
+  *)     printf 'usage: opencode-events.sh {fire|clear} [group]\n' >&2; exit 2 ;;
 esac

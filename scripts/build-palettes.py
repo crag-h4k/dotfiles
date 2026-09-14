@@ -185,6 +185,7 @@ def to_entry(out_id, name, meta, b):
         "dark_yellow": notify_tint(b["base0a"], b["base00"]),
         "dark_cyan": notify_tint(b["base0c"], b["base00"]),
         "dark_pink": notify_tint(b["base0e"], b["base00"]),
+        "dark_blue": notify_tint(b["base0d"], b["base00"]),
     }
     base16 = {k: b[k] for k in [f"base0{c}" for c in "0123456789"] + [f"base0{c}" for c in "abcdef"]}
     return {"id": out_id, "name": name, "system": meta.get("system", "base16"),
@@ -199,7 +200,7 @@ SEMANTIC_ORDER = ["background", "surface", "selection", "foreground", "comment",
                   "cursor", "black", "red", "green", "yellow", "blue", "purple",
                   "cyan", "white", "orange", "pink"]
 NOTIFY_ORDER = ["dark_red", "dark_purple", "dark_green", "dark_orange",
-                "dark_yellow", "dark_cyan", "dark_pink"]
+                "dark_yellow", "dark_cyan", "dark_pink", "dark_blue"]
 
 
 def emit_yaml(entries):

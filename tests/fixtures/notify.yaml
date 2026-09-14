@@ -10,6 +10,12 @@ palette:
   bright_red: "#ff5555"
   dark_pink: "#4d1a38"
   bright_pink: "#ff79c6"
+  dark_blue: "#424c68"
+  bright_blue: "#8caaee"
+  dark_orange: "#564950"
+  bright_orange: "#ef9f76"
+  dark_yellow: "#545255"
+  bright_yellow: "#e5c890"
 
 groups:
   iac:
@@ -31,4 +37,16 @@ integrations:
   claude:
     bg: dark_pink
     accent: bright_pink
+    sound: ""
+  opencode:
+    bg: dark_blue
+    accent: bright_blue
+    sound: ""
+  opencode_permission:
+    bg: dark_orange
+    accent: bright_orange
+    sound: ""
+  opencode_question:
+    bg: dark_yellow
+    accent: bright_yellow
     sound: ""
