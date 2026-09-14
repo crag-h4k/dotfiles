@@ -90,10 +90,13 @@ alias "clanka"="claude"
 alias "clanker"="claude"
 # opencode (multi-provider AI CLI harness)
 alias "oc"="opencode"
-# opencode2 (v2 beta) defaults to --standalone so its server shares the tmux
-# pane env (TMUX_PANE); the default background service has no pane env, so the
-# notifier bridge (plugin/notify.ts) can never fire under it. Use oc2bg for the
-# shared background-service mode when you don't need pane notifications.
+# opencode2 (v2 beta) defaults to --standalone so the server runs in-process and
+# sees the CURRENT pane's TMUX_PANE. The shared background service does inherit a
+# TMUX_PANE, but a stale one from whichever pane first started it, so the notifier
+# bridge (plugin/notify.ts) fires at a pane that no longer exists - and would flag
+# an unrelated pane if tmux recycled that id. Use oc2bg for the shared
+# background-service mode when you don't need pane notifications. This goes away
+# once the notifier moves to a v2 TUI plugin, which always has the live pane env.
 alias "oc2"="opencode2 --standalone"
 alias "oc2bg"="opencode2"
 #
