@@ -23,9 +23,13 @@
 // that avoids depending on the v1-pinned plugin package resolving under the v2
 // binary. fire() uses node:child_process (not Bun's $) so it works on both runtimes.
 //
-// v2 note: the background service has no TMUX/TMUX_PANE in its env, so under the
-// default (service) mode fire() and the shim both early-return. Run opencode2 with
-// --standalone (see the oc2 alias) so the plugin shares the tmux pane's env.
+// v2 note: run opencode2 with --standalone (see the oc2 alias) so the plugin
+// shares the live tmux pane's env. The background service does NOT simply lack
+// TMUX/TMUX_PANE: it keeps whatever pane it was first started in, for as long as
+// it lives (days). After a tmux server restart that pane id is gone, so the vars
+// are set but stale and every fire targets a pane that no longer exists. The
+// guard below cannot catch that, so the shim re-checks the pane against the live
+// tmux server.
 //
 // No work logic lives here: enforcement, memory recall, and context injection are
 // a separate, unmanaged local plugin (work.ts). This file stays generic.
@@ -60,14 +64,22 @@ const ATTENTION: ReadonlySet<string> = new Set([
 // reads TMUX_PANE from the inherited environment and self-guards, so no args are
 // needed beyond the "fire" verb. Invoked via bash so it works even without the
 // exec bit, and via child_process so it is runtime-agnostic (Bun and Node).
+//
+// DETACHED ON PURPOSE, do not "simplify" this back to an awaited execFile. The
+// attention events fire at the instant OpenCode tears down the execution, and a
+// child left in OpenCode's process group is reaped along with it: the awaited
+// execFile() died on SIGTERM (code=null, killed=false, empty stdout/stderr)
+// before the shim ever reached tmux, so the pane never flagged. detached:true
+// puts the shim in its own process group where the teardown cannot signal it,
+// and unref() stops it holding the event loop open. The shim finishes in ~230ms,
+// so this is fire-and-forget: nothing is awaited and no timeout is needed.
 async function fire(): Promise<void> {
   if (!process.env.TMUX || !process.env.TMUX_PANE) return
   try {
-    const { execFile } = await import("node:child_process")
-    await new Promise<void>((resolve) => {
-      const child = execFile("bash", [NOTIFY_SHIM, "fire"], { timeout: 5000 }, () => resolve())
-      child.on("error", () => resolve())
-    })
+    const { spawn } = await import("node:child_process")
+    const child = spawn("bash", [NOTIFY_SHIM, "fire"], { detached: true, stdio: "ignore" })
+    child.on("error", () => {})
+    child.unref()
   } catch {
     /* notifier is best-effort */
   }
