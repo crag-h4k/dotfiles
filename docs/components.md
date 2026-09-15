@@ -118,12 +118,15 @@ the `oc` / `oc2` / `oc2bg` aliases. With `zsh` deselected the binaries install b
 are not on `PATH` by name and have no aliases; add `~/.local/bin` to `PATH`
 yourself or run them by full path.
 
-`oc2` pins `--standalone` on purpose. OpenCode 2 otherwise shares one background
-service, which keeps the tmux pane it first started in for its whole lifetime, so
-attention notifications from a long-lived service can target a pane that has
-since closed. `oc2bg` opts into that shared service; run `opencode2 service
-restart` if its notifications stop landing. See
-[Notifications](notifications.md#opencode).
+`oc2` pins `--standalone`, and as of this change so does the bare `opencode2`
+name, so a mistyped launch cannot silently break attention notifications. The
+notifier plugin runs inside the OpenCode server and its only pane signal is that
+server's own `TMUX_PANE`, fixed at server start. `--standalone` makes the server
+a child of the TUI, so one server maps to one pane. The shared background service
+is a single process for every session in every pane and holds one pane id, so
+with N panes, N-1 sessions notify the wrong pane. `oc2bg` is the deliberate
+opt-in to that shared service: it saves roughly 864 MB per pane and gives up
+per-pane notifications. See [Notifications](notifications.md#opencode).
 
 An unselected component is excluded twice. Its targets are ignored by
 `home/.chezmoiignore`, and its externals disappear from

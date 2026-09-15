@@ -90,15 +90,28 @@ alias "clanka"="claude"
 alias "clanker"="claude"
 # opencode (multi-provider AI CLI harness)
 alias "oc"="opencode"
-# opencode2 (v2 beta) defaults to --standalone so the server runs in-process and
-# sees the CURRENT pane's TMUX_PANE. The shared background service does inherit a
-# TMUX_PANE, but a stale one from whichever pane first started it, so the notifier
-# bridge (plugin/notify.ts) fires at a pane that no longer exists - and would flag
-# an unrelated pane if tmux recycled that id. Use oc2bg for the shared
-# background-service mode when you don't need pane notifications. This goes away
-# once the notifier moves to a v2 TUI plugin, which always has the live pane env.
-alias "oc2"="opencode2 --standalone"
-alias "oc2bg"="opencode2"
+# opencode2 (v2 beta) is pinned to --standalone, including the bare name, so a
+# mistyped `opencode2` cannot silently break attention notifications.
+#
+# The notifier bridge (plugin/notify.ts) runs inside the OpenCode SERVER and its
+# only pane signal is that server's own $TMUX_PANE, fixed when the server starts.
+# --standalone makes the server a child of the TUI, so one server maps to one
+# pane and the value stays correct. The shared background service is one process
+# for every session in every pane, holding a single pane id: with N panes, N-1
+# sessions notify the wrong pane. That is not staleness a restart fixes, though
+# it also goes stale once its original pane closes.
+#
+# `command` prevents the alias re-expanding itself, which would otherwise pass
+# --standalone twice. oc2bg is the deliberate opt-in to the shared service, and
+# it costs ~864 MB less per pane in exchange for losing per-pane notifications.
+#
+# The fix that removes this trade-off is mapping session to pane via tmux
+# #{pane_title}, which already carries the session title. See
+# ~/work/ai/plans/opencode/. There is no TUI-side attention hook to use instead;
+# the cli.json `attention` block exposes only system notifications and sounds.
+alias "opencode2"="command opencode2 --standalone"
+alias "oc2"="command opencode2 --standalone"
+alias "oc2bg"="command opencode2"
 #
 ######
 case "$OSTYPE" in
