@@ -134,9 +134,17 @@ Two mistakes here fail silently, and both are guarded:
   re-resolves the pane against the live server and skips with a warning if it no
   longer exists. Run `opencode2 service restart` when you see that warning.
 
-Prefer `oc2`, which pins `--standalone`, so the plugin shares the pane you are
-actually sitting in. Sessions served by the shared background service inherit
-whichever pane launched it.
+Launch with `oc2`, or just `opencode2`, since both now pin `--standalone` so the
+plugin shares the pane you are actually sitting in. The shared background service
+that `oc2bg` opts into is a single process for every session in every pane and
+holds exactly one pane id, so with N panes, N-1 sessions notify the wrong pane.
+Restarting the service does not fix that; it only moves which single pane is
+correct.
+
+Removing that trade-off means mapping session to pane rather than reading the
+server's environment. tmux `#{pane_title}` already carries each session's title,
+which is the mapping the server does not expose. The plan is in
+`~/work/ai/plans/opencode/`.
 
 Restart OpenCode after editing the plugin.
 
