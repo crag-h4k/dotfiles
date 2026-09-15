@@ -254,6 +254,18 @@ if it shadows the managed file.
 On macOS, selecting Ghostty installs the Homebrew cask unless the app or cask is
 already present.
 
+##### Local overrides
+
+`~/.config/ghostty/override.conf` holds machine-local Ghostty settings. The
+managed config ends with `config-file = ?override.conf`, where the leading `?`
+marks the include optional, so Ghostty starts clean when the file is absent and
+nothing needs to be created for you. Included files load last, so the override
+wins.
+
+The file is not chezmoi-managed and is ignored by `chezmoi add`. See
+[Local overrides](operation.md#local-overrides) for the shared pattern across
+Ghostty, tmux, and Zsh.
+
 ##### Ghostty on Debian
 
 Ghostty is not in Debian main and is no longer auto-installed. The third-party

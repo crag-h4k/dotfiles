@@ -114,3 +114,22 @@ export ZSH_HISTORY_BACKUP_MIN_HOURS=6
 zsh_history_backup
 
 autoload -U +X bashcompinit && bashcompinit
+
+# ---- Local overrides --------------------------------------------------------
+# ~/.zsh/override.zsh is a machine-local escape hatch. It is NOT managed by
+# chezmoi and is listed in home/.chezmoiignore, so `chezmoi add` and
+# `chezmoi re-add` refuse it and nothing local leaks into this public repo.
+#
+# The -r guard means a missing file is a no-op, so there is no stub to create.
+#
+# This is sourced LAST, after aliases, Oh My Zsh, the theme, and the custom
+# functions, so anything here wins. That is the difference from ~/.zsh_private
+# (created above, sourced early): private holds env vars and secrets the rest of
+# the config consumes, override holds per-machine last-word changes.
+#
+# Keep this an `if` block, not `[[ -r ... ]] && source ...`. As the last line of
+# the file, the && form leaves a non-zero status behind whenever the override is
+# absent, which makes `source ~/.zshrc` report failure.
+if [[ -r "$ZSH_BASE/override.zsh" ]]; then
+    source "$ZSH_BASE/override.zsh"
+fi
