@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.4.0](https://github.com/crag-h4k/dotfiles/compare/v0.3.0...v0.4.0) (2026-09-15)
+
+
+### Features
+
+* add unmanaged local override hatches for ghostty, tmux, zsh ([#59](https://github.com/crag-h4k/dotfiles/issues/59)) ([769729b](https://github.com/crag-h4k/dotfiles/commit/769729b9d020a31f6ae0c949c69a8b80a2010f5a))
+
 ## [0.3.0](https://github.com/crag-h4k/dotfiles/compare/v0.2.0...v0.3.0) (2026-09-14)
 
 
