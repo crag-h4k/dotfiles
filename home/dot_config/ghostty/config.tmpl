@@ -6,6 +6,9 @@
 #
 # The selected palette is rendered from .chezmoidata/palettes.yaml into
 # themes/dotfiles.conf. Edit the catalog, not generated consumer templates.
+#
+# For machine-local settings that should not live in this repo, see the
+# "Local overrides" section at the bottom of this file.
 
 {{- $palette := get .palettes (dig "palette" "dracula" .) }}
 
@@ -115,4 +118,18 @@ keybind = cmd+shift+e=equalize_splits
 keybind = global:ctrl+grave_accent=toggle_quick_terminal
 keybind = ctrl+shift+enter=toggle_split_zoom
 keybind = ctrl+shift+e=equalize_splits
-{{ end -}}
+{{ end }}
+# ---- Local overrides --------------------------------------------------------
+# ~/.config/ghostty/override.conf is a machine-local escape hatch. It is NOT
+# managed by chezmoi and is listed in home/.chezmoiignore, so `chezmoi add` and
+# `chezmoi re-add` refuse it and nothing local leaks into this public repo.
+#
+# The leading `?` marks the include optional: Ghostty starts clean when the file
+# does not exist, so there is no stub to create. Without the `?`, a missing file
+# raises "error opening config-file" and pops the config-error dialog on every
+# launch and reload.
+#
+# The path is relative to this file. Included files load after the entire config
+# that defines them, so anything in override.conf wins over the keys above
+# regardless of where this line sits.
+config-file = ?override.conf

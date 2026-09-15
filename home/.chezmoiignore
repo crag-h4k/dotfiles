@@ -8,6 +8,18 @@
 # the file per-machine instead of fighting chezmoi over it. init.lua reproduces
 # the plugin set on any host; we just don't pin exact commits across machines.
 .config/nvim/lazy-lock.json
+# Machine-local escape hatches, sideloaded by the managed config of each tool
+# (see the "Local overrides" section in docs/operation.md). Every entry is
+# unconditional and has no source file: chezmoi never creates, applies, or
+# removes them, and `chezmoi add` / `chezmoi re-add` refuse them, so a local or
+# secret-bearing setting cannot reach this public repo. Each tool's include is
+# already optional (Ghostty `?`, tmux `-q`, zsh `-r` guard), so there is no stub
+# to seed. ~/.zsh_private is the long-standing early/private counterpart, created
+# by .zshrc itself and listed here for the same anti-leak reason.
+.config/ghostty/override.conf
+.tmux/conf.d/override.conf
+.zsh/override.zsh
+.zsh_private
 {{ if not (dig "components" "zsh" true .) -}}
 .zshrc
 .zshenv

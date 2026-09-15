@@ -4,6 +4,7 @@
 ## Table of Contents
 
 - [Daily operation](#daily-operation)
+- [Local overrides](#local-overrides)
 - [Terminal (tmux) behavior](#terminal-tmux-behavior)
 - [Statusline (Claude / Codex)](#statusline-claude--codex)
 - [Secret scanning](#secret-scanning)
@@ -51,6 +52,63 @@ chezmoi --source "$PWD" apply
 The repository-level `.chezmoiroot` still directs chezmoi into `home/`. It is
 safe to review a worktree this way without replacing your normal source
 directory.
+
+## Local overrides
+
+Ghostty, tmux, and Zsh each sideload one unmanaged file for machine-local
+settings that should not live in this repo:
+
+- Ghostty: `~/.config/ghostty/override.conf`
+- tmux: `~/.tmux/conf.d/override.conf`
+- Zsh: `~/.zsh/override.zsh`
+
+None of them are chezmoi-managed and none are created for you. Each is listed
+unconditionally in `home/.chezmoiignore`, so chezmoi never applies or removes
+them, and `chezmoi add` and `chezmoi re-add` refuse them. That keeps a
+per-machine or secret-bearing setting from reaching the public repo.
+
+Every include is optional, which is why there is no stub to maintain. Ghostty
+uses the `?` path prefix, tmux uses `source-file -q`, and Zsh uses an `[[ -r ]]`
+guard. Delete a file and the tool starts clean.
+
+Each one is loaded last so it wins over the managed config:
+
+```text
+# ~/.config/ghostty/override.conf
+font-size = 14
+background-opacity = 1.0
+```
+
+```text
+# ~/.tmux/conf.d/override.conf
+set -g status-position top
+```
+
+```zsh
+# ~/.zsh/override.zsh
+alias k='kubectl --context=lab'
+export AWS_PROFILE=lab
+```
+
+Ghostty defers included files until after the config that names them, so the
+`config-file` line can sit anywhere. tmux and Zsh source inline, so their
+override lines must stay at the bottom of `~/.tmux.conf` and `~/.zshrc`. The
+tmux line deliberately sits after the `tpm` run: plugins set options when tpm
+executes, and only a file sourced afterwards can override them. `@plugin`
+declarations still belong above the tpm line.
+
+Reload after editing:
+
+```sh
+ghostty +validate-config          # then reload Ghostty's config
+tmux source-file ~/.tmux.conf
+exec zsh
+```
+
+`~/.zsh_private` is a separate, older hatch. `.zshrc` creates it on first run and
+sources it early, so it is the place for env vars and secrets the rest of the
+config consumes. `~/.zsh/override.zsh` is for last-word changes that must beat
+aliases, Oh My Zsh, and the custom functions.
 
 ## Terminal (tmux) behavior
 
