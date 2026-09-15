@@ -1,5 +1,13 @@
 # Changelog
 
+## [0.3.0](https://github.com/crag-h4k/dotfiles/compare/v0.2.0...v0.3.0) (2026-09-14)
+
+
+### Features
+
+* **opencode2:** add opencode2 config and integrate notifier ([#56](https://github.com/crag-h4k/dotfiles/issues/56)) ([3e522b2](https://github.com/crag-h4k/dotfiles/commit/3e522b2441e185cd6b9f1865106001ce748333df))
+* **prettierd:** add json prettierd, fix neovim treesitter ([#52](https://github.com/crag-h4k/dotfiles/issues/52)) ([7fd980c](https://github.com/crag-h4k/dotfiles/commit/7fd980cf7dd17d7b4d0cbfc7892da8bd4fc95b70))
+
 ## [0.2.0](https://github.com/crag-h4k/dotfiles/compare/v0.1.0...v0.2.0) (2026-07-29)
 
 
