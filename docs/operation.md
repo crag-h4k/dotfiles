@@ -55,60 +55,93 @@ directory.
 
 ## Local overrides
 
-Ghostty, tmux, and Zsh each sideload one unmanaged file for machine-local
-settings that should not live in this repo:
+Every managed tool reads one unmanaged file where you can change its behavior
+without editing the config in this repo. Adopt these dotfiles, drop your
+settings in these files, and `chezmoi update` keeps working:
 
 - Ghostty: `~/.config/ghostty/override.conf`
 - tmux: `~/.tmux/conf.d/override.conf`
-- Zsh: `~/.zsh/override.zsh`
+- Zsh: `~/.zsh_override`
+- Neovim: `~/.config/nvim/lua/override.lua`
+- Git: `~/.config/git/override.conf`
 
-None of them are chezmoi-managed and none are created for you. Each is listed
+None are chezmoi-managed and none are created for you. Each is listed
 unconditionally in `home/.chezmoiignore`, so chezmoi never applies or removes
-them, and `chezmoi add` and `chezmoi re-add` refuse them. That keeps a
-per-machine or secret-bearing setting from reaching the public repo.
+them, and `chezmoi add` and `chezmoi re-add` refuse them. Your settings stay
+yours and never reach this public repo.
 
 Every include is optional, which is why there is no stub to maintain. Ghostty
-uses the `?` path prefix, tmux uses `source-file -q`, and Zsh uses an `[[ -r ]]`
-guard. Delete a file and the tool starts clean.
+uses the `?` path prefix, tmux uses `source-file -q`, Git silently skips a
+missing include, Zsh uses an `[[ -r ]]` guard, and Neovim uses a guarded
+`pcall`. Delete a file and the tool starts clean.
 
-Each one is loaded last so it wins over the managed config:
+Each one loads last, so it wins:
 
 ```text
 # ~/.config/ghostty/override.conf
 font-size = 14
-background-opacity = 1.0
-```
-
-```text
-# ~/.tmux/conf.d/override.conf
-set -g status-position top
 ```
 
 ```zsh
-# ~/.zsh/override.zsh
-alias k='kubectl --context=lab'
-export AWS_PROFILE=lab
+# ~/.zsh_override
+alias ll='eza -l'
+export EDITOR=vim
 ```
 
-Ghostty defers included files until after the config that names them, so the
-`config-file` line can sit anywhere. tmux and Zsh source inline, so their
-override lines must stay at the bottom of `~/.tmux.conf` and `~/.zshrc`. The
-tmux line deliberately sits after the `tpm` run: plugins set options when tpm
-executes, and only a file sourced afterwards can override them. `@plugin`
-declarations still belong above the tpm line.
+### Ordering
 
-Reload after editing:
+Ghostty defers included files until after the config that names them, so its
+`config-file` line can sit anywhere. Everything else loads inline, so the
+override line stays at the bottom of its file.
+
+The tmux line deliberately sits after the `tpm` run: plugins set options when
+tpm executes, and only a file sourced afterwards can override them. `@plugin`
+declarations still belong above the tpm line. The consequence is that the tmux
+hatch cannot add plugins.
+
+Neovim has the same shape. The `pcall` runs after `require("lazy").setup()`
+returns, so `override.lua` covers options, keymaps, autocmds, and per-machine
+LSP paths, but cannot add lazy plugins and cannot beat a lazy-loaded plugin's
+own config, which runs on demand later. Use a spec import or an autocmd for
+those.
+
+Git applies includes inline too, so the override include is last in
+`~/.gitconfig`. Verify with `git config --list --includes --global`, not
+`--get`: `--includes` defaults off when a file scope like `--global` is given,
+so `--get` silently reports the pre-include value.
+
+### `~/.zsh_override` vs `~/.zsh_private`
+
+Two files, two jobs:
+
+- `~/.zsh_override` is for changing this config. Aliases, functions, options,
+  keybinds, completion. `.zshrc` sources it last, so it beats the managed
+  aliases, Oh My Zsh, and the custom functions.
+- `~/.zsh_private` is for credentials, private env vars, and work-specific
+  settings. `.zshrc` creates it on first run and sources it early, so the
+  aliases and functions loaded afterwards can use what it defines.
+
+Local shell functions belong in `~/.zsh_override` rather than
+`$ZSH_CUSTOM/functions/`, which `.zshrc` globs and chezmoi manages. A blanket
+ignore there would un-manage the real function files, so anything you do drop in
+that directory should be named `local-*.zsh`, which `.chezmoiignore` guards.
+
+### Backups
+
+`run_before_00-backup.sh` skips `$HOME` itself but sweeps every directory that
+holds a managed file. The hatches under `.config/` and `.tmux/` are therefore
+copied in plaintext into `~/.dotfiles-backup/`, with 20 snapshots retained.
+`~/.zsh_override` and `~/.zsh_private` sit loose in `$HOME` and are never swept,
+which is the right place for anything sensitive.
+
+### Reloading
 
 ```sh
 ghostty +validate-config          # then reload Ghostty's config
 tmux source-file ~/.tmux.conf
 exec zsh
+git config --list --includes --global
 ```
-
-`~/.zsh_private` is a separate, older hatch. `.zshrc` creates it on first run and
-sources it early, so it is the place for env vars and secrets the rest of the
-config consumes. `~/.zsh/override.zsh` is for last-word changes that must beat
-aliases, Oh My Zsh, and the custom functions.
 
 ## Terminal (tmux) behavior
 

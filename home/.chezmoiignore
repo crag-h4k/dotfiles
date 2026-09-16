@@ -8,17 +8,31 @@
 # the file per-machine instead of fighting chezmoi over it. init.lua reproduces
 # the plugin set on any host; we just don't pin exact commits across machines.
 .config/nvim/lazy-lock.json
-# Machine-local escape hatches, sideloaded by the managed config of each tool
-# (see the "Local overrides" section in docs/operation.md). Every entry is
+# Machine-local escape hatches: one file per tool for changing this config
+# without editing it (see "Local overrides" in docs/operation.md). Every entry is
 # unconditional and has no source file: chezmoi never creates, applies, or
-# removes them, and `chezmoi add` / `chezmoi re-add` refuse them, so a local or
-# secret-bearing setting cannot reach this public repo. Each tool's include is
-# already optional (Ghostty `?`, tmux `-q`, zsh `-r` guard), so there is no stub
-# to seed. ~/.zsh_private is the long-standing early/private counterpart, created
-# by .zshrc itself and listed here for the same anti-leak reason.
+# removes them, and `chezmoi add` / `chezmoi re-add` refuse them, so nothing
+# local reaches this public repo. Each tool's include is already optional
+# (Ghostty `?`, tmux `-q`, git's silent skip, zsh `-r` guard, nvim pcall), so
+# there is no stub to seed.
+#
+# .zsh_private is the separate private file (credentials, private env) that
+# .zshrc creates and sources early. Listed here for the same anti-leak reason.
+#
+# Backup note: run_before_00-backup.sh skips $HOME itself but sweeps every
+# directory holding a managed file, so the hatches under .config/ and .tmux/ are
+# copied in plaintext into ~/.dotfiles-backup/ (20 snapshots). The two $HOME-level
+# zsh files are not, which is the right place for anything sensitive.
+#
+# local-*.zsh covers $ZSH_CUSTOM/functions/, which .zshrc globs and chezmoi
+# manages. A blanket glob there would un-manage the real function files, so
+# machine-local additions are guarded by name convention instead.
 .config/ghostty/override.conf
+.config/git/override.conf
+.config/nvim/lua/override.lua
 .tmux/conf.d/override.conf
-.zsh/override.zsh
+.zsh/custom/functions/local-*.zsh
+.zsh_override
 .zsh_private
 {{ if not (dig "components" "zsh" true .) -}}
 .zshrc

@@ -5,7 +5,11 @@ source "$ZSH_BASE/theme.zsh"
 # Interactive-only: GPG pinentry needs the controlling tty. (Moved here from
 # .zshenv, where $(tty) is meaningless for non-interactive shells.)
 export GPG_TTY=$(tty)
-# check for private variable file, create one if it doesn't exist
+# Private file: credentials, private env vars, work-specific settings. Yours
+# alone, never in this repo (guarded in home/.chezmoiignore). Created on first
+# run if absent. Sourced EARLY on purpose, so the aliases and functions loaded
+# below can use what it defines. Config OVERRIDES belong in ~/.zsh_override
+# instead, which loads last.
 if [[ ! -a $HOME/.zsh_private ]]; then
     echo "Creating a private file at $HOME/.zsh_private";
     echo "# Put private alias or env variables in this file.\n" > $HOME/.zsh_private;
@@ -116,20 +120,22 @@ zsh_history_backup
 autoload -U +X bashcompinit && bashcompinit
 
 # ---- Local overrides --------------------------------------------------------
-# ~/.zsh/override.zsh is a machine-local escape hatch. It is NOT managed by
-# chezmoi and is listed in home/.chezmoiignore, so `chezmoi add` and
-# `chezmoi re-add` refuse it and nothing local leaks into this public repo.
+# ~/.zsh_override is the escape hatch for changing this config without editing
+# it. NOT managed by chezmoi and listed in home/.chezmoiignore, so `chezmoi add`
+# and `chezmoi re-add` refuse it. The -r guard means a missing file is a no-op,
+# so there is no stub to create.
 #
-# The -r guard means a missing file is a no-op, so there is no stub to create.
-#
-# This is sourced LAST, after aliases, Oh My Zsh, the theme, and the custom
-# functions, so anything here wins. That is the difference from ~/.zsh_private
-# (created above, sourced early): private holds env vars and secrets the rest of
-# the config consumes, override holds per-machine last-word changes.
+# Sourced LAST, after aliases, Oh My Zsh, the theme, and the custom functions, so
+# anything here wins. Aliases, functions, options, keybinds, completion.
 #
 # Keep this an `if` block, not `[[ -r ... ]] && source ...`. As the last line of
 # the file, the && form leaves a non-zero status behind whenever the override is
 # absent, which makes `source ~/.zshrc` report failure.
-if [[ -r "$ZSH_BASE/override.zsh" ]]; then
-    source "$ZSH_BASE/override.zsh"
+#
+# Sibling: ~/.zsh_private, sourced early above, for credentials and private env.
+# Local shell functions belong here rather than in $ZSH_CUSTOM/functions/, which
+# is globbed above and chezmoi-managed; name anything you do drop there
+# local-*.zsh so .chezmoiignore guards it.
+if [[ -r "$HOME/.zsh_override" ]]; then
+    source "$HOME/.zsh_override"
 fi

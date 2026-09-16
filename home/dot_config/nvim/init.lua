@@ -674,3 +674,23 @@ vim.keymap.set("n", "<C-n>", "<CMD>Oil<CR>", { desc = "Oil: file explorer" })
 if codecompanion_enabled then
   vim.cmd([[cnoreabbrev <expr> cc (getcmdtype() ==# ':' && getcmdline() ==# 'cc') ? 'CodeCompanionChat' : 'cc']])
 end
+
+-- ---- Local overrides -------------------------------------------------------
+-- ~/.config/nvim/lua/override.lua is a machine-local escape hatch. NOT managed
+-- by chezmoi and listed in home/.chezmoiignore, so `chezmoi add` / `re-add`
+-- refuse it. A missing module is a no-op, so there is no stub to create.
+--
+-- Loaded here, at the end, so it beats everything above. Two limits worth
+-- knowing: require("lazy").setup() has already returned, so this CANNOT add
+-- lazy plugins (use a spec import for that), and it cannot beat a lazy-LOADED
+-- plugin's own config, which runs on demand later (use an autocmd for that).
+-- Good for options, keymaps, autocmds, and per-machine LSP paths.
+--
+-- A bare pcall would swallow a syntax error in a PRESENT override.lua exactly
+-- like an absent one, so re-raise anything that is not "module not found".
+do
+  local ok, err = pcall(require, "override")
+  if not ok and not tostring(err):match("module 'override' not found") then
+    vim.notify("override.lua: " .. tostring(err), vim.log.levels.WARN)
+  end
+end
