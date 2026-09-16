@@ -29,15 +29,36 @@
 [include]
     path = ~/.gitconfig.personal
 
+# git-delta pager. The fragment at ~/.config/git/delta.conf is chezmoi-managed
+# but is NOT loaded unless it is included here. Without this line, enabling the
+# `git > config` sub-feature silently drops the delta pager on any host that
+# previously relied on an unmanaged ~/.gitconfig to include it.
+[include]
+    path = ~/.config/git/delta.conf
+
 # Per-context override. Uncomment and adapt as needed.
 # [includeIf "gitdir:~/work/**"]
 #     path = ~/.gitconfig.work
 
-# GitHub CLI credential helper. PATH-relative so it works on macOS (Homebrew),
-# Intel Macs, and Debian alike - wherever `gh` resolves on PATH.
+# GitHub CLI credential helper. PATH-relative so it works on macOS (Homebrew)
+# and Debian alike - wherever `gh` resolves on PATH.
 [credential "https://github.com"]
 	helper =
 	helper = !gh auth git-credential
 [credential "https://gist.github.com"]
 	helper =
 	helper = !gh auth git-credential
+
+# ---- Local overrides --------------------------------------------------------
+# ~/.config/git/override.conf is a machine-local escape hatch. NOT managed by
+# chezmoi and listed in home/.chezmoiignore, so `chezmoi add` / `re-add` refuse
+# it. Git silently ignores a missing include path, so there is no stub to create.
+#
+# Git applies includes inline, so this must stay LAST to win. Use it for a
+# per-host identity, a work `includeIf`, or an alias you do not want in the repo.
+#
+# Verify with `git config --list --includes --global`. NOT `--get`: `--includes`
+# defaults off when a specific file scope like --global is given, so `--get`
+# silently reports the pre-include value.
+[include]
+    path = ~/.config/git/override.conf

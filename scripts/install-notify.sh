@@ -85,7 +85,12 @@ chmod +x "$HOME/.config/notify/clear-pane.sh"
 info "copied lib + zsh notifier + tmux render + sounds + claude hooks"
 
 # --- wire-ups (idempotent) ----------------------------------------------------
-ensure_line '[ -f ~/.config/notify/notify-process.zsh ] && source ~/.config/notify/notify-process.zsh' "$HOME/.zshrc"
+# NOTE: ensure_line appends, so these land at the END of ~/.zshrc, after the
+# local-override block. That is only reachable on the standalone path (install.sh
+# never calls this script, and the guard above refuses to run when the managed
+# custom/functions copy exists). Kept in `if` form rather than `[ -f ... ] && ...`
+# so a missing file does not leave a non-zero status on the last line of .zshrc.
+ensure_line 'if [ -f ~/.config/notify/notify-process.zsh ]; then source ~/.config/notify/notify-process.zsh; fi' "$HOME/.zshrc"
 ensure_line 'source-file ~/.tmux/conf.d/notify.conf' "$HOME/.tmux.conf"
 warn "notify.conf overrides window-status-format / pane-border-format. If you customize your tmux status bar, review ~/.tmux/conf.d/notify.conf and reconcile."
 
