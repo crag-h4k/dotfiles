@@ -25,10 +25,8 @@ from pathlib import Path
 
 import pytest
 
-TMPL = (
-    Path(__file__).parent.parent
-    / "home" / "dot_config" / "opencode" / "modify_opencode.jsonc.tmpl"
-)
+REPO = Path(__file__).parent.parent
+TMPL = REPO / "home" / "dot_config" / "opencode" / "modify_opencode.jsonc.tmpl"
 
 pytestmark = pytest.mark.skipif(
     shutil.which("chezmoi") is None, reason="chezmoi not installed"
@@ -39,7 +37,7 @@ pytestmark = pytest.mark.skipif(
 def script() -> str:
     """Render the modify_ template the way chezmoi will, return the script path."""
     out = subprocess.run(
-        ["chezmoi", "execute-template"],
+        ["chezmoi", "execute-template", "--source", str(REPO)],
         stdin=TMPL.open(), capture_output=True, text=True, check=True,
     ).stdout
     path = Path(tempfile.mkdtemp()) / "merge.py"
