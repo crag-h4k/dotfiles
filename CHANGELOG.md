@@ -1,5 +1,14 @@
 # Changelog
 
+## [0.4.0](https://github.com/crag-h4k/dotfiles/compare/v0.3.0...v0.4.0) (2026-09-18)
+
+
+### Features
+
+* add unmanaged local override hatches for ghostty, tmux, zsh ([#59](https://github.com/crag-h4k/dotfiles/issues/59)) ([769729b](https://github.com/crag-h4k/dotfiles/commit/769729b9d020a31f6ae0c949c69a8b80a2010f5a))
+* **opencode2-statusline:** Add initial opencode2 statusline, update … ([#62](https://github.com/crag-h4k/dotfiles/issues/62)) ([618d463](https://github.com/crag-h4k/dotfiles/commit/618d4639c13596f330ced57dfbdaf5c16f2e752d))
+* **overrides:** add zsh, nvim, and git override configs ([#61](https://github.com/crag-h4k/dotfiles/issues/61)) ([1aaede3](https://github.com/crag-h4k/dotfiles/commit/1aaede35f548199d12d8cc8bb52f3297b7c1794c))
+
 ## [0.3.0](https://github.com/crag-h4k/dotfiles/compare/v0.2.0...v0.3.0) (2026-09-14)
 
 
