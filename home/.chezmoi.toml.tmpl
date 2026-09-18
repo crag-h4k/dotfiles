@@ -25,7 +25,7 @@
 {{- /* codecompanion is listed near the end: it is the heaviest sub-feature (pulls */ -}}
 {{- /* in node/npm and the npm-installed claude-agent-acp bridge), so keep it late  */ -}}
 {{- /* in the submenu even though it stays the default (all=true) selection.        */ -}}
-{{- /* opencode2 (OpenCode v2 beta) mirrors the opencode sub-feature; both share the */ -}}
+{{- /* opencode2 (OpenCode v2) mirrors the opencode sub-feature; both share the      */ -}}
 {{- /* generic base config + notifier bridge, gated together in .chezmoiignore.      */ -}}
 {{- $aiFeatures := list
     (dict "num" "1" "key" "claude_hooks"  "label" "claude_hooks"  "desc" "Claude settings.json notify hooks"           "all" false)
@@ -34,7 +34,7 @@
     (dict "num" "4" "key" "opencode"      "label" "opencode"      "desc" "OpenCode CLI generic base config + tmux notifier bridge (pulls in the opencode binary)" "all" false)
     (dict "num" "5" "key" "copilot"       "label" "copilot"       "desc" "GitHub Copilot CLI (npm @github/copilot; pulls in the copilot binary)" "all" false)
     (dict "num" "6" "key" "codecompanion" "label" "codecompanion" "desc" "CodeCompanion.nvim assistant (needs neovim; pulls in node, npm + claude-agent-acp)" "all" true)
-    (dict "num" "7" "key" "opencode2"     "label" "opencode2"     "desc" "OpenCode v2 beta (cli.json) side-by-side; pulls @opencode/cli@beta" "all" false)
+    (dict "num" "7" "key" "opencode2"     "label" "opencode2"     "desc" "OpenCode v2 (cli.json) side-by-side; pulls stable @opencode/cli@latest" "all" false)
 -}}
 {{- /* Terminal-emulator sub-features. MULTI-select (like git/ai): installing more */ -}}
 {{- /* than one emulator's config is harmless and Dane runs both, so this is not a  */ -}}

@@ -6,7 +6,7 @@ supply-chain audit, the cc-safety-net fails-OPEN warning, the permission
 rationale), so the merge script does line-level surgery and never round-trips
 the file through json.loads/json.dumps. These tests pin that contract:
 
-  OWNED   "$schema" + "plugin" are re-asserted on every run.
+  OWNED   schema, built-in agent colors, and V1/V2 plugins are re-asserted.
   SEEDED  "permission" is written only when the incoming file has none.
   KEPT    every other top-level key survives byte-for-byte, comments included.
 
@@ -25,10 +25,8 @@ from pathlib import Path
 
 import pytest
 
-TMPL = (
-    Path(__file__).parent.parent
-    / "home" / "dot_config" / "opencode" / "modify_opencode.jsonc.tmpl"
-)
+REPO = Path(__file__).parent.parent
+TMPL = REPO / "home" / "dot_config" / "opencode" / "modify_opencode.jsonc.tmpl"
 
 pytestmark = pytest.mark.skipif(
     shutil.which("chezmoi") is None, reason="chezmoi not installed"
@@ -39,7 +37,7 @@ pytestmark = pytest.mark.skipif(
 def script() -> str:
     """Render the modify_ template the way chezmoi will, return the script path."""
     out = subprocess.run(
-        ["chezmoi", "execute-template"],
+        ["chezmoi", "execute-template", "--source", str(REPO)],
         stdin=TMPL.open(), capture_output=True, text=True, check=True,
     ).stdout
     path = Path(tempfile.mkdtemp()) / "merge.py"
@@ -82,6 +80,10 @@ WORK = """\
     "stale@0.0.1"
   ],
 
+  "plugins": [
+    "stale-v2@0.0.1"
+  ],
+
   // LOCAL EDIT: loosened on this host; chezmoi must never revert it.
   "permission": {
     "edit": "allow",
@@ -110,14 +112,19 @@ WORK = """\
 
 def test_empty_stdin_seeds_a_complete_generic_file(script):
     out, _ = merge(script, "")
-    assert strict_json_keys(out) == ["$schema", "permission", "plugin"]
+    assert strict_json_keys(out) == ["$schema", "agents", "permission", "plugin", "plugins"]
     d = parse(out)
     assert d["$schema"] == "https://opencode.ai/config.json"
+    assert set(d["agents"]) == {"build", "plan"}
+    assert re.fullmatch(r"#[0-9a-fA-F]{6}", d["agents"]["build"]["color"])
+    assert re.fullmatch(r"#[0-9a-fA-F]{6}", d["agents"]["plan"]["color"])
+    assert d["agents"]["build"]["color"] != d["agents"]["plan"]["color"]
     assert d["plugin"] == [
         "@slkiser/opencode-quota@4.9.0",
         "@tarquinen/opencode-dcp@3.1.15",
         "cc-safety-net@2.3.4",
     ]
+    assert d["plugins"] == ["opencode-copilot-statusline@1.0.0"]
     # A fresh host must not come up unguarded.
     assert d["permission"]["edit"] == "ask"
     assert d["permission"]["bash"]["*"] == "ask"
@@ -126,7 +133,9 @@ def test_empty_stdin_seeds_a_complete_generic_file(script):
 def test_owned_comments_survive_because_nothing_is_reserialized(script):
     out, _ = merge(script, "")
     for comment in (
-        "// Third-party TUI plugins, EXACT-pinned.",
+        "// OpenCode V1 plugins, EXACT-pinned.",
+        "// OpenCode V2 plugins, EXACT-pinned.",
+        "// Prompt metadata uses each agent's configured color.",
         '// "@leohenon/opencode-vim-plugin@0.1.6",',
         "fails OPEN silently",
         "// Permission model: edit asks before writing",
@@ -137,7 +146,9 @@ def test_owned_comments_survive_because_nothing_is_reserialized(script):
 def test_plugin_array_is_asserted_over_a_local_edit(script):
     out, _ = merge(script, WORK)
     assert "stale@0.0.1" not in out
+    assert "stale-v2@0.0.1" not in out
     assert parse(out)["plugin"][-1] == "cc-safety-net@2.3.4"
+    assert parse(out)["plugins"][-1] == "opencode-copilot-statusline@1.0.0"
 
 
 # --- seeded -----------------------------------------------------------------
@@ -203,7 +214,7 @@ def test_trailing_comma_is_fixed_when_an_owned_key_was_last(script):
         '  "plugin": [\n    "stale@0.0.1"\n  ]\n}\n'
     )
     out, _ = merge(script, src)
-    assert strict_json_keys(out) == ["$schema", "permission", "plugin"]
+    assert strict_json_keys(out) == ["$schema", "agents", "permission", "plugin", "plugins"]
 
 
 # --- idempotence ------------------------------------------------------------

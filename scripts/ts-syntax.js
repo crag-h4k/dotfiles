@@ -1,11 +1,9 @@
 // scripts/ts-syntax.js
 // Parse-check TypeScript files and report syntax errors.
 //
-// The OpenCode notifier plugin (home/dot_config/opencode/plugin/notify.ts) had
-// no gate of any kind: nothing in pre-commit reads TypeScript, so a parse error
-// would install cleanly via chezmoi and only surface at runtime, inside a plugin
-// host that swallows plugin errors by design. That is a silent failure mode,
-// which is the same class of bug the plugin itself was written to avoid.
+// OpenCode plugins would otherwise install cleanly via chezmoi and surface parse
+// errors only at runtime, inside a plugin host. Cover both plain TypeScript and
+// TSX used by the V2 terminal plugin API.
 //
 // SYNTAX ONLY, not a type-check, and the distinction is deliberate. Full
 // checking needs @types/node resolvable from the file's own directory, which
@@ -14,6 +12,8 @@
 // with one dependency and no project scaffolding. It will not catch a type error.
 
 const fs = require("node:fs")
+const path = require("node:path")
+const { execFileSync } = require("node:child_process")
 const ts = require("typescript")
 
 const files = process.argv.slice(2)
@@ -23,13 +23,21 @@ for (const file of files) {
   let text
   try {
     text = fs.readFileSync(file, "utf8")
+    if (file.endsWith(".tmpl")) {
+      const source = path.resolve(__dirname, "..")
+      text = execFileSync("chezmoi", ["execute-template", "--source", source], {
+        input: text,
+        encoding: "utf8",
+      })
+    }
   } catch (err) {
     console.error(`ts-syntax: cannot read ${file}: ${err.message}`)
     failed = 1
     continue
   }
 
-  const source = ts.createSourceFile(file, text, ts.ScriptTarget.Latest, false, ts.ScriptKind.TS)
+  const kind = file.endsWith(".tsx") || file.endsWith(".tsx.tmpl") ? ts.ScriptKind.TSX : ts.ScriptKind.TS
+  const source = ts.createSourceFile(file, text, ts.ScriptTarget.Latest, false, kind)
   // parseDiagnostics is not on the public type but is present on the node and is
   // the only way to get parser errors without a full Program.
   const diagnostics = source.parseDiagnostics || []

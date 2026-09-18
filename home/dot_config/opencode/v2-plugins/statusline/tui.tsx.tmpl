@@ -1,0 +1,468 @@
+{{- $p := get .palettes (dig "palette" "dracula" .) -}}
+// ~/.config/opencode/v2-plugins/statusline/tui.tsx
+/** @jsxImportSource @opentui/solid */
+import { Plugin, usePlugin } from "@opencode/plugin/tui"
+import { Rpc } from "@opencode/plugin/rpc"
+import { useTerminalDimensions } from "@opentui/solid"
+import { createEffect, createMemo, createSignal, onCleanup, Show } from "solid-js"
+
+const COLOR = {
+  surface: {{ $p.colors.surface | quote }},
+  foreground: {{ $p.colors.foreground | quote }},
+  project: {{ $p.colors.blue | quote }},
+  git: {{ $p.colors.green | quote }},
+  dirty: {{ $p.colors.yellow | quote }},
+  identity: {{ $p.colors.purple | quote }},
+  build: {{ $p.colors.green | quote }},
+  plan: {{ $p.colors.blue | quote }},
+  elapsed: {{ $p.colors.cyan | quote }},
+  subagents: {{ $p.colors.orange | quote }},
+  limit: {{ $p.colors.blue | quote }},
+  limitWarning: {{ $p.colors.yellow | quote }},
+  limitError: {{ $p.colors.red | quote }},
+}
+
+type Location = { directory: string; workspaceID?: string }
+type GitStats = { files: number; additions: number; deletions: number }
+type Identity = { agent: string; model?: string; effort?: string; color: string }
+type CopilotUsage = {
+  usedPercent: number
+  remaining: number
+  entitlement: number
+  unlimited: boolean
+}
+
+const COPILOT_RPC = Rpc.define({
+  id: "opencode-copilot-statusline",
+  methods: {
+    get: {
+      input: { type: "object", properties: {}, additionalProperties: false },
+      output: {
+        type: "object",
+        properties: {
+          usage: {
+            type: "object",
+            properties: {
+              usedPercent: { type: "number" },
+              remaining: { type: "number" },
+              entitlement: { type: "number" },
+              unlimited: { type: "boolean" },
+              resetsAt: { type: "string" },
+            },
+            required: ["usedPercent", "remaining", "entitlement", "unlimited"],
+            additionalProperties: false,
+          },
+        },
+        additionalProperties: false,
+      },
+    },
+  },
+  events: {},
+})
+
+const COMPACT_NUMBER = new Intl.NumberFormat("en-US", {
+  notation: "compact",
+  maximumFractionDigits: 1,
+})
+const MONEY = new Intl.NumberFormat("en-US", {
+  style: "currency",
+  currency: "USD",
+})
+
+function basename(path: string) {
+  const clean = path.replace(/[\\/]+$/, "")
+  return clean.split(/[\\/]/).pop() || clean
+}
+
+function shorten(value: string, limit: number) {
+  if (value.length <= limit) return value
+  return value.slice(0, Math.max(1, limit - 1)) + "…"
+}
+
+function duration(ms: number) {
+  const minutes = Math.max(0, Math.floor(ms / 60_000))
+  if (minutes < 1) return "<1m"
+  const days = Math.floor(minutes / 1_440)
+  const hours = Math.floor((minutes % 1_440) / 60)
+  const mins = minutes % 60
+  if (days > 0) return `${days}d${hours}h`
+  if (hours > 0) return `${hours}h${mins}m`
+  return `${mins}m`
+}
+
+function Pill(props: { icon: string; value: string; accent: string }) {
+  return (
+    <box flexDirection="row" flexShrink={0}>
+      <text fg={COLOR.surface}></text>
+      <text fg={props.accent} bg={COLOR.surface} wrapMode="none">
+        {` ${props.icon}`}
+      </text>
+      <text fg={COLOR.foreground} bg={COLOR.surface} wrapMode="none">
+        {` ${props.value} `}
+      </text>
+      <text fg={COLOR.surface}></text>
+    </box>
+  )
+}
+
+function IdentityPill(props: { value: Identity }) {
+  return (
+    <box flexDirection="row" flexShrink={0}>
+      <text fg={COLOR.surface}></text>
+      <text fg={COLOR.identity} bg={COLOR.surface} wrapMode="none">
+        {" 󰚩 "}
+      </text>
+      <text fg={props.value.color} bg={COLOR.surface} wrapMode="none">
+        {props.value.agent}
+      </text>
+      <Show when={props.value.model}>
+        {(model) => (
+          <text fg={COLOR.foreground} bg={COLOR.surface} wrapMode="none">
+            {` · ${model()}`}
+          </text>
+        )}
+      </Show>
+      <Show when={props.value.effort}>
+        {(effort) => (
+          <text fg={COLOR.dirty} bg={COLOR.surface} wrapMode="none">
+            {` · ${effort()}`}
+          </text>
+        )}
+      </Show>
+      <text fg={COLOR.foreground} bg={COLOR.surface}>
+        {" "}
+      </text>
+      <text fg={COLOR.surface}></text>
+    </box>
+  )
+}
+
+function StatusPills(props: {
+  sessionID?: string
+  showDetails: boolean
+  home?: boolean
+  location: Location
+  branch: () => string | undefined
+  git: () => GitStats
+  now: () => number
+}) {
+  const context = usePlugin()
+  const terminal = useTerminalDimensions()
+  const session = createMemo(() =>
+    props.sessionID ? context.data.session.get(props.sessionID) : undefined,
+  )
+
+  createEffect(() => {
+    const id = props.sessionID
+    if (id) void context.data.session.sync(id)
+  })
+
+  const project = createMemo(() => {
+    const active = session()
+    const info = active ? context.data.project.get(active.projectID) : undefined
+    return shorten(
+      info?.name || basename(info?.canonical || active?.location.directory || props.location.directory),
+      18,
+    )
+  })
+
+  const git = createMemo(() => {
+    const branch = props.branch()
+    if (!branch) return undefined
+    const stats = props.git()
+    const detailed = props.showDetails || terminal().width >= 165
+    if (stats.files === 0) return shorten(branch, 18)
+    if (!detailed) return `${shorten(branch, 14)} •${stats.files}`
+    return `${shorten(branch, 14)} •${stats.files} +${stats.additions} -${stats.deletions}`
+  })
+
+  const identity = createMemo(() => {
+    const active = session()
+    if (!active) return undefined
+    const agent = shorten(active.agent || "build", 12)
+    const model = active.model?.id ? shorten(active.model.id, 20) : undefined
+    const effort = active.model?.variant ? shorten(active.model.variant, 10) : undefined
+    const color = agent === "build" ? COLOR.build : agent === "plan" ? COLOR.plan : COLOR.identity
+    return { agent, model, effort, color }
+  })
+
+  const age = createMemo(() => {
+    const created = session()?.time.created
+    return created ? duration(props.now() - created) : undefined
+  })
+
+  const subagents = createMemo(() => {
+    const id = props.sessionID
+    if (!id) return undefined
+    const root = context.data.session.root(id)
+    const children = context.data.session.family(root).filter((child) => child !== root)
+    const running = children.filter((child) => context.data.session.status(child) === "running").length
+    const queued = children.reduce(
+      (total, child) => total + context.data.session.pending.list(child).length,
+      0,
+    )
+    const parts = [running ? `${running} run` : "", queued ? `${queued} queued` : ""].filter(Boolean)
+    return parts.join(" · ") || undefined
+  })
+
+  const hasGit = () => Boolean(git())
+  const showIdentity = () =>
+    !props.home && terminal().width >= 85 && (!hasGit() || terminal().width >= 125)
+  const showElapsed = () =>
+    !props.home && terminal().width >= 115 && (!hasGit() || terminal().width >= 150)
+
+  return (
+    <box flexDirection="row" flexShrink={1} minWidth={0} gap={1}>
+      <Pill icon="󰉋" value={project()} accent={COLOR.project} />
+      <Show when={git()}>
+        {(value) => (
+          <Pill
+            icon=""
+            value={value()}
+            accent={props.git().files > 0 ? COLOR.dirty : COLOR.git}
+          />
+        )}
+      </Show>
+      <Show when={showIdentity() && identity()}>
+        {(value) => <IdentityPill value={value()} />}
+      </Show>
+      <Show when={showElapsed() && age()}>
+        {(value) => <Pill icon="󰥔" value={value()} accent={COLOR.elapsed} />}
+      </Show>
+      <Show when={!props.home && subagents()}>
+        {(value) => <Pill icon="󰓻" value={value()} accent={COLOR.subagents} />}
+      </Show>
+    </box>
+  )
+}
+
+function contextUsage(context: ReturnType<typeof usePlugin>, sessionID: string) {
+  const session = context.data.session.get(sessionID)
+  if (!session) return undefined
+  const messages = context.data.session.message.list(sessionID)
+  const boundary = session.revert?.messageID
+  const boundaryIndex = boundary ? messages.findIndex((message) => message.id === boundary) : -1
+  if (boundary && boundaryIndex === -1) return undefined
+  const end = boundaryIndex === -1 ? messages.length : boundaryIndex
+  let compaction = -1
+  for (let index = end - 1; index >= 0; index -= 1) {
+    const message = messages[index]
+    if (message.type === "compaction" && message.status === "completed") {
+      compaction = index
+      break
+    }
+  }
+  for (let index = end - 1; index > compaction; index -= 1) {
+    const message = messages[index]
+    if (message.type !== "assistant" || !message.tokens) continue
+    const tokens =
+      message.tokens.input +
+      message.tokens.output +
+      message.tokens.reasoning +
+      message.tokens.cache.read +
+      message.tokens.cache.write
+    if (tokens <= 0) return undefined
+    const models = context.data.location.model.list(session.location)
+    const model = models?.find(
+      (candidate) =>
+        candidate.providerID === message.model.providerID && candidate.id === message.model.id,
+    )
+    const percent = model?.limit.context
+      ? Math.round((tokens / model.limit.context) * 100)
+      : undefined
+    const value = COMPACT_NUMBER.format(tokens)
+    return percent === undefined ? value : `${value} (${percent}%)`
+  }
+  return undefined
+}
+
+function SessionFooter(props: {
+  sessionID?: string
+  mode: "normal" | "shell"
+  showDetails: boolean
+  location: Location
+  branch: () => string | undefined
+  git: () => GitStats
+  now: () => number
+  copilot: () => CopilotUsage | undefined
+}) {
+  const context = usePlugin()
+  const session = createMemo(() =>
+    props.sessionID ? context.data.session.get(props.sessionID) : undefined,
+  )
+
+  createEffect(() => {
+    const id = props.sessionID
+    if (!id) return
+    void context.data.session.sync(id)
+    void context.data.session.message.sync(id)
+  })
+
+  const metrics = createMemo(() => {
+    const id = props.sessionID
+    if (!id) return []
+    const cost = context.data.session.cost(id)
+    return [contextUsage(context, id), cost > 0 ? MONEY.format(cost) : undefined].filter(
+      (value): value is string => Boolean(value),
+    )
+  })
+
+  const provider = createMemo(() => {
+    if (session()?.model?.providerID !== "github-copilot") return undefined
+    const usage = props.copilot()
+    if (!usage) return { text: "GitHub Copilot", color: COLOR.limitError }
+    if (usage.unlimited) return { text: "GitHub Copilot ∞", color: COLOR.limit }
+    const color =
+      usage.usedPercent >= 90
+        ? COLOR.limitError
+        : usage.usedPercent >= 70
+          ? COLOR.limitWarning
+          : COLOR.limit
+    return { text: `GitHub Copilot ${usage.usedPercent}%`, color }
+  })
+
+  const guidance = createMemo(() => {
+    if (props.mode === "shell") return "esc exit shell mode"
+    const id = props.sessionID
+    if (!id || context.data.session.status(id) !== "running") return undefined
+    const shortcut = context.keymap.shortcuts("session.interrupt")[0] || "esc"
+    return `${shortcut} interrupt`
+  })
+
+  if (!props.sessionID) return <box />
+
+  return (
+    <box width="100%" flexDirection="row" alignItems="center" gap={1}>
+      <Show
+        when={guidance()}
+      >
+        {(value) => (
+          <text fg={COLOR.elapsed} wrapMode="none" flexShrink={0}>
+            {value()}
+          </text>
+        )}
+      </Show>
+      <StatusPills
+        sessionID={props.sessionID}
+        showDetails={props.showDetails}
+        location={props.location}
+        branch={props.branch}
+        git={props.git}
+        now={props.now}
+      />
+      <box flexGrow={1} />
+      <Show when={!guidance() && (metrics().length > 0 || provider())}>
+        <box flexDirection="row" flexShrink={0}>
+          <Show when={metrics().length > 0}>
+            <text fg={COLOR.foreground} wrapMode="none">
+              {metrics().join(" · ")}
+            </text>
+          </Show>
+          <Show when={metrics().length > 0 && provider()}>
+            <text fg={COLOR.foreground}> · </text>
+          </Show>
+          <Show when={provider()}>
+            {(value) => (
+              <text fg={value().color} wrapMode="none">
+                {value().text}
+              </text>
+            )}
+          </Show>
+        </box>
+      </Show>
+    </box>
+  )
+}
+
+export default Plugin.define({
+  id: "dotfiles.statusline",
+  setup(context) {
+    const location = context.location ?? context.data.location.default()
+    const [git, setGit] = createSignal<GitStats>({ files: 0, additions: 0, deletions: 0 })
+    const [now, setNow] = createSignal(Date.now())
+    const [copilot, setCopilot] = createSignal<CopilotUsage>()
+    const copilotRpc = context.client.rpc(COPILOT_RPC)
+    let refreshTimer: ReturnType<typeof setTimeout> | undefined
+
+    async function refreshGit() {
+      try {
+        const result = await context.client.vcs.status({ location })
+        const files = result.data
+        setGit({
+          files: files.length,
+          additions: files.reduce((total, file) => total + file.additions, 0),
+          deletions: files.reduce((total, file) => total + file.deletions, 0),
+        })
+      } catch {
+        setGit({ files: 0, additions: 0, deletions: 0 })
+      }
+    }
+
+    function scheduleGitRefresh() {
+      if (refreshTimer) clearTimeout(refreshTimer)
+      refreshTimer = setTimeout(() => void refreshGit(), 250)
+    }
+
+    async function refreshCopilot() {
+      try {
+        const result = (await copilotRpc.get({})) as { usage?: CopilotUsage }
+        if (result.usage) setCopilot(result.usage)
+      } catch {
+        // Keep the last good quota and retry on the next interval.
+      }
+    }
+
+    void context.data.location.vcs.sync(location)
+    void context.data.project.sync()
+    void refreshGit()
+    void refreshCopilot()
+
+    const clock = setInterval(() => setNow(Date.now()), 30_000)
+    const quota = setInterval(() => void refreshCopilot(), 60_000)
+    const stopFiles = context.data.on("filesystem.changed", scheduleGitRefresh)
+    const stopBranch = context.data.on("vcs.branch.updated", () => {
+      void context.data.location.vcs.sync(location)
+      scheduleGitRefresh()
+    })
+
+    const sessionFooter = context.ui.slot({
+      replace: "prompt.footer.status",
+      render: (input) => (
+        <SessionFooter
+          sessionID={input.sessionID}
+          mode={input.mode}
+          showDetails={input.showDetails}
+          location={location}
+          branch={() => context.data.location.vcs.info(location)?.branch.current}
+          git={git}
+          now={now}
+          copilot={copilot}
+        />
+      ),
+    })
+
+    const homeFooter = context.ui.slot({
+      prepend: "home.footer.status",
+      render: () => (
+        <StatusPills
+          home
+          showDetails={false}
+          location={location}
+          branch={() => context.data.location.vcs.info(location)?.branch.current}
+          git={git}
+          now={now}
+        />
+      ),
+    })
+
+    return () => {
+      if (refreshTimer) clearTimeout(refreshTimer)
+      clearInterval(clock)
+      clearInterval(quota)
+      stopFiles()
+      stopBranch()
+      sessionFooter()
+      homeFooter()
+    }
+  },
+})

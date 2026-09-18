@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+{{ $p := get .palettes (dig "palette" "dracula" .) -}}
 # chezmoi modify_ template for ~/.config/opencode/opencode.jsonc.
 # Rendered by chezmoi (Go template) into a Python merge script, then run with the
 # current file on stdin; the merged result is emitted on stdout. Merge-only and
@@ -12,8 +13,9 @@
 #
 # Ownership boundary:
 #   OWNED  - re-asserted on every apply: the file header comment, "$schema", and
-#            the "plugin" array (with its audit comments). A local edit to those
-#            is reverted, so plugin pins stay reviewed in the repo.
+#            V1 "plugin", V2 "plugins", and built-in agent color entries (with
+#            audit comments). A local edit to those is reverted so the rice and
+#            plugin pins stay reviewed here.
 #   SEEDED - written once, only when the incoming file has no "permission" key at
 #            all (fresh host, or empty stdin), so a new machine is not unguarded.
 #            An existing "permission" block is left completely alone, comments
@@ -46,7 +48,8 @@ HEADER = """\
 //
 // MERGED, NOT OVERWRITTEN. chezmoi maintains this file through the modify_
 // script home/dot_config/opencode/modify_opencode.jsonc.tmpl. It owns only the
-// header above, "$schema", and "plugin", which it re-asserts on every apply;
+// header above, "$schema", V1 "plugin", V2 "plugins", and the built-in agent
+// colors, which it re-asserts on every apply;
 // every other top-level key is copied through verbatim, comments included.
 // Machine-local keys ("instructions", "mcp", host-specific subagents) belong
 // here in the target file and never reach the dotfiles repo.
@@ -55,18 +58,25 @@ HEADER = """\
 // new machine is not unguarded. After that it is yours to edit; chezmoi will not
 // touch it again.
 //
-// The color theme is set in tui.json (a top-level "theme" here is legacy and is
-// stripped on load); the custom "gud" theme lives in ./themes/gud.json."""
+// V1 reads its theme from tui.json; V2 reads cli.json. Their custom themes live
+// under ./themes/."""
 
 # The owned body. Kept as literal text, not as data, so the audit comments are
 # part of what gets asserted rather than something a serializer can drop.
 OWNED = """\
   "$schema": "https://opencode.ai/config.json",
 
-  // Third-party TUI plugins, EXACT-pinned. Each runs arbitrary TypeScript at
+  // Prompt metadata uses each agent's configured color. Render from the shared
+  // palette so Build stays green and Plan stays light blue across theme changes.
+  "agents": {
+    "build": { "color": "{{ $p.colors.green }}" },
+    "plan": { "color": "{{ $p.colors.blue }}" }
+  },
+
+  // OpenCode V1 plugins, EXACT-pinned. Each runs arbitrary TypeScript at
   // startup with the Bun shell + SDK client, so treat every entry as a
   // code-reviewed dependency and re-review on each version bump. Bun auto-installs
-  // them into ~/.cache/opencode/node_modules. Both require the 1.x plugin SDK.
+  // them into ~/.cache/opencode/node_modules. These require the 1.x plugin SDK.
   //   opencode-vim-plugin - inline modal (vim) editing in the prompt input.
   //   opencode-quota      - token/cost/quota readout (the /usage + /context gap).
   "plugin": [
@@ -84,6 +94,20 @@ OWNED = """\
     // the terraform/aws/azure rulebooks and run `npx cc-safety-net doctor` (it
     // fails OPEN silently on a broken config) for full coverage.
     "cc-safety-net@2.3.4"
+  ],
+
+  // OpenCode V2 plugins, EXACT-pinned. V2 also discovers the legacy V1 list
+  // above for compatibility; those old packages fail closed because they do not
+  // export V2 definitions, while this native package loads independently.
+  //   opencode-copilot-statusline - supplies monthly Copilot quota to the local
+  //   V2 footer over RPC. Audited @1.0.0: its server half resolves OpenCode's existing
+  //   github-copilot credential and sends it only to GitHub's Copilot quota API;
+  //   cli.json disables its stock TUI half so the local renderer can put the
+  //   percentage after session cost without its reset countdown. No telemetry or
+  //   install-time scripts. The GitHub endpoint is undocumented, so
+  //   a future GitHub API change can make the display show an unavailable value.
+  "plugins": [
+    "opencode-copilot-statusline@1.0.0"
   ]"""
 
 # Seed-only. Written just once, when the target carries no "permission" key.
@@ -124,7 +148,7 @@ SEED_PERMISSION = """\
     }
   }"""
 
-OWNED_KEYS = ("$schema", "plugin")
+OWNED_KEYS = ("$schema", "agents", "plugin", "plugins")
 
 
 def warn(msg):

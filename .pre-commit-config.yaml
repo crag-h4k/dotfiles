@@ -55,7 +55,7 @@ repos:
 
   # Shell-script linting for the install scripts in scripts/. Exclude:
   #   - chezmoi .tmpl files (Go template syntax is not valid sh)
-  #   - home/dot_zsh/* — zsh is not supported by shellcheck (SC1071)
+  #   - home/dot_zsh/*: zsh is not supported by shellcheck (SC1071)
   # -x follows `# shellcheck source=...` directives inside scripts.
   - repo: https://github.com/shellcheck-py/shellcheck-py
     rev: v0.10.0.1
@@ -137,7 +137,7 @@ repos:
         # The OpenCode notifier plugin is TypeScript and had no gate whatsoever:
         # a parse error would install cleanly and only fail at runtime, inside a
         # plugin host that swallows plugin errors. Syntax only; see the script.
-        files: ^home/dot_config/opencode/plugin/.*\.ts$
+        files: ^home/dot_config/opencode/(plugin/.*\.ts|v2-plugins/.*\.tsx\.tmpl)$
 
       - id: validate-palettes
         name: validate shared palettes render

@@ -35,7 +35,7 @@ INSTALL_AI_STATUSLINE="${INSTALL_AI_STATUSLINE:-false}"
 # file-gated in home/.chezmoiignore; this var gates the binary install
 # (scripts/install-opencode.sh).
 INSTALL_AI_OPENCODE="${INSTALL_AI_OPENCODE:-false}"
-# OpenCode v2 beta CLI (opt-in, off by default). Shares the generic config +
+# OpenCode v2 CLI (opt-in, off by default). Shares the generic config +
 # notifier bridge (file-gated with opencode in home/.chezmoiignore); this var
 # gates the binary install (scripts/install-opencode2.sh).
 INSTALL_AI_OPENCODE2="${INSTALL_AI_OPENCODE2:-false}"

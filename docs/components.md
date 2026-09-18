@@ -7,6 +7,7 @@
   - [Palette and install confirmation](#palette-and-install-confirmation)
   - [Adding APT repositories](#adding-apt-repositories)
   - [Sub-feature submenus (git, ai, terminal)](#sub-feature-submenus-git-ai-terminal)
+  - [OpenCode V2 footer](#opencode-v2-footer)
   - [Terminal (Ghostty, iTerm2)](#terminal-ghostty-iterm2)
     - [Ghostty](#ghostty)
     - [iTerm2](#iterm2)
@@ -82,10 +83,10 @@ Git is in the default component set. AI and terminal configuration are opt-in.
 | `ai` | `claude_hooks` | `~/.claude/settings.json` (merge) | off | merges the Claude notify hooks |
 | `ai` | `codex_hooks` | `~/.codex/config.toml` (merge) | off | merges the Codex notify hook + `tui.notifications` |
 | `ai` | `statusline` | `~/.claude/settings.json` + `~/.codex/config.toml` (merge) | off | Claude renderer plus a matching selected-palette Codex theme; keeps those files managed even when notify hooks are off; not enabled by `all` or `all+` |
-| `ai` | `opencode` | OpenCode CLI (`opencode-ai` npm) + generic config (merge) + tmux notifier bridge | off | pinned npm binary into `~/.local`; `~/.config/opencode/opencode.jsonc` is merge-managed - chezmoi asserts `$schema` + `plugin`, seeds `permission` only on a host that has none, and preserves every other top-level key (`instructions`, `mcp`) and its comments verbatim, so machine-local entries never reach this repo; not enabled by `all` or `all+` |
+| `ai` | `opencode` | OpenCode CLI (`opencode-ai` npm) + generic config (merge) + tmux notifier bridge | off | pinned npm binary into `~/.local`; `~/.config/opencode/opencode.jsonc` is merge-managed - chezmoi asserts `$schema`, V1 `plugin`, and V2 `plugins`; seeds `permission` only on a host that has none; and preserves every other top-level key (`instructions`, `mcp`) and its comments verbatim, so machine-local entries never reach this repo; not enabled by `all` or `all+` |
 | `ai` | `copilot` | GitHub Copilot CLI (`@github/copilot` npm, `prerelease` tag) | off | npm-only channel (no Homebrew/apt); binary into `~/.local`; needs Node 22+; not enabled by `all` or `all+` |
 | `ai` | `codecompanion` | CodeCompanion.nvim + `claude-agent-acp` bridge | on (within the `ai` submenu, if `ai` is picked) | heaviest sub-feature - pulls in node, npm, and the npm-installed bridge; listed near the end for that reason |
-| `ai` | `opencode2` | OpenCode v2 beta CLI (`@opencode/cli` npm, `beta` tag) + shared generic config (merge) + `gud-lucent` theme | off | side-by-side `opencode2` binary sharing v1's `~/.config/opencode`; shares the generic base/notifier gate with `opencode`, including the merge-managed `opencode.jsonc`; not enabled by `all` or `all+` |
+| `ai` | `opencode2` | OpenCode v2 CLI (`@opencode/cli` npm, stable `latest` tag) + shared generic config (merge) + `gud-lucent` theme | off | package isolated under `~/.local/share/opencode2` with only `opencode2` linked into `~/.local/bin`, so its additional `opencode` bin cannot overwrite V1; exact local-plugin dependencies install under `~/.config/opencode/node_modules`; V2 loads the pinned Copilot quota RPC while V1 keeps its separate legacy plugin list; not enabled by `all` or `all+` |
 | `terminal` | `ghostty` | Ghostty config + quick-terminal dropdown | on | macOS and Linux |
 | `terminal` | `iterm2` | iTerm2 Dynamic Profiles | off | macOS only; hidden in the submenu on non-macOS (data key still emitted for column parity), also gated in `home/.chezmoiignore` |
 
@@ -127,6 +128,50 @@ is a single process for every session in every pane and holds one pane id, so
 with N panes, N-1 sessions notify the wrong pane. `oc2bg` is the deliberate
 opt-in to that shared service: it saves roughly 864 MB per pane and gives up
 per-pane notifications. See [Notifications](notifications.md#opencode).
+
+### OpenCode V2 footer
+
+OpenCode V2 loads a local CLI plugin from
+`~/.config/opencode/v2-plugins/statusline/tui.tsx`. `cli.json` names its parent
+package directory explicitly, which keeps it outside OpenCode's automatic V1
+plugin discovery. It disables the stock `opencode.prompt.footer` and
+`opencode-copilot-statusline.tui` renderers, then replaces
+`prompt.footer.status`. This removes the command-palette hint and idle working
+directory while keeping editor-file context in `prompt.footer.file`.
+
+V2's local-path loader does not provide the `@opencode/plugin` and OpenTUI peer
+packages advertised by its documentation. The managed `package.json` and lock
+file install exact runtime versions under `~/.config/opencode/node_modules`.
+
+The local renderer reproduces context usage and aggregate session cost. It
+calls the `opencode-copilot-statusline@1.0.0` server RPC for the monthly limit,
+but renders only the provider and used percentage after cost. The reset
+countdown is intentionally omitted.
+
+```text
+󰉋 project   main •2 +14 -3  󰚩 build · gpt-5.6-sol · xhigh  󰥔 12m  󰓻 1 run    43.9K (4%) · $23.79 · GitHub Copilot 52%
+```
+
+| Pill | Data | Display rule |
+| --- | --- | --- |
+| Project | Project name, falling back to the working-directory basename | Always visible as the compact baseline |
+| Git | Branch plus dirty-file count; additions and deletions when expanded | Hidden outside a repository |
+| Identity | Active agent, shortened model ID, and effort variant | From 85 columns without Git or 125 columns with Git |
+| Elapsed | Wall-clock age since session creation | From 115 columns without Git or 150 columns with Git |
+| Subagents | Running child sessions and queued child prompts | Hidden when there is no active child work |
+| Context and cost | Latest post-compaction context usage and aggregate family cost | Right-aligned when data exists |
+| Provider limit | Active provider plus monthly used percentage | Last item; no reset countdown |
+
+The plugin refreshes Git status after filesystem and branch events with a 250
+ms debounce, and refreshes the Copilot limit every 60 seconds. During execution
+the configured interrupt shortcut precedes the left pills and right-side usage
+is hidden to preserve width; shell mode shows its exit guidance. Its colors
+render from `.chezmoidata/palettes.yaml`, so changing `data.palette` keeps the
+pills aligned with `gud-lucent`, tmux, Ghostty, and the rest of the rice.
+
+The same palette overrides the built-in prompt metadata colors through
+`agents.build.color` and `agents.plan.color`. Build renders in palette green;
+Plan renders in palette blue.
 
 An unselected component is excluded twice. Its targets are ignored by
 `home/.chezmoiignore`, and its externals disappear from

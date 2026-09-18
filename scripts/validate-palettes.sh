@@ -43,6 +43,12 @@ for palette in $(yq '.paletteOrder[]' "$SOURCE_DIR/.chezmoidata/palettes.yaml");
     render dot_config/opencode/themes/gud-lucent.json.tmpl > "$TMP_DIR/opencode-gud-lucent.json"
     jq -e '.theme.syntaxKeyword.dark and (.theme.background.dark == "none") and (.theme.backgroundPanel.dark == "none")' "$TMP_DIR/opencode-gud-lucent.json" >/dev/null
 
+    render dot_config/opencode/v2-plugins/statusline/tui.tsx.tmpl > "$TMP_DIR/opencode-statusline.tsx"
+    grep -q '^  surface: "#[0-9a-fA-F]\{6\}",$' "$TMP_DIR/opencode-statusline.tsx"
+
+    render dot_config/opencode/cli.json.tmpl > "$TMP_DIR/opencode-cli.json"
+    jq -e '.theme.name == "gud-lucent" and (.plugins == ["-opencode.prompt.footer", "-opencode-copilot-statusline.tui", "./v2-plugins/statusline"])' "$TMP_DIR/opencode-cli.json" >/dev/null
+
     render dot_config/iterm2/dotfiles.json.tmpl > "$TMP_DIR/iterm2.json"
     jq -e '.Profiles | length == 2' "$TMP_DIR/iterm2.json" >/dev/null
     jq -e '[.Profiles[].Name] == ["dotfiles", "dotfiles opaque"]' "$TMP_DIR/iterm2.json" >/dev/null
@@ -63,5 +69,5 @@ for palette in $(yq '.paletteOrder[]' "$SOURCE_DIR/.chezmoidata/palettes.yaml");
     grep -q '^set -g status-bg "#[0-9a-fA-F]\{6\}"$' "$TMP_DIR/status.conf"
 done
 
-printf 'validate-palettes: OK - %s palettes render for Ghostty, notify, iTerm2, Codex, Claude, Neovim, Zsh, and tmux\n' \
+printf 'validate-palettes: OK - %s palettes render for Ghostty, notify, iTerm2, OpenCode, Codex, Claude, Neovim, Zsh, and tmux\n' \
     "$(yq '.paletteOrder | length' "$SOURCE_DIR/.chezmoidata/palettes.yaml")"

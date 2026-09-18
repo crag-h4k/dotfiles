@@ -318,11 +318,16 @@ _build() {
     # with the opencode binary on PATH as the fallback.
     [[ "$INSTALL_AI_OPENCODE" == true ]] &&
         _add npm opencode-ai "https://www.npmjs.com/package/opencode-ai" opencode
-    # OpenCode v2 beta CLI: @opencode/cli npm package (opencode2 binary) into the
-    # ~/.local prefix (scripts/install-opencode2.sh), side-by-side with v1. Another
-    # cross-platform npm global, so it sits outside the OS case.
-    [[ "$INSTALL_AI_OPENCODE2" == true ]] &&
+    # OpenCode v2 CLI: @opencode/cli npm package isolated under
+    # ~/.local/share/opencode2, with only opencode2 linked into ~/.local/bin
+    # (scripts/install-opencode2.sh). Another cross-platform npm install, so it
+    # sits outside the OS case.
+    if [[ "$INSTALL_AI_OPENCODE2" == true ]]; then
         _add npm @opencode/cli "https://www.npmjs.com/package/@opencode/cli" opencode2
+        _add npm @opencode/plugin "https://www.npmjs.com/package/@opencode/plugin" "$HOME/.config/opencode/node_modules/@opencode/plugin"
+        _add npm @opentui/solid "https://www.npmjs.com/package/@opentui/solid" "$HOME/.config/opencode/node_modules/@opentui/solid"
+        _add npm solid-js "https://www.npmjs.com/package/solid-js" "$HOME/.config/opencode/node_modules/solid-js"
+    fi
     # GitHub Copilot CLI: @github/copilot npm package into the ~/.local prefix
     # (scripts/install-copilot.sh), cross-platform, so it sits outside the OS case
     # like the other npm globals. npm is the only channel (no Homebrew/apt).
