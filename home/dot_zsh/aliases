@@ -90,7 +90,7 @@ alias "clanka"="claude"
 alias "clanker"="claude"
 # opencode (multi-provider AI CLI harness)
 alias "oc"="opencode"
-# opencode2 (v2 beta) is pinned to --standalone, including the bare name, so a
+# opencode2 (v2) is pinned to --standalone, including the bare name, so a
 # mistyped `opencode2` cannot silently break attention notifications.
 #
 # The notifier bridge (plugin/notify.ts) runs inside the OpenCode SERVER and its

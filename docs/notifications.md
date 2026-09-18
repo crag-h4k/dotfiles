@@ -116,9 +116,9 @@ pane color says what it is waiting for:
 Every one of those names was confirmed by subscribing a probe plugin to a live
 session. Do not add events from the SDK type union without observing them first.
 The union advertises `session.idle`, `question.asked` and `permission.v2.asked`,
-and none of the three are emitted by the v2 beta. The question case sat broken
-for exactly this reason: the plugin listened for `question.asked`, which does
-not exist, while the real event was `form.created`.
+and none of the three were emitted by the tested V2 build. The question case
+sat broken for exactly this reason: the plugin listened for `question.asked`,
+which does not exist, while the real event was `form.created`.
 
 Two mistakes here fail silently, and both are guarded:
 
