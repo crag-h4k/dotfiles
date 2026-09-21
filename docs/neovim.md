@@ -27,7 +27,7 @@ npm under `~/.local` on both platforms. `conform.nvim` shells out to that
 binary; Mason does not install a duplicate.
 
 The Python provider is transactional. A sibling venv receives the floating
-`pynvim` and `neovim` packages and must import `pynvim` before the stable
+`pynvim` package and must import it before the stable
 `~/.local/share/nvim-venv` symlink changes. A working previous venv remains in
 the release directory, and a partial or corrupt legacy venv is repairable.
 

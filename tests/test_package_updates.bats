@@ -182,7 +182,7 @@ STUB
   [ "$status" -eq 0 ]
   grep -Fq '@fsouza/prettierd@latest' "$npm_log"
   grep -Fq '@agentclientprotocol/claude-agent-acp@latest' "$npm_log"
-  grep -Fq -- '-m pip install --quiet --upgrade pynvim neovim' "$pip_log"
+  grep -Fq -- '-m pip install --quiet --upgrade pynvim' "$pip_log"
   grep -Fq 'install --local luacheck' "$rock_log"
   grep -Fq 'Lazy! sync' "$nvim_log"
   grep -Fq 'update-neovim-packages.lua' "$nvim_log"
@@ -218,7 +218,7 @@ STUB
     DOTFILES_NODE_READY=false INSTALL_AI_CODECOMPANION=true bash "$NVIM_INSTALL"
   [ "$status" -eq 0 ]
   [ ! -e "$npm_log" ]
-  grep -Fq -- '-m pip install --quiet --upgrade pynvim neovim' "$pip_log"
+  grep -Fq -- '-m pip install --quiet --upgrade pynvim' "$pip_log"
   grep -Fq 'install --local luacheck' "$rock_log"
   grep -Fq 'Lazy! sync' "$nvim_log"
 }

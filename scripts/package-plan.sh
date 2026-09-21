@@ -337,7 +337,6 @@ _build() {
 
     if [[ "$INSTALL_NEOVIM" == true ]]; then
         _add pip pynvim "https://pypi.org/project/pynvim"
-        _add pip neovim "https://pypi.org/project/neovim"
         _add luarocks luacheck "https://luarocks.org/modules/mpeterv/luacheck"
         _add neovim-plugin "lazy.nvim plugin set" "GitHub repositories declared in ~/.config/nvim/init.lua" "$HOME/.local/share/nvim/lazy"
         _add treesitter-parsers "installed parser set" "nvim-treesitter parser manifest" "$HOME/.local/share/nvim/site/parser"

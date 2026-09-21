@@ -42,7 +42,7 @@ update_nvim_venv() {
     mkdir -p "$releases"
     stage=$(mktemp -d "$releases/.stage.XXXXXX") || return 1
     if ! python3 -m venv "$stage" \
-        || ! "$stage/bin/python" -m pip install --quiet --upgrade pynvim neovim \
+        || ! "$stage/bin/python" -m pip install --quiet --upgrade pynvim \
         || ! _nvim_venv_health "$stage"; then
         warn "Neovim Python provider staging failed; keeping the current venv"
         rm -rf "$stage"

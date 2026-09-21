@@ -6,6 +6,13 @@
 REPO_ROOT="$(cd "${BATS_TEST_DIRNAME}/.." && pwd)"
 
 setup() {
+  # A pre-commit hook launched by `git commit -a` inherits the temporary index
+  # through GIT_INDEX_FILE. `git -C` does not override repository environment
+  # variables, so isolate the throwaway repositories before running any Git
+  # command that could otherwise replace the parent commit's index.
+  unset GIT_DIR GIT_WORK_TREE GIT_INDEX_FILE GIT_OBJECT_DIRECTORY \
+    GIT_ALTERNATE_OBJECT_DIRECTORIES GIT_COMMON_DIR GIT_PREFIX \
+    GIT_INDEX_VERSION GIT_CONFIG_PARAMETERS
   # shellcheck source=../scripts/common.sh
   source "$REPO_ROOT/scripts/common.sh"
   export GIT_AUTHOR_NAME="Dotfiles Test"
