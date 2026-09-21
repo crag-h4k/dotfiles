@@ -97,7 +97,7 @@ main() {
         package_try "markdownlint-cli2 latest npm release" \
             npm install -g --prefix "$HOME/.local" markdownlint-cli2@latest || true
     elif [[ "$os" == "debian" ]]; then
-        package_skip "markdownlint-cli2 npm update; Node.js 24 unavailable"
+        package_skip "markdownlint-cli2 npm update; Node.js 24+ unavailable"
     fi
 
     # prettierd: persistent Prettier daemon that conform.nvim shells out to for
@@ -108,7 +108,7 @@ main() {
         package_try "prettierd latest npm release" \
             npm install -g --prefix "$HOME/.local" @fsouza/prettierd@latest || true
     else
-        package_skip "prettierd npm update; Node.js 24 unavailable"
+        package_skip "prettierd npm update; Node.js 24+ unavailable"
     fi
 
     # Python provider updates stage in a sibling release directory. The stable
@@ -142,7 +142,7 @@ main() {
         package_try "claude-agent-acp latest npm release" \
             npm install -g --prefix "$HOME/.local" @agentclientprotocol/claude-agent-acp@latest || true
     elif [[ "$INSTALL_AI_CODECOMPANION" == true ]]; then
-        package_skip "claude-agent-acp npm update; Node.js 24 unavailable"
+        package_skip "claude-agent-acp npm update; Node.js 24+ unavailable"
     fi
 
     # Pre-warm lazy.nvim plugins (non-fatal if it fails, e.g. no network).

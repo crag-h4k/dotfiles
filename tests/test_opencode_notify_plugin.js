@@ -13,7 +13,7 @@ async function waitFor(predicate, description) {
   throw new Error(`timed out waiting for ${description}`)
 }
 
-function loadPlugin(ts, sourcePath, env, spawns) {
+function loadPlugin(ts, sourcePath, env, spawns, argv = ["opencode.exe"]) {
   const source = fs.readFileSync(sourcePath, "utf8")
   const compiled = ts.transpileModule(source, {
     compilerOptions: {
@@ -58,7 +58,7 @@ function loadPlugin(ts, sourcePath, env, spawns) {
     console,
     exports: module.exports,
     module,
-    process: { env },
+    process: { argv, env },
     require: fakeRequire,
     setTimeout,
   }
@@ -126,6 +126,28 @@ async function verifyNotifyPlugin(ts, sourcePath) {
   await new Promise((resolve) => setImmediate(resolve))
   assert.equal(spawns.length, 3, "events outside tmux must not spawn the shim")
   noTmuxDispose()
+
+  const sharedSpawns = []
+  const sharedState = {}
+  const sharedPlugin = loadPlugin(
+    ts,
+    sourcePath,
+    {
+      HOME: "/test/home",
+      TMUX: "/test/tmux/default,1,0",
+      TMUX_PANE: "%42",
+    },
+    sharedSpawns,
+    ["opencode.exe", "serve", "--service"],
+  )
+  const sharedDispose = await sharedPlugin.setup(eventContext([
+    "session.execution.succeeded",
+    "permission.asked",
+    "form.created",
+  ], sharedState))
+  await new Promise((resolve) => setImmediate(resolve))
+  assert.equal(sharedSpawns.length, 0, "shared service must not target one pane for every session")
+  sharedDispose()
 }
 
 module.exports = { verifyNotifyPlugin }

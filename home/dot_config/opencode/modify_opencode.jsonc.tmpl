@@ -129,8 +129,8 @@ LEGACY_SEED_PERMISSION = """\
 # Seed-only native V2 policy. Last match wins, so narrow allows follow the broad
 # ask rule and hard denials are last. Shell stays ask unless a command is listed.
 SEED_PERMISSIONS = """\
-  // Permission model: ask by default, allow native read/search and routine local
-  // inspection, then finish with denials that saved approvals cannot override.
+  // Permission model: ask by default, allow orchestration and read-only work,
+  // then finish with denials that saved approvals cannot override.
   "permissions": [
     { "action": "*", "resource": "*", "effect": "ask" },
 
@@ -139,29 +139,70 @@ SEED_PERMISSIONS = """\
     { "action": "grep", "resource": "*", "effect": "allow" },
     { "action": "webfetch", "resource": "https://*", "effect": "allow" },
     { "action": "websearch", "resource": "*", "effect": "allow" },
+    { "action": "question", "resource": "*", "effect": "allow" },
+    { "action": "skill", "resource": "*", "effect": "allow" },
+    { "action": "subagent", "resource": "*", "effect": "allow" },
+    // Code Mode still applies each nested tool's own permission rule.
+    { "action": "execute", "resource": "*", "effect": "allow" },
 
-    // Generic configuration roots used to inspect and maintain this rice.
-    { "action": "external_directory", "resource": "~/.local/share/chezmoi/*", "effect": "allow" },
-    { "action": "external_directory", "resource": "~/.config/chezmoi/*", "effect": "allow" },
-    { "action": "external_directory", "resource": "~/.config/opencode/*", "effect": "allow" },
-    { "action": "external_directory", "resource": "~/.config/notify/*", "effect": "allow" },
-    { "action": "external_directory", "resource": "~/.config/ghostty/*", "effect": "allow" },
-    { "action": "external_directory", "resource": "~/.config/nvim/*", "effect": "allow" },
-    { "action": "external_directory", "resource": "~/.config/git/*", "effect": "allow" },
-    { "action": "external_directory", "resource": "~/.tmux/*", "effect": "allow" },
-    { "action": "external_directory", "resource": "~/.zsh/*", "effect": "allow" },
-    { "action": "external_directory", "resource": "~/.zshrc", "effect": "allow" },
-    { "action": "external_directory", "resource": "~/.zshenv", "effect": "allow" },
-    { "action": "external_directory", "resource": "~/.gitconfig*", "effect": "allow" },
-    { "action": "external_directory", "resource": "~/.gitignore_global", "effect": "allow" },
-    { "action": "external_directory", "resource": "~/.claude/CLAUDE.md", "effect": "allow" },
-    { "action": "external_directory", "resource": "~/.claude/skills/*", "effect": "allow" },
-    { "action": "external_directory", "resource": "~/.codex/config.toml", "effect": "allow" },
+    // External reads do not need a second directory prompt. Edit permissions
+    // remain separate, and sensitive directories are denied at the end.
+    { "action": "external_directory", "resource": "*", "effect": "allow" },
+
+    // Read-only MCP and browser operations. Mutating calls remain ask by omission.
+    { "action": "aws_documentation_*", "resource": "*", "effect": "allow" },
+    { "action": "aws_iam_policy_autopilot_generate_*", "resource": "*", "effect": "allow" },
+    { "action": "aws_mcp_aws___get_regional_availability", "resource": "*", "effect": "allow" },
+    { "action": "aws_mcp_aws___get_tasks", "resource": "*", "effect": "allow" },
+    { "action": "aws_mcp_aws___list_regions", "resource": "*", "effect": "allow" },
+    { "action": "aws_mcp_aws___read_documentation", "resource": "*", "effect": "allow" },
+    { "action": "aws_mcp_aws___retrieve_skill", "resource": "*", "effect": "allow" },
+    { "action": "aws_mcp_aws___search_documentation", "resource": "*", "effect": "allow" },
+    { "action": "terraform_get_*", "resource": "*", "effect": "allow" },
+    { "action": "terraform_search_*", "resource": "*", "effect": "allow" },
+    { "action": "confluence_confluence_check_*", "resource": "*", "effect": "allow" },
+    { "action": "confluence_confluence_download_*", "resource": "*", "effect": "allow" },
+    { "action": "confluence_confluence_get_*", "resource": "*", "effect": "allow" },
+    { "action": "confluence_confluence_list_*", "resource": "*", "effect": "allow" },
+    { "action": "confluence_confluence_search*", "resource": "*", "effect": "allow" },
+    { "action": "databricks_check_*", "resource": "*", "effect": "allow" },
+    { "action": "databricks_export_notebook", "resource": "*", "effect": "allow" },
+    { "action": "databricks_get_*", "resource": "*", "effect": "allow" },
+    { "action": "databricks_list_*", "resource": "*", "effect": "allow" },
+    { "action": "databricks_test_connection", "resource": "*", "effect": "allow" },
+    { "action": "databricks_validate_*", "resource": "*", "effect": "allow" },
+    { "action": "browser_back", "resource": "*", "effect": "allow" },
+    { "action": "browser_console", "resource": "*", "effect": "allow" },
+    { "action": "browser_find", "resource": "*", "effect": "allow" },
+    { "action": "browser_forward", "resource": "*", "effect": "allow" },
+    { "action": "browser_frames", "resource": "*", "effect": "allow" },
+    { "action": "browser_hover", "resource": "*", "effect": "allow" },
+    { "action": "browser_navigate", "resource": "*", "effect": "allow" },
+    { "action": "browser_network_get", "resource": "*", "effect": "allow" },
+    { "action": "browser_network_list", "resource": "*", "effect": "allow" },
+    { "action": "browser_reload", "resource": "*", "effect": "allow" },
+    { "action": "browser_screenshot", "resource": "*", "effect": "allow" },
+    { "action": "browser_scroll", "resource": "*", "effect": "allow" },
+    { "action": "browser_snapshot", "resource": "*", "effect": "allow" },
+    { "action": "browser_tabs_focus", "resource": "*", "effect": "allow" },
+    { "action": "browser_tabs_list", "resource": "*", "effect": "allow" },
+    { "action": "browser_tabs_open", "resource": "*", "effect": "allow" },
+    { "action": "browser_wait", "resource": "*", "effect": "allow" },
+    { "action": "opencode_models", "resource": "*", "effect": "allow" },
 
     // Read-only local inspection.
     { "action": "shell", "resource": "pwd *", "effect": "allow" },
     { "action": "shell", "resource": "ls *", "effect": "allow" },
     { "action": "shell", "resource": "stat *", "effect": "allow" },
+    { "action": "shell", "resource": "wc *", "effect": "allow" },
+    { "action": "shell", "resource": "file *", "effect": "allow" },
+    { "action": "shell", "resource": "mdls *", "effect": "allow" },
+    { "action": "shell", "resource": "pdfinfo *", "effect": "allow" },
+    { "action": "shell", "resource": "pdftotext * -", "effect": "allow" },
+    { "action": "shell", "resource": "plutil -p *", "effect": "allow" },
+    { "action": "shell", "resource": "unzip -l *", "effect": "allow" },
+    { "action": "shell", "resource": "tar -tf *", "effect": "allow" },
+    { "action": "shell", "resource": "tar -tzf *", "effect": "allow" },
     { "action": "shell", "resource": "command -v *", "effect": "allow" },
     { "action": "shell", "resource": "type *", "effect": "allow" },
     { "action": "shell", "resource": "which *", "effect": "allow" },
@@ -236,6 +277,8 @@ SEED_PERMISSIONS = """\
     { "action": "shell", "resource": "gh release list *", "effect": "allow" },
     { "action": "shell", "resource": "gh release view *", "effect": "allow" },
     { "action": "shell", "resource": "gh search *", "effect": "allow" },
+    { "action": "shell", "resource": "gh api -X GET *", "effect": "allow" },
+    { "action": "shell", "resource": "gh api --method GET *", "effect": "allow" },
 
     // Final denials override saved approvals and every allow above.
     { "action": "shell", "resource": "gh auth status --show-token", "effect": "deny" },

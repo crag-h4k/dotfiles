@@ -47,6 +47,13 @@ for arg in "\$@"; do
   previous="\$arg"
 done
 case "\$1" in
+  view)
+    case "\$2" in
+      @opentui/solid@latest) printf '0.5.11\n' ;;
+      @opentui/solid@0.5.11) printf '1.9.12\n' ;;
+      *) exit 1 ;;
+    esac
+    ;;
   install)
     if printf '%s\n' "\$*" | grep -q '@opencode/cli@'; then
       mkdir -p "\$prefix/bin"
@@ -245,12 +252,29 @@ STUB
     bash "$OPENCODE2_INSTALL"
   [ "$status" -eq 0 ]
   grep -Fq 'install -g --prefix' "$npm_log"
-  grep -Fq '@opencode/plugin@2.0.8' "$npm_log"
+  grep -Fq 'view @opentui/solid@latest version' "$npm_log"
+  grep -Fq 'view @opentui/solid@0.5.11 peerDependencies.solid-js' "$npm_log"
+  grep -Fq '@opencode/plugin@2.0.8 @opentui/solid@0.5.11 solid-js@1.9.12' "$npm_log"
   [ -L "$prefix/bin/opencode2" ]
   [ -L "$config/node_modules" ]
   [ "$(OPENCODE2_NPM_PREFIX="$prefix" "$home/bin/opencode2" --version)" = "opencode2 v2.0.8" ]
   run find "$config/.runtime-releases" -path '*/previous-*/marker' -print
   [ -n "$output" ]
+}
+
+@test "OpenCode runtime verification supports import-only ESM packages" {
+  local runtime="$BATS_TEST_TMPDIR/opencode-esm-runtime"
+  local package
+  for package in @opencode/plugin @opentui/solid solid-js; do
+    mkdir -p "$runtime/node_modules/$package"
+    printf 'export default {}\n' >"$runtime/node_modules/$package/index.js"
+    printf '{"name":"%s","version":"2.0.12","type":"module","exports":{".":{"import":"./index.js"}}}\n' \
+      "$package" >"$runtime/node_modules/$package/package.json"
+  done
+
+  run bash -c "source '$OPENCODE2_INSTALL'; verify_opencode_runtime '$runtime' 2.0.12"
+
+  [ "$status" -eq 0 ]
 }
 
 @test "failed OpenCode runtime staging preserves the working CLI and runtime" {
@@ -468,7 +492,7 @@ STUB
     INSTALL_TERMINAL_GHOSTTY=false INSTALL_TERMINAL_ITERM2=false \
     bash "$root/scripts/install.sh"
   [ "$status" -eq 0 ]
-  [[ "$output" == *"OpenCode V2 CLI and matching runtime; Node.js 24 unavailable: skipped"* ]]
+  [[ "$output" == *"OpenCode V2 CLI and matching runtime; Node.js 24+ unavailable: skipped"* ]]
   run grep -E '(^|[[:space:]])(install|ci)([[:space:]]|$)' "$npm_log"
   [ "$status" -ne 0 ]
 }

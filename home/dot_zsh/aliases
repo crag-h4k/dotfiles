@@ -98,9 +98,9 @@ alias "clanker"="claude"
 # oc2 is a temporary compatibility alias. oc2bg is the deliberate opt-in to the
 # shared service, and
 # it costs ~864 MB less per pane in exchange for losing per-pane notifications.
-alias "oc"="command opencode2 --standalone"
-alias "oc2"="command opencode2 --standalone"
-alias "oc2bg"="command opencode2"
+alias "oc"="command opencode2"
+alias "oc2"="command opencode2"
+alias "oc2bg"="OPENCODE2_BACKGROUND_SERVICE=true command opencode2"
 #
 ######
 case "$OSTYPE" in

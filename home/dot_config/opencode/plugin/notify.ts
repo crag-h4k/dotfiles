@@ -27,6 +27,7 @@
 import { Plugin } from "@opencode/plugin"
 
 const NOTIFY_SHIM = `${process.env.HOME ?? ""}/.config/notify/opencode-events.sh`
+const IS_SHARED_SERVICE = process.argv.includes("--service")
 
 // Event -> notify group. The group decides the pane color and sound, so the three
 // kinds of attention are told apart at a glance; appearance lives in
@@ -73,7 +74,7 @@ const GROUPS: ReadonlyMap<string, string> = new Map([
 // and unref() stops it holding the event loop open. The shim finishes in ~230ms,
 // so this is fire-and-forget: nothing is awaited and no timeout is needed.
 async function fire(group: string): Promise<void> {
-  if (!process.env.TMUX || !process.env.TMUX_PANE) return
+  if (IS_SHARED_SERVICE || !process.env.TMUX || !process.env.TMUX_PANE) return
   try {
     const { spawn } = await import("node:child_process")
     const child = spawn("bash", [NOTIFY_SHIM, "fire", group], { detached: true, stdio: "ignore" })

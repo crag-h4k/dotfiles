@@ -1,4 +1,5 @@
 #!/usr/bin/env bash
+# scripts/common.sh
 # Shared helpers for dotfiles install scripts. Source, do not exec.
 
 set -euo pipefail
@@ -569,13 +570,14 @@ install_tenv_debian() {
     info "tenv installed: $("$HOME/.local/bin/tenv" --version 2>/dev/null | head -1)"
 }
 
-verify_node_major() {
-    local wanted="$1" version major
+verify_node_min_major() {
+    local minimum="$1" version major
     command -v node >/dev/null 2>&1 || return 1
     version=$(node --version 2>/dev/null) || return 1
     major=${version#v}
     major=${major%%.*}
-    [[ "$major" == "$wanted" ]]
+    [[ "$major" =~ ^[0-9]+$ ]] || return 1
+    (( major >= minimum ))
 }
 
 # NodeSource is needed for every selected feature that installs an npm CLI, not
@@ -588,13 +590,48 @@ node_runtime_selected() {
         || "${INSTALL_AI_COPILOT:-false}" == true ]]
 }
 
+_tenv_terraform_lock_file() {
+    local lock_dir
+    lock_dir="${TENV_LOCK_PATH:-${TENV_ROOT:-${TFENV_ROOT:-$HOME/.tenv}}}"
+    printf '%s/Terraform.lock\n' "${lock_dir%/}"
+}
+
+_prepare_tenv_terraform_lock() {
+    local lock_file="$1"
+    [[ -e "$lock_file" || -L "$lock_file" ]] || return 0
+
+    if [[ -L "$lock_file" || ! -f "$lock_file" || ! -O "$lock_file" ]]; then
+        warn "refusing to remove an unsafe tenv lock: $lock_file"
+        return 1
+    fi
+    if [[ -n "$(find "$lock_file" -mmin -10 -print -quit 2>/dev/null)" ]]; then
+        warn "tenv lock is recent; skipping Terraform bootstrap instead of waiting: $lock_file"
+        return 1
+    fi
+    if ! command -v pgrep >/dev/null 2>&1; then
+        warn "cannot verify the owner of an old tenv lock without pgrep: $lock_file"
+        return 1
+    fi
+    if pgrep -x tenv >/dev/null 2>&1; then
+        warn "tenv is still running; preserving its lock: $lock_file"
+        return 1
+    fi
+    if ! rm -f -- "$lock_file"; then
+        warn "could not remove stale tenv lock: $lock_file"
+        return 1
+    fi
+    info "removed stale tenv lock: $lock_file"
+}
+
 bootstrap_tenv_terraform() {
-    local tenv_bin
+    local tenv_bin lock_file
     if [[ -x "$HOME/.local/bin/tenv" ]]; then
         tenv_bin="$HOME/.local/bin/tenv"
     else
         tenv_bin=$(command -v tenv 2>/dev/null) || return 1
     fi
+    lock_file=$(_tenv_terraform_lock_file)
+    _prepare_tenv_terraform_lock "$lock_file" || return 1
     info "installing the latest stable Terraform fallback with tenv"
     TENV_AUTO_INSTALL=true TENV_VALIDATION=signature "$tenv_bin" tf install latest
     TENV_AUTO_INSTALL=true TENV_VALIDATION=signature "$tenv_bin" tf use latest

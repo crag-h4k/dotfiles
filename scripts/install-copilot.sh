@@ -33,7 +33,7 @@ main() {
         return 0
     fi
     if [[ "${DOTFILES_NODE_READY:-true}" != true ]]; then
-        warn "copilot: Node.js 24 is not ready; skipped"
+        warn "copilot: Node.js 24+ is not ready; skipped"
         return 2
     fi
 

@@ -37,7 +37,11 @@ run_config_only_install() {
   [ "$status" -eq 0 ]
   [ -f "$test_home/.gitconfig.override" ]
   [ ! -s "$test_home/.gitconfig.override" ]
-  mode=$(stat -f '%Lp' "$test_home/.gitconfig.override" 2>/dev/null || stat -c '%a' "$test_home/.gitconfig.override")
+  if [[ "$(uname -s)" == Darwin ]]; then
+    mode=$(stat -f '%Lp' "$test_home/.gitconfig.override")
+  else
+    mode=$(stat -c '%a' "$test_home/.gitconfig.override")
+  fi
   [ "$mode" = 600 ]
 }
 

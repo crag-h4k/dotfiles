@@ -124,20 +124,15 @@ Two mistakes here fail silently, and both are guarded:
   spawns the shim with `detached: true` and calls `unref()` so it survives in its
   own process group. Do not collapse that back into an awaited call.
 - **The pane id goes stale.** A background `opencode2 serve --service` keeps the
-  `TMUX_PANE` it first started in, which can be days old. After a tmux server
-  restart that pane is gone, but the variable is still set, so the usual
-  `-z "$TMUX_PANE"` guard passes and every notification lands nowhere. The shim
-  re-resolves the pane against the live server and skips with a warning if it no
-  longer exists. Stale-pane recovery always writes to the configured notification
-  log, even when debug is off and the plugin's detached child has no terminal.
-  Run `opencode2 service restart` when you see that warning.
+  `TMUX_PANE` it first started in, which can be days old and cannot represent
+  sessions in multiple panes. The plugin does not fire from that shared service.
+  The shim still validates standalone pane ids against the live tmux server and
+  records stale-pane skips even when debug is off.
 
-Launch with `oc`; the temporary `oc2` alias does the same. Both pin
-`--standalone` so the plugin shares the pane you are sitting in. `oc2bg`
-explicitly opts into the shared background service. That service is one process
-for every session in every pane and holds one pane id, so with N panes, N-1
-sessions notify the wrong pane. Restarting it changes which single pane is
-correct but does not remove the limitation.
+Interactive `opencode2` launches default to `--standalone`, so the plugin shares
+the pane you are sitting in. `oc` and the temporary `oc2` alias use that default.
+`oc2bg` explicitly opts into the shared background service and gives up per-pane
+notifications.
 
 Restart OpenCode after editing the plugin.
 

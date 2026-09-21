@@ -86,6 +86,7 @@ run_shim() {
 @test "plugin keeps detached launch while stale recovery logs without debug" {
   grep -Fq 'detached: true, stdio: "ignore"' "$PLUGIN_SRC"
   grep -Fq 'child.unref()' "$PLUGIN_SRC"
+  grep -Fq 'process.argv.includes("--service")' "$PLUGIN_SRC"
   grep -Fq '["session.execution.succeeded", "opencode"]' "$PLUGIN_SRC"
   grep -Fq '["permission.asked", "opencode_permission"]' "$PLUGIN_SRC"
   grep -Fq '["form.created", "opencode_question"]' "$PLUGIN_SRC"

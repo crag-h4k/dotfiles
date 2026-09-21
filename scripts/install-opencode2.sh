@@ -28,16 +28,18 @@ PY
 
 verify_opencode_runtime() {
     local runtime="$1" cli_version="$2"
-    node -e '
-const fs = require("fs")
-const path = process.argv[1]
-const cliVersion = process.argv[2]
+    (
+        cd "$runtime"
+        node --no-warnings --input-type=module -e '
+import fs from "node:fs"
+const cliVersion = process.argv[1]
 for (const name of ["@opencode/plugin", "@opentui/solid", "solid-js"]) {
-  require.resolve(name, { paths: [path] })
+  await import(name)
 }
-const plugin = JSON.parse(fs.readFileSync(path + "/node_modules/@opencode/plugin/package.json", "utf8"))
+const plugin = JSON.parse(fs.readFileSync("node_modules/@opencode/plugin/package.json", "utf8"))
 if (plugin.version !== cliVersion) process.exit(2)
-' "$runtime" "$cli_version"
+' "$cli_version"
+    )
 }
 
 restore_runtime_path() {
@@ -61,7 +63,7 @@ main() {
         return 0
     fi
     if [[ "${DOTFILES_NODE_READY:-true}" != true ]]; then
-        warn "opencode2: Node.js 24 is not ready; skipped"
+        warn "opencode2: Node.js 24+ is not ready; skipped"
         return 2
     fi
     command -v npm >/dev/null 2>&1 \
@@ -92,6 +94,7 @@ main() {
     local cli_releases="$NPM_PREFIX/releases"
     local runtime_releases="$NPM_PREFIX/plugin-runtime/releases"
     local cli_stage runtime_stage installed have release_id cli_release runtime_release
+    local opentui_version solid_requirement
     local runtime_path="$CONFIG_DIR/node_modules"
     local old_native_link="" old_runtime_link="" old_runtime_dir=""
     local native_link_tmp runtime_link_tmp
@@ -124,9 +127,20 @@ main() {
         return 1
     fi
 
+    opentui_version=$(npm view @opentui/solid@latest version 2>/dev/null) \
+        || { warn "opencode2: could not resolve the OpenTUI Solid release"; rm -rf "$cli_stage" "$runtime_stage"; return 1; }
+    solid_requirement=$(npm view "@opentui/solid@$opentui_version" peerDependencies.solid-js 2>/dev/null) \
+        || { warn "opencode2: could not resolve OpenTUI's Solid peer"; rm -rf "$cli_stage" "$runtime_stage"; return 1; }
+    if [[ -z "$opentui_version" || -z "$solid_requirement" ]]; then
+        warn "opencode2: OpenTUI returned incomplete runtime metadata"
+        rm -rf "$cli_stage" "$runtime_stage"
+        return 1
+    fi
+
     if ! npm install --prefix "$runtime_stage" --ignore-scripts \
         --package-lock=false --no-save \
-        "@opencode/plugin@$have" "@opentui/solid@latest" "solid-js@latest" \
+        "@opencode/plugin@$have" "@opentui/solid@$opentui_version" \
+        "solid-js@$solid_requirement" \
         || ! verify_opencode_runtime "$runtime_stage" "$have"; then
         warn "opencode2: staged plugin runtime failed; current CLI/runtime unchanged"
         rm -rf "$cli_stage" "$runtime_stage"

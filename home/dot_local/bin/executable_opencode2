@@ -35,4 +35,24 @@ if (( $# > 0 )) && [[ "$1" == update || "$1" == upgrade ]]; then
   fi
 fi
 
+interactive=true
+case "${1:-}" in
+  update|upgrade|uninstall|acp|api|debug|auth|mcp|plugin|models|stats|run|session|service|reload|pair|serve)
+    interactive=false
+    ;;
+esac
+
+explicit_server=false
+for arg in "$@"; do
+  [[ "$arg" == -- ]] && break
+  case "$arg" in
+    --standalone|--server|--server=*) explicit_server=true ;;
+  esac
+done
+
+if [[ "$interactive" == true && "$explicit_server" == false \
+  && "${OPENCODE2_BACKGROUND_SERVICE:-false}" != true ]]; then
+  exec "$binary" --standalone "$@"
+fi
+
 exec "$binary" "$@"

@@ -126,7 +126,7 @@ main() {
                     esac
                 done < <(DOTFILES_PLAN_APPROVED=1 "$planner" --records)
                 if [[ "$node_required" == true ]]; then
-                    if package_try "Node.js 24 verification" verify_node_major 24; then
+                    if package_try "Node.js 24+ verification" verify_node_min_major 24; then
                         node_ready=true
                     fi
                 fi
@@ -160,7 +160,7 @@ main() {
                     package_try "tenv latest release" install_tenv_debian || true
                 fi
                 if [[ "$node_required" == true ]]; then
-                    if package_try "Node.js 24 verification" verify_node_major 24; then
+                    if package_try "Node.js 24+ verification" verify_node_min_major 24; then
                         node_ready=true
                     fi
                 fi
@@ -186,14 +186,14 @@ main() {
                     env INSTALL_AI_OPENCODE=true DOTFILES_NODE_READY=true \
                     bash "$SCRIPT_DIR/install-opencode2.sh" || true
             else
-                package_skip "OpenCode V2 CLI and matching runtime; Node.js 24 unavailable"
+                package_skip "OpenCode V2 CLI and matching runtime; Node.js 24+ unavailable"
             fi
         fi
         if [[ "$INSTALL_AI_COPILOT" == true ]]; then
             if [[ "$node_ready" == true ]]; then
                 package_try "GitHub Copilot CLI" env INSTALL_AI_COPILOT=true DOTFILES_NODE_READY=true bash "$SCRIPT_DIR/install-copilot.sh" || true
             else
-                package_skip "GitHub Copilot CLI; Node.js 24 unavailable"
+                package_skip "GitHub Copilot CLI; Node.js 24+ unavailable"
             fi
         fi
 

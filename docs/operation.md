@@ -370,6 +370,11 @@ Terraform runs through tenv's project-aware proxy. It honors project version
 files and `required_version`, installs missing versions, and verifies HashiCorp
 signatures.
 
+Package bootstrap never waits indefinitely on tenv's `Terraform.lock`. A recent
+lock, or an old lock with a running tenv process, skips the Terraform fallback
+step while the rest of the package run continues. An old ownerless regular file
+is removed as stale before tenv runs.
+
 ```sh
 tenv tf install 1.15.7       # explicitly install a Terraform release
 tenv tf use -w 1.15.7        # write .terraform-version in this project

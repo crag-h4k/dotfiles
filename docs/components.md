@@ -131,7 +131,7 @@ The npm-based AI CLIs (`opencode2` and `copilot`) and the
 `claude-agent-acp` bridge all need a Node runtime, so selecting any of them plans
 Node and npm automatically. On Debian, any such selection enables the
 NodeSource Node.js 24 repository. If repository setup, package installation, or
-Node 24 verification fails, only npm-dependent steps are skipped. Python,
+Node 24-or-newer verification fails, only npm-dependent steps are skipped. Python,
 LuaRocks, Git externals, and editor updates continue.
 
 The OpenCode wrapper, Copilot CLI, and ACP bridge live in `~/.local/bin`. They are
@@ -139,22 +139,26 @@ reachable by name only through the `zsh` component, which puts that directory on
 `PATH` (via `~/.zshenv`) and defines the `oc` / `oc2` / `oc2bg` aliases. With
 `zsh` deselected they are not on `PATH` by name and have no aliases.
 
-`oc` launches OpenCode V2 with `--standalone`. `oc2` remains as a temporary
-alias, and `oc2bg` explicitly uses the shared background service. The
+The managed `opencode2` wrapper launches interactive sessions with
+`--standalone`. `oc` and the temporary `oc2` alias use that default. `oc2bg`
+explicitly uses the shared background service. The
 notifier plugin runs inside the OpenCode server and its only pane signal is that
 server's own `TMUX_PANE`, fixed at server start. `--standalone` makes the server
 a child of the TUI, so one server maps to one pane. The shared background service
 is a single process for every session in every pane and holds one pane id, so
 with N panes, N-1 sessions notify the wrong pane. `oc2bg` is the deliberate
 opt-in to that shared service: it saves roughly 864 MB per pane and gives up
-per-pane notifications. See [Notifications](notifications.md#opencode).
+per-pane notifications. The plugin does not fire from that shared service, so it
+cannot color the wrong pane. See [Notifications](notifications.md#opencode).
 
 The managed `~/.local/bin/opencode2` wrapper executes the isolated binary at
 `~/.local/share/opencode2/bin/opencode2` and sets that directory as the npm
 prefix. `opencode2 update` and `opencode2 upgrade` add `--method npm` unless an
-explicit method is present before `--`. Every other argument is passed through
-unchanged. Both installer and wrapper canonicalize their paths and reject a
-prefix whose binary resolves back to the managed wrapper.
+explicit method is present before `--`. Interactive launches add `--standalone`
+unless `--standalone`, `--server`, or `OPENCODE2_BACKGROUND_SERVICE=true` already
+chooses the server mode. Other subcommands pass through unchanged. Both installer
+and wrapper canonicalize their paths and reject a prefix whose binary resolves
+back to the managed wrapper.
 
 `~/.config/opencode/opencode.jsonc` is merge-managed. Chezmoi reasserts the
 schema, built-in agent colors, and exact-pinned V2 plugin list while preserving
@@ -163,6 +167,13 @@ unknown top-level keys and comments. A fresh host receives native ordered
 Customized V1 or V2 policies remain untouched. Within `agents`, only
 `build.color` and `plan.color` are managed; custom agents and every other
 built-in field or comment survive unchanged.
+
+The seeded policy allows native reads, searches, questions, skills, subagents,
+Code Mode, external document access, read-only MCP methods, browser inspection,
+and common shell-based file inspection without prompting. Mutating MCP calls,
+browser interaction, edits, arbitrary shell commands, and publishing still ask.
+Credential files and destructive Git or recursive removal commands remain
+denied.
 
 `cli.json` enables session tabs and uses `Ctrl+G` as a 1500 ms leader.
 `<leader>h` and `<leader>l` move between tabs, while `<leader>t` opens the
@@ -308,10 +319,12 @@ warning.
 
 Exact versions remain source-controlled. Package mode reasserts the pinned
 tree-sitter CLI instead of advancing it. OpenCode's plugin API follows the
-installed CLI version while its UI peer dependencies float within npm's
-compatible ranges. The pinned OpenCode statusline plugin reference, pre-commit revisions, and
-palette submodule commit change only through repository updates. Initializing
-that exact palette submodule commit happens only after package approval.
+installed CLI version. The installer resolves one OpenTUI Solid release, then
+installs the exact `solid-js` peer that release declares instead of floating the
+two packages independently. The pinned OpenCode statusline plugin reference,
+pre-commit revisions, and palette submodule commit change only through
+repository updates. Initializing that exact palette submodule commit happens
+only after package approval.
 
 The plan appears on first init, when `DOTFILES_INSTALL_MODE` is set, or when the
 `package mode` setup action is selected. A normal later init reuses the saved mode.

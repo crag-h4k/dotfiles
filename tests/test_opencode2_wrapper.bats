@@ -94,6 +94,44 @@ arg=two words
 arg=--standalone" ]
 }
 
+@test "interactive launches default to standalone mode" {
+  run "$WRAPPER"
+  [ "$status" -eq 0 ]
+  [ "$output" = "prefix=$PREFIX
+arg=--standalone" ]
+
+  run "$WRAPPER" "$HOME/project"
+  [ "$status" -eq 0 ]
+  [ "$output" = "prefix=$PREFIX
+arg=--standalone
+arg=$HOME/project" ]
+}
+
+@test "explicit server modes are not rewritten" {
+  run "$WRAPPER" --standalone
+  [ "$status" -eq 0 ]
+  [ "$output" = "prefix=$PREFIX
+arg=--standalone" ]
+
+  run "$WRAPPER" --server http://127.0.0.1:4096
+  [ "$status" -eq 0 ]
+  [ "$output" = "prefix=$PREFIX
+arg=--server
+arg=http://127.0.0.1:4096" ]
+}
+
+@test "background service opt-in and subcommands stay unchanged" {
+  run env OPENCODE2_BACKGROUND_SERVICE=true "$WRAPPER"
+  [ "$status" -eq 0 ]
+  [ "$output" = "prefix=$PREFIX" ]
+
+  run "$WRAPPER" service status
+  [ "$status" -eq 0 ]
+  [ "$output" = "prefix=$PREFIX
+arg=service
+arg=status" ]
+}
+
 @test "missing isolated binary fails clearly" {
   rm "$PREFIX/bin/opencode2"
   run -127 "$WRAPPER" --version
@@ -148,6 +186,14 @@ arg=--standalone" ]
   cat >"$stub_dir/npm" <<'STUB'
 #!/bin/sh
 printf '%s\n' "$*" >>"$NPM_LOG"
+if [ "$1" = view ]; then
+  case "$2" in
+    @opentui/solid@latest) printf '0.5.11\n' ;;
+    @opentui/solid@0.5.11) printf '1.9.12\n' ;;
+    *) exit 1 ;;
+  esac
+  exit 0
+fi
 if [ "$1" = install ] && printf '%s\n' "$*" | grep -q '@opencode/cli@'; then
   while [ "$#" -gt 0 ]; do
     if [ "$1" = --prefix ]; then
@@ -179,6 +225,8 @@ STUB
   [ "$status" -eq 0 ]
   [ "$(cksum "$WRAPPER")" = "$before" ]
   grep -q '^install -g --prefix .* @opencode/cli@latest$' "$npm_log"
-  grep -q '^install --prefix .* --ignore-scripts --package-lock=false --no-save @opencode/plugin@2.0.8 @opentui/solid@latest solid-js@latest$' "$npm_log"
+  grep -q '^view @opentui/solid@latest version$' "$npm_log"
+  grep -q '^view @opentui/solid@0.5.11 peerDependencies.solid-js$' "$npm_log"
+  grep -q '^install --prefix .* --ignore-scripts --package-lock=false --no-save @opencode/plugin@2.0.8 @opentui/solid@0.5.11 solid-js@1.9.12$' "$npm_log"
   [[ "$output" == *"activated @opencode/cli@2.0.8 and matching plugin runtime"* ]]
 }

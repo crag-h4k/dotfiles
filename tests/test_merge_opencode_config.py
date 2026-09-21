@@ -332,6 +332,18 @@ def test_native_seed_has_narrow_allows_and_final_denials(script):
         ("grep", "*", "allow"),
         ("webfetch", "https://*", "allow"),
         ("websearch", "*", "allow"),
+        ("question", "*", "allow"),
+        ("skill", "*", "allow"),
+        ("subagent", "*", "allow"),
+        ("execute", "*", "allow"),
+        ("external_directory", "*", "allow"),
+        ("aws_documentation_*", "*", "allow"),
+        ("terraform_get_*", "*", "allow"),
+        ("confluence_confluence_get_*", "*", "allow"),
+        ("databricks_list_*", "*", "allow"),
+        ("browser_snapshot", "*", "allow"),
+        ("opencode_models", "*", "allow"),
+        ("shell", "pdftotext * -", "allow"),
         ("shell", "pre-commit *", "allow"),
         ("shell", "gh pr view *", "allow"),
     ):
@@ -352,6 +364,45 @@ def test_native_seed_has_narrow_allows_and_final_denials(script):
     assert "aws *" not in resources
     assert "python *" not in resources
     assert "npm install *" not in resources
+
+
+def test_read_only_tools_do_not_remove_mutation_prompts(script):
+    out, _ = merge(script, "")
+    rules = parse(out)["permissions"]
+
+    for action in (
+        "question",
+        "skill",
+        "subagent",
+        "execute",
+        "aws_documentation_read_documentation",
+        "terraform_get_provider_details",
+        "confluence_confluence_get_page",
+        "databricks_list_jobs",
+        "browser_snapshot",
+        "opencode_models",
+    ):
+        assert permission_effect(rules, action, "*") == "allow", action
+
+    for action in (
+        "aws_iam_policy_autopilot_fix_access_denied",
+        "aws_mcp_aws___run_script",
+        "confluence_confluence_delete_page",
+        "databricks_create_job",
+        "browser_click",
+        "opencode_session_move",
+    ):
+        assert permission_effect(rules, action, "*") == "ask", action
+
+    assert permission_effect(rules, "edit", "README.md") == "ask"
+    assert permission_effect(rules, "read", "/tmp/notes/design.pdf") == "allow"
+    assert permission_effect(rules, "shell", "cat docs/operation.md") == "ask"
+    assert permission_effect(rules, "shell", "cat .env") == "ask"
+    assert permission_effect(rules, "shell", "pdftotext design.pdf -") == "allow"
+    assert permission_effect(rules, "shell", "gh api repos/example/project") == "ask"
+    assert permission_effect(
+        rules, "shell", "gh api -X GET repos/example/project"
+    ) == "allow"
 
 
 def test_github_auth_status_never_allows_token_output(script):
