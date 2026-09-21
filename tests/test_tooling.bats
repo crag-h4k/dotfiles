@@ -343,7 +343,7 @@ STUB
   printf 'verified payload\n' > "$tmp_dir/$asset"
   (
     cd "$tmp_dir"
-    sha256sum "$asset" > checksums.txt
+    printf '%s  %s\n' "$(sha256_file "$asset")" "$asset" > checksums.txt
     printf '%064d  unrelated.zip\n' 0 >> checksums.txt
   )
 
@@ -351,7 +351,23 @@ STUB
   rm -rf "$tmp_dir"
 
   [ "$status" -eq 0 ]
-  [[ "$output" == *"$asset: OK"* ]]
+  [ -z "$output" ]
+}
+
+@test "BSD release checksum verification selects the SHA256 row" {
+  local tmp_dir asset hash
+  tmp_dir=$(mktemp -d)
+  asset="tool_linux_arm64"
+  printf 'verified payload\n' >"$tmp_dir/$asset"
+  hash=$(sha256_file "$tmp_dir/$asset")
+  printf 'MD5   (%s) = %032d\n' "$asset" 0 >"$tmp_dir/checksums-bsd"
+  printf 'SHA256 (%s) = %s\n' "$asset" "$hash" >>"$tmp_dir/checksums-bsd"
+
+  run verify_release_checksum_bsd "$tmp_dir" checksums-bsd "$asset"
+  rm -rf "$tmp_dir"
+
+  [ "$status" -eq 0 ]
+  [ -z "$output" ]
 }
 
 @test "Node major verification requires Node 24" {
@@ -374,13 +390,13 @@ STUB
   run env DOTFILES_PLAN_OS=debian DOTFILES_PLAN_ASSUME_MISSING=1 \
     INSTALL_NEOVIM=true bash "$planner" --records
   [ "$status" -eq 0 ]
-  [[ "$output" == *$'apt\tnodejs\tplanned\tNodeSource Node.js 24 apt repository'* ]]
-  [[ "$output" == *$'apt\ttrivy\tplanned\tAqua Security apt repository'* ]]
+  [[ "$output" == *$'apt\tnodejs\tplanned\tfloating\tNodeSource Node.js 24 apt repository'* ]]
+  [[ "$output" == *$'apt\ttrivy\tplanned\tfloating\tAqua Security apt repository'* ]]
   [[ "$output" == *$'github-release\ttflint\tplanned\t'* ]]
   [[ "$output" == *$'github-release\ttenv\tplanned\t'* ]]
   [[ "$output" == *$'github-release\ttree-sitter-cli\tplanned\t'* ]]
   [[ "$output" == *$'npm\tmarkdownlint-cli2\tplanned\t'* ]]
-  [[ "$output" == *$'npm\tprettierd\tplanned\t'* ]]
+  [[ "$output" == *$'npm\t@fsouza/prettierd\tplanned\t'* ]]
   [[ "$output" == *$'apt\tshellcheck\tplanned\t'* ]]
   [[ "$output" == *$'apt\tyamllint\tplanned\t'* ]]
   [[ "$output" == *$'luarocks\tluacheck\tplanned\t'* ]]
@@ -399,7 +415,7 @@ STUB
   [[ "$output" == *$'brew-formula\tterraform-linters/tap/tflint\tplanned\t'* ]]
   [[ "$output" == *$'brew-formula\ttree-sitter\tplanned\t'* ]]
   [[ "$output" == *$'brew-formula\ttree-sitter-cli\tplanned\t'* ]]
-  [[ "$output" == *$'npm\tprettierd\tplanned\t'* ]]
+  [[ "$output" == *$'npm\t@fsouza/prettierd\tplanned\t'* ]]
   [[ "$output" == *$'luarocks\tluacheck\tplanned\t'* ]]
   [[ "$output" != *$'\tgitleaks\t'* ]]
   [[ "$output" != *$'\thadolint\t'* ]]

@@ -59,7 +59,7 @@ an alternate valid keyring path. That catches duplicate-repository and
 conflicting `Signed-By` regressions before they reach a workstation.
 
 The focused component set installs Zsh, tmux, and shared Git configuration.
-Trixie's `tmux` comes from Debian APT—no source build, no mystery binary.
+Trixie's `tmux` comes from Debian APT: no source build, no mystery binary.
 
 After install, the shared smoke test checks the managed files, shell runtime,
 Git behavior, tmux options, dynamic scrollback, and wheel binding.

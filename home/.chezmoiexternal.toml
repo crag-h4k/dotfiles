@@ -1,77 +1,165 @@
-# Upstream plugins, fetched and refreshed by chezmoi. Gated by component:
+# home/.chezmoiexternal.toml
+# Upstream plugins cloned by chezmoi and refreshed by approved package mode.
+# Existing checkouts use refreshPeriod=0 so the installer can skip dirty or
+# diverged work before a fast-forward. Gated by component:
 # the zsh block only renders when components.zsh is true, the tmux block when
 # components.tmux is true. Selection lives in ~/.config/chezmoi/chezmoi.toml.
 # `dig` defaults a missing component to its install-by-default value so an
 # un-init'd config degrades to "install everything" instead of erroring.
+{{ $agentSkillsEnabled := or
+     (dig "components" "ai" "claude_hooks" false .)
+     (dig "components" "ai" "codex_hooks" false .)
+     (dig "components" "ai" "statusline" false .)
+     (dig "components" "ai" "opencode" false .)
+     (dig "components" "ai" "copilot" false .)
+     (dig "components" "ai" "codecompanion" false .) -}}
 {{ if dig "components" "zsh" true . -}}
 [".zsh/ohmyzsh"]
     type = "git-repo"
     url = "https://github.com/ohmyzsh/ohmyzsh.git"
-    refreshPeriod = "168h"
+    refreshPeriod = "0"
     [".zsh/ohmyzsh".pull]
         args = ["--ff-only"]
 
 [".zsh/custom/plugins/zsh-autosuggestions"]
     type = "git-repo"
     url = "https://github.com/zsh-users/zsh-autosuggestions.git"
-    refreshPeriod = "168h"
+    refreshPeriod = "0"
     [".zsh/custom/plugins/zsh-autosuggestions".clone]
         args = ["--depth=1"]
+    [".zsh/custom/plugins/zsh-autosuggestions".pull]
+        args = ["--ff-only"]
 
 [".zsh/custom/plugins/zsh-syntax-highlighting"]
     type = "git-repo"
     url = "https://github.com/zsh-users/zsh-syntax-highlighting.git"
-    refreshPeriod = "168h"
+    refreshPeriod = "0"
     [".zsh/custom/plugins/zsh-syntax-highlighting".clone]
         args = ["--depth=1"]
+    [".zsh/custom/plugins/zsh-syntax-highlighting".pull]
+        args = ["--ff-only"]
 
 [".zsh/custom/plugins/zsh-completions"]
     type = "git-repo"
     url = "https://github.com/zsh-users/zsh-completions.git"
-    refreshPeriod = "168h"
+    refreshPeriod = "0"
     [".zsh/custom/plugins/zsh-completions".clone]
         args = ["--depth=1"]
+    [".zsh/custom/plugins/zsh-completions".pull]
+        args = ["--ff-only"]
 {{ end -}}
-{{ if dig "components" "tmux" true . -}}
-[".tmux/plugins/tpm"]
-    type = "git-repo"
-    url = "https://github.com/tmux-plugins/tpm.git"
-    refreshPeriod = "168h"
-    [".tmux/plugins/tpm".clone]
-        args = ["--depth=1"]
+{{ if $agentSkillsEnabled -}}
+# Cross-harness writing-quality skills use exact public commits and per-file
+# checksums. They never refresh implicitly. Only the distributable skill files,
+# references, scanners, and license texts are fetched, not research corpora,
+# repository automation, or marketplace metadata.
+[".local/share/agent-skills/unslop-code/SKILL.md"]
+    type = "file"
+    url = "https://raw.githubusercontent.com/JCarterJohnson/vibecoded-design-tells/f7c4aefc2c797a66e55b49354a93917ab60d33ac/unslop-ai-code/skill/SKILL.md"
+    readonly = true
+    checksum.sha256 = "118b4e3a21630da847a7be1c9a27f5c47f027efb2c189ea8d47299f1566b5724"
 
-[".tmux/plugins/tmux-sensible"]
-    type = "git-repo"
-    url = "https://github.com/tmux-plugins/tmux-sensible.git"
-    refreshPeriod = "168h"
-    [".tmux/plugins/tmux-sensible".clone]
-        args = ["--depth=1"]
+[".local/share/agent-skills/unslop-code/references/fitting-the-codebase.md"]
+    type = "file"
+    url = "https://raw.githubusercontent.com/JCarterJohnson/vibecoded-design-tells/f7c4aefc2c797a66e55b49354a93917ab60d33ac/unslop-ai-code/skill/references/fitting-the-codebase.md"
+    readonly = true
+    checksum.sha256 = "c707ee0c655fafd6d97831318ff9affdc2279d9c446cdcf9dad5caba20c87b2b"
 
-[".tmux/plugins/tmux-yank"]
-    type = "git-repo"
-    url = "https://github.com/tmux-plugins/tmux-yank.git"
-    refreshPeriod = "168h"
-    [".tmux/plugins/tmux-yank".clone]
-        args = ["--depth=1"]
+[".local/share/agent-skills/unslop-code/references/tells.md"]
+    type = "file"
+    url = "https://raw.githubusercontent.com/JCarterJohnson/vibecoded-design-tells/f7c4aefc2c797a66e55b49354a93917ab60d33ac/unslop-ai-code/skill/references/tells.md"
+    readonly = true
+    checksum.sha256 = "22983d016fc83cd5cab6388c1951caca2cdcf4ad5ec223b6b44988d86aed9321"
 
-[".tmux/plugins/tmux-cpu"]
-    type = "git-repo"
-    url = "https://github.com/tmux-plugins/tmux-cpu.git"
-    refreshPeriod = "168h"
-    [".tmux/plugins/tmux-cpu".clone]
-        args = ["--depth=1"]
+[".local/share/agent-skills/unslop-code/scripts/unslop_code_scan.py"]
+    type = "file"
+    url = "https://raw.githubusercontent.com/JCarterJohnson/vibecoded-design-tells/f7c4aefc2c797a66e55b49354a93917ab60d33ac/unslop-ai-code/skill/scripts/unslop_code_scan.py"
+    readonly = true
+    checksum.sha256 = "9c00940691034a1b7bae8a97e46c5e33073f67b66d42fb4468e18641e1edccc8"
 
-[".tmux/plugins/tmux-network-bandwidth"]
-    type = "git-repo"
-    url = "https://github.com/xamut/tmux-network-bandwidth.git"
-    refreshPeriod = "168h"
-    [".tmux/plugins/tmux-network-bandwidth".clone]
-        args = ["--depth=1"]
+[".local/share/agent-skills/unslop-code/LICENSE"]
+    type = "file"
+    url = "https://raw.githubusercontent.com/JCarterJohnson/vibecoded-design-tells/f7c4aefc2c797a66e55b49354a93917ab60d33ac/unslop-ai-code/LICENSE"
+    readonly = true
+    checksum.sha256 = "cf2ad096a80ad090167e532c6bc2a01880ca5811595fd657e7fd88b6071ab84a"
 
-[".tmux/plugins/tmux-resurrect"]
-    type = "git-repo"
-    url = "https://github.com/tmux-plugins/tmux-resurrect.git"
-    refreshPeriod = "168h"
-    [".tmux/plugins/tmux-resurrect".clone]
-        args = ["--depth=1"]
+[".local/share/agent-skills/unslop-text/SKILL.md"]
+    type = "file"
+    url = "https://raw.githubusercontent.com/JCarterJohnson/vibecoded-design-tells/f7c4aefc2c797a66e55b49354a93917ab60d33ac/unslop-ai-text/skill/SKILL.md"
+    readonly = true
+    checksum.sha256 = "5e6dc683b8604110d0d6953b9499d069939c7c03f2aecf55ce4f94b664320737"
+
+[".local/share/agent-skills/unslop-text/references/tells.md"]
+    type = "file"
+    url = "https://raw.githubusercontent.com/JCarterJohnson/vibecoded-design-tells/f7c4aefc2c797a66e55b49354a93917ab60d33ac/unslop-ai-text/skill/references/tells.md"
+    readonly = true
+    checksum.sha256 = "3346b94c4804555f7c132de6904fe049d866ca92e4c1218ea46e1de3432b64c6"
+
+[".local/share/agent-skills/unslop-text/references/writing-with-intent.md"]
+    type = "file"
+    url = "https://raw.githubusercontent.com/JCarterJohnson/vibecoded-design-tells/f7c4aefc2c797a66e55b49354a93917ab60d33ac/unslop-ai-text/skill/references/writing-with-intent.md"
+    readonly = true
+    checksum.sha256 = "efdf1480ead5e1d061d071d052685b9fc14a55053dab27125c4c0494fb9381f3"
+
+[".local/share/agent-skills/unslop-text/scripts/unslop_text_scan.py"]
+    type = "file"
+    url = "https://raw.githubusercontent.com/JCarterJohnson/vibecoded-design-tells/f7c4aefc2c797a66e55b49354a93917ab60d33ac/unslop-ai-text/skill/scripts/unslop_text_scan.py"
+    readonly = true
+    checksum.sha256 = "e494196e8e20fa3d44b9ff96c094b0deef9d46173fc4cd9ab7957ab6c8f05dea"
+
+[".local/share/agent-skills/unslop-text/LICENSE"]
+    type = "file"
+    url = "https://raw.githubusercontent.com/JCarterJohnson/vibecoded-design-tells/f7c4aefc2c797a66e55b49354a93917ab60d33ac/LICENSE"
+    readonly = true
+    checksum.sha256 = "9ef1e40441ba739df595abddf19002d81c59fe25f4288ab0aef6c1cc3e17ea80"
+
+[".local/share/agent-skills/unslop-ui/SKILL.md"]
+    type = "file"
+    url = "https://raw.githubusercontent.com/JCarterJohnson/vibecoded-design-tells/f7c4aefc2c797a66e55b49354a93917ab60d33ac/skill/SKILL.md"
+    readonly = true
+    checksum.sha256 = "e3f2f97441f8faffab7421dfef43f145155e1fbc06edc27813c04929174f6450"
+
+[".local/share/agent-skills/unslop-ui/references/choosing-a-look.md"]
+    type = "file"
+    url = "https://raw.githubusercontent.com/JCarterJohnson/vibecoded-design-tells/f7c4aefc2c797a66e55b49354a93917ab60d33ac/skill/references/choosing-a-look.md"
+    readonly = true
+    checksum.sha256 = "1c83902d1bde857cfc33da43e6ae8683574a6734e821892565dce53cbcef0da4"
+
+[".local/share/agent-skills/unslop-ui/references/tells.md"]
+    type = "file"
+    url = "https://raw.githubusercontent.com/JCarterJohnson/vibecoded-design-tells/f7c4aefc2c797a66e55b49354a93917ab60d33ac/skill/references/tells.md"
+    readonly = true
+    checksum.sha256 = "032176c6d9b2951769abc4f7ff618ff0219f2d052ba2599a6c1c27a827d72856"
+
+[".local/share/agent-skills/unslop-ui/scripts/devibe_scan.py"]
+    type = "file"
+    url = "https://raw.githubusercontent.com/JCarterJohnson/vibecoded-design-tells/f7c4aefc2c797a66e55b49354a93917ab60d33ac/skill/scripts/devibe_scan.py"
+    readonly = true
+    checksum.sha256 = "6e516bea614831349525b608549257f97723315437cdbf52436f97213db48090"
+
+[".local/share/agent-skills/unslop-ui/LICENSE"]
+    type = "file"
+    url = "https://raw.githubusercontent.com/JCarterJohnson/vibecoded-design-tells/f7c4aefc2c797a66e55b49354a93917ab60d33ac/LICENSE"
+    readonly = true
+    checksum.sha256 = "9ef1e40441ba739df595abddf19002d81c59fe25f4288ab0aef6c1cc3e17ea80"
+
+# Humanizer's upstream skill and Codex metadata are preserved under upstream/.
+# The adjacent managed adapter owns explicit-only invocation policy.
+[".local/share/agent-skills/humanizer/upstream/SKILL.md"]
+    type = "file"
+    url = "https://raw.githubusercontent.com/blader/humanizer/9862685f575c65a8247f90369951df1b3416e3d6/SKILL.md"
+    readonly = true
+    checksum.sha256 = "e8269e236bed06ed0fe4824c274112e54950b0cb46b0bafe5e1576ef7c9f93d5"
+
+[".local/share/agent-skills/humanizer/upstream/agents/openai.yaml"]
+    type = "file"
+    url = "https://raw.githubusercontent.com/blader/humanizer/9862685f575c65a8247f90369951df1b3416e3d6/agents/openai.yaml"
+    readonly = true
+    checksum.sha256 = "9d87ff83149a04f86a372948b8ee35fa249de20923867bbc2a49304290aad736"
+
+[".local/share/agent-skills/humanizer/upstream/LICENSE"]
+    type = "file"
+    url = "https://raw.githubusercontent.com/blader/humanizer/9862685f575c65a8247f90369951df1b3416e3d6/LICENSE"
+    readonly = true
+    checksum.sha256 = "4ac4810254ab36d45419141aeb8e69bf50652cfafe5b2dab947d06d44e5cbf96"
 {{ end -}}

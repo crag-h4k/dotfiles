@@ -8,7 +8,7 @@
 
   attention: v2 ships a built-in notifications plugin that raises OS
   notifications and plays sounds. Both are suppressed so the tmux pane/window
-  recolor (plugin/notify.ts -> ~/.config/notify/opencode-events.sh) stays the
+  recolor (plugins/notify.ts -> ~/.config/notify/opencode-events.sh) stays the
   single attention channel: visual, tmux-only, never popups.
 
   Preferred over "plugins": ["*", "-opencode.notifications"], which disables the
@@ -16,13 +16,10 @@
 
   plugins: disable the stock prompt footer and Copilot quota renderer, then let
   the local V2-only statusline own their presentation. The external package's
-  server-side quota RPC stays active. The local plugin lives outside plugin/
-  and plugins/ discovery so OpenCode V1 never tries to load it.
+  server-side quota RPC stays active. The local plugin lives outside plugins/
+  discovery because it is loaded explicitly as a CLI plugin.
 
   Not set here on purpose:
-    keybinds - v2 defaults already match nvim-cmp (ctrl+n/ctrl+p navigate, tab
-               completes, return confirms, escape dismisses), so restating them
-               would be noise.
     prompt.paste - a rendering setting for how large pastes display, unrelated to
                the tmux assume-paste-time fix in dot_tmux/conf.d/clipboard.conf.
 */ -}}
@@ -30,6 +27,20 @@
   "$schema": "https://opencode.ai/v2/cli.json",
   "theme": {
     "name": "gud-lucent"
+  },
+  "tabs": {
+    "enabled": true
+  },
+  "keybinds": {
+    "leader": "ctrl+g",
+    "session.tab.previous": "<leader>h",
+    "session.tab.next": "<leader>l",
+    "session.list": "<leader>t",
+    "session.first": "home",
+    "theme.switch": "none"
+  },
+  "leader": {
+    "timeout": 1500
   },
   "attention": {
     "notifications": false,

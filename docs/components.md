@@ -7,6 +7,7 @@
   - [Palette and install confirmation](#palette-and-install-confirmation)
   - [Adding APT repositories](#adding-apt-repositories)
   - [Sub-feature submenus (git, ai, terminal)](#sub-feature-submenus-git-ai-terminal)
+  - [Writing-quality agent skills](#writing-quality-agent-skills)
   - [OpenCode V2 footer](#opencode-v2-footer)
   - [Terminal (Ghostty, iTerm2)](#terminal-ghostty-iterm2)
     - [Ghostty](#ghostty)
@@ -26,45 +27,48 @@ On later runs, the picker preselects the current host configuration. The header
 also lists what is enabled. Gum is part of both platform base sets, so it is
 available after the first package-mode apply.
 
-The persisted `[data.components.*]` values also preserve selections originally
-made through `all` or `all+`.
+The persisted `[data.components.*]` values preserve the resolved host state.
+Older `all` selections migrate to `default`. Retired `all+` selections migrate
+to explicit selections for all six current components without replaying setup
+actions. The removed `opencode2` sub-feature migrates to canonical
+`ai.opencode` V2 while old nested Git, AI, and terminal selections remain intact.
 
 Without Gum, the same choices appear as a numbered prompt:
 
 ```text
 Components to install:
-  1) zsh          oh-my-zsh, plugins, custom functions, aliases
-  2) tmux         tmux + plugins (tpm, resurrect, sensible, yank)
-  3) neovim       neovim, lazy.nvim, language servers, linters
-  4) git          git config files (config, personal, ignore_global)
-  5) ai           AI tools (claude_hooks, codex_hooks, statusline, opencode, copilot, codecompanion, opencode2)
-  6) terminal     terminal emulator config (ghostty, iterm2)
-  7) colorscheme  re-pick the shared color scheme (unchecked keeps the current one)
-  8) install_mode re-choose packages vs configs (unchecked keeps the current one)
+  1) Zsh                oh-my-zsh, plugins, custom functions, aliases
+  2) tmux               tmux + plugins (tpm, resurrect, sensible, yank)
+  3) Neovim             Neovim, lazy.nvim, language servers, linters
+  4) Git                managed config and independent global ignore
+  5) AI tools           OpenCode V2, hooks, statusline, Copilot, CodeCompanion
+  6) terminal emulators independent Ghostty and iTerm2 configuration
 
-  all   the default set (1 2 3 4)
-  all+  everything, adds ai, terminal, colorscheme, install_mode
+Setup actions:
+  7) theme        choose the shared color theme (unchecked keeps it)
+  8) package mode choose configs-only or package installation (unchecked keeps it)
 
-Enter numbers (e.g. "1 3"), a keyword above, or press Enter for default (1 2 3 4)
+  default  the default component set (1 2 3 4)
+
+Enter numbers (e.g. "1 3"), type default, or press Enter for default (1 2 3 4)
 ```
 
-Both interfaces produce the same `componentSelection` value and
+Both interfaces persist their selection and resolve the same
 `[data.components]` tables.
 
 | Input | Selects |
 | --- | --- |
 | Numbers (e.g. `1 3`) | Any subset; spacing/order don't matter - `1 3`, `13`, and `3 1` are equivalent |
 | Enter | The default, `1 2 3 4` (zsh + tmux + neovim + git; no AI tools) |
-| `all` | The default set (`1 2 3 4`) |
-| `all+` | Everything, adding the AI tools, `terminal`, and the `colorscheme` / `install_mode` toggles |
+| `default` | The default set (`1 2 3 4`) |
 
-`all+` uses each parent's default sub-features. For example, it enables Ghostty
-but not iTerm2. Select iTerm2 in the terminal submenu when you want both.
+Component rows and setup-action rows are separate. Actions reopen a picker for
+that init and never become component booleans.
 
 The component list in `home/.chezmoi.toml.tmpl` is the source of truth for both
 interfaces. Set `DOTFILES_NO_TUI=1` to force the numbered prompt.
 
-`colorscheme` and `install_mode` are init-time actions. They live outside
+`theme` and `package mode` are init-time actions. They live outside
 `[data.components]` and reopen the relevant picker when selected.
 
 ### Sub-feature submenus (git, ai, terminal)
@@ -77,16 +81,14 @@ Git is in the default component set. AI and terminal configuration are opt-in.
 
 | Component | Sub-feature | Target | Submenu default | Notes |
 | --- | --- | --- | --- | --- |
-| `git` | `config` | `~/.gitconfig` | off | chezmoi-managed shared Git behavior and GitHub CLI credential helpers |
-| `git` | `personal` | `~/.gitconfig.personal` | off | chezmoi prompts once for per-host name/email and renders the file privately (mode 600) |
-| `git` | `ignore_global` | `~/.gitignore_global` | on | matches the old, pre-submenu default behavior |
+| `git` | `config` | `~/.gitconfig` | off | generic Git behavior plus an unmanaged `~/.gitconfig.override` include; creates an empty mode-600 override only when absent |
+| `git` | `ignore_global` | `~/.gitignore_global` | on | independent of the managed Git config |
 | `ai` | `claude_hooks` | `~/.claude/settings.json` (merge) | off | merges the Claude notify hooks |
 | `ai` | `codex_hooks` | `~/.codex/config.toml` (merge) | off | merges the Codex notify hook + `tui.notifications` |
-| `ai` | `statusline` | `~/.claude/settings.json` + `~/.codex/config.toml` (merge) | off | Claude renderer plus a matching selected-palette Codex theme; keeps those files managed even when notify hooks are off; not enabled by `all` or `all+` |
-| `ai` | `opencode` | OpenCode CLI (`opencode-ai` npm) + generic config (merge) + tmux notifier bridge | off | pinned npm binary into `~/.local`; `~/.config/opencode/opencode.jsonc` is merge-managed - chezmoi asserts `$schema`, V1 `plugin`, and V2 `plugins`; seeds `permission` only on a host that has none; and preserves every other top-level key (`instructions`, `mcp`) and its comments verbatim, so machine-local entries never reach this repo; not enabled by `all` or `all+` |
-| `ai` | `copilot` | GitHub Copilot CLI (`@github/copilot` npm, `prerelease` tag) | off | npm-only channel (no Homebrew/apt); binary into `~/.local`; needs Node 22+; not enabled by `all` or `all+` |
-| `ai` | `codecompanion` | CodeCompanion.nvim + `claude-agent-acp` bridge | on (within the `ai` submenu, if `ai` is picked) | heaviest sub-feature - pulls in node, npm, and the npm-installed bridge; listed near the end for that reason |
-| `ai` | `opencode2` | OpenCode v2 CLI (`@opencode/cli` npm, stable `latest` tag) + shared generic config (merge) + `gud-lucent` theme | off | package isolated under `~/.local/share/opencode2` with only `opencode2` linked into `~/.local/bin`, so its additional `opencode` bin cannot overwrite V1; exact local-plugin dependencies install under `~/.config/opencode/node_modules`; V2 loads the pinned Copilot quota RPC while V1 keeps its separate legacy plugin list; not enabled by `all` or `all+` |
+| `ai` | `statusline` | `~/.claude/settings.json` + `~/.codex/config.toml` (merge) | off | Claude renderer plus a matching selected-palette Codex theme; keeps those files managed when notify hooks are off |
+| `ai` | `opencode` | OpenCode V2 (`@opencode/cli`) + V2 config + notifier bridge | on when AI is selected | isolated npm prefix, managed wrapper, native permissions, and exact-pinned statusline plugin |
+| `ai` | `copilot` | GitHub Copilot CLI (`@github/copilot` npm, `prerelease` tag) | off | npm-only channel (no Homebrew/apt); binary into `~/.local`; needs Node 22+ |
+| `ai` | `codecompanion` | CodeCompanion.nvim + `claude-agent-acp` bridge | off | selecting it also enables and installs the Neovim component |
 | `terminal` | `ghostty` | Ghostty config + quick-terminal dropdown | on | macOS and Linux |
 | `terminal` | `iterm2` | iTerm2 Dynamic Profiles | off | macOS only; hidden in the submenu on non-macOS (data key still emitted for column parity), also gated in `home/.chezmoiignore` |
 
@@ -100,27 +102,45 @@ The submenu only appears when its parent is selected.
 
 Nothing AI-related installs unless the AI component is selected.
 
+### Writing-quality agent skills
+
+Selecting any `ai` sub-feature also installs `unslop-code`, `unslop-text`,
+`unslop-ui`, and the explicit-only `humanizer`. There is no separate submenu
+choice. A single canonical store under `~/.local/share/agent-skills` feeds
+per-skill links in both `~/.claude/skills` and `~/.agents/skills`.
+
+Claude Code and CodeCompanion use the Claude root. Codex, OpenCode V2, and
+GitHub Copilot use the Agent Skills root. OpenCode may discover both roots, but
+both links point to the same canonical directories and resolve to one effective
+ID per skill.
+
+Humanizer never runs implicitly. An explicit humanization applies Humanizer
+first and `unslop-text` second. OpenCode also receives prompt-only `/unslop` and
+`/humanize` commands. See [Cross-harness agent skills](agent-skills.md) for pins,
+licenses, invocation, update audit, and threat boundaries.
+
 CodeCompanion can send buffer contents to an LLM, so
 `~/.config/nvim/.codecompanion-enabled` gates it at startup. Add or remove that
 file to toggle the plugin on one host without re-running init.
 
 The npm-installed `claude-agent-acp` bridge lives in `~/.local/bin` and reuses
-the existing Claude login. CodeCompanion does nothing without Neovim.
+the existing Claude login. Selecting CodeCompanion automatically enables
+Neovim before the package plan and confirmation are shown.
 
-The npm-based AI CLIs (`opencode`, `opencode2`, and `copilot`) and the
+The npm-based AI CLIs (`opencode2` and `copilot`) and the
 `claude-agent-acp` bridge all need a Node runtime, so selecting any of them plans
-Node and npm automatically; you do not also have to select Neovim. On Debian, the
-Node 24 (NodeSource) build still ships with the Neovim component, so an AI-only
-selection installs Debian's packaged Node, which is enough to provide npm.
+Node and npm automatically. On Debian, any such selection enables the
+NodeSource Node.js 24 repository. If repository setup, package installation, or
+Node 24 verification fails, only npm-dependent steps are skipped. Python,
+LuaRocks, Git externals, and editor updates continue.
 
-Those CLIs install into `~/.local/bin` and are reachable by name only through the
-`zsh` component, which puts `~/.local/bin` on `PATH` (via `~/.zshenv`) and defines
-the `oc` / `oc2` / `oc2bg` aliases. With `zsh` deselected the binaries install but
-are not on `PATH` by name and have no aliases; add `~/.local/bin` to `PATH`
-yourself or run them by full path.
+The OpenCode wrapper, Copilot CLI, and ACP bridge live in `~/.local/bin`. They are
+reachable by name only through the `zsh` component, which puts that directory on
+`PATH` (via `~/.zshenv`) and defines the `oc` / `oc2` / `oc2bg` aliases. With
+`zsh` deselected they are not on `PATH` by name and have no aliases.
 
-`oc2` pins `--standalone`, and as of this change so does the bare `opencode2`
-name, so a mistyped launch cannot silently break attention notifications. The
+`oc` launches OpenCode V2 with `--standalone`. `oc2` remains as a temporary
+alias, and `oc2bg` explicitly uses the shared background service. The
 notifier plugin runs inside the OpenCode server and its only pane signal is that
 server's own `TMUX_PANE`, fixed at server start. `--standalone` makes the server
 a child of the TUI, so one server maps to one pane. The shared background service
@@ -129,27 +149,50 @@ with N panes, N-1 sessions notify the wrong pane. `oc2bg` is the deliberate
 opt-in to that shared service: it saves roughly 864 MB per pane and gives up
 per-pane notifications. See [Notifications](notifications.md#opencode).
 
+The managed `~/.local/bin/opencode2` wrapper executes the isolated binary at
+`~/.local/share/opencode2/bin/opencode2` and sets that directory as the npm
+prefix. `opencode2 update` and `opencode2 upgrade` add `--method npm` unless an
+explicit method is present before `--`. Every other argument is passed through
+unchanged. Both installer and wrapper canonicalize their paths and reject a
+prefix whose binary resolves back to the managed wrapper.
+
+`~/.config/opencode/opencode.jsonc` is merge-managed. Chezmoi reasserts the
+schema, built-in agent colors, and exact-pinned V2 plugin list while preserving
+unknown top-level keys and comments. A fresh host receives native ordered
+`permissions`; only the exact old generated `permission` block is migrated.
+Customized V1 or V2 policies remain untouched. Within `agents`, only
+`build.color` and `plan.color` are managed; custom agents and every other
+built-in field or comment survive unchanged.
+
+`cli.json` enables session tabs and uses `Ctrl+G` as a 1500 ms leader.
+`<leader>h` and `<leader>l` move between tabs, while `<leader>t` opens the
+session list. `Home` moves to the first message, freeing `Ctrl+G` for the leader,
+and the old `<leader>t` theme switch is disabled.
+
 ### OpenCode V2 footer
 
 OpenCode V2 loads a local CLI plugin from
 `~/.config/opencode/v2-plugins/statusline/tui.tsx`. `cli.json` names its parent
-package directory explicitly, which keeps it outside OpenCode's automatic V1
-plugin discovery. It disables the stock `opencode.prompt.footer` and
+package directory explicitly, which keeps it outside automatic server-plugin
+discovery. It disables the stock `opencode.prompt.footer` and
 `opencode-copilot-statusline.tui` renderers, then replaces
 `prompt.footer.status`. This removes the command-palette hint and idle working
 directory while keeping editor-file context in `prompt.footer.file`.
 
 V2's local-path loader does not provide the `@opencode/plugin` and OpenTUI peer
-packages advertised by its documentation. The managed `package.json` and lock
-file install exact runtime versions under `~/.config/opencode/node_modules`.
+packages advertised by its documentation. Package mode installs a matching,
+unlocked runtime under `~/.local/share/opencode2/plugin-runtime` and links its
+`node_modules` into `~/.config/opencode`. Chezmoi does not track the runtime,
+manifest, lockfile, or dependency tree.
 
 The local renderer reproduces context usage and aggregate session cost. It
 calls the `opencode-copilot-statusline@1.0.0` server RPC for the monthly limit,
-but renders only the provider and used percentage after cost. The reset
-countdown is intentionally omitted.
+but renders only the provider and used percentage. The reset countdown is
+intentionally omitted. Context, cost, and provider usage are separate
+left-aligned pills after the activity pills.
 
 ```text
-󰉋 project   main •2 +14 -3  󰚩 build · gpt-5.6-sol · xhigh  󰥔 12m  󰓻 1 run    43.9K (4%) · $23.79 · GitHub Copilot 52%
+󰉋 project   main •2 +14 -3  ⠋ 󰚩 build · gpt-5.6-sol · xhigh  󰥔 12m  O 1 run  󰍛 43.9K (4%)  ≈ $23.79  󰊤 GitHub Copilot 52%
 ```
 
 | Pill | Data | Display rule |
@@ -157,17 +200,24 @@ countdown is intentionally omitted.
 | Project | Project name, falling back to the working-directory basename | Always visible as the compact baseline |
 | Git | Branch plus dirty-file count; additions and deletions when expanded | Hidden outside a repository |
 | Identity | Active agent, shortened model ID, and effort variant | From 85 columns without Git or 125 columns with Git |
+| Foreground spinner | Cyan single-cell animation before the identity pill | While the active session runs model or tool work; hidden while idle, waiting for input, or in shell mode |
 | Elapsed | Wall-clock age since session creation | From 115 columns without Git or 150 columns with Git |
-| Subagents | Running child sessions and queued child prompts | Hidden when there is no active child work |
-| Context and cost | Latest post-compaction context usage and aggregate family cost | Right-aligned when data exists |
-| Provider limit | Active provider plus monthly used percentage | Last item; no reset countdown |
+| Subagents | Running child sessions and queued child prompts | Orange single-cell animation while children run; static icon for queued-only work; hidden without child work |
+| Context | Latest post-compaction context usage | Left-aligned pill; survives longest among usage pills |
+| Estimated cost | Aggregate session-family cost | Left-aligned pill; hidden before context at narrow widths |
+| Provider limit | Active provider plus monthly used percentage | Left-aligned pill; hidden first at narrow widths; no reset countdown |
 
 The plugin refreshes Git status after filesystem and branch events with a 250
 ms debounce, and refreshes the Copilot limit every 60 seconds. During execution
-the configured interrupt shortcut precedes the left pills and right-side usage
-is hidden to preserve width; shell mode shows its exit guidance. Its colors
+the configured interrupt shortcut precedes the pills while the latest usage
+values remain visible when width permits. Shell mode shows its exit guidance. Its colors
 render from `.chezmoidata/palettes.yaml`, so changing `data.palette` keeps the
 pills aligned with `gud-lucent`, tmux, Ghostty, and the rest of the rice.
+
+The spinner clock exists only while a visible foreground spinner or running
+child needs it. Both animations can appear together. Foreground and subagent
+frames update only their single-cell glyphs, leaving Git, context, cost, and
+quota calculations off the animation path.
 
 The same palette overrides the built-in prompt metadata colors through
 `agents.build.color` and `agents.plan.color`. Build renders in palette green;
@@ -207,11 +257,13 @@ prompting.
 
 ### Palette and install confirmation
 
-The palette picker opens only when `colorscheme` is selected. Otherwise init
-keeps the current value.
+The palette picker opens only when the `theme` setup action is selected.
+Otherwise init keeps the current value.
 
-The picker preselects the current scheme. Its result is stored as
-`data.palette`, with Dracula as the default.
+With Gum, the picker lists human-readable names, supports type-to-filter, and
+preselects the current scheme. Without Gum, a numbered list replaces the
+searchable picker. Interactive use never requires memorizing a palette ID. The
+result is stored as `data.palette`, with Dracula as the default.
 
 The committed catalog renders every supported terminal and AI surface. It is
 generated from the vendored base16 collection at authoring time, so apply does
@@ -222,32 +274,68 @@ Set `DOTFILES_PALETTE=<id>` for a non-interactive selection. See
 
 The final screen groups the deduplicated package plan by status: install,
 update, then current. Colors honor `NO_COLOR`, and every line names its package
-source.
+source and whether it floats or is pinned.
 
-Homebrew uses `brew outdated`, and APT uses `apt list --upgradable`, to report
-real update state. Slower sources such as GitHub releases, npm, pip, LuaRocks,
-externals, and Neovim plugins report only missing or installed state.
+The pre-approval plan uses command and path probes. It does not invoke
+Homebrew, APT, npm, pip, or LuaRocks. After approval, Homebrew refreshes its
+metadata and checks its managed inventory; APT refreshes metadata before
+installing only the selected package names.
 
 Package mode installs missing tools and updates the managed set. Config-only
-mode still fetches selected chezmoi externals and runs safe finalizers, but
-skips package managers, release binaries, language packages, `chsh`, and
-Neovim synchronization.
+mode still clones missing selected chezmoi externals and runs safe finalizers,
+but skips external refreshes, package managers, release binaries, language
+packages, `chsh`, and Neovim synchronization.
 
-On macOS, package mode upgrades outdated managed formulae and casks. On Debian,
-`apt-get install` selects the current candidate version.
+Missing selected Git externals are part of chezmoi's configuration payload.
+Chezmoi clones them while materializing selected configuration, before the
+`run_once` installer. Existing checkout refreshes are different: package mode
+checks status, tracking configuration, and declared URL after package approval,
+then fetches only the matching tracking remote and fast-forwards clean branches.
+
+On macOS, package mode upgrades outdated managed formulae and casks. An
+existing Ghostty app that is not managed by Homebrew is reported as a manual
+exception. On Debian, individual `apt-get install` calls select the current
+candidate version without running a distribution upgrade. Ghostty remains a
+manual install there too.
+
+Floating npm CLIs, OpenCode runtime dependencies, Neovim Python providers,
+LuaRocks tools, checksum-verified GitHub release binaries, Lazy plugins,
+Treesitter parsers, and installed Mason packages update on every approved
+package run. Selected chezmoi Git externals and installer-owned TPM repositories
+advance only when their checkout is clean and the remote change is a
+fast-forward. Dirty, detached, ahead, or diverged checkouts are skipped with a
+warning.
+
+Exact versions remain source-controlled. Package mode reasserts the pinned
+tree-sitter CLI instead of advancing it. OpenCode's plugin API follows the
+installed CLI version while its UI peer dependencies float within npm's
+compatible ranges. The pinned OpenCode statusline plugin reference, pre-commit revisions, and
+palette submodule commit change only through repository updates. Initializing
+that exact palette submodule commit happens only after package approval.
 
 The plan appears on first init, when `DOTFILES_INSTALL_MODE` is set, or when the
-`install_mode` action is selected. A normal later init reuses the saved mode.
+`package mode` setup action is selected. A normal later init reuses the saved mode.
 
-When a component change or `cup` triggers the installer, its `[y/N]` prompt
-shows the plan again. The package list appears when it matters, not every time
-the picker opens.
+When a component change triggers the installer, its `[y/N]` prompt shows the
+plan again. `cup` uses a scoped re-init that keeps the component choices and
+opens the same plan and mode confirmation.
 
 Non-interactive init requires `DOTFILES_INSTALL_MODE=configs` or
 `DOTFILES_INSTALL_MODE=packages`. Without one, chezmoi stops before apply.
 
 An unattended package install also needs `DOTFILES_ASSUME_YES=1`. Without it, a
 headless apply declines package changes and writes configuration only.
+
+An unattended recurring update is deliberately stricter. It requires all
+three variables so a plain automation apply cannot accidentally advance
+`packageRun`:
+
+```sh
+DOTFILES_PACKAGE_UPDATE=1 \
+DOTFILES_INSTALL_MODE=packages \
+DOTFILES_ASSUME_YES=1 \
+  chezmoi init --apply --no-tty
+```
 
 ### Adding APT repositories
 
@@ -379,7 +467,7 @@ There are two ways to change the selection.
 
 - Re-open the picker. The `ccomp` alias runs `chezmoi init --apply`:
 
-  ```sh
+  ```zsh
   ccomp     # alias for: chezmoi init --apply
   ```
 
@@ -393,7 +481,7 @@ There are two ways to change the selection.
   Without Gum, `promptStringOnce` does not ask again while
   `componentSelection` is set. Clear the value first:
 
-  ```sh
+  ```zsh
   sed -i.bak '/componentSelection/d' ~/.config/chezmoi/chezmoi.toml
   chezmoi init --apply
   ```
@@ -406,9 +494,7 @@ There are two ways to change the selection.
       palette = "dracula"
       zshTheme = "gud"
       installMode = "configs"
-      gitName = "Your Name"
-      gitEmail = "you@example.com"
-
+      packageRun = 0
   [data.components]
       zsh = true
       tmux = false
@@ -416,13 +502,15 @@ There are two ways to change the selection.
 
   [data.components.git]
       config = false
-      personal = false
       ignore_global = true
 
   [data.components.ai]
       codecompanion = false
       claude_hooks = false
+      codex_hooks = false
       statusline = false
+      opencode = true
+      copilot = false
 
   [data.components.terminal]
       ghostty = true
@@ -437,48 +525,53 @@ Turning a component off removes unmodified managed files on the next apply.
 Locally edited files remain in place. Turning a component on writes its files
 and fetches its plugins.
 
-With `git > personal` enabled, `gitName` and `gitEmail` live only in the host's
-chezmoi config. They are rendered into mode-600 `~/.gitconfig.personal` and
-never stored in the repository.
+With `git > managed config` enabled, the installer creates an empty mode-600
+`~/.gitconfig.override` only when the file does not exist. The managed Git
+configuration contains no author identity, signing key, or work-specific path.
+Use private aliases in the override to set repository-local identities. The
+global ignore remains independently selectable.
 
-The installer does not print or copy an existing Git configuration.
+The installer does not print, inspect, or overwrite an existing Git override.
 
 The `run_once` installer embeds component booleans, so a selection change
 reruns it. Packages are still limited to `installMode = "packages"` and require
 confirmation.
 
 Because the installer is content-hashed, applying an unchanged selection does
-not upgrade packages. Use `cup` to force that work without reopening the picker.
+not upgrade packages. Use `cup` to open only the package plan and mode
+confirmation. Selecting packages increments `data.packageRun`, which gives the
+installer a new content hash without clearing the `scriptState` bucket.
 
 To enable CodeCompanion later, set it to true under `[data.components.ai]` or
-select it in the AI submenu, then apply. Choose package mode if the ACP bridge
-is not installed.
+select it in the AI submenu, then apply. The selection also sets
+`components.neovim = true`; choose package mode to install Neovim and the ACP
+bridge.
 
 ### Updating packages
 
-`cup` installs anything missing and upgrades the managed set (`brew upgrade` on macOS,
-`apt`-to-candidate on Debian), so the plan's "to update" tier clears, without re-opening the
-component picker:
+`cup` installs anything missing and updates the selected floating set without
+reopening the component picker:
 
-```sh
-cup     # chezmoi state delete-bucket --bucket=scriptState; chezmoi apply
+```zsh
+cup     # DOTFILES_PACKAGE_UPDATE=1 chezmoi init --apply
 ```
 
-`cup` clears the installer's `run_once` state and applies again. It requires
-package mode and shows the normal confirmation; use `DOTFILES_ASSUME_YES=1`
-headlessly.
+The package choice increments the persisted `packageRun` integer and applies.
+Choosing configs leaves the integer unchanged. Ordinary apply, normal re-init,
+and `DOTFILES_INSTALL_MODE` by itself never increment it. The three-variable
+headless update shown above increments it once per successful re-init.
 
 A plain apply deliberately skips this work so config-only syncs stay fast.
 
 ### Changing the palette
 
-Re-run the picker and check `colorscheme`, or set `data.palette` directly.
+Re-run the picker and check `theme`, or set `data.palette` directly.
 
-```sh
-ccomp     # re-opens the picker; check "colorscheme" in the menu
+```zsh
+ccomp     # re-opens the picker; check "theme" in the setup actions
 ```
 
-With gum, checking `colorscheme` opens a single-select list of the catalog with the current
+With Gum, checking `theme` opens a single-select list of the catalog with the current
 scheme pre-selected; leaving it unchecked keeps the current palette. Or edit the config and apply:
 
 ```toml

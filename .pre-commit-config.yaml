@@ -1,3 +1,4 @@
+# .pre-commit-config.yaml
 # Pre-commit hooks for tilde. Run on every `git commit`; set up via
 # `pre-commit install` (see README "Daily operation").
 
@@ -55,7 +56,7 @@ repos:
 
   # Shell-script linting for the install scripts in scripts/. Exclude:
   #   - chezmoi .tmpl files (Go template syntax is not valid sh)
-  #   - home/dot_zsh/*: zsh is not supported by shellcheck (SC1071)
+  #   - zsh sources and the OpenCode zsh wrapper: ShellCheck reports SC1071
   # -x follows `# shellcheck source=...` directives inside scripts.
   - repo: https://github.com/shellcheck-py/shellcheck-py
     rev: v0.10.0.1
@@ -65,7 +66,9 @@ repos:
         exclude: |
           (?x)^(
             .*\.tmpl$|
-            home/dot_zsh/.*
+            home/dot_zsh/.*|
+            home/dot_local/bin/executable_opencode2|
+            home/dot_tmux/bin/executable_tpm-local-policy
           )$
 
   # GitHub Actions workflow linting. golang-language hook: pre-commit builds
@@ -101,6 +104,13 @@ repos:
   # the CI workflow installs it via apt luarocks.
   - repo: local
     hooks:
+      - id: validate-agent-skills
+        name: validate public cross-harness agent skills
+        entry: python3 -m unittest tests/test_agent_skills.py
+        language: system
+        pass_filenames: false
+        files: ^(docs/agent-skills\.md|home/(\.chezmoi(ignore|external\.toml)|dot_(agents|claude)/skills/.*|dot_config/opencode/commands/(humanize|unslop)\.md|dot_local/share/agent-skills/.*)|scripts/validate-agent-skills\.py|tests/test_agent_skills\.py)$
+
       - id: luacheck
         name: luacheck
         entry: luacheck --config config/linters/luacheckrc
@@ -117,7 +127,7 @@ repos:
         entry: scripts/validate-templates.sh
         language: script
         pass_filenames: false
-        files: ^(home/(\.chezmoiexternal\.toml|\.chezmoi(ignore|\.toml\.tmpl)|\.chezmoiscripts/run_once_after_00-install\.sh\.tmpl|dot_gitconfig|private_dot_gitconfig\.personal\.tmpl|dot_claude/modify_settings\.json\.tmpl|dot_codex/modify_private_config\.toml\.tmpl|dot_config/notify/(notify\.yaml\.tmpl|sounds/.*))|home/\.chezmoidata/palettes\.yaml|scripts/(confirm-install|package-plan|validate-templates)\.sh)$
+        files: ^(home/(\.chezmoiexternal\.toml|\.chezmoi(ignore|\.toml\.tmpl)|\.chezmoiscripts/run_once_after_00-install\.sh\.tmpl|dot_gitconfig|dot_claude/modify_settings\.json\.tmpl|dot_codex/modify_private_config\.toml\.tmpl|dot_config/notify/(notify\.yaml\.tmpl|sounds/.*))|home/\.chezmoidata/palettes\.yaml|scripts/(confirm-install|package-plan|validate-templates)\.sh)$
 
       - id: zsh-syntax
         name: zsh syntax (zsh -n)
@@ -126,18 +136,18 @@ repos:
         # ShellCheck cannot parse zsh and excludes home/dot_zsh/, so without this
         # these files have no syntax gate at all. Templates are skipped: they are
         # not valid zsh until chezmoi renders them.
-        files: ^home/(dot_zshrc|dot_zshenv|dot_zsh/(aliases|custom/.*\.(zsh|zsh-theme)))$
+        files: ^home/(dot_zshrc|dot_zshenv|dot_zsh/(aliases|custom/.*\.(zsh|zsh-theme))|dot_local/bin/executable_opencode2|dot_tmux/bin/executable_tpm-local-policy)$
         exclude: \.tmpl$
 
       - id: typescript-syntax
-        name: typescript syntax (opencode plugin)
+        name: typescript syntax and OpenCode notifier behavior
         entry: node scripts/ts-syntax.js
         language: node
         additional_dependencies: ['typescript@5.7.2']
         # The OpenCode notifier plugin is TypeScript and had no gate whatsoever:
         # a parse error would install cleanly and only fail at runtime, inside a
         # plugin host that swallows plugin errors. Syntax only; see the script.
-        files: ^home/dot_config/opencode/(plugin/.*\.ts|v2-plugins/.*\.tsx\.tmpl)$
+        files: ^(home/dot_config/opencode/(plugin/.*\.ts|v2-plugins/.*\.tsx\.tmpl)|scripts/ts-syntax\.js|tests/test_opencode_notify_plugin\.js)$
 
       - id: validate-palettes
         name: validate shared palettes render
@@ -145,6 +155,13 @@ repos:
         language: script
         pass_filenames: false
         files: ^home/(\.chezmoidata/palettes\.yaml|dot_(config/(ghostty|iterm2|notify|nvim|opencode|statusline)|tmux/conf\.d|codex/themes|zsh/theme).*)$
+
+      - id: test-opencode-statusline
+        name: node test (opencode v2 statusline)
+        entry: node --test tests/test_opencode_statusline.mjs
+        language: system
+        pass_filenames: false
+        files: ^(home/dot_config/opencode/v2-plugins/statusline/.*|tests/test_opencode_statusline\.mjs)$
 
       - id: build-palettes-check
         name: palette catalog matches base16 schemes
@@ -162,6 +179,13 @@ repos:
         language: system
         pass_filenames: false
         files: ^(home/\.chezmoi\.toml\.tmpl|tests/test_palette_init\.bats)$
+
+      - id: python-package-run
+        name: python (packageRun initialization trigger)
+        entry: python3 tests/test_package_run.py
+        language: system
+        pass_filenames: false
+        files: ^(home/(\.chezmoi\.toml\.tmpl|\.chezmoiexternal\.toml|\.chezmoiscripts/run_once_after_00-install\.sh\.tmpl|dot_zsh/aliases)|scripts/(common|confirm-install|install[^/]*)\.sh|tests/test_package_run\.py)$
 
       - id: pytest-notify
         name: pytest notify (modify_settings.json.tmpl)
@@ -196,10 +220,10 @@ repos:
       - id: bats-notify
         name: bats (installer + notify + statusline + render-shim + package-plan + tooling)
         entry: bats
-        args: [tests/test_confirm_install.bats, tests/test_install_gate.bats, tests/test_lib.bats, tests/test_process.bats, tests/test_statusline_command.bats, tests/test_render_modify_shim.bats, tests/test_package_plan.bats, tests/test_tooling.bats, tests/test_opencode_events.bats]
+        args: [tests/test_confirm_install.bats, tests/test_install_gate.bats, tests/test_lib.bats, tests/test_process.bats, tests/test_statusline_command.bats, tests/test_render_modify_shim.bats, tests/test_package_plan.bats, tests/test_package_updates.bats, tests/test_git_externals.bats, tests/test_git_override.bats, tests/test_tooling.bats, tests/test_opencode_events.bats, tests/test_opencode2_wrapper.bats]
         language: system
         pass_filenames: false
-        files: ^(\.gitignore|config/linters/gitleaks\.toml|\.pre-commit-config\.yaml|home/dot_config/notify/.*|home/dot_config/opencode/plugin/notify\.ts|home/dot_config/nvim/(init\.lua|lua/gitleaks\.lua)|home/dot_zsh/custom/functions/notify-process\.zsh|home/dot_claude/executable_statusline-command\.sh|scripts/(common|confirm-install|install-neovim|install-notify|install|package-plan)\.sh|home/dot_claude/modify_settings\.json\.tmpl|home/dot_codex/modify_private_config\.toml\.tmpl|tests/pty_run\.py|tests/test_(confirm_install|install_gate|lib|process|statusline_command|render_modify_shim|package_plan|tooling|opencode_events)\.bats|tests/fixtures/.*)$
+        files: ^(\.gitignore|config/linters/gitleaks\.toml|\.pre-commit-config\.yaml|home/dot_(gitconfig|config/notify/.*|config/opencode/plugin/notify\.ts|config/nvim/(init\.lua|lua/gitleaks\.lua)|zsh/(aliases|custom/functions/notify-process\.zsh))|home/dot_claude/executable_statusline-command\.sh|home/dot_local/bin/executable_opencode2|scripts/(common|confirm-install|install[^/]*|package-plan|neovim-update-lib|update-neovim-packages)\.(sh|lua)|home/dot_claude/modify_settings\.json\.tmpl|home/dot_codex/modify_private_config\.toml\.tmpl|tests/pty_run\.py|tests/test_(confirm_install|install_gate|lib|process|statusline_command|render_modify_shim|package_plan|package_updates|git_externals|git_override|tooling|opencode_events|opencode2_wrapper)\.bats|tests/test_neovim_update\.lua|tests/fixtures/.*)$
 
       - id: bats-tmux-startup
         name: bats (tmux startup config selection)
@@ -208,6 +232,14 @@ repos:
         language: system
         pass_filenames: false
         files: ^(home/dot_zshrc|home/dot_tmux/conf\.d/notify\.conf|tests/test_tmux_startup\.bats)$
+
+      - id: bats-tmux-plugins
+        name: bats (tmux plugin overrides)
+        entry: bats
+        args: [tests/test_tmux_plugins.bats]
+        language: system
+        pass_filenames: false
+        files: ^(home/(\.chezmoiexternal\.toml|dot_tmux(\.conf|/.*))|tests/test_tmux_plugins\.bats)$
 
       - id: bats-source-layout
         name: bats (chezmoi source-root layout)

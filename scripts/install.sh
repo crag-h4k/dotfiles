@@ -22,23 +22,21 @@ source "$SCRIPT_DIR/common.sh"
 INSTALL_ZSH="${INSTALL_ZSH:-true}"
 INSTALL_TMUX="${INSTALL_TMUX:-true}"
 INSTALL_NEOVIM="${INSTALL_NEOVIM:-true}"
+INSTALL_GIT_CONFIG="${INSTALL_GIT_CONFIG:-false}"
 # AI tooling, opt-in and off by default. codecompanion (with neovim) installs the
 # claude-agent-acp bridge and provisions the runtime sentinel init.lua checks
 # (touch/rm per-host still works). The claude_hooks sub-feature is file-gated in
 # home/.chezmoiignore, not here.
 INSTALL_AI_CODECOMPANION="${INSTALL_AI_CODECOMPANION:-false}"
+[[ "$INSTALL_AI_CODECOMPANION" == true ]] && INSTALL_NEOVIM=true
+export INSTALL_NEOVIM
 # statusline (opt-in, off by default). Config files are file-gated in
 # home/.chezmoiignore; this var gates only the runtime deps (jq + python3) the
 # statusline shells out to.
 INSTALL_AI_STATUSLINE="${INSTALL_AI_STATUSLINE:-false}"
-# OpenCode CLI (opt-in, off by default). The generic config + notifier bridge are
-# file-gated in home/.chezmoiignore; this var gates the binary install
-# (scripts/install-opencode.sh).
+# OpenCode V2 CLI (opt-in, off by default). The config, wrapper, and notifier are
+# file-gated in home/.chezmoiignore; this var gates the isolated binary install.
 INSTALL_AI_OPENCODE="${INSTALL_AI_OPENCODE:-false}"
-# OpenCode v2 CLI (opt-in, off by default). Shares the generic config +
-# notifier bridge (file-gated with opencode in home/.chezmoiignore); this var
-# gates the binary install (scripts/install-opencode2.sh).
-INSTALL_AI_OPENCODE2="${INSTALL_AI_OPENCODE2:-false}"
 # GitHub Copilot CLI (opt-in, off by default). npm @github/copilot into the
 # ~/.local prefix (scripts/install-copilot.sh). No config to file-gate; this var
 # gates only the binary install.
@@ -60,10 +58,14 @@ DOTFILES_INSTALL_MODE="${DOTFILES_INSTALL_MODE:-packages}"
     die "DOTFILES_INSTALL_MODE must be configs or packages"
 
 main() {
-    local os
+    local os node_required=false node_ready=true
     os=$(os_detect)
+    if node_runtime_selected; then
+        node_required=true
+        node_ready=false
+    fi
     info "dotfiles installer: platform=$os"
-    info "components: zsh=$INSTALL_ZSH tmux=$INSTALL_TMUX neovim=$INSTALL_NEOVIM ai.codecompanion=$INSTALL_AI_CODECOMPANION ai.opencode=$INSTALL_AI_OPENCODE ai.opencode2=$INSTALL_AI_OPENCODE2 ai.copilot=$INSTALL_AI_COPILOT notify=$INSTALL_NOTIFY terminal.ghostty=$INSTALL_TERMINAL_GHOSTTY terminal.iterm2=$INSTALL_TERMINAL_ITERM2"
+    info "components: zsh=$INSTALL_ZSH tmux=$INSTALL_TMUX neovim=$INSTALL_NEOVIM git.config=$INSTALL_GIT_CONFIG ai.codecompanion=$INSTALL_AI_CODECOMPANION ai.opencode=$INSTALL_AI_OPENCODE ai.copilot=$INSTALL_AI_COPILOT notify=$INSTALL_NOTIFY terminal.ghostty=$INSTALL_TERMINAL_GHOSTTY terminal.iterm2=$INSTALL_TERMINAL_ITERM2"
 
     # Confirm before any package-manager mutation. Decline degrades to the same
     # configs-only tail this function already runs for `configs` mode, for THIS
@@ -81,41 +83,52 @@ main() {
     if [[ "$do_packages" == true ]]; then
         local pkg_started=$SECONDS
         local planner="$SCRIPT_DIR/package-plan.sh"
-        local -a packages=() casks=()
+        local source_root
+        local src name status _policy origin probe
+        source_root="${DOTFILES_SOURCE_ROOT:-$(cd "$SCRIPT_DIR/.." && pwd)}"
+        package_results_reset
+        if [[ -f "$source_root/.gitmodules" ]]; then
+            package_try "pinned palette submodule" \
+                git -C "$source_root" submodule update --init --depth 1 vendor/tinted-schemes || true
+        fi
         case "$os" in
             macos)
                 require_cmd brew
-                # Install only missing formulae and upgrade only outdated ones, so
-                # formulae already present (many are preinstalled on the CI runner)
-                # do not emit "already installed" warnings. The planner's status is
-                # brew-inventory-aware (alias matching), so read it rather than
-                # re-deriving install state here.
-                local src name status
-                local -a to_install=() to_upgrade=()
-                while IFS=$'\t' read -r src name status _; do
+                # Metadata refresh happens only after the user approves the plan.
+                # Rebuild manager-aware records afterward, then mutate only the
+                # selected formulae and casks.
+                package_try "Homebrew metadata refresh" brew update || true
+                while IFS=$'\t' read -r src name status _policy origin probe; do
                     [[ "$src" == brew-formula ]] || continue
                     case "$status" in
-                        planned) to_install+=("$name") ;;
-                        update)  to_upgrade+=("$name") ;;
+                        planned)
+                            package_try "Homebrew formula $name install" brew install "$name" || true
+                            ;;
+                        update)
+                            package_try "Homebrew formula $name update" brew upgrade "$name" || true
+                            ;;
+                        installed)
+                            package_skip "Homebrew formula $name is current"
+                            ;;
                     esac
-                done < <("$planner" --records)
-                if (( ${#to_install[@]} > 0 )); then
-                    brew install "${to_install[@]}"
-                fi
-                if (( ${#to_upgrade[@]} > 0 )); then
-                    brew upgrade "${to_upgrade[@]}" || warn "some formula upgrades failed; continuing"
-                fi
-                while IFS= read -r pkg; do [[ -n "$pkg" ]] && casks+=("$pkg"); done < <("$planner" --names brew-cask)
-                if (( ${#casks[@]} > 0 )); then
-                    for pkg in "${casks[@]}"; do
-                        if [[ "$pkg" == ghostty && -d /Applications/Ghostty.app ]]; then
-                            info "ghostty: already present; skipping cask install"
-                        elif brew list --cask "$pkg" >/dev/null 2>&1; then
-                            brew upgrade --cask "$pkg" || warn "$pkg cask upgrade failed; continuing"
-                        else
-                            brew install --cask "$pkg" || warn "$pkg cask install failed; continuing"
-                        fi
-                    done
+                done < <(DOTFILES_PLAN_APPROVED=1 "$planner" --records)
+                while IFS=$'\t' read -r src name status _policy origin probe; do
+                    [[ "$src" == brew-cask ]] || continue
+                    if [[ "$name" == ghostty && -d /Applications/Ghostty.app ]] \
+                        && ! brew list --cask ghostty >/dev/null 2>&1; then
+                        package_skip "Ghostty is unmanaged by Homebrew; update the app manually"
+                        continue
+                    fi
+                    case "$status" in
+                        planned) package_try "Homebrew cask $name install" brew install --cask "$name" || true ;;
+                        update) package_try "Homebrew cask $name update" brew upgrade --cask "$name" || true ;;
+                        installed) package_skip "Homebrew cask $name is current" ;;
+                    esac
+                done < <(DOTFILES_PLAN_APPROVED=1 "$planner" --records)
+                if [[ "$node_required" == true ]]; then
+                    if package_try "Node.js 24 verification" verify_node_major 24; then
+                        node_ready=true
+                    fi
                 fi
                 ;;
             debian)
@@ -123,52 +136,102 @@ main() {
                 # DOTFILES_ASSUME_YES, which CI/containers export). Soft: a declined
                 # repo warns and the run continues on the reachable packages.
                 [[ "$INSTALL_ZSH" == true ]] &&
-                    { ensure_gh_apt_repo || warn "GitHub CLI apt repo not added; gh may be unavailable"; }
-                if [[ "$INSTALL_NEOVIM" == true ]]; then
-                    ensure_nodesource_apt_repo || warn "NodeSource apt repo not added; Node.js 24 will be unavailable"
-                    ensure_trivy_apt_repo || warn "Trivy apt repo not added; trivy will be unavailable"
+                    { package_try "GitHub CLI APT repository" ensure_gh_apt_repo || true; }
+                if node_runtime_selected; then
+                    package_try "NodeSource APT repository" ensure_nodesource_apt_repo || true
                 fi
-                while IFS= read -r pkg; do [[ -n "$pkg" ]] && packages+=("$pkg"); done < <("$planner" --names apt)
-                if (( ${#packages[@]} > 0 )); then
-                    sudo apt-get update
-                    # Batch first; on failure (a declined repo can make a package
-                    # unavailable) retry individually so reachable packages still
-                    # install and only the missing ones warn.
-                    if ! pkg_install_many "${packages[@]}"; then
-                        warn "batch apt install failed; retrying packages individually"
-                        for pkg in "${packages[@]}"; do
-                            pkg_install_many "$pkg" || warn "apt package unavailable, skipping: $pkg"
-                        done
+                if [[ "$INSTALL_NEOVIM" == true ]]; then
+                    package_try "Trivy APT repository" ensure_trivy_apt_repo || true
+                fi
+                package_try "APT metadata refresh" sudo apt-get update || true
+                # apt-get install is intentionally scoped to each selected package.
+                # It installs missing dependencies and advances installed ones to
+                # their candidate version without running a distro-wide upgrade.
+                while IFS= read -r name; do
+                    [[ -n "$name" ]] || continue
+                    package_try "APT package $name install/update" sudo apt-get install -y "$name" || true
+                done < <(DOTFILES_PLAN_APPROVED=1 "$planner" --names apt)
+                # Neovim is one checksum-verified upstream tree so its binary,
+                # runtime, and libraries activate or roll back together.
+                [[ "$INSTALL_NEOVIM" == true ]] && { package_try "Neovim versioned release" install_neovim_debian || true; }
+                if [[ "$INSTALL_NEOVIM" == true ]]; then
+                    package_try "tree-sitter CLI pinned v0.26.11" install_tree_sitter_cli_debian || true
+                    package_try "TFLint latest release" install_tflint_debian || true
+                    package_try "tenv latest release" install_tenv_debian || true
+                fi
+                if [[ "$node_required" == true ]]; then
+                    if package_try "Node.js 24 verification" verify_node_major 24; then
+                        node_ready=true
                     fi
                 fi
-                # neovim installs from Debian main (apt); this then upgrades to the
-                # latest upstream build and self-skips when the installed neovim is
-                # already >= 0.11 (Debian's apt version can be stale).
-                [[ "$INSTALL_NEOVIM" == true ]] && { install_neovim_debian || warn "neovim install failed; continuing without a neovim upgrade"; }
-                if [[ "$INSTALL_NEOVIM" == true ]]; then
-                    verify_node_major 24 || die "NodeSource install did not provide Node.js 24"
-                    install_tree_sitter_cli_debian || warn "tree-sitter CLI install failed; Neovim will use syntax highlighting until it is available"
-                    install_tflint_debian || warn "tflint install failed; continuing without the CLI/LSP"
-                    install_tenv_debian || warn "tenv install failed; the existing terraform command is unchanged"
-                fi
-                [[ "$INSTALL_NOTIFY" == true ]] && { install_yq_debian || warn "yq install failed; notifications use built-in fallback colors until yq is installed"; }
+                [[ "$INSTALL_NOTIFY" == true ]] && { package_try "yq latest release" install_yq_debian update || true; }
+                [[ "$INSTALL_TERMINAL_GHOSTTY" == true ]] &&
+                    package_skip "Ghostty has no managed Debian package; update the app manually"
                 ;;
             *) die "unsupported OS: $(uname -s)" ;;
         esac
 
         [[ "$INSTALL_NEOVIM" == true ]] \
-            && { bootstrap_tenv_terraform || warn "tenv could not install/select the latest stable Terraform fallback"; }
+            && { package_try "Terraform latest stable through tenv" bootstrap_tenv_terraform || true; }
 
-        ensure_chezmoi
-        [[ "$INSTALL_ZSH" == true ]] && bash "$SCRIPT_DIR/install-zsh.sh"
-        [[ "$INSTALL_NEOVIM" == true ]] && bash "$SCRIPT_DIR/install-neovim.sh"
-        [[ "$INSTALL_AI_OPENCODE" == true ]] && INSTALL_AI_OPENCODE=true bash "$SCRIPT_DIR/install-opencode.sh"
-        [[ "$INSTALL_AI_OPENCODE2" == true ]] && { INSTALL_AI_OPENCODE2=true bash "$SCRIPT_DIR/install-opencode2.sh" || warn "opencode2 install step failed; continuing"; }
-        [[ "$INSTALL_AI_COPILOT" == true ]] && INSTALL_AI_COPILOT=true bash "$SCRIPT_DIR/install-copilot.sh"
+        package_try "chezmoi availability" ensure_chezmoi || true
+        [[ "$INSTALL_ZSH" == true ]] && { package_try "Zsh post-install" bash "$SCRIPT_DIR/install-zsh.sh" || true; }
+        [[ "$INSTALL_NEOVIM" == true ]] && {
+            package_try "Neovim language and plugin packages" \
+                env DOTFILES_NODE_READY="$node_ready" bash "$SCRIPT_DIR/install-neovim.sh" || true
+        }
+        if [[ "$INSTALL_AI_OPENCODE" == true ]]; then
+            if [[ "$node_ready" == true ]]; then
+                package_try "OpenCode V2 CLI and matching runtime" \
+                    env INSTALL_AI_OPENCODE=true DOTFILES_NODE_READY=true \
+                    bash "$SCRIPT_DIR/install-opencode2.sh" || true
+            else
+                package_skip "OpenCode V2 CLI and matching runtime; Node.js 24 unavailable"
+            fi
+        fi
+        if [[ "$INSTALL_AI_COPILOT" == true ]]; then
+            if [[ "$node_ready" == true ]]; then
+                package_try "GitHub Copilot CLI" env INSTALL_AI_COPILOT=true DOTFILES_NODE_READY=true bash "$SCRIPT_DIR/install-copilot.sh" || true
+            else
+                package_skip "GitHub Copilot CLI; Node.js 24 unavailable"
+            fi
+        fi
+
+        # Chezmoi clones missing externals while applying. Package mode also
+        # refreshes every selected checkout, but only by a clean fast-forward.
+        # Missing checkouts remain chezmoi's responsibility.
+        while IFS=$'\t' read -r src name status _policy origin probe; do
+            local git_rc=0
+            [[ "$src" == git-external || "$src" == git-runtime ]] || continue
+            if [[ "$src" == git-runtime ]]; then
+                install_or_update_git_runtime "$name" "$origin" "$probe" || git_rc=$?
+            else
+                update_git_external "$name" "$origin" "$probe" || git_rc=$?
+            fi
+            if [[ "$git_rc" -eq 0 ]]; then
+                _package_results_ok=$((_package_results_ok + 1))
+            else
+                case "$git_rc" in
+                    2) _package_results_skipped=$((_package_results_skipped + 1)) ;;
+                    *) _package_results_failed=$((_package_results_failed + 1)) ;;
+                esac
+            fi
+        done < <(DOTFILES_PLAN_APPROVED=1 "$planner" --records)
         local pkg_elapsed=$(( SECONDS - pkg_started ))
+        package_results_summary "package run"
         info "packages: installed/updated in ${pkg_elapsed}s"
     else
         info "configs-only mode: skipped packages, login-shell changes, language packages, and Neovim plugin sync"
+    fi
+
+    # Keep identity and signing data out of the public source. The managed
+    # ~/.gitconfig includes this private file last; create it only when absent.
+    if [[ "$INSTALL_GIT_CONFIG" == true ]]; then
+        local git_override="$HOME/.gitconfig.override"
+        if [[ ! -e "$git_override" && ! -L "$git_override" ]]; then
+            (umask 077; : >"$git_override")
+            info "created private Git override stub at $git_override"
+        fi
     fi
 
     # Convenience symlink: ~/dotfiles -> ~/.local/share/chezmoi

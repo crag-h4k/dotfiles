@@ -1,0 +1,38 @@
+#!/usr/bin/env zsh
+# ~/.local/bin/opencode2
+# Managed entrypoint for the isolated OpenCode V2 npm installation.
+
+set -u
+
+raw_prefix="${OPENCODE2_NPM_PREFIX:-$HOME/.local/share/opencode2}"
+prefix="${raw_prefix:A}"
+wrapper="${0:A}"
+raw_binary="$prefix/bin/opencode2"
+binary="${raw_binary:A}"
+
+if [[ "$binary" == "$wrapper" ]]; then
+  print -u2 "opencode2: isolated binary resolves to the managed wrapper"
+  exit 126
+fi
+
+if [[ ! -x "$binary" ]]; then
+  print -u2 "opencode2: isolated binary not found at $binary"
+  exit 127
+fi
+
+export NPM_CONFIG_PREFIX="$prefix"
+
+if (( $# > 0 )) && [[ "$1" == update || "$1" == upgrade ]]; then
+  explicit_method=false
+  for arg in "${@:2}"; do
+    [[ "$arg" == -- ]] && break
+    case "$arg" in
+      --method|-m|--method=*|-m?*) explicit_method=true ;;
+    esac
+  done
+  if [[ "$explicit_method" == false ]]; then
+    exec "$binary" "$1" --method npm "${@:2}"
+  fi
+fi
+
+exec "$binary" "$@"

@@ -12,6 +12,7 @@
 CHEZMOI_DIR="$(cd "${BATS_TEST_DIRNAME}/.." && pwd)"
 SHIM_SRC="${CHEZMOI_DIR}/home/dot_config/notify/executable_opencode-events.sh"
 LIB_SRC="${CHEZMOI_DIR}/home/dot_config/notify/lib.sh"
+PLUGIN_SRC="${CHEZMOI_DIR}/home/dot_config/opencode/plugin/notify.ts"
 FIXTURES="${BATS_TEST_DIRNAME}/fixtures"
 
 setup() {
@@ -49,7 +50,7 @@ run_shim() {
     HOME="${FAKE_HOME}" \
     PATH="${STUB_DIR}:${PATH}" \
     NOTIFY_CONFIG="${FIXTURES}/notify.yaml" \
-    NOTIFY_DEBUG=1 \
+    NOTIFY_DEBUG="${SHIM_DEBUG:-1}" \
     NOTIFY_LOG="${LOG_FILE}" \
     LIVE_PANE="${LIVE_PANE:-%1}" \
     TMUX="${TMUX_VAL-/tmp/tmux-501/default,1,0}" \
@@ -80,6 +81,20 @@ run_shim() {
 @test "a stale pane warns on stderr so it is not silent" {
   PANE_VAL='%34' run_shim fire
   [[ "$output" == *"stale pane %34"* ]]
+}
+
+@test "plugin keeps detached launch while stale recovery logs without debug" {
+  grep -Fq 'detached: true, stdio: "ignore"' "$PLUGIN_SRC"
+  grep -Fq 'child.unref()' "$PLUGIN_SRC"
+  grep -Fq '["session.execution.succeeded", "opencode"]' "$PLUGIN_SRC"
+  grep -Fq '["permission.asked", "opencode_permission"]' "$PLUGIN_SRC"
+  grep -Fq '["form.created", "opencode_question"]' "$PLUGIN_SRC"
+
+  SHIM_DEBUG=0 PANE_VAL='%34' run_shim fire opencode_permission
+  [ "$status" -eq 0 ]
+  grep -q 'stale pane %34 is not on this tmux server' "$LOG_FILE"
+  run grep -q 'fire pane=' "$LOG_FILE"
+  [ "$status" -ne 0 ]
 }
 
 @test "the permission group routes to its own appearance" {
