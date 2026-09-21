@@ -6,27 +6,24 @@ set -euo pipefail
 
 export INSTALL_ZSH={{ dig "components" "zsh" true . }}
 export INSTALL_TMUX={{ dig "components" "tmux" true . }}
-export INSTALL_NEOVIM={{ dig "components" "neovim" true . }}
-{{/* Nested sub-feature flags (ai/git/terminal are tables, not bools). Git config, */ -}}
-{{- /* ignore_global, and claude_hooks are file-gated, so need no env. terminal       */ -}}
+export INSTALL_NEOVIM={{ or (dig "components" "neovim" true .) (dig "components" "ai" "codecompanion" false .) }}
+{{/* Nested sub-feature flags (ai/git/terminal are tables, not bools). Git config */ -}}
+{{- /* needs an env flag to create its private override stub. ignore_global and       */ -}}
+{{- /* claude_hooks are file-gated, so need no env. terminal                           */ -}}
 {{- /* CONFIG is file-gated too, but the ghostty/iterm2 BINARY installs use these vars.  */ -}}
 {{- /* statusline's FILES are file-gated, but it shells out to jq + python3, so the      */ -}}
 {{- /* install.sh package block needs this env var to pull those deps.                   */ -}}
 export INSTALL_TERMINAL_GHOSTTY={{ dig "components" "terminal" "ghostty" true . }}
 export INSTALL_TERMINAL_ITERM2={{ dig "components" "terminal" "iterm2" false . }}
+export INSTALL_GIT_CONFIG={{ dig "components" "git" "config" false . }}
 export INSTALL_AI_CODECOMPANION={{ dig "components" "ai" "codecompanion" false . }}
 export INSTALL_AI_STATUSLINE={{ dig "components" "ai" "statusline" false . }}
 export INSTALL_AI_OPENCODE={{ dig "components" "ai" "opencode" false . }}
-export INSTALL_AI_OPENCODE2={{ dig "components" "ai" "opencode2" false . }}
 export INSTALL_AI_COPILOT={{ dig "components" "ai" "copilot" false . }}
-export INSTALL_NOTIFY={{ or (dig "components" "zsh" true .) (dig "components" "tmux" true .) (dig "components" "ai" "claude_hooks" false .) (dig "components" "ai" "codex_hooks" false .) (dig "components" "ai" "opencode" false .) (dig "components" "ai" "opencode2" false .) }}
+export INSTALL_NOTIFY={{ or (dig "components" "zsh" true .) (dig "components" "tmux" true .) (dig "components" "ai" "claude_hooks" false .) (dig "components" "ai" "codex_hooks" false .) (dig "components" "ai" "opencode" false .) }}
 export DOTFILES_INSTALL_MODE={{ dig "installMode" "packages" . | quote }}
+export DOTFILES_PACKAGE_RUN={{ dig "packageRun" 0 . }}
 
 printf 'dotfiles: starting post-apply setup (mode=%s)...\n' "$DOTFILES_INSTALL_MODE"
-
-# Best-effort: initialize the base16 scheme submodule so this machine can
-# regenerate the palette catalog (scripts/build-palettes.py). Apply never needs
-# it - the committed catalog renders without it - so failures are ignored.
-git -C "{{ .chezmoi.sourceDir | dir }}" submodule update --init --depth 1 vendor/tinted-schemes 2>/dev/null || true
 
 bash "{{ .chezmoi.sourceDir | dir }}/scripts/install.sh"

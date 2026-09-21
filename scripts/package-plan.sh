@@ -4,6 +4,11 @@
 
 set -euo pipefail
 
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+# shellcheck source-path=SCRIPTDIR
+# shellcheck source=common.sh
+source "$SCRIPT_DIR/common.sh"
+
 INSTALL_ZSH="${INSTALL_ZSH:-false}"
 INSTALL_TMUX="${INSTALL_TMUX:-false}"
 INSTALL_NEOVIM="${INSTALL_NEOVIM:-false}"
@@ -11,10 +16,12 @@ INSTALL_NOTIFY="${INSTALL_NOTIFY:-false}"
 INSTALL_AI_CODECOMPANION="${INSTALL_AI_CODECOMPANION:-false}"
 INSTALL_AI_STATUSLINE="${INSTALL_AI_STATUSLINE:-false}"
 INSTALL_AI_OPENCODE="${INSTALL_AI_OPENCODE:-false}"
-INSTALL_AI_OPENCODE2="${INSTALL_AI_OPENCODE2:-false}"
 INSTALL_AI_COPILOT="${INSTALL_AI_COPILOT:-false}"
 INSTALL_TERMINAL_GHOSTTY="${INSTALL_TERMINAL_GHOSTTY:-false}"
 INSTALL_TERMINAL_ITERM2="${INSTALL_TERMINAL_ITERM2:-false}"
+[[ "$INSTALL_AI_CODECOMPANION" == true ]] && INSTALL_NEOVIM=true
+OPENCODE2_VERSION="${OPENCODE2_VERSION:-latest}"
+COPILOT_VERSION="${COPILOT_VERSION:-prerelease}"
 _plan_mode="${1:---records}"
 _status_result=planned
 _brew_inventory_loaded=0
@@ -25,6 +32,21 @@ _brew_outdated_formulae=$'\n'
 _brew_outdated_casks=$'\n'
 _apt_upgradable_loaded=0
 _apt_upgradable=$'\n'
+
+_plan_approved() {
+    case "${DOTFILES_PLAN_APPROVED:-}" in
+        1|true|TRUE|yes|YES|y|Y) return 0 ;;
+        *) return 1 ;;
+    esac
+}
+
+_version_policy() {
+    if [[ "$1" =~ ^[0-9]+\.[0-9]+\.[0-9]+([-.+][0-9A-Za-z.-]+)?$ ]]; then
+        printf 'pinned:%s\n' "$1"
+    else
+        printf 'floating\n'
+    fi
+}
 
 _plan_os() {
     if [[ -n "${DOTFILES_PLAN_OS:-}" ]]; then
@@ -44,6 +66,7 @@ _load_brew_inventory() {
     local output
     [[ "$_brew_inventory_loaded" -eq 1 ]] && return 0
     _brew_inventory_loaded=1
+    _plan_approved || return 0
     command -v brew >/dev/null 2>&1 || return 0
 
     output=$(brew list --formula 2>/dev/null || true)
@@ -59,6 +82,7 @@ _load_brew_outdated() {
     local output
     [[ "$_brew_outdated_loaded" -eq 1 ]] && return 0
     _brew_outdated_loaded=1
+    _plan_approved || return 0
     command -v brew >/dev/null 2>&1 || return 0
     output=$(brew outdated --formula --quiet 2>/dev/null || true)
     _brew_outdated_formulae=$'\n'"$output"$'\n'
@@ -70,6 +94,7 @@ _load_apt_upgradable() {
     local output
     [[ "$_apt_upgradable_loaded" -eq 1 ]] && return 0
     _apt_upgradable_loaded=1
+    _plan_approved || return 0
     command -v apt >/dev/null 2>&1 || return 0
     # apt list --upgradable prints "name/repo version ..."; keep the name.
     output=$(apt list --upgradable 2>/dev/null | sed -n 's|^\([^/][^/]*\)/.*|\1|p' || true)
@@ -90,34 +115,38 @@ _brew_member() {
 }
 
 _status() {
-    local source="$1" name="$2" probe="${3:-}"
+    local source="$1" name="$2" probe="${3:-}" policy="${4:-floating}"
     local lookup="${name##*/}"
     _status_result=planned
     [[ "${DOTFILES_PLAN_ASSUME_MISSING:-0}" == 1 ]] && return 0
     [[ "$_plan_mode" == --names ]] && return 0
     case "$source" in
         brew-formula)
-            _load_brew_inventory
-            if _brew_member "$lookup" "$_brew_formulae"; then
-                _status_result=installed
-                _load_brew_outdated
-                _brew_member "$lookup" "$_brew_outdated_formulae" && _status_result=update
+            if _plan_approved; then
+                _load_brew_inventory
+                if _brew_member "$lookup" "$_brew_formulae"; then
+                    _status_result=installed
+                    _load_brew_outdated
+                    _brew_member "$lookup" "$_brew_outdated_formulae" && _status_result=update
+                fi
             fi
             ;;
         brew-cask)
-            if [[ "$name" == ghostty && -d /Applications/Ghostty.app ]]; then
+            if _plan_approved; then
+                _load_brew_inventory
+                if _brew_member "$lookup" "$_brew_casks"; then
+                    _status_result=installed
+                    _load_brew_outdated
+                    _brew_member "$lookup" "$_brew_outdated_casks" && _status_result=update
+                elif [[ "$name" == ghostty && -d /Applications/Ghostty.app ]]; then
+                    _status_result=installed
+                fi
+            elif [[ "$name" == ghostty && -d /Applications/Ghostty.app ]]; then
                 _status_result=installed
-                return 0
-            fi
-            _load_brew_inventory
-            if _brew_member "$lookup" "$_brew_casks"; then
-                _status_result=installed
-                _load_brew_outdated
-                _brew_member "$lookup" "$_brew_outdated_casks" && _status_result=update
             fi
             ;;
         apt)
-            if command -v dpkg-query >/dev/null 2>&1 &&
+            if _plan_approved && command -v dpkg-query >/dev/null 2>&1 &&
                 [[ "$(dpkg-query -W -f='${Status}' "$name" 2>/dev/null || true)" == "install ok installed" ]]; then
                 _status_result=installed
                 _load_apt_upgradable
@@ -128,26 +157,32 @@ _status() {
             command -v "$probe" >/dev/null 2>&1 && _status_result=installed
             ;;
         npm)
-            if command -v npm >/dev/null 2>&1 &&
+            if _plan_approved && command -v npm >/dev/null 2>&1 &&
                 npm list -g --depth=0 --prefix "$HOME/.local" "$name" >/dev/null 2>&1; then
                 _status_result=installed
             fi
             ;;
         pip)
-            if [[ -x "$HOME/.local/share/nvim-venv/bin/python" ]] &&
+            if _plan_approved && [[ -x "$HOME/.local/share/nvim-venv/bin/python" ]] &&
                 "$HOME/.local/share/nvim-venv/bin/python" -m pip show "$name" >/dev/null 2>&1; then
                 _status_result=installed
             fi
             ;;
         luarocks)
-            if command -v luarocks >/dev/null 2>&1 && luarocks show "$name" >/dev/null 2>&1; then
+            if _plan_approved && command -v luarocks >/dev/null 2>&1 && luarocks show "$name" >/dev/null 2>&1; then
                 _status_result=installed
             fi
             ;;
-        git-external)
+        npm-runtime)
+            [[ -d "$probe" ]] && _status_result=installed
+            ;;
+        git-external|git-runtime)
             [[ -e "$probe" ]] && _status_result=installed
             ;;
         neovim-plugin)
+            [[ -d "$probe" ]] && _status_result=installed
+            ;;
+        treesitter-parsers|mason-packages)
             [[ -d "$probe" ]] && _status_result=installed
             ;;
     esac
@@ -157,8 +192,21 @@ _status() {
     # If its command is on PATH, it is installed. $probe is the binary for CLI
     # tools; for the path/library probes (git externals, pip modules) command -v
     # simply returns false, so this adds no false positives.
-    if [[ "$_status_result" == planned ]] && command -v "$probe" >/dev/null 2>&1; then
-        _status_result=installed
+    if [[ "$_status_result" == planned ]]; then
+        case "$source" in
+            brew-formula|brew-cask|apt|npm|pip|luarocks)
+                _plan_approved || { command -v "$probe" >/dev/null 2>&1 && _status_result=installed; }
+                ;;
+            *) command -v "$probe" >/dev/null 2>&1 && _status_result=installed ;;
+        esac
+    fi
+    # Floating non-system sources are intentionally refreshed on every approved
+    # package run. Before approval this also makes the plan honest without
+    # invoking npm, pip, LuaRocks, Homebrew, or APT for inventory.
+    if [[ "$_status_result" == installed && "$policy" == floating ]]; then
+        if ! _plan_approved || [[ "$source" != brew-formula && "$source" != brew-cask && "$source" != apt ]]; then
+            _status_result=update
+        fi
     fi
     # _status communicates only through $_status_result; its exit code is
     # meaningless. Return 0 explicitly: otherwise a not-installed probe leaves the
@@ -172,7 +220,7 @@ _records=()
 _seen=()
 
 _add() {
-    local source="$1" name="$2" origin="$3" probe="${4:-$2}"
+    local source="$1" name="$2" origin="$3" probe="${4:-$2}" policy="${5:-floating}"
     local key="$source:$name" existing
     if (( ${#_seen[@]} > 0 )); then
         for existing in "${_seen[@]}"; do
@@ -180,8 +228,8 @@ _add() {
         done
     fi
     _seen+=("$key")
-    _status "$source" "$name" "$probe"
-    _records+=("$source"$'\t'"$name"$'\t'"$_status_result"$'\t'"$origin")
+    _status "$source" "$name" "$probe" "$policy"
+    _records+=("$source"$'\t'"$name"$'\t'"$_status_result"$'\t'"$policy"$'\t'"$origin"$'\t'"$probe")
 }
 
 _build() {
@@ -220,7 +268,7 @@ _build() {
                 _add brew-formula terraform-linters/tap/tflint "Homebrew tap terraform-linters/tap" tflint
                 # prettierd has no Homebrew formula; install-neovim.sh installs it
                 # via npm on both platforms (conform.nvim formatter for json/yaml).
-                _add npm prettierd "https://www.npmjs.com/package/@fsouza/prettierd"
+                _add npm @fsouza/prettierd "https://www.npmjs.com/package/@fsouza/prettierd" prettierd
             fi
             [[ "$INSTALL_NOTIFY" == true ]] && _add brew-formula yq "Homebrew core"
             if [[ "$INSTALL_AI_STATUSLINE" == true ]]; then
@@ -262,15 +310,15 @@ _build() {
                 done
                 _add apt nodejs "NodeSource Node.js 24 apt repository"
                 _add apt trivy "Aqua Security apt repository"
-                # neovim from Debian main; install_neovim_debian upgrades to the
-                # latest upstream build when the apt version is < 0.11.
-                _add apt neovim "Debian apt repository" nvim
+                # Neovim ships as one checksum-verified upstream tree so its
+                # binary, runtime, and libraries switch as a unit.
+                _add github-release neovim "https://github.com/neovim/neovim/releases" nvim
                 _add github-release tflint "https://github.com/terraform-linters/tflint/releases" tflint
                 _add github-release tenv "https://github.com/tofuutils/tenv/releases" tenv
                 _add github-release terraform "https://releases.hashicorp.com/terraform/" terraform
-                _add github-release tree-sitter-cli "https://github.com/tree-sitter/tree-sitter/releases" tree-sitter
+                _add github-release tree-sitter-cli "https://github.com/tree-sitter/tree-sitter/releases" tree-sitter pinned:v0.26.11
                 _add npm markdownlint-cli2 "https://www.npmjs.com/package/markdownlint-cli2"
-                _add npm prettierd "https://www.npmjs.com/package/@fsouza/prettierd"
+                _add npm @fsouza/prettierd "https://www.npmjs.com/package/@fsouza/prettierd" prettierd
             fi
             [[ "$INSTALL_NOTIFY" == true ]] && _add github-release yq "https://github.com/mikefarah/yq/releases" yq
             if [[ "$INSTALL_AI_STATUSLINE" == true ]]; then
@@ -292,19 +340,18 @@ _build() {
         _add pip neovim "https://pypi.org/project/neovim"
         _add luarocks luacheck "https://luarocks.org/modules/mpeterv/luacheck"
         _add neovim-plugin "lazy.nvim plugin set" "GitHub repositories declared in ~/.config/nvim/init.lua" "$HOME/.local/share/nvim/lazy"
+        _add treesitter-parsers "installed parser set" "nvim-treesitter parser manifest" "$HOME/.local/share/nvim/site/parser"
+        _add mason-packages "installed Mason package set" "mason-registry" "$HOME/.local/share/nvim/mason/packages"
     fi
     # Node/npm runtime. Needed by Neovim AND by every Node-dependent AI feature:
-    # opencode, opencode2, and copilot install as npm globals, and codecompanion
+    # OpenCode V2 and Copilot install as npm globals, and CodeCompanion
     # pulls the claude-agent-acp npm bridge. The neovim block above plans it inside
     # the OS case; plan it here too, gated on ANY of those, so a Node-dependent AI
     # feature selected WITHOUT neovim still gets a runtime instead of the installer
     # finding no npm and soft-failing silently. _add dedups by source:name, so this
-    # is a no-op when neovim already planned it. (On Debian, install.sh only adds
-    # the NodeSource repo for neovim; an AI-only host installs Debian-packaged Node,
-    # which still provides npm.)
-    if [[ "$INSTALL_NEOVIM" == true || "$INSTALL_AI_OPENCODE" == true ||
-        "$INSTALL_AI_OPENCODE2" == true || "$INSTALL_AI_COPILOT" == true ||
-        "$INSTALL_AI_CODECOMPANION" == true ]]; then
+    # is a no-op when neovim already planned it. install.sh uses the same shared
+    # predicate when deciding whether a Debian host needs the NodeSource repo.
+    if node_runtime_selected; then
         case "$os" in
             macos)  _add brew-formula node "Homebrew core" ;;
             debian) _add apt nodejs "NodeSource Node.js 24 apt repository" ;;
@@ -312,27 +359,20 @@ _build() {
     fi
     [[ "$INSTALL_AI_CODECOMPANION" == true ]] &&
         _add npm @agentclientprotocol/claude-agent-acp "https://www.npmjs.com/package/@agentclientprotocol/claude-agent-acp" claude-agent-acp
-    # OpenCode CLI: pinned opencode-ai npm package into the ~/.local prefix
-    # (scripts/install-opencode.sh), cross-platform, so it sits outside the OS
-    # case like the other npm globals. Probed by opencode-ai in the global list,
-    # with the opencode binary on PATH as the fallback.
-    [[ "$INSTALL_AI_OPENCODE" == true ]] &&
-        _add npm opencode-ai "https://www.npmjs.com/package/opencode-ai" opencode
-    # OpenCode v2 CLI: @opencode/cli npm package isolated under
-    # ~/.local/share/opencode2, with only opencode2 linked into ~/.local/bin
-    # (scripts/install-opencode2.sh). Another cross-platform npm install, so it
-    # sits outside the OS case.
-    if [[ "$INSTALL_AI_OPENCODE2" == true ]]; then
-        _add npm @opencode/cli "https://www.npmjs.com/package/@opencode/cli" opencode2
-        _add npm @opencode/plugin "https://www.npmjs.com/package/@opencode/plugin" "$HOME/.config/opencode/node_modules/@opencode/plugin"
-        _add npm @opentui/solid "https://www.npmjs.com/package/@opentui/solid" "$HOME/.config/opencode/node_modules/@opentui/solid"
-        _add npm solid-js "https://www.npmjs.com/package/solid-js" "$HOME/.config/opencode/node_modules/solid-js"
+    # OpenCode V2: @opencode/cli is isolated under ~/.local/share/opencode2;
+    # chezmoi manages the ~/.local/bin/opencode2 wrapper. CLI and exact-pinned
+    # plugin runtime releases activate transactionally.
+    if [[ "$INSTALL_AI_OPENCODE" == true ]]; then
+        _add npm @opencode/cli "https://www.npmjs.com/package/@opencode/cli" opencode2 "$(_version_policy "$OPENCODE2_VERSION")"
+        _add npm-runtime "OpenCode plugin API" "https://www.npmjs.com/package/@opencode/plugin" "$HOME/.config/opencode/node_modules/@opencode/plugin" floating:matches-cli
+        _add npm-runtime "OpenTUI Solid runtime" "https://www.npmjs.com/package/@opentui/solid" "$HOME/.config/opencode/node_modules/@opentui/solid"
+        _add npm-runtime "SolidJS runtime" "https://www.npmjs.com/package/solid-js" "$HOME/.config/opencode/node_modules/solid-js"
     fi
     # GitHub Copilot CLI: @github/copilot npm package into the ~/.local prefix
     # (scripts/install-copilot.sh), cross-platform, so it sits outside the OS case
     # like the other npm globals. npm is the only channel (no Homebrew/apt).
     [[ "$INSTALL_AI_COPILOT" == true ]] &&
-        _add npm @github/copilot "https://www.npmjs.com/package/@github/copilot" copilot
+        _add npm @github/copilot "https://www.npmjs.com/package/@github/copilot" copilot "$(_version_policy "$COPILOT_VERSION")"
 
     if [[ "$INSTALL_ZSH" == true ]]; then
         _add git-external ohmyzsh/ohmyzsh "https://github.com/ohmyzsh/ohmyzsh.git" "$HOME/.zsh/ohmyzsh"
@@ -341,12 +381,12 @@ _build() {
         _add git-external zsh-users/zsh-completions "https://github.com/zsh-users/zsh-completions.git" "$HOME/.zsh/custom/plugins/zsh-completions"
     fi
     if [[ "$INSTALL_TMUX" == true ]]; then
-        _add git-external tmux-plugins/tpm "https://github.com/tmux-plugins/tpm.git" "$HOME/.tmux/plugins/tpm"
-        _add git-external tmux-plugins/tmux-sensible "https://github.com/tmux-plugins/tmux-sensible.git" "$HOME/.tmux/plugins/tmux-sensible"
-        _add git-external tmux-plugins/tmux-yank "https://github.com/tmux-plugins/tmux-yank.git" "$HOME/.tmux/plugins/tmux-yank"
-        _add git-external tmux-plugins/tmux-cpu "https://github.com/tmux-plugins/tmux-cpu.git" "$HOME/.tmux/plugins/tmux-cpu"
-        _add git-external xamut/tmux-network-bandwidth "https://github.com/xamut/tmux-network-bandwidth.git" "$HOME/.tmux/plugins/tmux-network-bandwidth"
-        _add git-external tmux-plugins/tmux-resurrect "https://github.com/tmux-plugins/tmux-resurrect.git" "$HOME/.tmux/plugins/tmux-resurrect"
+        _add git-runtime tmux-plugins/tpm "https://github.com/tmux-plugins/tpm.git" "$HOME/.tmux/plugins/tpm"
+        _add git-runtime tmux-plugins/tmux-sensible "https://github.com/tmux-plugins/tmux-sensible.git" "$HOME/.tmux/plugins/tmux-sensible"
+        _add git-runtime tmux-plugins/tmux-yank "https://github.com/tmux-plugins/tmux-yank.git" "$HOME/.tmux/plugins/tmux-yank"
+        _add git-runtime tmux-plugins/tmux-cpu "https://github.com/tmux-plugins/tmux-cpu.git" "$HOME/.tmux/plugins/tmux-cpu"
+        _add git-runtime xamut/tmux-network-bandwidth "https://github.com/xamut/tmux-network-bandwidth.git" "$HOME/.tmux/plugins/tmux-network-bandwidth"
+        _add git-runtime tmux-plugins/tmux-resurrect "https://github.com/tmux-plugins/tmux-resurrect.git" "$HOME/.tmux/plugins/tmux-resurrect"
     fi
 }
 
@@ -354,7 +394,7 @@ _build() {
 # already-current ones at the bottom. Colored by status when the output lands on
 # a terminal (or DOTFILES_PLAN_COLOR is set); honors NO_COLOR.
 _display() {
-    local tier wanted source name status origin record n label tcolor
+    local tier wanted source name status policy origin probe record n label tcolor
     local c_new c_upd c_old c_hdr c_rst
     if [[ ( -t 1 || -n "${DOTFILES_PLAN_COLOR:-}" ) && -z "${NO_COLOR:-}" ]]; then
         c_new=$'\033[32m'; c_upd=$'\033[33m'; c_old=$'\033[2m'
@@ -366,7 +406,7 @@ _display() {
     for tier in planned update installed; do
         n=0
         for record in "${_records[@]}"; do
-            IFS=$'\t' read -r source name status origin <<< "$record"
+            IFS=$'\t' read -r source name status policy origin probe <<< "$record"
             [[ "$status" == "$tier" ]] && n=$((n + 1))
         done
         [[ "$n" -eq 0 ]] && continue
@@ -377,20 +417,20 @@ _display() {
         esac
         printf '\n%s%s (%d)%s\n' "$c_hdr" "$label" "$n" "$c_rst"
         # Cluster by source within the tier, following the install order.
-        for wanted in brew-formula brew-cask apt github-release npm pip luarocks neovim-plugin git-external; do
+        for wanted in brew-formula brew-cask apt github-release npm npm-runtime pip luarocks neovim-plugin treesitter-parsers mason-packages git-runtime git-external; do
             for record in "${_records[@]}"; do
-                IFS=$'\t' read -r source name status origin <<< "$record"
+                IFS=$'\t' read -r source name status policy origin probe <<< "$record"
                 [[ "$source" == "$wanted" && "$status" == "$tier" ]] || continue
-                printf '  %s%s - %s%s\n' "$tcolor" "$name" "$origin" "$c_rst"
+                printf '  %s%s [%s] - %s%s\n' "$tcolor" "$name" "$policy" "$origin" "$c_rst"
             done
         done
     done
 }
 
 _names() {
-    local wanted="$1" source name status origin record
+    local wanted="$1" source name status policy origin probe record
     for record in "${_records[@]}"; do
-        IFS=$'\t' read -r source name status origin <<< "$record"
+        IFS=$'\t' read -r source name status policy origin probe <<< "$record"
         [[ "$source" == "$wanted" ]] && printf '%s\n' "$name"
     done
     # Return 0 explicitly: the final loop iteration's `[[ ... ]] && printf` leaves

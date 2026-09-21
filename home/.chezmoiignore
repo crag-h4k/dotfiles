@@ -1,3 +1,4 @@
+# home/.chezmoiignore
 *.example
 *.ig
 # Python bytecode (e.g. from validating modify_*.json scripts). A cached
@@ -21,8 +22,8 @@
 #
 # Backup note: run_before_00-backup.sh skips $HOME itself but sweeps every
 # directory holding a managed file, so the hatches under .config/ and .tmux/ are
-# copied in plaintext into ~/.dotfiles-backup/ (20 snapshots). The two $HOME-level
-# zsh files are not, which is the right place for anything sensitive.
+# copied in plaintext into ~/.dotfiles-backup/ (20 snapshots). The $HOME-level
+# private files are not, which is the right place for anything sensitive.
 #
 # local-*.zsh covers $ZSH_CUSTOM/functions/, which .zshrc globs and chezmoi
 # manages. A blanket glob there would un-manage the real function files, so
@@ -30,10 +31,47 @@
 .config/ghostty/override.conf
 .config/git/override.conf
 .config/nvim/lua/override.lua
+.config/opencode/.runtime-releases
+.config/opencode/node_modules
+.config/opencode/package.json
+.config/opencode/package-lock.json
 .tmux/conf.d/override.conf
+.tmux/plugins
+.local/share/opencode2
 .zsh/custom/functions/local-*.zsh
+.gitconfig.override
+.gitconfig.personal
+.gitconfig.work
 .zsh_override
 .zsh_private
+{{/* Writing-quality skills are an automatic child of the existing AI parent.
+     Any selected AI sub-feature enables the one canonical skill store, the
+     per-skill harness links, and the two OpenCode commands. Keep this expression
+     aligned with home/.chezmoiexternal.toml. */}}
+{{ $agentSkillsEnabled := or
+     (dig "components" "ai" "claude_hooks" false .)
+     (dig "components" "ai" "codex_hooks" false .)
+     (dig "components" "ai" "statusline" false .)
+     (dig "components" "ai" "opencode" false .)
+     (dig "components" "ai" "copilot" false .)
+     (dig "components" "ai" "codecompanion" false .) -}}
+{{ if not $agentSkillsEnabled -}}
+.local/share/agent-skills/PROVENANCE.md
+.local/share/agent-skills/humanizer
+.local/share/agent-skills/unslop-code
+.local/share/agent-skills/unslop-text
+.local/share/agent-skills/unslop-ui
+.claude/skills/humanizer
+.claude/skills/unslop-code
+.claude/skills/unslop-text
+.claude/skills/unslop-ui
+.agents/skills/humanizer
+.agents/skills/unslop-code
+.agents/skills/unslop-text
+.agents/skills/unslop-ui
+.config/opencode/commands/humanize.md
+.config/opencode/commands/unslop.md
+{{ end -}}
 {{ if not (dig "components" "zsh" true .) -}}
 .zshrc
 .zshenv
@@ -44,7 +82,7 @@
 .tmux
 {{ end -}}
 {{/* notify subsystem is needed by the zsh process notifier, tmux integration,
-     Claude hooks, Codex hooks, or the OpenCode notifier bridge (v1 or v2). Keep
+     Claude hooks, Codex hooks, or the OpenCode V2 notifier bridge. Keep
      this condition aligned with INSTALL_NOTIFY in
      .chezmoiscripts/run_once_after_00-install.sh.tmpl. */}}
 {{ if and
@@ -52,18 +90,14 @@
      (not (dig "components" "tmux" true .))
      (not (dig "components" "ai" "claude_hooks" false .))
      (not (dig "components" "ai" "codex_hooks" false .))
-     (not (dig "components" "ai" "opencode" false .))
-     (not (dig "components" "ai" "opencode2" false .)) -}}
+     (not (dig "components" "ai" "opencode" false .)) -}}
 .config/notify
 {{ end -}}
-{{ if not (dig "components" "neovim" true .) -}}
+{{ if not (or (dig "components" "neovim" true .) (dig "components" "ai" "codecompanion" false .)) -}}
 .config/nvim
 {{ end -}}
 {{ if not (dig "components" "git" "config" false .) -}}
 .gitconfig
-{{ end -}}
-{{ if not (dig "components" "git" "personal" false .) -}}
-.gitconfig.personal
 {{ end -}}
 {{ if not (dig "components" "git" "ignore_global" true .) -}}
 .gitignore_global
@@ -91,32 +125,19 @@
 {{ if not (dig "components" "ai" "codex_hooks" false .) -}}
 .codex/hooks/notify-tmux.sh
 {{ end -}}
-{{/* OpenCode generic base config + notifier-bridge plugin, SHARED by both the
-     opencode (v1) and opencode2 (v2) sub-features (they share one
-     ~/.config/opencode/ dir), so these install when EITHER is selected.
+{{/* OpenCode V2 config, native notifier plugin, and managed
+     wrapper install only when ai > opencode is selected.
      opencode.jsonc is MERGE-managed via modify_opencode.jsonc.tmpl: chezmoi
-     asserts $schema + the V1/V2 plugin lists and preserves the work-only
-     instructions/mcp keys that live in the target file, so those never reach
-     this public repo. The
-     rest of the private work layer (~/.config/opencode/agents and work.ts) is
-     NOT managed at all: no source entry exists for .config/opencode/agents, so
-     chezmoi leaves those unmanaged local files untouched. */}}
-{{ if not (or (dig "components" "ai" "opencode" false .) (dig "components" "ai" "opencode2" false .)) -}}
+     asserts its V2-owned keys and preserves every unknown top-level key and
+     comment. Unmanaged local configuration remains outside this repo. */}}
+{{ if not (dig "components" "ai" "opencode" false .) -}}
 .config/opencode/opencode.jsonc
-.config/opencode/tui.json
-.config/opencode/themes/gud.json
-.config/opencode/plugin/notify.ts
-.config/opencode/commands/iac-scan.md
-{{ end -}}
-{{/* OpenCode v2-only files: cli.json (v2's config surface, replacing tui.json;
-     content owned elsewhere, gated here) and the translucent gud-lucent theme
-     v2 points at. Managed only when the opencode2 sub-feature is on. */}}
-{{ if not (dig "components" "ai" "opencode2" false .) -}}
 .config/opencode/cli.json
-.config/opencode/package.json
-.config/opencode/package-lock.json
 .config/opencode/themes/gud-lucent.json
+.config/opencode/plugin/notify.ts
 .config/opencode/v2-plugins
+.config/opencode/commands/iac-scan.md
+.local/bin/opencode2
 {{ end -}}
 {{/* Ghostty config (~/.config/ghostty) is a terminal sub-feature. Cross-platform
      (macOS + Linux), default-on, so the dig default is true. Ignore unless the

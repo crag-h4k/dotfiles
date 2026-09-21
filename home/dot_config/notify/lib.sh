@@ -104,11 +104,9 @@ notify_debug_on() {
   case "$_NOTIFY_DEBUG" in 1|true|yes|on|TRUE|True) return 0 ;; *) return 1 ;; esac
 }
 
-# notify_log <message...> - append a timestamped line when debugging. Rotates
-# the log to <file>.old once it passes ~1 MB, so it can never grow unbounded.
-notify_log() {
+# _notify_log_write <message...> - append and rotate without checking debug.
+_notify_log_write() {
   _notify_log_init
-  case "$_NOTIFY_DEBUG" in 1|true|yes|on|TRUE|True) ;; *) return 0 ;; esac
   # Resolve wc/tr/mv/dirname/mkdir/date under a possibly-stripped hook PATH.
   local f="$_NOTIFY_LOGFILE" sz d PATH="$PATH:$_NOTIFY_SYSPATH"
   if [ -f "$f" ]; then
@@ -118,6 +116,19 @@ notify_log() {
   d=$(dirname "$f"); [ -d "$d" ] || mkdir -p "$d" 2>/dev/null
   printf '%s [%s] %s\n' "$(date '+%Y-%m-%dT%H:%M:%S')" "${NOTIFY_SRC:-notify}" "$*" \
     >> "$f" 2>/dev/null
+}
+
+# notify_log <message...> - append only when debug logging is enabled.
+notify_log() {
+  _notify_log_init
+  case "$_NOTIFY_DEBUG" in 1|true|yes|on|TRUE|True) ;; *) return 0 ;; esac
+  _notify_log_write "$@"
+}
+
+# notify_log_always <message...> - record operational warnings even when a
+# detached caller has no terminal and debug logging is disabled.
+notify_log_always() {
+  _notify_log_write "$@"
 }
 
 # --- Appearance + firing ------------------------------------------------------

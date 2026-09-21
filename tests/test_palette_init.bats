@@ -50,6 +50,18 @@ render_palette() {
   [[ "$output" == *'palette = "gruvbox-dark"'* ]]
 }
 
+@test "palette: numbered selection resolves without typing an ID" {
+  render_palette "14"
+  [ "$status" -eq 0 ]
+  [[ "$output" == *'palette = "onedark"'* ]]
+}
+
+@test "palette: interactive path uses a searchable human-readable list" {
+  grep -Fq 'gum filter' "$CONFIG_TMPL"
+  grep -Fq 'Type to filter themes...' "$CONFIG_TMPL"
+  grep -Fq 'printf "%s (%s)" .name .id' "$CONFIG_TMPL"
+}
+
 @test "palette: invalid input fails loudly (no silent fallback)" {
   render_palette "boguspalette"
   [ "$status" -ne 0 ]

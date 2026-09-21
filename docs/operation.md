@@ -24,15 +24,18 @@ cd ~/dotfiles
 $EDITOR home/dot_zshrc
 chezmoi apply
 
-# Pull upstream plugins now instead of waiting for weekly refresh:
+# Force a direct fast-forward-only external refresh. Routine safe updates use
+# cup, which also skips dirty and diverged checkouts before pulling:
 chezmoi apply --refresh-externals
 
-# Re-run the install scripts (e.g. after updating packages). This recipe and
-# flipping a component both prompt [y/N] before touching a package manager;
-# answer N to apply configs only, or skip the prompt with DOTFILES_ASSUME_YES=1:
-chezmoi state delete-bucket --bucket=scriptState
-chezmoi apply
-DOTFILES_ASSUME_YES=1 chezmoi apply   # unattended: install without prompting
+# Re-run package provisioning without deleting chezmoi script state. This
+# opens the package plan and mode confirmation. Selecting packages advances the
+# persisted packageRun trigger and reruns only the content-hashed installer:
+cup
+
+# Run the same update without a TTY. All three opt-ins are required:
+DOTFILES_PACKAGE_UPDATE=1 DOTFILES_INSTALL_MODE=packages \
+  DOTFILES_ASSUME_YES=1 chezmoi init --apply --no-tty
 
 # Inspect what chezmoi thinks should change:
 chezmoi diff
@@ -55,7 +58,7 @@ directory.
 
 ## Local overrides
 
-Every managed tool reads one unmanaged file where you can change its behavior
+Each managed tool reads one unmanaged file where you can change its behavior
 without editing the config in this repo. Adopt these dotfiles, drop your
 settings in these files, and `chezmoi update` keeps working:
 
@@ -63,19 +66,22 @@ settings in these files, and `chezmoi update` keeps working:
 - tmux: `~/.tmux/conf.d/override.conf`
 - Zsh: `~/.zsh_override`
 - Neovim: `~/.config/nvim/lua/override.lua`
-- Git: `~/.config/git/override.conf`
+- Git: `~/.gitconfig.override`
 
-None are chezmoi-managed and none are created for you. Each is listed
+None are chezmoi-managed. Each is listed
 unconditionally in `home/.chezmoiignore`, so chezmoi never applies or removes
 them, and `chezmoi add` and `chezmoi re-add` refuse them. Your settings stay
-yours and never reach this public repo.
+yours and never reach this public repo. The installer creates an empty mode-600
+Git override only when managed Git config is selected and the file is absent.
 
-Every include is optional, which is why there is no stub to maintain. Ghostty
+Every include is optional. Ghostty
 uses the `?` path prefix, tmux uses `source-file -q`, Git silently skips a
 missing include, Zsh uses an `[[ -r ]]` guard, and Neovim uses a guarded
 `pcall`. Delete a file and the tool starts clean.
 
-Each one loads last, so it wins:
+Each override loads after its managed base. Most load at the absolute end. tmux
+loads its override before the managed plugin list and the final TPM command so
+local plugin declarations and options exist before plugin startup.
 
 ```text
 # ~/.config/ghostty/override.conf
@@ -88,16 +94,116 @@ alias ll='eza -l'
 export EDITOR=vim
 ```
 
+### Git identities
+
+The managed Git config contains no name, email, signing key, or private path.
+It sets `user.useConfigOnly = true` and includes `~/.gitconfig.override` last.
+
+Git cannot nest `[user]` values under `includeIf`; conditional includes can only
+name another file. To keep one private file, define aliases that write identity
+settings into the current repository's local `.git/config`:
+
+```gitconfig
+# ~/.gitconfig.override
+[alias]
+    identity-personal = "!f() { git config --local user.name 'Personal Name'; git config --local user.email 'personal@example.invalid'; }; f"
+    identity-work = "!f() { git config --local user.name 'Work Name'; git config --local user.email 'work@example.invalid'; }; f"
+```
+
+Run `git identity-personal` or `git identity-work` once after cloning. Add local
+`user.signingKey`, `gpg.format`, and `commit.gpgSign` commands to either alias if
+that identity signs commits.
+
+The former `~/.config/git/override.conf` is no longer loaded. Migrate any useful
+settings into `~/.gitconfig.override`; the old file remains ignored and is not
+deleted automatically.
+
+### tmux plugins
+
+Disable default plugins independently by setting their switches to `off`:
+
+```tmux
+# ~/.tmux/conf.d/override.conf
+set -g @dotfiles_plugin_tmux_cpu off
+set -g @dotfiles_plugin_tmux_network_bandwidth off
+```
+
+All five switches default to `on`:
+
+| Switch | Default plugin |
+| --- | --- |
+| `@dotfiles_plugin_tmux_sensible` | `tmux-plugins/tmux-sensible` |
+| `@dotfiles_plugin_tmux_yank` | `tmux-plugins/tmux-yank` |
+| `@dotfiles_plugin_tmux_cpu` | `tmux-plugins/tmux-cpu` |
+| `@dotfiles_plugin_tmux_network_bandwidth` | `xamut/tmux-network-bandwidth` |
+| `@dotfiles_plugin_tmux_resurrect` | `tmux-plugins/tmux-resurrect` |
+
+TPM itself has no switch because it initializes the selected default plugins
+and every local addition. Add a plugin with TPM's standard literal syntax. Put
+its options before the declaration when the plugin reads them at startup:
+
+```tmux
+# ~/.tmux/conf.d/override.conf
+set -g @continuum-restore 'on'
+set -g @plugin 'tmux-plugins/tmux-continuum'
+```
+
+Reload tmux, then use `prefix + I` to install a local addition. TPM owns plugins
+declared only in `override.conf`. Its package bindings are scoped accordingly:
+
+| Binding | Scope |
+| --- | --- |
+| `prefix + I` | Install missing local plugins |
+| `prefix + U` | Update one named local plugin, or every local plugin with `all` |
+| `prefix + M-u` | Remove unused local plugin directories |
+
+The wrapper refuses to update default names and protects every default checkout
+during interactive TPM clean, including disabled plugins. Approved package mode
+installs or fast-forwards TPM and the five default plugin repositories. Chezmoi
+ignores the complete `~/.tmux/plugins` runtime tree and does not lock or track it.
+
+TPM sees one combined plugin set during startup. Enabled defaults use
+its runtime `@tpm_plugins` option, while local literal `@plugin` lines come from
+TPM's static scan of sourced files. The final startup command then replaces the
+package bindings with the local-only wrapper.
+
+`@tpm_plugins` is deprecated upstream but remains supported. The managed config
+rebuilds that option after `override.conf`, so do not set it yourself. Local
+additions must use a one-line literal `set -g @plugin 'owner/repo'` declaration;
+TPM does not discover a repository assembled through a variable or conditional.
+Do not repeat a default repository as a local `@plugin`, or TPM can start it
+twice.
+
+TPM prefers `$XDG_CONFIG_HOME/tmux/tmux.conf` when that file exists. A separate
+XDG main config can therefore hide this repository's `~/.tmux.conf` and its
+sourced override from TPM's static scanner. Keep `~/.tmux.conf` as the active
+main config when using this override path.
+
+Disabling a plugin prevents it from starting in a fresh tmux server. Reloading
+`~/.tmux.conf` in an existing server does not undo options, hooks, or bindings
+that the plugin already installed. End the existing server and start a new one
+for a disable to take full effect.
+
 ### Ordering
 
 Ghostty defers included files until after the config that names them, so its
-`config-file` line can sit anywhere. Everything else loads inline, so the
-override line stays at the bottom of its file.
+`config-file` line can sit anywhere. Zsh, Git, Neovim, and tmux load inline. The
+first three keep their override at the bottom of the managed config.
 
-The tmux line deliberately sits after the `tpm` run: plugins set options when
-tpm executes, and only a file sourced afterwards can override them. `@plugin`
-declarations still belong above the tpm line. The consequence is that the tmux
-hatch cannot add plugins.
+tmux uses this sequence:
+
+| Phase | Action |
+| --- | --- |
+| 1 | Load managed tmux options and `conf.d` files |
+| 2 | Source optional `~/.tmux/conf.d/override.conf` |
+| 3 | Rebuild enabled managed defaults in `@tpm_plugins` |
+| 4 | Run TPM as the final executable line in `~/.tmux.conf` |
+
+Plugin-specific options and local literal `@plugin` declarations are therefore
+available when TPM starts plugins. This ordering is intended for options that a
+plugin reads as input. Generic settings that a plugin unconditionally writes are
+not guaranteed to be last-wins because the plugin starts after `override.conf`.
+Use the plugin's documented options instead.
 
 Neovim has the same shape. The `pcall` runs after `require("lazy").setup()`
 returns, so `override.lua` covers options, keymaps, autocmds, and per-machine
@@ -142,6 +248,9 @@ tmux source-file ~/.tmux.conf
 exec zsh
 git config --list --includes --global
 ```
+
+The tmux reload applies new configuration but cannot tear down state left by an
+already-loaded plugin. Restart the tmux server after disabling a plugin.
 
 ## Terminal (tmux) behavior
 

@@ -1,0 +1,8 @@
+# $HOME/.local/share/agent-skills/humanizer/agents/openai.yaml
+interface:
+  display_name: Humanizer
+  short_description: Rewrite supplied prose without changing its facts
+  default_prompt: Use $humanizer to rewrite this text in my voice without changing its facts.
+
+policy:
+  allow_implicit_invocation: false

@@ -1,12 +1,7 @@
 {{- /* ~/.config/opencode/themes/gud-lucent.json
-       Translucent variant of the "gud" theme, for OpenCode v2 (cli.json points
-       here). Identical to gud.json.tmpl EXCEPT background/backgroundPanel/
-       backgroundElement resolve to "none" so the terminal shows through: with
-       terminal opacity set (e.g. a translucent Ghostty), the wallpaper/blur is
-       visible behind the TUI; without opacity it degrades gracefully to a solid
-       terminal background. Keep every other key in lockstep with gud.json.tmpl;
-       change colors in the shared palette catalog, never by hand here. v1 stays on
-       solid "gud" via tui.json. */ -}}
+       OpenCode V2 theme. background/backgroundPanel/backgroundElement resolve
+       to "none" so terminal opacity shows through without making text
+       translucent. Change colors in the shared palette catalog, never here. */ -}}
 {{- $p := get .palettes (dig "palette" "dracula" .) -}}
 {
   "$schema": "https://opencode.ai/theme.json",

@@ -7,6 +7,13 @@ enterprise-level trust issues who think tmux has a spirit and deserves deploymen
 
 Gum picks the loadout; headless macOS/Trixie runners make sure nothing shits the bed.
 
+## Table of Contents
+
+- [What this thing does](#what-this-thing-does)
+- [Quick start](#quick-start)
+- [Who owns what](#who-owns-what)
+- [Documentation](#documentation)
+
 ## What this thing does
 
 Chezmoi wrangles Zsh, Neovim, Ghostty/iTerm2, Claude/Codex hooks, palettes, and tools.
@@ -19,10 +26,13 @@ Chezmoi wrangles Zsh, Neovim, Ghostty/iTerm2, Claude/Codex hooks, palettes, and 
   - Configure volume, duration, process groupings for different notifications,
     enable/disable settings
 - Selectively installs only the components and sub-features selected for a host
+- Shares checksum-pinned writing-quality skills across Claude Code,
+  CodeCompanion, Codex, OpenCode V2, and GitHub Copilot without duplicating them
 - Keeps Ghostty, iTerm2, tmux, Neovim, Claude, and Codex on one shared palette
 - Handles the Ghostty > SSH > tmux mouse, clipboard, and scrollback gauntlet
-- Gives Neovim modern LSP activation, missing-only Mason installs, and
-  non-blocking Gitleaks warnings
+- Gives Neovim modern LSP activation, missing-only startup provisioning,
+  package-mode Lazy, Treesitter, and Mason updates, and non-blocking Gitleaks
+  warnings
 - Plans and deduplicates packages before Homebrew or APT gets to touch anything
 - Proves clean, unattended installs on native macOS and Debian Trixie before
   `main` gets the privilege
@@ -76,6 +86,14 @@ DOTFILES_INSTALL_MODE=packages DOTFILES_ASSUME_YES=1 \
   chezmoi init --apply --no-tty crag-h4k
 ```
 
+For a recurring headless package update, opt into the update trigger too. The
+three variables are required together:
+
+```sh
+DOTFILES_PACKAGE_UPDATE=1 DOTFILES_INSTALL_MODE=packages \
+  DOTFILES_ASSUME_YES=1 chezmoi init --apply --no-tty
+```
+
 ## Who owns what
 
 | Owner | Responsibility |
@@ -85,15 +103,17 @@ DOTFILES_INSTALL_MODE=packages DOTFILES_ASSUME_YES=1 \
 | Mason | Neovim-only executables and the desired LSP server set |
 | Lazy | Neovim plugins on the local machine |
 
-Mason and Lazy install missing state, but they do not reconcile every host to
-one exact runtime revision. `lazy-lock.json` stays ignored on purpose, so a
-normal plugin update does not turn the dotfiles checkout dirty.
+Package mode updates installed Mason packages and Lazy plugins. It does not
+reconcile every host to one exact runtime revision. `lazy-lock.json` stays
+ignored on purpose, so a normal plugin update does not turn the dotfiles
+checkout dirty.
 
 ## Documentation
 
 | Guide | Use it for |
 | --- | --- |
 | [Components](docs/components.md) | Pickers, sub-features, package mode, and changing a host later |
+| [Agent skills](docs/agent-skills.md) | Cross-harness layout, invocation policy, immutable pins, and threat boundaries |
 | [Architecture](docs/architecture.md) | Source-root boundaries, ownership, and rendered paths |
 | [Operation](docs/operation.md) | Daily chezmoi work, tmux behavior, statuslines, and removal |
 | [Neovim](docs/neovim.md) | Lazy, Mason, LSPs, linters, and local revision state |

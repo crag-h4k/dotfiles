@@ -6,9 +6,8 @@
 #                   matches what it is waiting for (see below)
 #   clear [group] - the pane was re-engaged / a new prompt started
 # Groups, all defined under `integrations:` in ~/.config/notify/notify.yaml:
-#   opencode             turn finished  (v1 session.idle, v2 session.execution.succeeded)
-#   opencode_permission  blocked on a permission prompt (v1 permission.updated,
-#                        v2 permission.asked)
+#   opencode             turn finished (session.execution.succeeded)
+#   opencode_permission  blocked on a permission prompt (permission.asked)
 #   opencode_question    blocked on a question or auth form (v2 form.created)
 # An unknown or empty group falls back to `opencode`, so an older plugin that
 # passes no argument keeps working. Mirrors the Claude hooks
@@ -28,7 +27,7 @@ export NOTIFY_SRC=opencode-hook
 # for a dead target, so compare the resolved pane id rather than the exit status.
 _pane=$(_notify_tmux display-message -p -t "$TMUX_PANE" '#{pane_id}' 2>/dev/null)
 if [ "$_pane" != "$TMUX_PANE" ]; then
-  notify_log "stale pane $TMUX_PANE is not on this tmux server; skipping"
+  notify_log_always "stale pane $TMUX_PANE is not on this tmux server; skipping"
   printf 'notify: stale pane %s, restart the opencode2 background service\n' "$TMUX_PANE" >&2
   exit 0
 fi

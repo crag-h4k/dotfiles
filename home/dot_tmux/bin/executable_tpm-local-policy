@@ -1,0 +1,24 @@
+#!/usr/bin/env zsh
+# ~/.tmux/bin/tpm-local-policy
+# Replace TPM package-management bindings with local-plugin-only wrappers.
+
+tmux_option_or() {
+  local option="$1"
+  local fallback="$2"
+  local value
+
+  value="$(tmux show-option -gqv "$option")"
+  print -r -- "${value:-$fallback}"
+}
+
+install_key="$(tmux_option_or @tpm-install I)"
+update_key="$(tmux_option_or @tpm-update U)"
+clean_key="$(tmux_option_or @tpm-clean M-u)"
+
+tmux bind-key "$install_key" \
+  run-shell '~/.tmux/bin/tpm-local-plugins install'
+tmux bind-key "$update_key" \
+  command-prompt -p 'local plugin update:' \
+  "run-shell '~/.tmux/bin/tpm-local-plugins update %1'"
+tmux bind-key "$clean_key" \
+  run-shell '~/.tmux/bin/tpm-local-plugins clean'

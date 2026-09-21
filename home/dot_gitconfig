@@ -1,3 +1,4 @@
+# ~/.gitconfig
 [core]
     excludesfile = ~/.gitignore_global
     editor = nvim
@@ -25,10 +26,6 @@
 [user]
     useConfigOnly = true
 
-# Personal identity is rendered per host when git > personal is enabled.
-[include]
-    path = ~/.gitconfig.personal
-
 # git-delta pager. The fragment at ~/.config/git/delta.conf is chezmoi-managed
 # but is NOT loaded unless it is included here. Without this line, enabling the
 # `git > config` sub-feature silently drops the delta pager on any host that
@@ -50,15 +47,16 @@
 	helper = !gh auth git-credential
 
 # ---- Local overrides --------------------------------------------------------
-# ~/.config/git/override.conf is a machine-local escape hatch. NOT managed by
+# ~/.gitconfig.override is a machine-local escape hatch. NOT managed by
 # chezmoi and listed in home/.chezmoiignore, so `chezmoi add` / `re-add` refuse
-# it. Git silently ignores a missing include path, so there is no stub to create.
+# it. The installer creates an empty mode-600 stub without overwriting existing
+# content when managed Git config is selected.
 #
 # Git applies includes inline, so this must stay LAST to win. Use it for a
-# per-host identity, a work `includeIf`, or an alias you do not want in the repo.
+# per-repository identity alias or any setting you do not want in the repo.
 #
 # Verify with `git config --list --includes --global`. NOT `--get`: `--includes`
 # defaults off when a specific file scope like --global is given, so `--get`
 # silently reports the pre-include value.
 [include]
-    path = ~/.config/git/override.conf
+    path = ~/.gitconfig.override

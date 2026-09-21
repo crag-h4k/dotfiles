@@ -10,31 +10,25 @@
 {{- /*   key   the [data.components] boolean key it sets.                       */ -}}
 {{- /*   label short name shown in the menu, padded for alignment.             */ -}}
 {{- /*   desc  one-line description shown in the menu.                          */ -}}
-{{- /*   all   whether `all` (the default-on set) includes it. `all+` always   */ -}}
-{{- /*         includes everything regardless of this flag.                     */ -}}
+{{- /*   all   whether the default-on set includes it.                           */ -}}
 {{- /* The menu text, the per-component parse, and the [data.components] block  */ -}}
 {{- /* are all derived from this list, so a new component is a one-line add.    */ -}}
 {{- /* Sub-feature lists for the components that have a nested submenu (git, ai). */ -}}
 {{- /* Same record shape as $components. Here `all` means "pre-selected in the    */ -}}
 {{- /* submenu by default", which is also the no-tty / Enter fallback selection.   */ -}}
 {{- $gitFeatures := list
-    (dict "num" "1" "key" "config"        "label" "config"        "desc" "~/.gitconfig"          "all" false)
-    (dict "num" "2" "key" "personal"      "label" "personal"      "desc" "~/.gitconfig.personal" "all" false)
-    (dict "num" "3" "key" "ignore_global" "label" "ignore_global" "desc" "~/.gitignore_global"   "all" true)
+    (dict "num" "1" "key" "config"        "label" "managed config" "desc" "~/.gitconfig + private ~/.gitconfig.override stub" "all" false)
+    (dict "num" "3" "key" "ignore_global" "label" "global ignore"  "desc" "~/.gitignore_global"                         "all" true)
 -}}
-{{- /* codecompanion is listed near the end: it is the heaviest sub-feature (pulls */ -}}
-{{- /* in node/npm and the npm-installed claude-agent-acp bridge), so keep it late  */ -}}
-{{- /* in the submenu even though it stays the default (all=true) selection.        */ -}}
-{{- /* opencode2 (OpenCode v2) mirrors the opencode sub-feature; both share the      */ -}}
-{{- /* generic base config + notifier bridge, gated together in .chezmoiignore.      */ -}}
+{{- /* OpenCode V2 is the AI submenu default. CodeCompanion is deliberately last */ -}}
+{{- /* and off by default because it installs Neovim, Node, and claude-agent-acp. */ -}}
 {{- $aiFeatures := list
     (dict "num" "1" "key" "claude_hooks"  "label" "claude_hooks"  "desc" "Claude settings.json notify hooks"           "all" false)
     (dict "num" "2" "key" "codex_hooks"   "label" "codex_hooks"   "desc" "Codex config.toml notify hook"               "all" false)
     (dict "num" "3" "key" "statusline"    "label" "statusline"    "desc" "Claude token/context statusline + matching Codex theme" "all" false)
-    (dict "num" "4" "key" "opencode"      "label" "opencode"      "desc" "OpenCode CLI generic base config + tmux notifier bridge (pulls in the opencode binary)" "all" false)
+    (dict "num" "4" "key" "opencode"      "label" "opencode"      "desc" "OpenCode V2 + managed standalone wrapper + tmux notifier" "all" true)
     (dict "num" "5" "key" "copilot"       "label" "copilot"       "desc" "GitHub Copilot CLI (npm @github/copilot; pulls in the copilot binary)" "all" false)
-    (dict "num" "6" "key" "codecompanion" "label" "codecompanion" "desc" "CodeCompanion.nvim assistant (needs neovim; pulls in node, npm + claude-agent-acp)" "all" true)
-    (dict "num" "7" "key" "opencode2"     "label" "opencode2"     "desc" "OpenCode v2 (cli.json) side-by-side; pulls stable @opencode/cli@latest" "all" false)
+    (dict "num" "6" "key" "codecompanion" "label" "codecompanion" "desc" "CodeCompanion.nvim assistant (also installs Neovim, Node + claude-agent-acp)" "all" false)
 -}}
 {{- /* Terminal-emulator sub-features. MULTI-select (like git/ai): installing more */ -}}
 {{- /* than one emulator's config is harmless and Dane runs both, so this is not a  */ -}}
@@ -46,39 +40,44 @@
     (dict "num" "1" "key" "ghostty" "label" "ghostty" "desc" "Ghostty config + quick-terminal dropdown (macOS + Linux)" "all" true  "os" "")
     (dict "num" "2" "key" "iterm2"  "label" "iterm2"  "desc" "iTerm2 Dynamic Profiles (macOS only)"                     "all" false "os" "darwin")
 -}}
-{{- /* Top-level components. git and ai carry a non-empty `sub` features list plus */ -}}
+{{- /* Top-level components. git, ai, and terminal carry a `sub` feature list plus */ -}}
 {{- /* the submenu's persisted selection key and header; the rest have an empty    */ -}}
-{{- /* `sub` and are emitted as bare booleans under [data.components]. An `action` */ -}}
-{{- /* entry (colorscheme) resolves like a bare bool so we can read whether it was  */ -}}
-{{- /* checked, but it is a one-shot init toggle (gates the palette picker): it      */ -}}
-{{- /* stays out of the [data.components] output and never pre-checks on re-init.    */ -}}
+{{- /* `sub` and are emitted as bare booleans under [data.components].             */ -}}
 {{- $components := list
-    (dict "num" "1" "key" "zsh"    "label" "zsh"    "desc" "oh-my-zsh, plugins, custom functions, aliases"  "all" true  "sub" (list))
-    (dict "num" "2" "key" "tmux"   "label" "tmux"   "desc" "tmux + plugins (tpm, resurrect, sensible, yank)" "all" true  "sub" (list))
-    (dict "num" "3" "key" "neovim" "label" "neovim" "desc" "neovim, lazy.nvim, language servers, linters"    "all" true  "sub" (list))
-    (dict "num" "4" "key" "git"    "label" "git"    "desc" "git config files (config, personal, ignore_global)" "all" true  "sub" $gitFeatures "selKey" "gitSelection" "header" "git sub-features")
-    (dict "num" "5" "key" "ai"     "label" "ai"     "desc" "AI tools (claude_hooks, codex_hooks, statusline, opencode, copilot, codecompanion, opencode2)"  "all" false "sub" $aiFeatures  "selKey" "aiSelection"  "header" "AI sub-features")
-    (dict "num" "6" "key" "terminal" "label" "terminal" "desc" "terminal emulator config (ghostty, iterm2)"  "all" false "sub" $terminalFeatures "selKey" "terminalSelection" "header" "terminal emulator")
-    (dict "num" "7" "key" "colorscheme" "label" "colorscheme" "desc" (printf "re-pick the color scheme (current: %s; unchecked keeps it)" (dig "palette" "dracula" .)) "all" false "sub" (list) "action" true)
-    (dict "num" "8" "key" "install_mode" "label" "install_mode" "desc" (printf "re-choose packages vs configs (current: %s; unchecked keeps it)" (dig "installMode" "packages" .)) "all" false "sub" (list) "action" true)
+    (dict "num" "1" "key" "zsh"      "label" "Zsh"                "desc" "oh-my-zsh, plugins, custom functions, aliases"  "all" true  "sub" (list))
+    (dict "num" "2" "key" "tmux"     "label" "tmux"               "desc" "tmux + plugins (tpm, resurrect, sensible, yank)" "all" true  "sub" (list))
+    (dict "num" "3" "key" "neovim"   "label" "Neovim"             "desc" "Neovim, lazy.nvim, language servers, linters"   "all" true  "sub" (list))
+    (dict "num" "4" "key" "git"      "label" "Git"                "desc" "managed config and independent global ignore"   "all" true  "sub" $gitFeatures "selKey" "gitSelection" "header" "Git configuration")
+    (dict "num" "5" "key" "ai"       "label" "AI tools"           "desc" "OpenCode V2, hooks, statusline, Copilot, CodeCompanion" "all" false "sub" $aiFeatures  "selKey" "aiSelection"  "header" "AI tools")
+    (dict "num" "6" "key" "terminal" "label" "terminal emulators" "desc" "independent Ghostty and iTerm2 configuration"    "all" false "sub" $terminalFeatures "selKey" "terminalSelection" "header" "Terminal emulators")
 -}}
+{{- /* Init-time actions are shown separately and never persisted as components. */ -}}
+{{- $actions := list
+    (dict "num" "7" "key" "colorscheme" "label" "theme"        "desc" (printf "choose the shared color theme (current: %s; unchecked keeps it)" (dig "palette" "dracula" .)) "all" false "sub" (list) "action" true)
+    (dict "num" "8" "key" "install_mode" "label" "package mode" "desc" (printf "choose configs-only or package installation (current: %s; unchecked keeps it)" (dig "installMode" "packages" .)) "all" false "sub" (list) "action" true)
+-}}
+{{- $topItems := list -}}
+{{- range $components }}{{- $topItems = append $topItems . }}{{- end -}}
+{{- range $actions }}{{- $topItems = append $topItems . }}{{- end -}}
 {{- /* Build the numbered menu text from the list. labels are padded to the    */ -}}
 {{- /* width of the widest label so descriptions line up.                       */ -}}
 {{- $labelWidth := 0 -}}
-{{- range $components }}{{- $labelWidth = max $labelWidth (len .label) }}{{- end -}}
+{{- range $topItems }}{{- $labelWidth = max $labelWidth (len .label) }}{{- end -}}
 {{- $lines := list "Components to install:" -}}
 {{- range $components -}}
 {{- $lines = append $lines (printf "  %s) %s %s" .num (printf "%-*s" (int $labelWidth) .label) .desc) -}}
 {{- end -}}
-{{- /* Default = the numbers in the `all` set, space-joined (e.g. "1 2 3").     */ -}}
-{{- /* Extras = labels NOT in the `all` set, which is what `all+` adds on top.  */ -}}
+{{- $lines = append $lines "" -}}
+{{- $lines = append $lines "Setup actions:" -}}
+{{- range $actions -}}
+{{- $lines = append $lines (printf "  %s) %s %s" .num (printf "%-*s" (int $labelWidth) .label) .desc) -}}
+{{- end -}}
+{{- /* Default = component numbers with all=true, space-joined (e.g. "1 2 3"). */ -}}
 {{- $defaultNums := list -}}
-{{- $extraLabels := list -}}
-{{- range $components }}{{- if .all }}{{- $defaultNums = append $defaultNums .num }}{{- else }}{{- $extraLabels = append $extraLabels .label }}{{- end }}{{- end -}}
+{{- range $components }}{{- if .all }}{{- $defaultNums = append $defaultNums .num }}{{- end }}{{- end -}}
 {{- $default := join " " $defaultNums -}}
-{{- $extras := join ", " $extraLabels -}}
 {{- $menu := join "\n" $lines -}}
-{{- $menu = printf "%s\n\n  all   the default set (%s)\n  all+  everything, adds %s\n\nEnter numbers (e.g. \"1 3\"), a keyword above, or press Enter for default (%s)" $menu $default $extras $default -}}
+{{- $menu = printf "%s\n\n  default  the default component set (%s)\n\nEnter numbers (e.g. \"1 3\"), type default, or press Enter for default (%s)" $menu $default $default -}}
 {{- /* Interactive selection. With gum installed, show a checkbox TUI built from */ -}}
 {{- /* the same $components list (a new component appears automatically).        */ -}}
 {{- /* gum choose --no-limit renders checkboxes; selected lines go to stdout.   */ -}}
@@ -88,8 +87,10 @@
 {{- /* fall through to the typed promptStringOnce menu below.                    */ -}}
 {{- /* DOTFILES_NO_TUI forces the typed menu (used by validate-templates.sh to  */ -}}
 {{- /* exercise the parser deterministically, and handy to bypass the TUI).      */ -}}
+{{- $packageUpdateValue := lower (trim (env "DOTFILES_PACKAGE_UPDATE")) -}}
+{{- $packageUpdate := has $packageUpdateValue (list "1" "true" "yes" "y") -}}
 {{- $sel := "" -}}
-{{- if and (lookPath "gum") (not (env "DOTFILES_NO_TUI")) -}}
+{{- if and (lookPath "gum") (not (env "DOTFILES_NO_TUI")) (not $packageUpdate) -}}
 {{- /* Precompute the comma-sanitized option string per component ONCE. gum splits */ -}}
 {{- /* --selected on commas, so any option text containing a comma could never be   */ -}}
 {{- /* pre-checked; swap ", " -> "/" so --selected and the positional options stay   */ -}}
@@ -97,13 +98,13 @@
 {{-   $optOf := dict -}}
 {{- /* Bold the component label; space out slash-joined desc items. The ", "->" / " */ -}}
 {{- /* swap keeps the option comma-free so gum's --selected match still works.       */ -}}
-{{-   range $components }}{{- $optOf = set $optOf .num (printf "%s) \033[1m%s\033[0m - %s" .num .label (.desc | replace ", " " / " | replace "," " / ")) -}}{{- end -}}
+{{-   range $topItems }}{{- $optOf = set $optOf .num (printf "%s) \033[1m%s\033[0m - %s" .num .label (.desc | replace ", " " / " | replace "," " / ")) -}}{{- end -}}
 {{-   $opts := list -}}
-{{-   range $components }}{{- $opts = append $opts (squote (get $optOf .num)) -}}{{- end -}}
-{{-   $hdr := "Components to install  (space toggles, enter confirms, esc cancels):" -}}
+{{-   range $topItems }}{{- $opts = append $opts (squote (get $optOf .num)) -}}{{- end -}}
+{{-   $hdr := "Components first, setup actions last  (space toggles, enter confirms, esc cancels):" -}}
 {{- /* Seed --selected so a re-init pre-checks whatever is currently enabled. The   */ -}}
 {{- /* truth is the persisted [data.components.*] resolution, not the raw selection */ -}}
-{{- /* string (which would miss the `all`/`all+` keyword forms). A fresh init has no */ -}}
+{{- /* string (which would miss the `default` keyword form). A fresh init has no */ -}}
 {{- /* persisted data, so it pre-checks the default-on set instead.                  */ -}}
 {{-   $prevSel := dig "componentSelection" "" . -}}
 {{-   $topSeed := list -}}
@@ -118,7 +119,12 @@
 {{-       if eq (len $c.sub) 0 -}}
 {{-         $on = dig "components" $c.key false $ -}}
 {{-       else -}}
-{{-         range $sf := $c.sub }}{{- if dig "components" $c.key $sf.key false $ }}{{- $on = true -}}{{- end -}}{{- end -}}
+{{-         range $sf := $c.sub -}}
+{{-           $featureOn := dig "components" $c.key $sf.key false $ -}}
+{{-           if and (eq $c.key "ai") (eq $sf.key "opencode") }}{{- $featureOn = or $featureOn (dig "components" "ai" "opencode2" false $) -}}{{- end -}}
+{{-           if and (eq $c.key "git") (eq $sf.key "config") }}{{- $featureOn = or $featureOn (dig "components" "git" "personal" false $) -}}{{- end -}}
+{{-           if $featureOn }}{{- $on = true -}}{{- end -}}
+{{-         end -}}
 {{-       end -}}
 {{-       if $on }}{{- $topSeed = append $topSeed (get $optOf $c.num) -}}{{- $curLabels = append $curLabels $c.label -}}{{- end -}}
 {{-     end -}}
@@ -138,10 +144,14 @@
 {{- /* Empty = pressed Enter. A value starting with the menu text means a    */ -}}
 {{- /* non-interactive init (no tty) echoed the prompt back; both fall to the */ -}}
 {{- /* default so a piped/CI install never persists a garbage selection.      */ -}}
-{{- if or (eq $sel "") (hasPrefix "Components to install" $sel) }}{{- $sel = $default }}{{- end -}}
-{{- /* Keyword flags. `all+` implies everything; `all` implies the all-set.    */ -}}
-{{- $allPlus := contains "all+" $sel -}}
-{{- $all := contains "all" $sel -}}
+{{- if or (eq $sel "") (hasPrefix "Components to install" $sel) }}{{- $sel = "default" }}{{- end -}}
+{{- /* The retired `all+` selected every old component. Migrate it to explicit */ -}}
+{{- /* current component numbers without replaying the two one-shot actions. */ -}}
+{{- $legacyAllPlus := eq $sel "all+" -}}
+{{- if $legacyAllPlus }}{{- $sel = "1 2 3 4 5 6" -}}{{- end -}}
+{{- /* `all` remains a read-only migration alias for persisted old configs. */ -}}
+{{- $useDefault := or (eq $sel "default") (eq $sel "all") -}}
+{{- if eq $sel "all" }}{{- $sel = "default" -}}{{- end -}}
 {{- /* Build the SET of selected component numbers from $sel. Split on          */ -}}
 {{- /* whitespace and commas into tokens; a token that exactly matches a         */ -}}
 {{- /* component number selects that component. A pure-digit token that is NOT   */ -}}
@@ -151,7 +161,7 @@
 {{- /* of substring-matching component 1. Spacing/order/commas stay irrelevant:  */ -}}
 {{- /* "1 3", "13", "3 1", "1,3" are equivalent.                                 */ -}}
 {{- $compNums := list -}}
-{{- range $components }}{{- $compNums = append $compNums .num -}}{{- end -}}
+{{- range $topItems }}{{- $compNums = append $compNums .num -}}{{- end -}}
 {{- $selSet := dict -}}
 {{- range (splitList " " (trim (replace "," " " $sel))) -}}
 {{-   if ne . "" -}}
@@ -162,10 +172,10 @@
 {{-     end -}}
 {{-   end -}}
 {{- end -}}
-{{- /* Resolve each component: on if all+, or (all and in-all-set), or selected. */ -}}
+{{- /* Resolve each component/action from the default set or explicit numbers. */ -}}
 {{- $resolved := dict -}}
-{{- range $components -}}
-{{- $on := or $allPlus (and $all .all) (hasKey $selSet .num) -}}
+{{- range $topItems -}}
+{{- $on := or (and $useDefault .all) (hasKey $selSet .num) -}}
 {{- $resolved = set $resolved .key $on -}}
 {{- end -}}
 {{- /* Nested submenus. For each top-level component that is ON and has a `sub`  */ -}}
@@ -197,10 +207,14 @@
 {{-     $stored := "" -}}
 {{-     if get $resolved $c.key -}}
 {{-       $subSel := "" -}}
-{{- /* `all` / `all+` take the sub-defaults without prompting (the guard below   */ -}}
+{{- /* `default` takes the sub-defaults without prompting (the guard below        */ -}}
 {{- /* defaults an empty $subSel); only an explicit per-number selection prompts. */ -}}
-{{-       if not (or $all $allPlus) -}}
-{{-       if and (lookPath "gum") (not (env "DOTFILES_NO_TUI")) -}}
+{{-       if $legacyAllPlus -}}
+{{- /* Do not re-prompt while migrating `all+`. Start from its persisted raw */ -}}
+{{- /* submenu selection, then union in resolved booleans below. */ -}}
+{{-         $subSel = dig $c.selKey "" $root -}}
+{{-       else if not $useDefault -}}
+{{-       if and (lookPath "gum") (not (env "DOTFILES_NO_TUI")) (not $packageUpdate) -}}
 {{-         $prevSub := dig $c.selKey "" $root -}}
 {{- /* Comma-sanitized sub-feature option string, computed ONCE so --selected and  */ -}}
 {{- /* the positional options stay identical and comma-free (see the top-menu note; */ -}}
@@ -213,7 +227,12 @@
 {{-           range $menuFeats }}{{ if .all }}{{ $seedOpts = append $seedOpts (get $subOptOf .key) }}{{ end }}{{ end -}}
 {{-         else -}}
 {{- /* re-run: pre-check whatever is currently enabled (persisted resolved state). */ -}}
-{{-           range $menuFeats }}{{ if dig "components" $c.key .key false $root }}{{ $seedOpts = append $seedOpts (get $subOptOf .key) }}{{ end }}{{ end -}}
+{{-           range $menuFeats -}}
+{{-             $featureOn := dig "components" $c.key .key false $root -}}
+{{-             if and (eq $c.key "ai") (eq .key "opencode") }}{{- $featureOn = or $featureOn (dig "components" "ai" "opencode2" false $root) -}}{{- end -}}
+{{-             if and (eq $c.key "git") (eq .key "config") }}{{- $featureOn = or $featureOn (dig "components" "git" "personal" false $root) -}}{{- end -}}
+{{-             if $featureOn }}{{ $seedOpts = append $seedOpts (get $subOptOf .key) }}{{ end -}}
+{{-           end -}}
 {{-         end -}}
 {{-         $subOpts := list -}}
 {{-         range $menuFeats }}{{ $subOpts = append $subOpts (squote (get $subOptOf .key)) }}{{ end -}}
@@ -236,12 +255,23 @@
 {{- /* Match by whole token, not substring. Split $subSel on spaces/commas into a  */ -}}
 {{- /* set (gum yields leading keys; the typed menu yields keys or numbers), then a  */ -}}
 {{- /* feature is on iff its key OR its num is a token. The old substring `contains`  */ -}}
-{{- /* false-matched a superstring key or an embedded digit: selecting "opencode2"   */ -}}
-{{- /* also lit "opencode" and codex_hooks (num 2). Mirrors the top-level $selSet.    */ -}}
+{{- /* false-matched superstring keys or embedded digits. Mirrors $selSet above. */ -}}
 {{-       $subTokens := dict -}}
 {{-       range (splitList " " (trim (replace "," " " $subSel))) }}{{ if ne . "" }}{{ $subTokens = set $subTokens . true }}{{ end }}{{ end -}}
+{{- /* An old `all+` config may carry newer resolved booleans than its raw */ -}}
+{{- /* submenu string. Preserve the union so migration cannot disable a feature. */ -}}
+{{-       if $legacyAllPlus -}}
+{{-         range $feats }}{{- if dig "components" $c.key .key false $root }}{{- $subTokens = set $subTokens .key true }}{{- end }}{{- end -}}
+{{-       end -}}
+{{- /* Persisted OpenCode V2 selections used the old `opencode2` key/number 7. */ -}}
+{{-       if and (eq $c.key "ai") (or (hasKey $subTokens "opencode2") (hasKey $subTokens "7") (dig "components" "ai" "opencode2" false $root)) }}{{- $subTokens = set $subTokens "opencode" true }}{{- end -}}
+{{- /* Personal identity used to be a peer of managed Git config. Promote a */ -}}
+{{- /* personal-only old selection to managed config before resolving fields. */ -}}
+{{-       if and (eq $c.key "git") (or (hasKey $subTokens "personal") (hasKey $subTokens "2") (dig "components" "git" "personal" false $root)) }}{{- $subTokens = set $subTokens "config" true }}{{- end -}}
 {{-       range $feats }}{{ $r = set $r .key (or (hasKey $subTokens .key) (hasKey $subTokens .num)) }}{{ end -}}
-{{-       $stored = $subSel -}}
+{{-       $storedKeys := list -}}
+{{-       range $feats }}{{ if get $r .key }}{{ $storedKeys = append $storedKeys .key }}{{ end }}{{ end -}}
+{{-       $stored = join " " $storedKeys -}}
 {{-     else -}}
 {{-       range $feats }}{{ $r = set $r .key false }}{{ end -}}
 {{-     end -}}
@@ -250,11 +280,18 @@
 {{-   end -}}
 {{- end -}}
 
+{{- /* CodeCompanion cannot run without Neovim, so selecting it enables the */ -}}
+{{- /* Neovim component before package planning and confirmation. */ -}}
+{{- if get (get $subResolved "ai") "codecompanion" -}}
+{{-   $resolved = set $resolved "neovim" true -}}
+{{- end -}}
+
 {{- /* Global palette selection. Color values live in .chezmoidata/palettes.yaml;   */ -}}
 {{- /* the generated $paletteDefs list below carries stable ids and names because    */ -}}
 {{- /* chezmoi does not load .chezmoidata while rendering this config template. The   */ -}}
-{{- /* picker runs only when the `colorscheme` component was checked this init: gum   */ -}}
-{{- /* choose when available, typed promptString otherwise. Unchecked keeps the      */ -}}
+{{- /* picker runs only when the `colorscheme` action was checked this init: a        */ -}}
+{{- /* searchable Gum list when available, numbered promptString otherwise.           */ -}}
+{{- /* Unchecked keeps the current palette.                                            */ -}}
 {{- /* current palette and echoes it. DOTFILES_PALETTE sets it for automation;        */ -}}
 {{- /* DOTFILES_NO_TUI keeps validation on the persisted value.                       */ -}}
 {{- /* GENERATED-PALETTES-BEGIN (scripts/build-palettes.py; do not edit by hand) */ -}}
@@ -284,21 +321,32 @@
 {{- $paletteInput := "" -}}
 {{- if $wantPick -}}
 {{-   $paletteInput = trim (env "DOTFILES_PALETTE") -}}
-{{-   if and (eq $paletteInput "") (not (env "DOTFILES_NO_TUI")) (stdinIsATTY) -}}
-{{-     if lookPath "gum" -}}
+{{-   if and (eq $paletteInput "") (not (env "DOTFILES_NO_TUI")) -}}
+{{-     if and (lookPath "gum") (stdinIsATTY) -}}
 {{-       $paletteOpts := list -}}
-{{-       range $paletteIDs }}{{- $paletteOpts = append $paletteOpts (squote .) -}}{{- end -}}
-{{-       $pcmd := printf "test -e /dev/tty && gum choose --header %s --selected %s %s </dev/tty 2>/dev/tty || true" (squote "Pick a color scheme") (squote $palette) (join " " $paletteOpts) -}}
-{{-       $paletteInput = trim (output "sh" "-c" $pcmd) -}}
+{{-       $paletteOptOf := dict -}}
+{{-       range $paletteDefs }}{{- $paletteOptOf = set $paletteOptOf .id (printf "%s (%s)" .name .id) -}}{{- end -}}
+{{-       range $paletteDefs }}{{- $paletteOpts = append $paletteOpts (squote (get $paletteOptOf .id)) -}}{{- end -}}
+{{-       $pcmd := printf "test -e /dev/tty && gum filter --header %s --placeholder %s --selected %s %s </dev/tty 2>/dev/tty || true" (squote "Pick a color theme") (squote "Type to filter themes...") (squote (get $paletteOptOf $palette)) (join " " $paletteOpts) -}}
+{{-       $paletteChoice := trim (output "sh" "-c" $pcmd) -}}
+{{-       range $paletteDefs }}{{- if eq $paletteChoice (get $paletteOptOf .id) }}{{- $paletteInput = .id -}}{{- end }}{{- end -}}
 {{-     else -}}
-{{-       $palettePrompt := printf "Shared palette (%s)" (join " / " $paletteIDs) -}}
-{{-       $paletteInput = trim (promptString $palettePrompt $palette) -}}
+{{-       $paletteLines := list "Color themes:" -}}
+{{-       range $idx, $definition := $paletteDefs }}{{- $paletteLines = append $paletteLines (printf "  %d) %s" (add1 $idx) $definition.name) -}}{{- end -}}
+{{-       $palettePrompt := printf "%s\n\nEnter a number; press Enter to keep %s" (join "\n" $paletteLines) $palette -}}
+{{-       $paletteInput = trim (promptString $palettePrompt "") -}}
 {{-     end -}}
 {{-   end -}}
 {{-   if ne $paletteInput "" -}}
-{{-     $paletteInput = $paletteInput | lower | replace "_" "-" | replace " " "-" -}}
+{{-     if regexMatch "^[0-9]+$" $paletteInput -}}
+{{-       $numberedPalette := "" -}}
+{{-       range $idx, $definition := $paletteDefs }}{{- if eq $paletteInput (printf "%d" (add1 $idx)) }}{{- $numberedPalette = $definition.id -}}{{- end }}{{- end -}}
+{{-       $paletteInput = $numberedPalette -}}
+{{-     else -}}
+{{-       $paletteInput = $paletteInput | lower | replace "_" "-" | replace " " "-" -}}
+{{-     end -}}
 {{-     if not (has $paletteInput $paletteIDs) -}}
-{{-       fail (printf "Unknown palette %q. Choose one of: %s" $paletteInput (join ", " $paletteIDs)) -}}
+{{-       fail (printf "Unknown palette selection %q. Choose a listed number or set DOTFILES_PALETTE to one of: %s" $paletteInput (join ", " $paletteIDs)) -}}
 {{-     end -}}
 {{-     $palette = $paletteInput -}}
 {{-   end -}}
@@ -309,20 +357,6 @@
 {{-   $_ := output "sh" "-c" (printf "printf '%%s\\n' %s >/dev/tty 2>/dev/null || true" (squote $msg)) -}}
 {{- end -}}
 {{- $zshTheme := dig "zshTheme" "gud" $root -}}
-{{- /* Personal Git identity is host-private chezmoi data, never repository data. */ -}}
-{{- $gitName := dig "gitName" "" $root -}}
-{{- $gitEmail := dig "gitEmail" "" $root -}}
-{{- if get (get $subResolved "git") "personal" -}}
-{{-   if eq $gitName "" }}{{- $gitName = trim (promptStringOnce $root "gitName" "Personal Git name") -}}{{- end -}}
-{{-   if eq $gitEmail "" }}{{- $gitEmail = trim (promptStringOnce $root "gitEmail" "Personal Git email") -}}{{- end -}}
-{{-   if or (eq $gitName "") (hasPrefix "Personal Git name" $gitName) -}}
-{{-     fail "git > personal requires a non-empty Git name" -}}
-{{-   end -}}
-{{-   if or (eq $gitEmail "") (hasPrefix "Personal Git email" $gitEmail) -}}
-{{-     fail "git > personal requires a non-empty Git email" -}}
-{{-   end -}}
-{{- end -}}
-
 {{- /* Final confirmation happens inside the init template, before chezmoi applies */ -}}
 {{- /* any target files. The helper and install.sh consume the same package planner. */ -}}
 {{- $notifyEnabled := or
@@ -330,8 +364,7 @@
       (get $resolved "tmux")
       (get (get $subResolved "ai") "claude_hooks")
       (get (get $subResolved "ai") "codex_hooks")
-      (get (get $subResolved "ai") "opencode")
-      (get (get $subResolved "ai") "opencode2") -}}
+      (get (get $subResolved "ai") "opencode") -}}
 {{- $confirmEnv := list
       (printf "INSTALL_ZSH=%t" (get $resolved "zsh"))
       (printf "INSTALL_TMUX=%t" (get $resolved "tmux"))
@@ -340,12 +373,12 @@
       (printf "INSTALL_AI_CODECOMPANION=%t" (get (get $subResolved "ai") "codecompanion"))
       (printf "INSTALL_AI_STATUSLINE=%t" (get (get $subResolved "ai") "statusline"))
       (printf "INSTALL_AI_OPENCODE=%t" (get (get $subResolved "ai") "opencode"))
-      (printf "INSTALL_AI_OPENCODE2=%t" (get (get $subResolved "ai") "opencode2"))
       (printf "INSTALL_AI_COPILOT=%t" (get (get $subResolved "ai") "copilot"))
       (printf "INSTALL_TERMINAL_GHOSTTY=%t" (get (get $subResolved "terminal") "ghostty"))
       (printf "INSTALL_TERMINAL_ITERM2=%t" (get (get $subResolved "terminal") "iterm2"))
 -}}
 {{- $installMode := env "DOTFILES_INSTALL_MODE" -}}
+{{- $packageRun := int (dig "packageRun" 0 $root) -}}
 {{- /* Reuse the persisted installMode on a re-init so `chezmoi init` does not re-show */ -}}
 {{- /* the package plan + mode prompt every time. A first init (no persisted value)    */ -}}
 {{- /* still prompts; DOTFILES_INSTALL_MODE still overrides. Package install/upgrade is */ -}}
@@ -354,10 +387,23 @@
 {{- if and (ne $installMode "") (ne $installMode "configs") (ne $installMode "packages") -}}
 {{-   fail "DOTFILES_INSTALL_MODE must be 'configs' or 'packages'" -}}
 {{- end -}}
+{{- $assumeYesValue := lower (trim (env "DOTFILES_ASSUME_YES")) -}}
+{{- $assumeYes := has $assumeYesValue (list "1" "true" "yes" "y") -}}
+{{- $headlessPackageUpdate := and $packageUpdate (not (stdinIsATTY)) -}}
+{{- if $headlessPackageUpdate -}}
+{{-   if or (ne (env "DOTFILES_INSTALL_MODE") "packages") (not $assumeYes) -}}
+{{-     fail "Headless package update requires DOTFILES_PACKAGE_UPDATE=1, DOTFILES_INSTALL_MODE=packages, and DOTFILES_ASSUME_YES=1" -}}
+{{-   end -}}
+{{-   $installMode = "packages" -}}
+{{- end -}}
 {{- /* Show the plan + packages/configs prompt on a first init (no persisted mode) or */ -}}
 {{- /* when the `install_mode` toggle was checked this interactive init. Automation     */ -}}
 {{- /* (DOTFILES_INSTALL_MODE / DOTFILES_NO_TUI / no tty) never re-prompts.              */ -}}
-{{- $wantMode := or (eq $installMode "") (and (get $resolved "install_mode") (eq (env "DOTFILES_INSTALL_MODE") "") (not (env "DOTFILES_NO_TUI")) (stdinIsATTY)) -}}
+{{- /* DOTFILES_PACKAGE_UPDATE is the scoped `cup` re-init path. It keeps the     */ -}}
+{{- /* persisted component/sub-feature selections, then opens only this mode      */ -}}
+{{- /* confirmation. Choosing packages increments packageRun, which changes the    */ -}}
+{{- /* rendered run_once content without deleting unrelated chezmoi script state.  */ -}}
+{{- $wantMode := or (eq $installMode "") (and (or (get $resolved "install_mode") $packageUpdate) (eq (env "DOTFILES_INSTALL_MODE") "") (not (env "DOTFILES_NO_TUI")) (stdinIsATTY)) -}}
 {{- if $wantMode -}}
 {{-   $hasTTY := trim (output "sh" "-c" "test -e /dev/tty && (: </dev/tty) 2>/dev/null && printf tty || true") -}}
 {{-   if eq $hasTTY "" -}}
@@ -367,6 +413,12 @@
 {{-   $installMode = trim (output "sh" "-c" $confirmCmd) -}}
 {{-   if eq $installMode "exit" }}{{- fail "Installation cancelled before apply" -}}{{- end -}}
 {{-   if and (ne $installMode "configs") (ne $installMode "packages") }}{{- fail "Could not determine installation mode" -}}{{- end -}}
+{{- end -}}
+{{- /* Interactive package confirmation or the complete three-variable headless     */ -}}
+{{- /* update contract advances the trigger. Config-only choices, ordinary apply,    */ -}}
+{{- /* and DOTFILES_INSTALL_MODE by itself keep the persisted integer unchanged.     */ -}}
+{{- if or (and $wantMode (eq $installMode "packages") (eq (env "DOTFILES_INSTALL_MODE") "") (stdinIsATTY)) $headlessPackageUpdate -}}
+{{-   $packageRun = add1 $packageRun -}}
 {{- end -}}
 
 # Keep chezmoi's own file and external progress visible during init --apply.
@@ -380,12 +432,10 @@ progress = true
     palette = {{ $palette | quote }}
     zshTheme = {{ $zshTheme | quote }}
     installMode = {{ $installMode | quote }}
-{{ if get (get $subResolved "git") "personal" }}    gitName = {{ $gitName | quote }}
-    gitEmail = {{ $gitEmail | quote }}
-{{ end }}
+    packageRun = {{ $packageRun }}
 
 [data.components]
-{{ range $components }}{{ if and (eq (len .sub) 0) (not (hasKey . "action")) }}    {{ .key }} = {{ get $resolved .key }}
+{{ range $components }}{{ if eq (len .sub) 0 }}    {{ .key }} = {{ get $resolved .key }}
 {{ end }}{{ end }}
 [data.components.git]
 {{ range $gitFeatures }}    {{ .key }} = {{ get (get $subResolved "git") .key }}
