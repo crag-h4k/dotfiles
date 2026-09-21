@@ -5,6 +5,20 @@ import { Plugin, usePlugin } from "@opencode/plugin/tui"
 import { Rpc } from "@opencode/plugin/rpc"
 import { useTerminalDimensions } from "@opentui/solid"
 import { createEffect, createMemo, createSignal, onCleanup, Show } from "solid-js"
+import {
+  SPINNER_INTERVAL_MS,
+  CONTEXT_ICON,
+  COST_ICON,
+  PROVIDER_ICON,
+  familyActivity,
+  foregroundSpinnerActive,
+  foregroundSpinnerFrame,
+  spinnerClockActive,
+  statusVisibility,
+  subagentIcon,
+  subagentLabel,
+  waitingForInput,
+} from "./spinner.mjs"
 
 const COLOR = {
   surface: {{ $p.colors.surface | quote }},
@@ -15,8 +29,11 @@ const COLOR = {
   identity: {{ $p.colors.purple | quote }},
   build: {{ $p.colors.green | quote }},
   plan: {{ $p.colors.blue | quote }},
+  foregroundSpinner: {{ $p.colors.cyan | quote }},
   elapsed: {{ $p.colors.cyan | quote }},
   subagents: {{ $p.colors.orange | quote }},
+  context: {{ $p.colors.cyan | quote }},
+  cost: {{ $p.colors.green | quote }},
   limit: {{ $p.colors.blue | quote }},
   limitWarning: {{ $p.colors.yellow | quote }},
   limitError: {{ $p.colors.red | quote }},
@@ -25,6 +42,7 @@ const COLOR = {
 type Location = { directory: string; workspaceID?: string }
 type GitStats = { files: number; additions: number; deletions: number }
 type Identity = { agent: string; model?: string; effort?: string; color: string }
+type ProviderStatus = { text: string; color: string }
 type CopilotUsage = {
   usedPercent: number
   remaining: number
@@ -137,14 +155,33 @@ function IdentityPill(props: { value: Identity }) {
   )
 }
 
+function useSpinnerClock(active: () => boolean) {
+  const [tick, setTick] = createSignal(0)
+
+  createEffect(() => {
+    if (!active()) {
+      setTick(0)
+      return
+    }
+    const timer = setInterval(() => setTick((value) => value + 1), SPINNER_INTERVAL_MS)
+    onCleanup(() => clearInterval(timer))
+  })
+
+  return tick
+}
+
 function StatusPills(props: {
   sessionID?: string
+  mode?: "normal" | "shell"
   showDetails: boolean
   home?: boolean
   location: Location
   branch: () => string | undefined
   git: () => GitStats
   now: () => number
+  contextUsage?: string
+  cost?: string
+  provider?: ProviderStatus
 }) {
   const context = usePlugin()
   const terminal = useTerminalDimensions()
@@ -193,23 +230,36 @@ function StatusPills(props: {
 
   const subagents = createMemo(() => {
     const id = props.sessionID
-    if (!id) return undefined
+    if (!id) return { running: 0, queued: 0 }
     const root = context.data.session.root(id)
     const children = context.data.session.family(root).filter((child) => child !== root)
-    const running = children.filter((child) => context.data.session.status(child) === "running").length
-    const queued = children.reduce(
-      (total, child) => total + context.data.session.pending.list(child).length,
-      0,
+    return familyActivity(
+      children,
+      (child) => context.data.session.status(child),
+      (child) => context.data.session.pending.list(child).length,
     )
-    const parts = [running ? `${running} run` : "", queued ? `${queued} queued` : ""].filter(Boolean)
-    return parts.join(" · ") || undefined
   })
 
-  const hasGit = () => Boolean(git())
-  const showIdentity = () =>
-    !props.home && terminal().width >= 85 && (!hasGit() || terminal().width >= 125)
-  const showElapsed = () =>
-    !props.home && terminal().width >= 115 && (!hasGit() || terminal().width >= 150)
+  const visibility = createMemo(() =>
+    statusVisibility(terminal().width, Boolean(git()), Boolean(props.home)),
+  )
+  const foreground = createMemo(() => {
+    const id = props.sessionID
+    if (!id) return false
+    const blocked = waitingForInput(
+      context.data.session.permission.list(id)?.length ?? 0,
+      context.data.session.form.list(id)?.length ?? 0,
+    )
+    return foregroundSpinnerActive({
+      mode: props.mode ?? "normal",
+      status: context.data.session.status(id),
+      waiting: blocked,
+      identityVisible: visibility().identity,
+    })
+  })
+  const animate = createMemo(() => spinnerClockActive(foreground(), subagents().running))
+  const tick = useSpinnerClock(animate)
+  const subagentStatus = createMemo(() => subagentLabel(subagents()) || undefined)
 
   return (
     <box flexDirection="row" flexShrink={1} minWidth={0} gap={1}>
@@ -223,14 +273,38 @@ function StatusPills(props: {
           />
         )}
       </Show>
-      <Show when={showIdentity() && identity()}>
-        {(value) => <IdentityPill value={value()} />}
+      <Show when={visibility().identity && identity()}>
+        {(value) => (
+          <box flexDirection="row" flexShrink={0} gap={1}>
+            <Show when={foreground()}>
+              <text fg={COLOR.foregroundSpinner} width={1} wrapMode="none" flexShrink={0}>
+                {foregroundSpinnerFrame(tick())}
+              </text>
+            </Show>
+            <IdentityPill value={value()} />
+          </box>
+        )}
       </Show>
-      <Show when={showElapsed() && age()}>
+      <Show when={visibility().elapsed && age()}>
         {(value) => <Pill icon="󰥔" value={value()} accent={COLOR.elapsed} />}
       </Show>
-      <Show when={!props.home && subagents()}>
-        {(value) => <Pill icon="󰓻" value={value()} accent={COLOR.subagents} />}
+      <Show when={!props.home && subagentStatus()}>
+        {(value) => (
+          <Pill
+            icon={subagentIcon(subagents().running, tick())}
+            value={value()}
+            accent={COLOR.subagents}
+          />
+        )}
+      </Show>
+      <Show when={visibility().context && props.contextUsage}>
+        {(value) => <Pill icon={CONTEXT_ICON} value={value()} accent={COLOR.context} />}
+      </Show>
+      <Show when={visibility().cost && props.cost}>
+        {(value) => <Pill icon={COST_ICON} value={value()} accent={COLOR.cost} />}
+      </Show>
+      <Show when={visibility().provider && props.provider}>
+        {(value) => <Pill icon={PROVIDER_ICON} value={value().text} accent={value().color} />}
       </Show>
     </box>
   )
@@ -298,13 +372,14 @@ function SessionFooter(props: {
     void context.data.session.message.sync(id)
   })
 
-  const metrics = createMemo(() => {
+  const usage = createMemo(() => {
     const id = props.sessionID
-    if (!id) return []
+    if (!id) return { context: undefined, cost: undefined }
     const cost = context.data.session.cost(id)
-    return [contextUsage(context, id), cost > 0 ? MONEY.format(cost) : undefined].filter(
-      (value): value is string => Boolean(value),
-    )
+    return {
+      context: contextUsage(context, id),
+      cost: cost > 0 ? MONEY.format(cost) : undefined,
+    }
   })
 
   const provider = createMemo(() => {
@@ -344,32 +419,16 @@ function SessionFooter(props: {
       </Show>
       <StatusPills
         sessionID={props.sessionID}
+        mode={props.mode}
         showDetails={props.showDetails}
         location={props.location}
         branch={props.branch}
         git={props.git}
         now={props.now}
+        contextUsage={usage().context}
+        cost={usage().cost}
+        provider={provider()}
       />
-      <box flexGrow={1} />
-      <Show when={!guidance() && (metrics().length > 0 || provider())}>
-        <box flexDirection="row" flexShrink={0}>
-          <Show when={metrics().length > 0}>
-            <text fg={COLOR.foreground} wrapMode="none">
-              {metrics().join(" · ")}
-            </text>
-          </Show>
-          <Show when={metrics().length > 0 && provider()}>
-            <text fg={COLOR.foreground}> · </text>
-          </Show>
-          <Show when={provider()}>
-            {(value) => (
-              <text fg={value().color} wrapMode="none">
-                {value().text}
-              </text>
-            )}
-          </Show>
-        </box>
-      </Show>
     </box>
   )
 }

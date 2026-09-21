@@ -86,9 +86,10 @@ if [[ -d "$backup_root" ]]; then
     done
 fi
 
-# chezmoi applies managed files and fetches/refreshes the .chezmoiexternal.toml
-# plugin repos next, interleaved. There is no "before externals only" hook
+# chezmoi applies managed files and clones missing .chezmoiexternal.toml plugin
+# repos next, interleaved. Package mode refreshes existing checkouts later. There
+# is no "before externals only" hook
 # (run_before scripts fire before the whole apply, not specifically before
 # externals), so this is a coarse phase marker for "the next step includes
 # externals"; per-file detail comes from `progress = true` in .chezmoi.toml.tmpl.
-printf 'dotfiles: applying configs and fetching any updated externals...\n'
+printf 'dotfiles: applying configs and fetching missing selected externals...\n'

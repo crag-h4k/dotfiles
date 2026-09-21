@@ -53,6 +53,8 @@ export_install_base() {
   export INSTALL_ZSH=false INSTALL_TMUX=false INSTALL_NEOVIM=false INSTALL_NOTIFY=false
   export INSTALL_AI_CODECOMPANION=false INSTALL_AI_STATUSLINE=false
   export INSTALL_TERMINAL_GHOSTTY=false INSTALL_TERMINAL_ITERM2=false
+  export DOTFILES_SOURCE_ROOT="${TEST_HOME}/source"
+  mkdir -p "$DOTFILES_SOURCE_ROOT"
   export HOME="${TEST_HOME}" PATH="${STUB_DIR}:${PATH}"
 }
 

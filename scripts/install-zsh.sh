@@ -1,7 +1,8 @@
 #!/usr/bin/env bash
 # Install zsh and its packages, then set zsh as the login shell.
 # oh-my-zsh and the zsh-users plugins are NOT cloned here: they are chezmoi
-# externals (see home/.chezmoiexternal.toml) fetched and refreshed by chezmoi apply.
+# externals (see home/.chezmoiexternal.toml). Chezmoi clones missing checkouts;
+# approved package mode refreshes clean checkouts by fast-forward.
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 # shellcheck source-path=SCRIPTDIR

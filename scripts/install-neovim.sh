@@ -27,86 +27,137 @@ source "$SCRIPT_DIR/common.sh"
 # Off by default (and for standalone runs); turned on by the ai > codecompanion
 # sub-feature in the configure menu.
 INSTALL_AI_CODECOMPANION="${INSTALL_AI_CODECOMPANION:-false}"
+DOTFILES_NODE_READY="${DOTFILES_NODE_READY:-true}"
+
+_nvim_venv_health() {
+    local venv="$1"
+    [[ -x "$venv/bin/python" ]] || return 1
+    "$venv/bin/python" -c 'import pynvim' >/dev/null 2>&1
+}
+
+update_nvim_venv() {
+    local target="$1" releases
+    local stage release_id release link_tmp previous="" old_link=""
+    releases="${target}-releases"
+    mkdir -p "$releases"
+    stage=$(mktemp -d "$releases/.stage.XXXXXX") || return 1
+    if ! python3 -m venv "$stage" \
+        || ! "$stage/bin/python" -m pip install --quiet --upgrade pynvim \
+        || ! _nvim_venv_health "$stage"; then
+        warn "Neovim Python provider staging failed; keeping the current venv"
+        rm -rf "$stage"
+        return 1
+    fi
+
+    release_id="$(date +%s).$$"
+    release="$releases/$release_id"
+    mv "$stage" "$release" || { rm -rf "$stage"; return 1; }
+    link_tmp="${target}.new.$$"
+    rm -f "$link_tmp"
+    ln -s "$release" "$link_tmp" || return 1
+
+    if [[ -L "$target" ]]; then
+        old_link=$(readlink "$target") || { rm -f "$link_tmp"; return 1; }
+    elif [[ -e "$target" ]]; then
+        previous="$releases/previous-$release_id"
+        if ! mv "$target" "$previous"; then
+            rm -f "$link_tmp"
+            return 1
+        fi
+    fi
+    if ! mv -f "$link_tmp" "$target"; then
+        rm -f "$link_tmp"
+        if [[ -n "$previous" && ! -e "$target" ]]; then
+            mv "$previous" "$target" || true
+        fi
+        return 1
+    fi
+    if ! _nvim_venv_health "$target"; then
+        rm -f "$target"
+        if [[ -n "$old_link" ]]; then
+            ln -s "$old_link" "$target" || true
+        elif [[ -n "$previous" ]]; then
+            mv "$previous" "$target" || true
+        fi
+        return 1
+    fi
+}
 
 main() {
     local os
     os=$(os_detect)
     info "install-neovim: $os"
+    package_results_reset
 
     # Packages and standalone binaries are installed by install.sh before this
     # post-install step runs.
 
     # On Debian: markdownlint-cli2 is not in apt; install via npm.
-    if [[ "$os" == "debian" ]]; then
-        npm install -g --prefix "$HOME/.local" markdownlint-cli2 \
-            || warn "markdownlint-cli2 npm install failed; continuing"
+    if [[ "$os" == "debian" && "$DOTFILES_NODE_READY" == true ]]; then
+        package_try "markdownlint-cli2 latest npm release" \
+            npm install -g --prefix "$HOME/.local" markdownlint-cli2@latest || true
+    elif [[ "$os" == "debian" ]]; then
+        package_skip "markdownlint-cli2 npm update; Node.js 24+ unavailable"
     fi
 
     # prettierd: persistent Prettier daemon that conform.nvim shells out to for
     # json/jsonc/yaml formatting. npm-only (no Homebrew formula), so install on
-    # both platforms; node comes from the neovim package set (brew node on
-    # macOS, NodeSource on Debian). Install only when absent, like the others.
-    if ! command -v prettierd >/dev/null 2>&1; then
-        info "installing prettierd (conform.nvim formatter)"
-        npm install -g --prefix "$HOME/.local" @fsouza/prettierd \
-            || warn "prettierd npm install failed; conform.nvim will skip formatting until it is on PATH"
+    # both platforms; node comes from the selected package set. The dist-tag is
+    # floating, so every approved package run checks and advances it.
+    if [[ "$DOTFILES_NODE_READY" == true ]]; then
+        package_try "prettierd latest npm release" \
+            npm install -g --prefix "$HOME/.local" @fsouza/prettierd@latest || true
     else
-        info "prettierd already on PATH: $(command -v prettierd)"
+        package_skip "prettierd npm update; Node.js 24+ unavailable"
     fi
 
-    # Python venv used as the py3 provider. Kept OUTSIDE the chezmoi-managed
-    # ~/.config/nvim tree so `chezmoi apply`/purge never collides with it, and
-    # created unconditionally (init.lua points python3_host_prog here).
+    # Python provider updates stage in a sibling release directory. The stable
+    # nvim-venv symlink moves only after pynvim imports successfully.
     local nvim_dir="$HOME/.config/nvim"
     local nvim_venv="$HOME/.local/share/nvim-venv"
-    if [[ ! -d "$nvim_venv" ]]; then
-        info "creating $nvim_venv and installing pynvim"
-        python3 -m venv "$nvim_venv"
-        "$nvim_venv/bin/pip" install --quiet --upgrade pip || warn "pip self-upgrade failed; continuing"
-        "$nvim_venv/bin/pip" install --quiet pynvim neovim \
-            || warn "pynvim install failed; :checkhealth will flag the missing py3 provider"
-    else
-        info "$nvim_venv already exists"
-    fi
+    package_try "Neovim Python provider transaction" update_nvim_venv "$nvim_venv" || true
 
     # luacheck for the pre-commit lua linter (runs as language:system, so it must
     # be on PATH). luacheck 1.2.0 does not run on Lua 5.5; on macOS build it
     # against lua@5.4. Installed to the user rock tree and symlinked into
     # ~/.local/bin (already on PATH per the zsh config).
-    if ! command -v luacheck >/dev/null 2>&1; then
-        info "installing luacheck"
-        mkdir -p "$HOME/.local/bin"
-        case "$os" in
-            macos)
-                luarocks --lua-version=5.4 --lua-dir "$(brew --prefix lua@5.4)" install --local luacheck \
-                    || warn "luacheck install failed; the lua pre-commit hook will not run until it is on PATH"
-                ;;
-            debian)
-                # apt luarocks pairs with a Lua that luacheck supports (<= 5.4).
-                luarocks install luacheck \
-                    || warn "luacheck install failed; the lua pre-commit hook will not run until it is on PATH"
-                ;;
-        esac
-        # Only symlink if the rock actually installed (guards against a dangling link).
-        [[ -e "$HOME/.luarocks/bin/luacheck" ]] && ln -sf "$HOME/.luarocks/bin/luacheck" "$HOME/.local/bin/luacheck"
-    else
-        info "luacheck already on PATH: $(command -v luacheck)"
-    fi
+    mkdir -p "$HOME/.local/bin"
+    case "$os" in
+        macos)
+            package_try "Luacheck latest LuaRocks release" \
+                luarocks --lua-version=5.4 --lua-dir "$(brew --prefix lua@5.4)" install --local luacheck || true
+            ;;
+        debian)
+            # apt luarocks pairs with a Lua that luacheck supports (<= 5.4).
+            package_try "Luacheck latest LuaRocks release" luarocks install luacheck || true
+            ;;
+    esac
+    # Only symlink if the rock actually installed (guards against a dangling link).
+    [[ -e "$HOME/.luarocks/bin/luacheck" ]] && ln -sf "$HOME/.luarocks/bin/luacheck" "$HOME/.local/bin/luacheck"
 
     # CodeCompanion's Claude Code ACP adapter spawns `claude-agent-acp`. Install
     # it (npm comes from the node install above) to ~/.local/bin so no sudo is
     # needed and it lands on PATH. Gated on the ai > codecompanion sub-feature.
-    if [[ "$INSTALL_AI_CODECOMPANION" == true ]] && ! command -v claude-agent-acp >/dev/null 2>&1; then
-        info "installing claude-agent-acp (CodeCompanion ACP bridge)"
-        npm install -g --prefix "$HOME/.local" @agentclientprotocol/claude-agent-acp \
-            || warn "claude-agent-acp install failed; CodeCompanion chat will not start until it is on PATH"
+    if [[ "$INSTALL_AI_CODECOMPANION" == true && "$DOTFILES_NODE_READY" == true ]]; then
+        package_try "claude-agent-acp latest npm release" \
+            npm install -g --prefix "$HOME/.local" @agentclientprotocol/claude-agent-acp@latest || true
+    elif [[ "$INSTALL_AI_CODECOMPANION" == true ]]; then
+        package_skip "claude-agent-acp npm update; Node.js 24+ unavailable"
     fi
 
     # Pre-warm lazy.nvim plugins (non-fatal if it fails, e.g. no network).
     if command -v nvim >/dev/null 2>&1 && [[ -f "$nvim_dir/init.lua" ]]; then
-        info "pre-warming lazy.nvim plugins (headless)"
-        nvim --headless "+Lazy! sync" +qa 2>&1 | tail -5 || warn "lazy sync did not complete cleanly"
+        package_try "Lazy plugin sync" nvim --headless "+Lazy! sync" +qa || true
+        package_try "Treesitter parser and Mason package updates" \
+            nvim --headless -l "$SCRIPT_DIR/update-neovim-packages.lua" || true
+    else
+        package_skip "Neovim plugin updates; nvim or init.lua unavailable"
     fi
+
+    package_results_summary "Neovim package run"
+    [[ "$_package_results_failed" -eq 0 ]]
 }
 
-main "$@"
+if [[ "${BASH_SOURCE[0]}" == "$0" ]]; then
+    main "$@"
+fi

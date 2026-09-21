@@ -1,0 +1,161 @@
+#!/usr/bin/env bash
+# ~/.tmux/bin/tpm-local-plugins
+# Restrict TPM package operations to plugins declared in the local override.
+
+set -euo pipefail
+
+tmux_environment_value() {
+    tmux show-environment -g "$1" 2>/dev/null | sed -n "s/^$1=//p"
+}
+
+plugin_root="$(tmux_environment_value TMUX_PLUGIN_MANAGER_PATH)"
+plugin_root="${plugin_root:-$HOME/.tmux/plugins/}"
+tpm_dir="${plugin_root%/}/tpm"
+plugin_helper="$tpm_dir/scripts/helpers/plugin_functions.sh"
+
+if [[ ! -r "$plugin_helper" ]]; then
+    printf 'TPM helper not found: %s\n' "$plugin_helper" >&2
+    exit 1
+fi
+
+# shellcheck source=/dev/null
+source "$plugin_helper"
+
+managed_references="$(tmux show-option -gqv @dotfiles_tpm_managed_plugins)"
+if [[ -z "$managed_references" ]]; then
+    printf 'Managed TPM plugin inventory is not configured.\n' >&2
+    exit 1
+fi
+
+local_plugin_references() {
+    local combined
+
+    # e261deb emits @tpm_plugins first, followed by each literal @plugin found in
+    # the main config and directly sourced files. Drop the runtime line to retain
+    # only adopter declarations, then deduplicate exact references. Run the
+    # upstream helper without errexit because its optional /etc/tmux.conf read
+    # returns non-zero when that file is absent, before it scans sourced files.
+    combined="$(set +e; set +u; tpm_plugins_list_helper)"
+    printf '%s\n' "$combined" | sed '1d' | awk 'NF && !seen[$0]++'
+}
+
+is_managed_name() {
+    local wanted="$1" reference name
+
+    for reference in $managed_references; do
+        name="$(plugin_name_helper "${reference%%#*}")"
+        [[ "$name" == "$wanted" ]] && return 0
+    done
+    return 1
+}
+
+local_plugin_names() {
+    local reference name
+
+    while IFS= read -r reference; do
+        [[ -n "$reference" ]] || continue
+        name="$(plugin_name_helper "${reference%%#*}")"
+        is_managed_name "$name" || printf '%s\n' "$name"
+    done < <(local_plugin_references)
+}
+
+is_local_name() {
+    local wanted="$1" name
+
+    while IFS= read -r name; do
+        [[ "$name" == "$wanted" ]] && return 0
+    done < <(local_plugin_names)
+    return 1
+}
+
+original_plugins=""
+restore_needed=0
+
+restore_plugins() {
+    if (( restore_needed )); then
+        tmux set-option -gq @tpm_plugins "$original_plugins"
+        restore_needed=0
+    fi
+}
+
+set_plugins_temporarily() {
+    original_plugins="$(tmux show-option -gqv @tpm_plugins)"
+    restore_needed=1
+    tmux set-option -gq @tpm_plugins "$1"
+}
+
+trap restore_plugins EXIT
+trap 'exit 1' HUP INT TERM
+
+install_local_plugins() {
+    local rc=0
+
+    # TPM's installer has no explicit-name mode. Hide the runtime managed list
+    # while it reads literal local declarations from override.conf.
+    set_plugins_temporarily ""
+    "$tpm_dir/bin/install_plugins" || rc=$?
+    restore_plugins
+    return "$rc"
+}
+
+update_local_plugins() {
+    local requested requested_name name rc=0
+    local names=()
+
+    [[ $# -gt 0 && -n "$1" ]] || return 0
+    if [[ "$1" == all ]]; then
+        while IFS= read -r name; do
+            [[ -n "$name" ]] && names+=("$name")
+        done < <(local_plugin_names)
+    else
+        for requested in "$@"; do
+            requested_name="$(plugin_name_helper "${requested%%#*}")"
+            if ! is_local_name "$requested_name"; then
+                printf 'Refusing to update non-local TPM plugin: %s\n' \
+                    "$requested_name" >&2
+                return 1
+            fi
+            names+=("$requested_name")
+        done
+    fi
+
+    if (( ${#names[@]} == 0 )); then
+        printf 'No local TPM plugins to update.\n'
+        return 0
+    fi
+
+    "$tpm_dir/bin/update_plugins" "${names[@]}" || rc=$?
+    return "$rc"
+}
+
+clean_local_plugins() {
+    local protected rc=0
+
+    # TPM clean only knows its combined plugin string. Add every chezmoi-owned
+    # checkout temporarily, including managed plugins disabled for startup.
+    protected="$(tmux show-option -gqv @tpm_plugins) $managed_references"
+    set_plugins_temporarily "$protected"
+    "$tpm_dir/bin/clean_plugins" || rc=$?
+    restore_plugins
+    return "$rc"
+}
+
+case "${1:-}" in
+    list)
+        local_plugin_names
+        ;;
+    install)
+        install_local_plugins
+        ;;
+    update)
+        shift
+        update_local_plugins "$@"
+        ;;
+    clean)
+        clean_local_plugins
+        ;;
+    *)
+        printf 'usage: %s {list|install|update [all|plugin...]|clean}\n' "$0" >&2
+        exit 2
+        ;;
+esac

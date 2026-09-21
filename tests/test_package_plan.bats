@@ -11,11 +11,12 @@ PLANNER="${BATS_TEST_DIRNAME}/../scripts/package-plan.sh"
     INSTALL_TERMINAL_GHOSTTY=true INSTALL_TERMINAL_ITERM2=true \
     bash "$PLANNER" --records
   [ "$status" -eq 0 ]
-  [ -z "$(printf '%s\n' "$output" | awk -F '\t' 'NF != 4 || ($3 != "installed" && $3 != "planned" && $3 != "update")')" ]
+  [ -z "$(printf '%s\n' "$output" | awk -F '\t' 'NF != 6 || ($3 != "installed" && $3 != "planned" && $3 != "update")')" ]
   [ "$(printf '%s\n' "$output" | grep -c $'^brew-formula\tpython3\t')" -eq 1 ]
-  [[ "$output" == *$'brew-cask\tghostty\tplanned\tHomebrew cask'* ]]
+  [[ "$output" == *$'brew-cask\tghostty\tplanned\tfloating\tHomebrew cask'* ]]
   [[ "$output" == *$'npm\t@agentclientprotocol/claude-agent-acp\tplanned\t'* ]]
-  [[ "$output" == *$'git-external\ttmux-plugins/tpm\tplanned\t'* ]]
+  [[ "$output" == *$'git-runtime\ttmux-plugins/tpm\tplanned\tfloating\t'* ]]
+  [[ "$output" == *'https://github.com/tmux-plugins/tpm.git'* ]]
   [[ "$output" == *$'neovim-plugin\tlazy.nvim plugin set\tplanned\t'* ]]
 }
 
@@ -25,20 +26,19 @@ PLANNER="${BATS_TEST_DIRNAME}/../scripts/package-plan.sh"
   [ "$status" -eq 0 ]
   [[ "$output" == *$'github-release\tyq\tplanned\t'* ]]
   [[ "$output" != *$'git-external\tohmyzsh/ohmyzsh\t'* ]]
-  [[ "$output" != *$'git-external\ttmux-plugins/tpm\t'* ]]
+  [[ "$output" != *$'git-runtime\ttmux-plugins/tpm\t'* ]]
 }
 
-@test "Debian plan routes neovim/fzf/zoxide through Debian main and drops ghostty" {
+@test "Debian plan keeps fzf/zoxide in apt and uses one upstream Neovim tree" {
   run env DOTFILES_PLAN_OS=debian DOTFILES_PLAN_ASSUME_MISSING=1 \
     INSTALL_ZSH=true INSTALL_NEOVIM=true INSTALL_TERMINAL_GHOSTTY=true \
     bash "$PLANNER" --records
   [ "$status" -eq 0 ]
-  # neovim/fzf/zoxide now install straight from Debian main.
-  [[ "$output" == *$'apt\tneovim\tplanned\tDebian apt repository'* ]]
-  [[ "$output" == *$'apt\tfzf\tplanned\tDebian apt repository'* ]]
-  [[ "$output" == *$'apt\tzoxide\tplanned\tDebian apt repository'* ]]
-  # neovim must no longer be a github-release binary download.
-  [[ "$output" != *$'github-release\tneovim\t'* ]]
+  # fzf/zoxide install from Debian main; Neovim is one versioned upstream tree.
+  [[ "$output" == *$'apt\tfzf\tplanned\tfloating\tDebian apt repository'* ]]
+  [[ "$output" == *$'apt\tzoxide\tplanned\tfloating\tDebian apt repository'* ]]
+  [[ "$output" == *$'github-release\tneovim\tplanned\tfloating\t'* ]]
+  [[ "$output" != *$'apt\tneovim\t'* ]]
   # ghostty is no longer part of the Debian plan even when its component is on.
   [[ "$output" != *ghostty* ]]
 }
@@ -92,7 +92,7 @@ STUB
   chmod +x "${stubdir}/brew"
   # No DOTFILES_PLAN_ASSUME_MISSING, so status probing loads the brew inventory.
   # Multiple formula packages must still collapse to a single brew list of each kind.
-  run env PATH="${stubdir}:${PATH}" DOTFILES_PLAN_OS=macos \
+  run env PATH="${stubdir}:${PATH}" DOTFILES_PLAN_OS=macos DOTFILES_PLAN_APPROVED=1 \
     INSTALL_ZSH=true INSTALL_TMUX=true INSTALL_NEOVIM=true \
     bash "$PLANNER" --display
   [ "$status" -eq 0 ]
@@ -100,19 +100,36 @@ STUB
   [ "$(grep -c 'list --cask' "$log")" -eq 1 ]
 }
 
-@test "opencode2 alone plans @opencode/cli AND the Node runtime (macOS)" {
+@test "managed Ghostty cask remains eligible for update" {
+  local stubdir="${BATS_TEST_TMPDIR}/ghostty-stub"
+  mkdir -p "$stubdir"
+  cat >"${stubdir}/brew" <<'STUB'
+#!/bin/sh
+case "$*" in
+  "list --cask") printf 'ghostty\n' ;;
+  "outdated --cask --quiet") printf 'ghostty\n' ;;
+esac
+STUB
+  chmod +x "${stubdir}/brew"
+  run env PATH="${stubdir}:${PATH}" DOTFILES_PLAN_OS=macos DOTFILES_PLAN_APPROVED=1 \
+    INSTALL_TERMINAL_GHOSTTY=true bash "$PLANNER" --records
+  [ "$status" -eq 0 ]
+  [[ "$output" == *$'brew-cask\tghostty\tupdate\tfloating\t'* ]]
+}
+
+@test "OpenCode V2 alone plans @opencode/cli AND the Node runtime (macOS)" {
   # Node-dependent AI feature without neovim must still plan node (provides npm),
   # else install-opencode2.sh finds no npm and soft-fails silently.
   run env DOTFILES_PLAN_OS=macos DOTFILES_PLAN_ASSUME_MISSING=1 \
-    INSTALL_AI_OPENCODE2=true bash "$PLANNER" --records
+    INSTALL_AI_OPENCODE=true bash "$PLANNER" --records
   [ "$status" -eq 0 ]
   [[ "$output" == *$'npm\t@opencode/cli\tplanned\t'* ]]
   [[ "$output" == *$'brew-formula\tnode\tplanned\t'* ]]
 }
 
-@test "opencode2 alone plans @opencode/cli AND the Node runtime (Debian)" {
+@test "OpenCode V2 alone plans @opencode/cli AND the Node runtime (Debian)" {
   run env DOTFILES_PLAN_OS=debian DOTFILES_PLAN_ASSUME_MISSING=1 \
-    INSTALL_AI_OPENCODE2=true bash "$PLANNER" --records
+    INSTALL_AI_OPENCODE=true bash "$PLANNER" --records
   [ "$status" -eq 0 ]
   [[ "$output" == *$'npm\t@opencode/cli\tplanned\t'* ]]
   [[ "$output" == *$'apt\tnodejs\tplanned\t'* ]]
@@ -126,7 +143,16 @@ STUB
   [[ "$output" == *$'brew-formula\tnode\tplanned\t'* ]]
 }
 
-@test "opencode2 off keeps @opencode/cli out of the plan" {
+@test "CodeCompanion automatically plans Neovim" {
+  run env DOTFILES_PLAN_OS=macos DOTFILES_PLAN_ASSUME_MISSING=1 \
+    INSTALL_AI_CODECOMPANION=true bash "$PLANNER" --records
+  [ "$status" -eq 0 ]
+  [[ "$output" == *$'brew-formula\tneovim\tplanned\t'* ]]
+  [[ "$output" == *$'npm\t@agentclientprotocol/claude-agent-acp\tplanned\t'* ]]
+  [[ "$output" == *$'neovim-plugin\tlazy.nvim plugin set\tplanned\t'* ]]
+}
+
+@test "OpenCode V2 off keeps @opencode/cli out of the plan" {
   run env DOTFILES_PLAN_OS=macos DOTFILES_PLAN_ASSUME_MISSING=1 \
     INSTALL_ZSH=true INSTALL_TMUX=true INSTALL_NEOVIM=true bash "$PLANNER" --records
   [ "$status" -eq 0 ]

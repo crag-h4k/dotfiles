@@ -1,4 +1,5 @@
 #!/usr/bin/env bash
+# scripts/common.sh
 # Shared helpers for dotfiles install scripts. Source, do not exec.
 
 set -euo pipefail
@@ -10,6 +11,42 @@ _COMMON_SH_DIR="$(cd "$(dirname "${BASH_SOURCE[0]:-$0}")" && pwd)"
 die() { printf 'dotfiles: %s\n' "$*" >&2; exit 1; }
 info() { printf '==> %s\n' "$*"; }
 warn() { printf 'WARN: %s\n' "$*" >&2; }
+
+# Best-effort package runs keep independent failures visible without stopping
+# later package sources. Call package_results_reset once per reporting scope,
+# wrap each independent operation with package_try, then print one summary.
+_package_results_ok=0
+_package_results_failed=0
+_package_results_skipped=0
+
+package_results_reset() {
+    _package_results_ok=0
+    _package_results_failed=0
+    _package_results_skipped=0
+}
+
+package_try() {
+    local label="$1"
+    shift
+    if "$@"; then
+        _package_results_ok=$((_package_results_ok + 1))
+        info "$label: ok"
+        return 0
+    fi
+    _package_results_failed=$((_package_results_failed + 1))
+    warn "$label: failed; continuing"
+    return 1
+}
+
+package_skip() {
+    _package_results_skipped=$((_package_results_skipped + 1))
+    info "$1: skipped"
+}
+
+package_results_summary() {
+    local scope="${1:-packages}"
+    info "$scope summary: ok=$_package_results_ok failed=$_package_results_failed skipped=$_package_results_skipped"
+}
 
 # os_detect → "macos" | "debian" | "unsupported"
 os_detect() {
@@ -311,6 +348,27 @@ github_latest_release_tag() {
     printf '%s\n' "$tag"
 }
 
+github_latest_release_asset_sha256() {
+    local repo="$1" asset="$2" tmp_json digest
+    tmp_json=$(mktemp)
+    if ! curl -fsSL -o "$tmp_json" "https://api.github.com/repos/${repo}/releases/latest"; then
+        rm -f "$tmp_json"
+        return 1
+    fi
+    digest=$(awk -F'"' -v asset="$asset" '
+        $2 == "name" && $4 == asset { found = 1; next }
+        found && $2 == "digest" && $4 ~ /^sha256:/ {
+            sub(/^sha256:/, "", $4)
+            print $4
+            exit
+        }
+        found && $2 == "name" { found = 0 }
+    ' "$tmp_json")
+    rm -f "$tmp_json"
+    [[ "$digest" =~ ^[0-9a-fA-F]{64}$ ]] || return 1
+    printf '%s\n' "$digest"
+}
+
 tflint_release_arch() {
     case "$1" in
         x86_64|amd64)  echo "amd64" ;;
@@ -343,29 +401,79 @@ tree_sitter_cli_release_sha256() {
     esac
 }
 
+sha256_file() {
+    local file="$1" output
+    if command -v sha256sum >/dev/null 2>&1; then
+        output=$(sha256sum "$file") || return 1
+        printf '%s\n' "${output%% *}"
+        return 0
+    fi
+    if command -v shasum >/dev/null 2>&1; then
+        output=$(shasum -a 256 "$file") || return 1
+        printf '%s\n' "${output%% *}"
+        return 0
+    fi
+    if command -v openssl >/dev/null 2>&1; then
+        output=$(openssl dgst -sha256 "$file") || return 1
+        printf '%s\n' "${output##* }"
+        return 0
+    fi
+    warn "no SHA-256 implementation found (sha256sum, shasum, or openssl)"
+    return 1
+}
+
+verify_sha256() {
+    local file="$1" expected="$2" actual
+    actual=$(sha256_file "$file") || return 1
+    [[ "$actual" == "$expected" ]]
+}
+
 verify_release_checksum() {
-    local dir="$1" checksums="$2" asset="$3"
+    local dir="$1" checksums="$2" asset="$3" expected
     (
         cd "$dir"
-        awk -v asset="$asset" '$2 == asset || $2 == "*" asset' "$checksums" \
-            > selected-checksum.txt
-        [[ -s selected-checksum.txt ]]
-        sha256sum -c selected-checksum.txt
+        expected=$(awk -v asset="$asset" '$2 == asset || $2 == "*" asset { print $1; exit }' "$checksums")
+        [[ "$expected" =~ ^[0-9a-fA-F]{64}$ ]]
+        verify_sha256 "$asset" "$expected"
     )
 }
 
+verify_release_checksum_bsd() {
+    local dir="$1" checksums="$2" asset="$3" expected
+    (
+        cd "$dir"
+        expected=$(awk -v asset="$asset" \
+            '$1 == "SHA256" && $2 == "(" asset ")" && $3 == "=" { print $4; exit }' \
+            "$checksums")
+        [[ "$expected" =~ ^[0-9a-fA-F]{64}$ ]]
+        verify_sha256 "$asset" "$expected"
+    )
+}
+
+# Replace a user-local executable only after its downloaded candidate has been
+# verified. The temporary file lives beside the destination, so mv is atomic.
+atomic_install_binary() {
+    local source="$1" destination="$2" tmp
+    mkdir -p "$(dirname "$destination")"
+    tmp=$(mktemp "${destination}.tmp.XXXXXX") || return 1
+    if ! install -m 0755 "$source" "$tmp" || ! mv -f "$tmp" "$destination"; then
+        rm -f "$tmp"
+        return 1
+    fi
+}
+
 install_tree_sitter_cli_debian() {
-    local version_line major=0 minor=0
+    local version_line installed=""
     if command -v tree-sitter >/dev/null 2>&1; then
         version_line=$(tree-sitter --version 2>/dev/null || true)
-        if [[ "$version_line" =~ tree-sitter[[:space:]]+([0-9]+)\.([0-9]+) ]]; then
-            major="${BASH_REMATCH[1]}"
-            minor="${BASH_REMATCH[2]}"
+        if [[ "$version_line" =~ tree-sitter[[:space:]]+([0-9]+\.[0-9]+\.[0-9]+) ]]; then
+            installed="${BASH_REMATCH[1]}"
         fi
-        if (( major > 0 || minor >= 26 )); then
-            info "tree-sitter CLI ${major}.${minor} already >= 0.26, skipping"
+        if [[ "$installed" == 0.26.11 ]]; then
+            info "tree-sitter CLI 0.26.11 pin already installed; reasserted"
             return 0
         fi
+        info "tree-sitter CLI ${installed:-unknown} differs from pinned 0.26.11; reasserting the pin"
     fi
 
     require_cmd curl
@@ -379,7 +487,7 @@ install_tree_sitter_cli_debian() {
     info "fetching tree-sitter CLI ${tag} ($(uname -m))"
     if ! curl -fsSL -o "$tmp_dir/$asset" \
         "https://github.com/tree-sitter/tree-sitter/releases/download/${tag}/${asset}" \
-        || ! printf '%s  %s\n' "$expected_sha" "$tmp_dir/$asset" | sha256sum -c -; then
+        || ! verify_sha256 "$tmp_dir/$asset" "$expected_sha"; then
         warn "tree-sitter CLI download or checksum verification failed"
         rm -rf "$tmp_dir"
         return 1
@@ -388,16 +496,16 @@ install_tree_sitter_cli_debian() {
     unzip -oq "$tmp_dir/$asset" -d "$tmp_dir/unpack"
     [[ -x "$tmp_dir/unpack/tree-sitter" ]] \
         || { warn "tree-sitter CLI archive did not contain the expected binary"; rm -rf "$tmp_dir"; return 1; }
-    install -m 0755 "$tmp_dir/unpack/tree-sitter" "$HOME/.local/bin/tree-sitter"
+    if ! atomic_install_binary "$tmp_dir/unpack/tree-sitter" "$HOME/.local/bin/tree-sitter"; then
+        warn "tree-sitter CLI atomic replacement failed"
+        rm -rf "$tmp_dir"
+        return 1
+    fi
     rm -rf "$tmp_dir"
     info "tree-sitter CLI installed: $("$HOME/.local/bin/tree-sitter" --version 2>/dev/null)"
 }
 
 install_tflint_debian() {
-    if command -v tflint >/dev/null 2>&1; then
-        info "tflint already on PATH: $(command -v tflint)"
-        return 0
-    fi
     require_cmd curl
     require_cmd unzip
     local arch tag asset tmp_dir
@@ -419,16 +527,16 @@ install_tflint_debian() {
     fi
     unzip -oq "$tmp_dir/$asset" -d "$tmp_dir/unpack"
     mkdir -p "$HOME/.local/bin"
-    install -m 0755 "$tmp_dir/unpack/tflint" "$HOME/.local/bin/tflint"
+    if ! atomic_install_binary "$tmp_dir/unpack/tflint" "$HOME/.local/bin/tflint"; then
+        warn "tflint atomic replacement failed"
+        rm -rf "$tmp_dir"
+        return 1
+    fi
     rm -rf "$tmp_dir"
     info "tflint installed: $("$HOME/.local/bin/tflint" --version 2>/dev/null | head -1)"
 }
 
 install_tenv_debian() {
-    if command -v tenv >/dev/null 2>&1 && [[ -x "$HOME/.local/bin/terraform" ]]; then
-        info "tenv and its terraform proxy already present"
-        return 0
-    fi
     require_cmd curl
     local arch tag asset checksums tmp_dir
     arch=$(tenv_release_arch "$(uname -m)") \
@@ -452,103 +560,239 @@ install_tenv_debian() {
     tar -xzf "$tmp_dir/$asset" -C "$tmp_dir/unpack"
     [[ -x "$tmp_dir/unpack/tenv" && -x "$tmp_dir/unpack/terraform" ]] \
         || { warn "tenv archive did not contain the expected proxies"; rm -rf "$tmp_dir"; return 1; }
-    install -m 0755 "$tmp_dir/unpack/tenv" "$HOME/.local/bin/tenv"
-    install -m 0755 "$tmp_dir/unpack/terraform" "$HOME/.local/bin/terraform"
+    if ! atomic_install_binary "$tmp_dir/unpack/tenv" "$HOME/.local/bin/tenv" \
+        || ! atomic_install_binary "$tmp_dir/unpack/terraform" "$HOME/.local/bin/terraform"; then
+        warn "tenv atomic replacement failed"
+        rm -rf "$tmp_dir"
+        return 1
+    fi
     rm -rf "$tmp_dir"
     info "tenv installed: $("$HOME/.local/bin/tenv" --version 2>/dev/null | head -1)"
 }
 
-verify_node_major() {
-    local wanted="$1" version major
+verify_node_min_major() {
+    local minimum="$1" version major
     command -v node >/dev/null 2>&1 || return 1
     version=$(node --version 2>/dev/null) || return 1
     major=${version#v}
     major=${major%%.*}
-    [[ "$major" == "$wanted" ]]
+    [[ "$major" =~ ^[0-9]+$ ]] || return 1
+    (( major >= minimum ))
+}
+
+# NodeSource is needed for every selected feature that installs an npm CLI, not
+# only for Neovim. Keep this predicate shared by planning, repository setup, and
+# post-install verification so an AI-only Debian host gets Node.js 24 too.
+node_runtime_selected() {
+    [[ "${INSTALL_NEOVIM:-false}" == true \
+        || "${INSTALL_AI_CODECOMPANION:-false}" == true \
+        || "${INSTALL_AI_OPENCODE:-false}" == true \
+        || "${INSTALL_AI_COPILOT:-false}" == true ]]
+}
+
+_tenv_terraform_lock_file() {
+    local lock_dir
+    lock_dir="${TENV_LOCK_PATH:-${TENV_ROOT:-${TFENV_ROOT:-$HOME/.tenv}}}"
+    printf '%s/Terraform.lock\n' "${lock_dir%/}"
+}
+
+_prepare_tenv_terraform_lock() {
+    local lock_file="$1"
+    [[ -e "$lock_file" || -L "$lock_file" ]] || return 0
+
+    if [[ -L "$lock_file" || ! -f "$lock_file" || ! -O "$lock_file" ]]; then
+        warn "refusing to remove an unsafe tenv lock: $lock_file"
+        return 1
+    fi
+    if [[ -n "$(find "$lock_file" -mmin -10 -print -quit 2>/dev/null)" ]]; then
+        warn "tenv lock is recent; skipping Terraform bootstrap instead of waiting: $lock_file"
+        return 1
+    fi
+    if ! command -v pgrep >/dev/null 2>&1; then
+        warn "cannot verify the owner of an old tenv lock without pgrep: $lock_file"
+        return 1
+    fi
+    if pgrep -x tenv >/dev/null 2>&1; then
+        warn "tenv is still running; preserving its lock: $lock_file"
+        return 1
+    fi
+    if ! rm -f -- "$lock_file"; then
+        warn "could not remove stale tenv lock: $lock_file"
+        return 1
+    fi
+    info "removed stale tenv lock: $lock_file"
 }
 
 bootstrap_tenv_terraform() {
-    local tenv_bin
+    local tenv_bin lock_file
     if [[ -x "$HOME/.local/bin/tenv" ]]; then
         tenv_bin="$HOME/.local/bin/tenv"
     else
         tenv_bin=$(command -v tenv 2>/dev/null) || return 1
     fi
+    lock_file=$(_tenv_terraform_lock_file)
+    _prepare_tenv_terraform_lock "$lock_file" || return 1
     info "installing the latest stable Terraform fallback with tenv"
     TENV_AUTO_INSTALL=true TENV_VALIDATION=signature "$tenv_bin" tf install latest
     TENV_AUTO_INSTALL=true TENV_VALIDATION=signature "$tenv_bin" tf use latest
 }
 
-# Install the latest tagged neovim release from GitHub, system-wide.
-# Removes the apt package if an older version is installed.
-# Installs to /opt/nvim with a symlink at /usr/local/bin/nvim (all users).
-install_neovim_debian() {
-    local major=0 minor=0
-    if command -v nvim >/dev/null 2>&1; then
-        local ver_line
-        ver_line=$(nvim --version 2>/dev/null | head -1)
-        if [[ "$ver_line" =~ NVIM[[:space:]]v([0-9]+)\.([0-9]+) ]]; then
-            major="${BASH_REMATCH[1]}"
-            minor="${BASH_REMATCH[2]}"
+_neovim_tree_health() {
+    local tree="$1"
+    [[ -x "$tree/bin/nvim" && -d "$tree/share/nvim/runtime" ]] || return 1
+    VIMRUNTIME="$tree/share/nvim/runtime" \
+        "$tree/bin/nvim" --headless -u NONE -i NONE '+quitall' >/dev/null 2>&1
+}
+
+# Replace one path with another using rename(2) semantics. Unlike `mv -f`,
+# os.replace does not follow a destination symlink that points at a directory.
+# That distinction is required for atomic `current` pointer updates on macOS.
+atomic_replace_path() {
+    local source="$1" destination="$2" python
+    python=$(command -v python3) || { warn "python3 is required for an atomic path switch"; return 1; }
+    "$python" -c 'import os, sys; os.replace(sys.argv[1], sys.argv[2])' \
+        "$source" "$destination"
+}
+
+sudo_atomic_replace_path() {
+    local source="$1" destination="$2" python
+    python=$(command -v python3) || { warn "python3 is required for an atomic path switch"; return 1; }
+    sudo "$python" -c 'import os, sys; os.replace(sys.argv[1], sys.argv[2])' \
+        "$source" "$destination"
+}
+
+_restore_neovim_pointer() {
+    local root="$1" old_target="$2" tmp_link
+    tmp_link="$root/.current-rollback.$$"
+    if [[ -n "$old_target" ]]; then
+        sudo rm -f "$tmp_link"
+        sudo ln -s "$old_target" "$tmp_link" \
+            && sudo_atomic_replace_path "$tmp_link" "$root/current"
+    else
+        sudo rm -f "$root/current"
+    fi
+}
+
+activate_neovim_tree() {
+    local root="$1" public_bin="$2" tag="$3" stage="$4"
+    local releases release
+    local old_target="" pointer_tmp="$root/.current-new.$$"
+    local wrapper_tmp wrapper_stage="${public_bin}.dotfiles-new" public_backup="${public_bin}.previous"
+    local had_public=false
+    releases="$root/releases"
+    release="$releases/$tag"
+
+    _neovim_tree_health "$stage" || { warn "neovim staged tree failed its headless health check"; return 1; }
+    sudo mkdir -p "$releases" "$(dirname "$public_bin")"
+    if [[ -e "$release" ]]; then
+        if _neovim_tree_health "$release"; then
+            sudo rm -rf "$stage"
+        else
+            sudo mv "$release" "${release}.invalid.$(date +%s).$$"
+            sudo mv "$stage" "$release"
         fi
-        if (( major > 0 || minor >= 11 )); then
-            info "neovim ${major}.${minor} already >= 0.11, skipping"
-            return 0
-        fi
-        info "neovim ${major}.${minor} < 0.11; removing apt package"
-        sudo apt-get remove -y neovim 2>/dev/null || true
+    else
+        sudo mv "$stage" "$release"
     fi
 
-    local arch
-    case "$(uname -m)" in
-        x86_64)        arch="x86_64" ;;
-        aarch64|arm64) arch="arm64"  ;;
-        *)
-            warn "unsupported arch $(uname -m) for prebuilt neovim; install manually"
-            return 1
-            ;;
-    esac
+    if [[ -e "$root/current" || -L "$root/current" ]]; then
+        [[ -L "$root/current" ]] || { warn "neovim current pointer is not a symlink"; return 1; }
+        old_target=$(readlink "$root/current") || { warn "could not inspect neovim current pointer"; return 1; }
+    fi
 
-    require_cmd curl
-    info "fetching latest neovim release tag from GitHub"
-    local tag
-    local tmp_json
-    tmp_json=$(mktemp)
-    # Guarded (not bare) so a 403/offline does not trip set -e before the
-    # graceful return below; the unauthenticated GitHub API is 60 req/hr/IP.
-    if ! curl -fsSL -o "$tmp_json" "https://api.github.com/repos/neovim/neovim/releases/latest"; then
-        warn "could not reach the GitHub API for the latest neovim release"
-        rm -f "$tmp_json"
+    wrapper_tmp=$(mktemp)
+    {
+        printf '#!/bin/sh\n'
+        printf 'export VIMRUNTIME=%s\n' "$(printf '%q' "$root/current/share/nvim/runtime")"
+        printf 'exec %s "\$@"\n' "$(printf '%q' "$root/current/bin/nvim")"
+    } >"$wrapper_tmp"
+    sudo install -m 0755 "$wrapper_tmp" "$wrapper_stage" || { rm -f "$wrapper_tmp"; return 1; }
+    rm -f "$wrapper_tmp"
+
+    if [[ -e "$public_bin" || -L "$public_bin" ]]; then
+        had_public=true
+        sudo cp -pP "$public_bin" "$public_backup" || return 1
+    fi
+    sudo rm -f "$pointer_tmp"
+    sudo ln -s "releases/$tag" "$pointer_tmp" || return 1
+    sudo_atomic_replace_path "$pointer_tmp" "$root/current" || return 1
+    if ! sudo mv -f "$wrapper_stage" "$public_bin"; then
+        _restore_neovim_pointer "$root" "$old_target"
         return 1
     fi
-    tag=$(awk -F'"' '/tag_name/{print $4; exit}' "$tmp_json")
-    rm -f "$tmp_json"
-    [[ -n "$tag" ]] || { warn "could not determine latest neovim release tag"; return 1; }
-    info "installing neovim ${tag} (${arch}) to /opt/nvim"
+    if ! "$public_bin" --headless -u NONE -i NONE '+quitall' >/dev/null 2>&1; then
+        _restore_neovim_pointer "$root" "$old_target"
+        if [[ -e "$public_backup" || -L "$public_backup" ]]; then
+            sudo mv -f "$public_backup" "$public_bin"
+        elif [[ "$had_public" == false ]]; then
+            sudo rm -f "$public_bin"
+        fi
+        warn "neovim activated tree failed through the public wrapper; rolled back"
+        return 1
+    fi
+}
 
-    local tmp_dir
+# Install the latest tagged Neovim release as one versioned binary/runtime/lib
+# tree. The current pointer changes only after a headless health check passes.
+install_neovim_debian() {
+    require_cmd curl
+    local root="${DOTFILES_NVIM_ROOT:-/opt/dotfiles-neovim}"
+    local public_bin="${DOTFILES_NVIM_BIN:-/usr/local/bin/nvim}"
+    local tag latest installed="" arch tmp_dir asset expected_sha stage
+
+    info "fetching latest neovim release tag from GitHub"
+    tag=$(github_latest_release_tag neovim/neovim) \
+        || { warn "could not determine latest neovim release tag"; return 1; }
+    latest="${tag#v}"
+    if [[ -x "$root/current/bin/nvim" ]] && _neovim_tree_health "$root/current"; then
+        installed=$("$root/current/bin/nvim" --version 2>/dev/null | head -1)
+        installed=${installed#NVIM v}
+        if [[ "$installed" == "$latest" ]]; then
+            info "neovim ${installed} versioned tree is current"
+            if command -v dpkg-query >/dev/null 2>&1 \
+                && [[ "$(dpkg-query -W -f='${Status}' neovim 2>/dev/null || true)" == "install ok installed" ]]; then
+                sudo apt-get remove -y neovim || warn "could not remove the conflicting APT neovim package"
+            fi
+            return 0
+        fi
+    fi
+
+    case "$(uname -m)" in
+        x86_64)        arch="x86_64" ;;
+        aarch64|arm64) arch="arm64" ;;
+        *) warn "unsupported arch $(uname -m) for prebuilt neovim"; return 1 ;;
+    esac
+
     tmp_dir=$(mktemp -d)
-    if ! curl -fSL -o "$tmp_dir/nvim.tar.gz" \
-        "https://github.com/neovim/neovim/releases/download/${tag}/nvim-linux-${arch}.tar.gz"; then
-        warn "neovim ${tag} download failed; leaving the existing neovim in place"
+    asset="nvim-linux-${arch}.tar.gz"
+    expected_sha=$(github_latest_release_asset_sha256 neovim/neovim "$asset") \
+        || { warn "neovim ${tag} release metadata has no SHA256 digest for $asset"; rm -rf "$tmp_dir"; return 1; }
+    if ! curl -fSL -o "$tmp_dir/$asset" \
+        "https://github.com/neovim/neovim/releases/download/${tag}/${asset}" \
+        || ! verify_sha256 "$tmp_dir/$asset" "$expected_sha"; then
+        warn "neovim ${tag} download or checksum verification failed"
         rm -rf "$tmp_dir"
         return 1
     fi
 
-    # Extract directly into /usr/local (strip the top-level nvim-linux-<arch>/ prefix).
-    # This puts the binary at /usr/local/bin/nvim and the runtime at
-    # /usr/local/share/nvim/runtime/ - the path the binary resolves at startup.
-    # A symlink would cause neovim to compute the wrong runtime root.
-    sudo tar -C /usr/local --strip-components=1 -xzf "$tmp_dir/nvim.tar.gz"
-
-    # Clean up any leftovers from the previous /opt/nvim symlink approach.
-    sudo rm -rf /opt/nvim
-
-    # Remove any user-local nvim left by an earlier version of this script.
-    rm -f "$HOME/.local/bin/nvim"
-
+    stage="$root/releases/.${tag}.stage.$$"
+    sudo mkdir -p "$stage"
+    if ! sudo tar -C "$stage" --strip-components=1 -xzf "$tmp_dir/$asset" \
+        || ! _neovim_tree_health "$stage"; then
+        warn "neovim ${tag} staged tree failed extraction or health check"
+        sudo rm -rf "$stage"
+        rm -rf "$tmp_dir"
+        return 1
+    fi
     rm -rf "$tmp_dir"
-    info "neovim ${tag} installed: $(nvim --version 2>/dev/null | head -1)"
+
+    activate_neovim_tree "$root" "$public_bin" "$tag" "$stage" || return 1
+    if command -v dpkg-query >/dev/null 2>&1 \
+        && [[ "$(dpkg-query -W -f='${Status}' neovim 2>/dev/null || true)" == "install ok installed" ]]; then
+        sudo apt-get remove -y neovim || warn "could not remove the conflicting APT neovim package"
+    fi
+    rm -f "$HOME/.local/bin/nvim"
+    info "neovim ${tag} activated at $root/current"
 }
 
 # True if a mikefarah yq is already on PATH. The `if`-condition placement is what
@@ -566,7 +810,7 @@ have_mikefarah_yq() {
 # so a proxy/transient failure (curl -o truncates on open, even with --fail) or a
 # wrong-arch download never leaves a broken executable at ~/.local/bin/yq.
 fetch_yq() {
-    local os="$1" arch tmp
+    local os="$1" arch asset tag tmp_dir
     case "$(uname -m)" in
         x86_64)        arch="amd64" ;;
         aarch64|arm64) arch="arm64" ;;
@@ -576,33 +820,157 @@ fetch_yq() {
             ;;
     esac
     require_cmd curl
-    mkdir -p "$HOME/.local/bin"
-    tmp=$(mktemp)
-    info "fetching mikefarah yq (${os}/${arch})"
-    if ! curl -fsSL --fail -o "$tmp" \
-        "https://github.com/mikefarah/yq/releases/latest/download/yq_${os}_${arch}"; then
-        warn "yq download failed; install manually from https://github.com/mikefarah/yq"
-        rm -f "$tmp"
+    tag=$(github_latest_release_tag mikefarah/yq) \
+        || { warn "could not determine the latest yq release"; return 1; }
+    asset="yq_${os}_${arch}"
+    tmp_dir=$(mktemp -d)
+    info "fetching mikefarah yq ${tag} (${os}/${arch})"
+    if ! curl -fsSL --fail -o "$tmp_dir/$asset" \
+        "https://github.com/mikefarah/yq/releases/download/${tag}/${asset}" \
+        || ! curl -fsSL --fail -o "$tmp_dir/checksums-bsd" \
+        "https://github.com/mikefarah/yq/releases/download/${tag}/checksums-bsd" \
+        || ! verify_release_checksum_bsd "$tmp_dir" checksums-bsd "$asset"; then
+        warn "yq download or checksum verification failed; leaving the existing binary untouched"
+        rm -rf "$tmp_dir"
         return 1
     fi
-    chmod +x "$tmp"
-    if ! "$tmp" --version 2>/dev/null | grep -qi mikefarah; then
+    chmod +x "$tmp_dir/$asset"
+    if ! "$tmp_dir/$asset" --version 2>/dev/null | grep -qi mikefarah; then
         warn "downloaded yq is not a working mikefarah binary; leaving existing yq untouched"
-        rm -f "$tmp"
+        rm -rf "$tmp_dir"
         return 1
     fi
-    mv -f "$tmp" "$HOME/.local/bin/yq"
+    if ! atomic_install_binary "$tmp_dir/$asset" "$HOME/.local/bin/yq"; then
+        warn "yq atomic replacement failed; leaving the existing binary untouched"
+        rm -rf "$tmp_dir"
+        return 1
+    fi
+    rm -rf "$tmp_dir"
     info "yq installed: $("$HOME/.local/bin/yq" --version 2>/dev/null)"
 }
 
 # Debian: ensure mikefarah yq (binary fetch). No-op if already present. Called by
 # install.sh for the tmux/zsh components.
 install_yq_debian() {
-    if have_mikefarah_yq; then
+    if [[ "${1:-missing-only}" != update ]] && have_mikefarah_yq; then
         info "mikefarah yq already present: $(yq --version 2>/dev/null)"
         return 0
     fi
     fetch_yq linux
+}
+
+canonical_git_url() {
+    local url="$1" path dir base
+    url="${url%/}"
+    url="${url%.git}"
+    case "$url" in
+        file://*) path="${url#file://}" ;;
+        /*|./*|../*) path="$url" ;;
+        git@*:*)
+            printf '%s\n' "${url#git@}" | sed 's/:/\//'
+            return 0
+            ;;
+        ssh://git@*) printf '%s\n' "${url#ssh://git@}"; return 0 ;;
+        https://*) printf '%s\n' "${url#https://}"; return 0 ;;
+        *) printf '%s\n' "$url"; return 0 ;;
+    esac
+    dir=$(dirname "$path")
+    base=$(basename "$path")
+    dir=$(cd "$dir" 2>/dev/null && pwd -P) || return 1
+    printf 'file://%s/%s\n' "${dir%/}" "$base"
+}
+
+# Chezmoi materializes selected missing externals as configuration payloads.
+# Package mode refreshes only an existing clean checkout whose configured
+# tracking remote still matches the declared URL.
+update_git_external() {
+    local label="$1" url="$2" path="$3"
+    local inside status branch upstream remote remote_url declared_url
+    local head remote_head base
+
+    if [[ ! -e "$path" ]]; then
+        warn "$label: checkout is missing; chezmoi must materialize it; skipped"
+        return 2
+    fi
+    if ! inside=$(git -C "$path" rev-parse --is-inside-work-tree 2>/dev/null) \
+        || [[ "$inside" != true ]]; then
+        warn "$label: $path exists but is not a git repository; skipped"
+        return 2
+    fi
+    if ! status=$(git -C "$path" status --porcelain 2>/dev/null); then
+        warn "$label: could not inspect checkout status; skipped"
+        return 2
+    fi
+    if [[ -n "$status" ]]; then
+        warn "$label: local changes present; skipped"
+        return 2
+    fi
+    if ! branch=$(git -C "$path" symbolic-ref --quiet --short HEAD 2>/dev/null); then
+        warn "$label: detached HEAD; skipped"
+        return 2
+    fi
+    if ! upstream=$(git -C "$path" rev-parse --abbrev-ref --symbolic-full-name '@{upstream}' 2>/dev/null); then
+        warn "$label: branch $branch has no upstream; skipped"
+        return 2
+    fi
+    if ! remote=$(git -C "$path" config --get "branch.$branch.remote" 2>/dev/null) \
+        || [[ -z "$remote" || "$remote" == . ]]; then
+        warn "$label: could not resolve a tracking remote for $branch; skipped"
+        return 2
+    fi
+    if ! remote_url=$(git -C "$path" remote get-url "$remote" 2>/dev/null) \
+        || ! remote_url=$(canonical_git_url "$remote_url") \
+        || ! declared_url=$(canonical_git_url "$url"); then
+        warn "$label: could not inspect or canonicalize remote URLs; skipped"
+        return 2
+    fi
+    if [[ "$remote_url" != "$declared_url" ]]; then
+        warn "$label: tracking remote $remote URL does not match the declared external; skipped"
+        return 2
+    fi
+    if ! git -C "$path" fetch --quiet "$remote"; then
+        warn "$label: fetch from tracking remote $remote failed; skipped"
+        return 1
+    fi
+    if ! head=$(git -C "$path" rev-parse HEAD 2>/dev/null) \
+        || ! remote_head=$(git -C "$path" rev-parse "$upstream" 2>/dev/null); then
+        warn "$label: could not inspect local or upstream HEAD; skipped"
+        return 2
+    fi
+    if [[ "$head" == "$remote_head" ]]; then
+        info "$label: already current"
+        return 0
+    fi
+    if ! base=$(git -C "$path" merge-base HEAD "$upstream" 2>/dev/null); then
+        warn "$label: could not inspect branch ancestry; skipped"
+        return 2
+    fi
+    if [[ "$base" == "$head" ]]; then
+        git -C "$path" merge --ff-only "$upstream"
+        return
+    fi
+    if [[ "$base" == "$remote_head" ]]; then
+        warn "$label: local branch is ahead of $upstream; skipped"
+        return 2
+    fi
+    warn "$label: local branch diverged from $upstream; skipped"
+    return 2
+}
+
+# Installer-owned Git runtime. Missing repositories are cloned only after the
+# package confirmation; existing repositories use the same dirty/divergence and
+# remote-integrity checks as other floating Git dependencies.
+install_or_update_git_runtime() {
+    local label="$1" url="$2" path="$3"
+    if [[ ! -e "$path" ]]; then
+        mkdir -p "$(dirname "$path")"
+        if ! git clone --depth=1 -- "$url" "$path"; then
+            warn "$label: clone failed"
+            return 1
+        fi
+        return 0
+    fi
+    update_git_external "$label" "$url" "$path"
 }
 
 # Ensure a mikefarah yq for the current platform: brew on macOS (binary fallback
@@ -773,7 +1141,7 @@ pkg_confirm() {
 
     dev="${DOTFILES_TTY:-/dev/tty}"
     if [[ -e "$dev" ]] && (: <"$dev") 2>/dev/null; then
-        plan="$("$_COMMON_SH_DIR/package-plan.sh" --display 2>/dev/null || true)"
+        plan="$(DOTFILES_PLAN_APPROVED=0 "$_COMMON_SH_DIR/package-plan.sh" --display 2>/dev/null || true)"
         {
             if [[ -n "$plan" ]]; then
                 printf '%s\n\n' "$plan"

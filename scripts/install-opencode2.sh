@@ -1,23 +1,10 @@
 #!/usr/bin/env bash
 # scripts/install-opencode2.sh
-# Opt-in OpenCode v2 install (ai > opencode2 sub-feature). Side-by-side with
-# v1: the @opencode/cli npm package is isolated under ~/.local/share/opencode2,
-# then only its `opencode2` binary is linked into ~/.local/bin. Stable V2 also
-# publishes an `opencode` bin, so a shared npm prefix would overwrite V1.
-# npm is chosen over the raw install script for the same reasons as
-# install-opencode.sh (exact pinning + the ~/.local prefix). Self-skips when a
-# pinned version is already present, and soft-fails so a fetch problem never aborts
-# the wider `chezmoi apply`.
-#
-# Reachability depends on the zsh component: it puts ~/.local/bin on PATH (via
-# ~/.zshenv) and defines the oc2/oc2bg aliases. With zsh deselected the binary
-# still installs but is not on PATH by name and has no aliases (run by full path or
-# add ~/.local/bin to PATH). Node/npm is planned by scripts/package-plan.sh for any
-# Node-dependent AI feature, so opencode2 no longer needs neovim to get a runtime.
-#
-# The generic config (theme, notifier bridge) is chezmoi-managed and shared with
-# v1; the private work layer (agents, mcp/instructions, work overlay) is unmanaged
-# local files this script never touches.
+# Install OpenCode V2 and its local plugin runtime transactionally.
+# Chezmoi owns ~/.local/bin/opencode2 as a wrapper. This installer switches only
+# the isolated native binary under ~/.local/share/opencode2 and node_modules
+# under ~/.config/opencode after both staged installations pass verification.
+
 set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -25,79 +12,187 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 # shellcheck source=common.sh
 source "$SCRIPT_DIR/common.sh"
 
-# OpenCode v2 release channel. Defaults to the floating stable `latest` dist-tag.
-# Set OPENCODE2_VERSION to an exact version (for example 2.0.8) to pin instead;
-# an exact pin self-skips on match, while `latest` always reinstalls to pull the
-# newest stable release. `beta` and `dev` remain available as explicit overrides.
 OPENCODE2_VERSION="${OPENCODE2_VERSION:-latest}"
 NPM_PREFIX="${OPENCODE2_NPM_PREFIX:-$HOME/.local/share/opencode2}"
-BIN_DIR="${OPENCODE2_BIN_DIR:-$HOME/.local/bin}"
-LEGACY_PREFIX="${OPENCODE2_LEGACY_PREFIX:-$HOME/.local}"
+WRAPPER="${OPENCODE2_WRAPPER:-$HOME/.local/bin/opencode2}"
 CONFIG_DIR="${OPENCODE2_CONFIG_DIR:-$HOME/.config/opencode}"
 
-main() {
-    if [[ "${INSTALL_AI_OPENCODE2:-false}" != true ]]; then
-        return 0
-    fi
+canonical_path() {
+    python3 - "$1" <<'PY'
+import os
+import sys
 
-    # Exact pin: skip when the installed version already matches. `opencode2
-    # --version` prints "opencode2 v<ver>", so take the last field and strip the
-    # leading v to compare against the npm version. The floating `latest` tag can't
-    # be compared to a version, so it always (re)installs to pull newest forward.
-    if [[ "$OPENCODE2_VERSION" != latest ]] && command -v opencode2 >/dev/null 2>&1; then
-        local have
-        # `|| true`: a present-but-unhealthy binary can exit nonzero, which under
-        # `set -o pipefail` would make this substitution fail and (with set -e)
-        # abort the installer before its soft-fail/reinstall path runs.
-        have="$(opencode2 --version 2>/dev/null | awk '{print $NF}' | tr -d '[:space:]' || true)"
-        have="${have#v}"
-        if [[ "$have" == "$OPENCODE2_VERSION" ]]; then
-            info "opencode2: v$OPENCODE2_VERSION already installed; skipping"
-            return 0
-        fi
-        info "opencode2: found ${have:-unknown}, installing pinned v$OPENCODE2_VERSION"
-    fi
-
-    if ! command -v npm >/dev/null 2>&1; then
-        warn "opencode2: npm not found; skipping. Install Node.js (the neovim component provides it) then re-run, or install opencode2 manually (curl -fsSL https://opencode.ai/v2/install | bash)."
-        return 0
-    fi
-
-    local link="$BIN_DIR/opencode2"
-    if [[ -e "$link" && ! -L "$link" ]]; then
-        warn "opencode2: refusing to replace non-symlink $link"
-        return 0
-    fi
-
-    if ! npm install -g --prefix "$NPM_PREFIX" "@opencode/cli@$OPENCODE2_VERSION"; then
-        warn "opencode2 install failed; continuing without it (retry: OPENCODE2_VERSION=$OPENCODE2_VERSION bash scripts/install-opencode2.sh)"
-        return 0
-    fi
-
-    local installed="$NPM_PREFIX/bin/opencode2"
-    if [[ ! -x "$installed" ]]; then
-        warn "opencode2: package installed without an executable at $installed"
-        return 0
-    fi
-
-    # Migrate the old beta layout only after the isolated install succeeds. The
-    # beta package exposed only `opencode2`; stable also exposes `opencode`, which
-    # is why it cannot remain in the shared prefix beside the V1 package.
-    if [[ "$LEGACY_PREFIX" != "$NPM_PREFIX" && -d "$LEGACY_PREFIX/lib/node_modules/@opencode/cli" ]]; then
-        npm uninstall -g --prefix "$LEGACY_PREFIX" @opencode/cli >/dev/null 2>&1 ||
-            warn "opencode2: could not remove the legacy package under $LEGACY_PREFIX"
-    fi
-
-    mkdir -p "$BIN_DIR"
-    ln -sfn "$installed" "$link"
-    if [[ -f "$CONFIG_DIR/package-lock.json" ]]; then
-        if ! npm ci --prefix "$CONFIG_DIR" --ignore-scripts; then
-            warn "opencode2: failed to install the local V2 plugin runtime dependencies"
-        fi
-    else
-        warn "opencode2: $CONFIG_DIR/package-lock.json is missing; skipped local plugin dependencies"
-    fi
-    info "opencode2: installed @opencode/cli@$OPENCODE2_VERSION under $NPM_PREFIX and linked $link"
+print(os.path.realpath(os.path.abspath(os.path.expanduser(sys.argv[1]))))
+PY
 }
 
-main "$@"
+verify_opencode_runtime() {
+    local runtime="$1" cli_version="$2"
+    (
+        cd "$runtime"
+        node --no-warnings --input-type=module -e '
+import fs from "node:fs"
+const cliVersion = process.argv[1]
+for (const name of ["@opencode/plugin", "@opentui/solid", "solid-js"]) {
+  await import(name)
+}
+const plugin = JSON.parse(fs.readFileSync("node_modules/@opencode/plugin/package.json", "utf8"))
+if (plugin.version !== cliVersion) process.exit(2)
+' "$cli_version"
+    )
+}
+
+restore_runtime_path() {
+    local target="$1" old_link="$2" old_dir="$3"
+    rm -f "$target"
+    if [[ -n "$old_link" ]]; then
+        ln -s "$old_link" "$target"
+    elif [[ -n "$old_dir" ]]; then
+        mv "$old_dir" "$target"
+    fi
+}
+
+restore_native_link() {
+    local target="$1" old_link="$2"
+    rm -f "$target"
+    [[ -z "$old_link" ]] || ln -s "$old_link" "$target"
+}
+
+main() {
+    if [[ "${INSTALL_AI_OPENCODE:-false}" != true ]]; then
+        return 0
+    fi
+    if [[ "${DOTFILES_NODE_READY:-true}" != true ]]; then
+        warn "opencode2: Node.js 24+ is not ready; skipped"
+        return 2
+    fi
+    command -v npm >/dev/null 2>&1 \
+        || { warn "opencode2: npm not found; skipped"; return 1; }
+    command -v python3 >/dev/null 2>&1 \
+        || { warn "opencode2: python3 is required for atomic activation"; return 1; }
+
+    NPM_PREFIX="$(canonical_path "$NPM_PREFIX")" \
+        || die "opencode2: could not canonicalize npm prefix"
+    WRAPPER="$(canonical_path "$WRAPPER")" \
+        || die "opencode2: could not canonicalize managed wrapper"
+    CONFIG_DIR="$(canonical_path "$CONFIG_DIR")" \
+        || die "opencode2: could not canonicalize config directory"
+    export OPENCODE2_NPM_PREFIX="$NPM_PREFIX"
+
+    local native_link="$NPM_PREFIX/bin/opencode2"
+    local resolved_native
+    resolved_native="$(canonical_path "$native_link")" \
+        || die "opencode2: could not canonicalize isolated binary"
+    [[ "$resolved_native" != "$WRAPPER" ]] \
+        || die "opencode2: isolated binary resolves to the managed wrapper"
+    if [[ -e "$native_link" && ! -L "$native_link" ]]; then
+        warn "opencode2: refusing to replace non-symlink $native_link"
+        return 1
+    fi
+    [[ -x "$WRAPPER" ]] \
+        || { warn "opencode2: managed wrapper missing at $WRAPPER"; return 1; }
+    local cli_releases="$NPM_PREFIX/releases"
+    local runtime_releases="$NPM_PREFIX/plugin-runtime/releases"
+    local cli_stage runtime_stage installed have release_id cli_release runtime_release
+    local opentui_version solid_requirement
+    local runtime_path="$CONFIG_DIR/node_modules"
+    local old_native_link="" old_runtime_link="" old_runtime_dir=""
+    local native_link_tmp runtime_link_tmp
+    mkdir -p "$cli_releases" "$runtime_releases" "$NPM_PREFIX/bin"
+    cli_stage=$(mktemp -d "$cli_releases/.stage.XXXXXX")
+    runtime_stage=$(mktemp -d "$runtime_releases/.stage.XXXXXX")
+
+    if ! npm install -g --prefix "$cli_stage" "@opencode/cli@$OPENCODE2_VERSION"; then
+        warn "opencode2: staged CLI install failed; current CLI/runtime unchanged"
+        rm -rf "$cli_stage" "$runtime_stage"
+        return 1
+    fi
+    installed="$cli_stage/bin/opencode2"
+    if [[ ! -x "$installed" ]]; then
+        warn "opencode2: staged package has no opencode2 executable"
+        rm -rf "$cli_stage" "$runtime_stage"
+        return 1
+    fi
+    have=$("$installed" --version 2>/dev/null | awk '{print $NF}' | tr -d '[:space:]' || true)
+    have="${have#v}"
+    if [[ -z "$have" ]]; then
+        warn "opencode2: staged CLI did not report a version"
+        rm -rf "$cli_stage" "$runtime_stage"
+        return 1
+    fi
+    if [[ "$OPENCODE2_VERSION" =~ ^[0-9]+\.[0-9]+\.[0-9]+ ]] \
+        && [[ "$have" != "$OPENCODE2_VERSION" ]]; then
+        warn "opencode2: staged CLI version ${have:-unknown} does not match pin $OPENCODE2_VERSION"
+        rm -rf "$cli_stage" "$runtime_stage"
+        return 1
+    fi
+
+    opentui_version=$(npm view @opentui/solid@latest version 2>/dev/null) \
+        || { warn "opencode2: could not resolve the OpenTUI Solid release"; rm -rf "$cli_stage" "$runtime_stage"; return 1; }
+    solid_requirement=$(npm view "@opentui/solid@$opentui_version" peerDependencies.solid-js 2>/dev/null) \
+        || { warn "opencode2: could not resolve OpenTUI's Solid peer"; rm -rf "$cli_stage" "$runtime_stage"; return 1; }
+    if [[ -z "$opentui_version" || -z "$solid_requirement" ]]; then
+        warn "opencode2: OpenTUI returned incomplete runtime metadata"
+        rm -rf "$cli_stage" "$runtime_stage"
+        return 1
+    fi
+
+    if ! npm install --prefix "$runtime_stage" --ignore-scripts \
+        --package-lock=false --no-save \
+        "@opencode/plugin@$have" "@opentui/solid@$opentui_version" \
+        "solid-js@$solid_requirement" \
+        || ! verify_opencode_runtime "$runtime_stage" "$have"; then
+        warn "opencode2: staged plugin runtime failed; current CLI/runtime unchanged"
+        rm -rf "$cli_stage" "$runtime_stage"
+        return 1
+    fi
+
+    release_id="${have:-unknown}-$(date +%s).$$"
+    cli_release="$cli_releases/$release_id"
+    runtime_release="$runtime_releases/$release_id"
+    mv "$cli_stage" "$cli_release"
+    mv "$runtime_stage" "$runtime_release"
+
+    if [[ -L "$runtime_path" ]]; then
+        old_runtime_link=$(readlink "$runtime_path") || return 1
+    elif [[ -e "$runtime_path" ]]; then
+        old_runtime_dir="$runtime_releases/previous-$release_id"
+        mv "$runtime_path" "$old_runtime_dir" || return 1
+    fi
+    runtime_link_tmp="$CONFIG_DIR/.node_modules-new.$$"
+    rm -f "$runtime_link_tmp"
+    ln -s "$runtime_release/node_modules" "$runtime_link_tmp" || return 1
+    if ! atomic_replace_path "$runtime_link_tmp" "$runtime_path"; then
+        restore_runtime_path "$runtime_path" "$old_runtime_link" "$old_runtime_dir"
+        return 1
+    fi
+
+    [[ ! -L "$native_link" ]] || old_native_link=$(readlink "$native_link")
+    native_link_tmp="$NPM_PREFIX/bin/.opencode2-new.$$"
+    rm -f "$native_link_tmp"
+    ln -s "$cli_release/bin/opencode2" "$native_link_tmp" || {
+        restore_runtime_path "$runtime_path" "$old_runtime_link" "$old_runtime_dir"
+        return 1
+    }
+    if ! atomic_replace_path "$native_link_tmp" "$native_link"; then
+        restore_runtime_path "$runtime_path" "$old_runtime_link" "$old_runtime_dir"
+        return 1
+    fi
+
+    local direct_version wrapper_version
+    direct_version="$("$native_link" --version 2>/dev/null || true)"
+    wrapper_version="$("$WRAPPER" --version 2>/dev/null || true)"
+    if [[ -z "$direct_version" || "$wrapper_version" != "$direct_version" ]] \
+        || ! verify_opencode_runtime "$CONFIG_DIR" "$have"; then
+        restore_native_link "$native_link" "$old_native_link"
+        restore_runtime_path "$runtime_path" "$old_runtime_link" "$old_runtime_dir"
+        warn "opencode2: activated CLI/runtime verification failed; rolled back"
+        return 1
+    fi
+
+    info "opencode2: activated @opencode/cli@${have:-$OPENCODE2_VERSION} and matching plugin runtime"
+}
+
+if [[ "${BASH_SOURCE[0]}" == "$0" ]]; then
+    main "$@"
+fi

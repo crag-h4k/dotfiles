@@ -50,13 +50,10 @@ alias "cdd"="cd ~/dotfiles"
 # run_once installer (new content hash), so newly added components install on the
 # same run. An unchanged selection does NOT re-provision - use cup for that.
 alias "ccomp"="chezmoi init --apply"
-# Update packages without re-opening the picker: clear the run_once installer's
-# scriptState hash, then apply. Installs missing packages and runs brew upgrade /
-# apt-to-candidate on the managed set, so the plan's "To update" tier clears.
-# Needs installMode=packages; pkg_confirm shows the plan and prompts [y/N] (set
-# DOTFILES_ASSUME_YES=1 for headless). Clears the whole scriptState bucket, which
-# is safe today (one run_once script); scope it if a second is ever added.
-alias "cup"="chezmoi state delete-bucket --bucket=scriptState >/dev/null 2>&1; chezmoi apply"
+# Update packages through a scoped re-init. The mode prompt increments the
+# persisted packageRun only when packages are explicitly selected, so chezmoi
+# reruns this installer without deleting any other run_once script state.
+alias "cup"="DOTFILES_PACKAGE_UPDATE=1 chezmoi init --apply"
 # Docker - only define if docker is available
 if command -v docker &>/dev/null; then
   # Stop all containers:
@@ -88,12 +85,9 @@ alias "calude"="claude"
 alias "clank"="claude"
 alias "clanka"="claude"
 alias "clanker"="claude"
-# opencode (multi-provider AI CLI harness)
-alias "oc"="opencode"
-# opencode2 (v2) is pinned to --standalone, including the bare name, so a
-# mistyped `opencode2` cannot silently break attention notifications.
+# OpenCode V2 standalone mode keeps per-pane notifications mapped correctly.
 #
-# The notifier bridge (plugin/notify.ts) runs inside the OpenCode SERVER and its
+# The notifier bridge (plugins/notify.ts) runs inside the OpenCode server and its
 # only pane signal is that server's own $TMUX_PANE, fixed when the server starts.
 # --standalone makes the server a child of the TUI, so one server maps to one
 # pane and the value stays correct. The shared background service is one process
@@ -101,17 +95,12 @@ alias "oc"="opencode"
 # sessions notify the wrong pane. That is not staleness a restart fixes, though
 # it also goes stale once its original pane closes.
 #
-# `command` prevents the alias re-expanding itself, which would otherwise pass
-# --standalone twice. oc2bg is the deliberate opt-in to the shared service, and
+# oc2 is a temporary compatibility alias. oc2bg is the deliberate opt-in to the
+# shared service, and
 # it costs ~864 MB less per pane in exchange for losing per-pane notifications.
-#
-# The fix that removes this trade-off is mapping session to pane via tmux
-# #{pane_title}, which already carries the session title. See
-# ~/work/ai/plans/opencode/. There is no TUI-side attention hook to use instead;
-# the cli.json `attention` block exposes only system notifications and sounds.
-alias "opencode2"="command opencode2 --standalone"
-alias "oc2"="command opencode2 --standalone"
-alias "oc2bg"="command opencode2"
+alias "oc"="command opencode2"
+alias "oc2"="command opencode2"
+alias "oc2bg"="OPENCODE2_BACKGROUND_SERVICE=true command opencode2"
 #
 ######
 case "$OSTYPE" in

@@ -94,10 +94,8 @@ Restart Claude or Codex after changing their hook configuration.
 ## OpenCode
 
 OpenCode has no hook mechanism, so the bridge is a plugin:
-`~/.config/opencode/plugin/notify.ts`. One file serves both binaries. The v2
-`setup()` export subscribes to the server event stream, and the v1 `server()`
-export returns the legacy event hook. Each path feature-detects, so exactly one
-runs per binary.
+`~/.config/opencode/plugin/notify.ts`. Its native V2 `setup()` export subscribes
+to the public server event stream.
 
 The plugin shells out to `~/.config/notify/opencode-events.sh`, which takes the
 verb and a group name.
@@ -105,20 +103,18 @@ verb and a group name.
 Unlike Claude and Codex, OpenCode splits attention into three groups, so the
 pane color says what it is waiting for:
 
-- `opencode` fires when a turn finishes, on `session.idle` for v1 and
-  `session.execution.succeeded` for v2.
+- `opencode` fires when a turn finishes, on `session.execution.succeeded`.
 - `opencode_permission` fires when a tool is blocked on approval, on
-  `permission.updated` for v1 and `permission.asked` for v2.
+  `permission.asked`.
 - `opencode_question` fires when the agent asks a question and cannot continue
-  until you answer, on `form.created` for v2. Integration auth forms reuse the
+  until you answer, on `form.created`. Integration auth forms reuse the
   same event and also block, so they notify too.
 
 Every one of those names was confirmed by subscribing a probe plugin to a live
 session. Do not add events from the SDK type union without observing them first.
-The union advertises `session.idle`, `question.asked` and `permission.v2.asked`,
-and none of the three were emitted by the tested V2 build. The question case
-sat broken for exactly this reason: the plugin listened for `question.asked`,
-which does not exist, while the real event was `form.created`.
+The union advertises other event names that were not emitted by the tested V2
+build. The question case uses the observed `form.created` event rather than an
+unverified `question.*` name.
 
 Two mistakes here fail silently, and both are guarded:
 
@@ -128,23 +124,15 @@ Two mistakes here fail silently, and both are guarded:
   spawns the shim with `detached: true` and calls `unref()` so it survives in its
   own process group. Do not collapse that back into an awaited call.
 - **The pane id goes stale.** A background `opencode2 serve --service` keeps the
-  `TMUX_PANE` it first started in, which can be days old. After a tmux server
-  restart that pane is gone, but the variable is still set, so the usual
-  `-z "$TMUX_PANE"` guard passes and every notification lands nowhere. The shim
-  re-resolves the pane against the live server and skips with a warning if it no
-  longer exists. Run `opencode2 service restart` when you see that warning.
+  `TMUX_PANE` it first started in, which can be days old and cannot represent
+  sessions in multiple panes. The plugin does not fire from that shared service.
+  The shim still validates standalone pane ids against the live tmux server and
+  records stale-pane skips even when debug is off.
 
-Launch with `oc2`, or just `opencode2`, since both now pin `--standalone` so the
-plugin shares the pane you are actually sitting in. The shared background service
-that `oc2bg` opts into is a single process for every session in every pane and
-holds exactly one pane id, so with N panes, N-1 sessions notify the wrong pane.
-Restarting the service does not fix that; it only moves which single pane is
-correct.
-
-Removing that trade-off means mapping session to pane rather than reading the
-server's environment. tmux `#{pane_title}` already carries each session's title,
-which is the mapping the server does not expose. The plan is in
-`~/work/ai/plans/opencode/`.
+Interactive `opencode2` launches default to `--standalone`, so the plugin shares
+the pane you are sitting in. `oc` and the temporary `oc2` alias use that default.
+`oc2bg` explicitly opts into the shared background service and gives up per-pane
+notifications.
 
 Restart OpenCode after editing the plugin.
 

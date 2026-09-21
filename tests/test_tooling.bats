@@ -1,4 +1,5 @@
 #!/usr/bin/env bats
+# tests/test_tooling.bats
 
 bats_require_minimum_version 1.5.0
 
@@ -343,7 +344,7 @@ STUB
   printf 'verified payload\n' > "$tmp_dir/$asset"
   (
     cd "$tmp_dir"
-    sha256sum "$asset" > checksums.txt
+    printf '%s  %s\n' "$(sha256_file "$asset")" "$asset" > checksums.txt
     printf '%064d  unrelated.zip\n' 0 >> checksums.txt
   )
 
@@ -351,21 +352,124 @@ STUB
   rm -rf "$tmp_dir"
 
   [ "$status" -eq 0 ]
-  [[ "$output" == *"$asset: OK"* ]]
+  [ -z "$output" ]
 }
 
-@test "Node major verification requires Node 24" {
+@test "BSD release checksum verification selects the SHA256 row" {
+  local tmp_dir asset hash
+  tmp_dir=$(mktemp -d)
+  asset="tool_linux_arm64"
+  printf 'verified payload\n' >"$tmp_dir/$asset"
+  hash=$(sha256_file "$tmp_dir/$asset")
+  printf 'MD5   (%s) = %032d\n' "$asset" 0 >"$tmp_dir/checksums-bsd"
+  printf 'SHA256 (%s) = %s\n' "$asset" "$hash" >>"$tmp_dir/checksums-bsd"
+
+  run verify_release_checksum_bsd "$tmp_dir" checksums-bsd "$asset"
+  rm -rf "$tmp_dir"
+
+  [ "$status" -eq 0 ]
+  [ -z "$output" ]
+}
+
+@test "Node verification accepts version 24 or newer" {
   local tmp_dir
   tmp_dir=$(mktemp -d)
   printf '#!/usr/bin/env sh\nprintf "v24.18.0\\n"\n' > "$tmp_dir/node"
   chmod +x "$tmp_dir/node"
 
-  PATH="$tmp_dir:$PATH" run verify_node_major 24
+  PATH="$tmp_dir:$PATH" run verify_node_min_major 24
   [ "$status" -eq 0 ]
 
-  PATH="$tmp_dir:$PATH" run verify_node_major 22
+  printf '#!/usr/bin/env sh\nprintf "v26.9.0\\n"\n' > "$tmp_dir/node"
+  PATH="$tmp_dir:$PATH" run verify_node_min_major 24
+  [ "$status" -eq 0 ]
+
+  printf '#!/usr/bin/env sh\nprintf "v22.22.0\\n"\n' > "$tmp_dir/node"
+  PATH="$tmp_dir:$PATH" run verify_node_min_major 24
   rm -rf "$tmp_dir"
   [ "$status" -ne 0 ]
+}
+
+@test "Terraform bootstrap removes an old ownerless tenv lock" {
+  local test_home="$BATS_TEST_TMPDIR/tenv-stale-home"
+  local stub_dir="$BATS_TEST_TMPDIR/tenv-stale-stubs"
+  local lock_dir="$test_home/.tenv"
+  local tenv_log="$BATS_TEST_TMPDIR/tenv-stale.log"
+  mkdir -p "$test_home/.local/bin" "$stub_dir" "$lock_dir"
+  touch "$lock_dir/Terraform.lock"
+  touch -t 202001010000 "$lock_dir/Terraform.lock"
+
+  cat >"$test_home/.local/bin/tenv" <<'STUB'
+#!/bin/sh
+printf '%s\n' "$*" >>"$DOTFILES_TENV_LOG"
+STUB
+  cat >"$stub_dir/pgrep" <<'STUB'
+#!/bin/sh
+exit 1
+STUB
+  chmod +x "$test_home/.local/bin/tenv" "$stub_dir/pgrep"
+
+  run env HOME="$test_home" PATH="$stub_dir:$PATH" \
+    TENV_LOCK_PATH="$lock_dir" DOTFILES_TENV_LOG="$tenv_log" \
+    bash -c "source '$REPO_ROOT/scripts/common.sh'; bootstrap_tenv_terraform"
+
+  [ "$status" -eq 0 ]
+  [[ "$output" == *"removed stale tenv lock"* ]]
+  [ ! -e "$lock_dir/Terraform.lock" ]
+  [ "$(wc -l <"$tenv_log")" -eq 2 ]
+  grep -Fxq 'tf install latest' "$tenv_log"
+  grep -Fxq 'tf use latest' "$tenv_log"
+}
+
+@test "Terraform bootstrap skips a recent tenv lock without waiting" {
+  local test_home="$BATS_TEST_TMPDIR/tenv-recent-home"
+  local lock_dir="$test_home/.tenv"
+  local tenv_log="$BATS_TEST_TMPDIR/tenv-recent.log"
+  mkdir -p "$test_home/.local/bin" "$lock_dir"
+  touch "$lock_dir/Terraform.lock"
+  cat >"$test_home/.local/bin/tenv" <<'STUB'
+#!/bin/sh
+printf '%s\n' "$*" >>"$DOTFILES_TENV_LOG"
+STUB
+  chmod +x "$test_home/.local/bin/tenv"
+
+  run env HOME="$test_home" TENV_LOCK_PATH="$lock_dir" \
+    DOTFILES_TENV_LOG="$tenv_log" \
+    bash -c "source '$REPO_ROOT/scripts/common.sh'; bootstrap_tenv_terraform"
+
+  [ "$status" -ne 0 ]
+  [[ "$output" == *"tenv lock is recent"* ]]
+  [ -f "$lock_dir/Terraform.lock" ]
+  [ ! -e "$tenv_log" ]
+}
+
+@test "Terraform bootstrap preserves an old lock while tenv is running" {
+  local test_home="$BATS_TEST_TMPDIR/tenv-active-home"
+  local stub_dir="$BATS_TEST_TMPDIR/tenv-active-stubs"
+  local lock_dir="$test_home/.tenv"
+  local tenv_log="$BATS_TEST_TMPDIR/tenv-active.log"
+  mkdir -p "$test_home/.local/bin" "$stub_dir" "$lock_dir"
+  touch "$lock_dir/Terraform.lock"
+  touch -t 202001010000 "$lock_dir/Terraform.lock"
+
+  cat >"$test_home/.local/bin/tenv" <<'STUB'
+#!/bin/sh
+printf '%s\n' "$*" >>"$DOTFILES_TENV_LOG"
+STUB
+  cat >"$stub_dir/pgrep" <<'STUB'
+#!/bin/sh
+exit 0
+STUB
+  chmod +x "$test_home/.local/bin/tenv" "$stub_dir/pgrep"
+
+  run env HOME="$test_home" PATH="$stub_dir:$PATH" \
+    TENV_LOCK_PATH="$lock_dir" DOTFILES_TENV_LOG="$tenv_log" \
+    bash -c "source '$REPO_ROOT/scripts/common.sh'; bootstrap_tenv_terraform"
+
+  [ "$status" -ne 0 ]
+  [[ "$output" == *"tenv is still running"* ]]
+  [ -f "$lock_dir/Terraform.lock" ]
+  [ ! -e "$tenv_log" ]
 }
 
 @test "development package plan owns cross-platform CLIs without Gitleaks or Hadolint" {
@@ -374,13 +478,13 @@ STUB
   run env DOTFILES_PLAN_OS=debian DOTFILES_PLAN_ASSUME_MISSING=1 \
     INSTALL_NEOVIM=true bash "$planner" --records
   [ "$status" -eq 0 ]
-  [[ "$output" == *$'apt\tnodejs\tplanned\tNodeSource Node.js 24 apt repository'* ]]
-  [[ "$output" == *$'apt\ttrivy\tplanned\tAqua Security apt repository'* ]]
+  [[ "$output" == *$'apt\tnodejs\tplanned\tfloating\tNodeSource Node.js 24 apt repository'* ]]
+  [[ "$output" == *$'apt\ttrivy\tplanned\tfloating\tAqua Security apt repository'* ]]
   [[ "$output" == *$'github-release\ttflint\tplanned\t'* ]]
   [[ "$output" == *$'github-release\ttenv\tplanned\t'* ]]
   [[ "$output" == *$'github-release\ttree-sitter-cli\tplanned\t'* ]]
   [[ "$output" == *$'npm\tmarkdownlint-cli2\tplanned\t'* ]]
-  [[ "$output" == *$'npm\tprettierd\tplanned\t'* ]]
+  [[ "$output" == *$'npm\t@fsouza/prettierd\tplanned\t'* ]]
   [[ "$output" == *$'apt\tshellcheck\tplanned\t'* ]]
   [[ "$output" == *$'apt\tyamllint\tplanned\t'* ]]
   [[ "$output" == *$'luarocks\tluacheck\tplanned\t'* ]]
@@ -399,7 +503,7 @@ STUB
   [[ "$output" == *$'brew-formula\tterraform-linters/tap/tflint\tplanned\t'* ]]
   [[ "$output" == *$'brew-formula\ttree-sitter\tplanned\t'* ]]
   [[ "$output" == *$'brew-formula\ttree-sitter-cli\tplanned\t'* ]]
-  [[ "$output" == *$'npm\tprettierd\tplanned\t'* ]]
+  [[ "$output" == *$'npm\t@fsouza/prettierd\tplanned\t'* ]]
   [[ "$output" == *$'luarocks\tluacheck\tplanned\t'* ]]
   [[ "$output" != *$'\tgitleaks\t'* ]]
   [[ "$output" != *$'\thadolint\t'* ]]

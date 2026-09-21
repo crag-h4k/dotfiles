@@ -29,8 +29,16 @@ The resolved choices live in the host's `[data.components]` tables.
 unselected component has neither local targets nor downloaded externals.
 Both templates use `dig` for nested feature tables.
 
-Selected upstream plugins are chezmoi externals. `chezmoi apply` refreshes them
-weekly according to their `refreshPeriod`.
+Selected upstream plugins are chezmoi externals. Chezmoi clones missing
+checkouts during apply. Approved package mode owns routine updates so it can
+check cleanliness and fast-forward safety first.
+
+This creates an intentional boundary. Selected configuration payloads,
+including missing externals, materialize through chezmoi before `run_once`.
+Package managers, palette submodule initialization, and refreshes of existing
+external checkouts happen only after package confirmation.
+Agent skills are separate immutable file externals with exact commit URLs and
+per-file SHA-256 checksums. They never use the floating plugin refresh path.
 
 Shared palette data lives in `home/.chezmoidata/palettes.yaml`. Templates render
 one selection into Ghostty, iTerm2, tmux, notifications, Claude, Codex, and
@@ -40,14 +48,33 @@ Package planning starts in `scripts/package-plan.sh`. The init template displays
 the deduplicated plan, and `scripts/install.sh` uses those same records for
 Homebrew, APT, casks, release archives, npm, pip, and LuaRocks.
 
+The pre-approval plan does not invoke a package manager. On approval, each
+manager refreshes or inspects its own metadata and only the selected records
+are changed. Independent operations report their own failure and the run ends
+with an aggregate result summary.
+
 Every package-manager mutation requires a `[y/N]` confirmation. Set
 `DOTFILES_ASSUME_YES=1` for an unattended deployment. Declining, or running
 headlessly without that opt-in, applies configuration only and does not change
 the stored `installMode`.
 
-On Debian, NodeSource and Aqua Security use explicit signed APT sources. TFLint
-and tenv release archives are checksum-verified. tenv also verifies HashiCorp
-signatures when its `terraform` proxy installs a project version.
+On Debian, NodeSource and Aqua Security use explicit signed APT sources.
+NodeSource is selected for Neovim or any Node-dependent AI feature. TFLint,
+tenv, Neovim, tree-sitter CLI, and yq release downloads are
+checksum-verified; user-local executables use atomic replacement. tenv also
+verifies HashiCorp signatures when its `terraform` proxy installs a project
+version.
+
+Neovim releases stage as complete versioned trees containing the binary,
+runtime, and libraries. A headless health check runs before the stable pointer
+and wrapper switch. The previous tree remains available for rollback, and an
+APT-owned Neovim package is removed only after the staged tree works.
+
+OpenCode 2 stages its CLI and unlocked plugin runtime independently. The CLI,
+runtime install, and required module checks all pass before the isolated native
+binary and unmanaged `node_modules` links change. Chezmoi tracks neither the
+runtime nor an npm lockfile. Previous release directories remain in place if
+staging or activation fails.
 
 The tmux `↓ • ↑` network indicator uses `xamut/tmux-network-bandwidth`,
 replacing the Linux-only `tmux-net-speed`. Its package set includes
@@ -60,6 +87,7 @@ It sums every interface, so VPN and VM-bridge traffic is included.
 | Layer | Responsibility |
 | --- | --- |
 | Chezmoi | component declarations, templates, configuration, and selected externals |
+| Agent skill store | one immutable canonical copy with per-skill harness links |
 | Package installer | general-purpose CLI tools that should work outside Neovim |
 | Mason | Neovim language servers and editor-only executables |
 | Lazy | Neovim plugins |
@@ -68,10 +96,10 @@ The package installer owns shell-visible markdownlint-cli2, ShellCheck,
 yamllint, TFLint, Trivy, and Luacheck. Mason owns the configured language
 servers and editor-only Gitleaks.
 
-Mason installs missing packages but does not update or reconcile versions
-between hosts. Lazy and Mason revision state is deliberately local; routine
-plugin updates should not dirty the dotfiles repository. See
-[Neovim tooling](neovim.md) for the full split.
+Startup installs missing Mason packages. Approved package mode also updates
+installed Mason packages, Lazy plugins, and Treesitter parsers. Their revision
+state remains local and does not dirty the dotfiles repository. See [Neovim
+tooling](neovim.md) for the full split.
 
 ## What lives where
 
@@ -99,6 +127,10 @@ plugin updates should not dirty the dotfiles repository. See
 | `home/dot_claude/executable_statusline-tokens.py` | `~/.claude/statusline-tokens.py` | detached updater that walks the transcript + subagents for a token total; gated on `ai > statusline` |
 | `home/dot_config/statusline/palette.sh.tmpl` | `~/.config/statusline/palette.sh` | semantic truecolor exports rendered from the selected palette |
 | `home/dot_codex/themes/dotfiles.tmTheme.tmpl` | `~/.codex/themes/dotfiles.tmTheme` | selected-palette Codex theme, configured through `tui.theme="dotfiles"` |
+| `home/dot_local/share/agent-skills/` | `~/.local/share/agent-skills/` | canonical Humanizer adapter and provenance; exact unslop and upstream Humanizer files arrive through checksummed externals |
+| `home/dot_claude/skills/symlink_*` | `~/.claude/skills/*` | per-skill links for Claude Code and CodeCompanion; never replaces the directory |
+| `home/dot_agents/skills/symlink_*` | `~/.agents/skills/*` | per-skill links for Codex, OpenCode V2, and GitHub Copilot |
+| `home/dot_config/opencode/commands/{unslop,humanize}.md` | `~/.config/opencode/commands/{unslop,humanize}.md` | prompt-only routers with no shell blocks |
 | `home/dot_config/nvim/init.lua` | `~/.config/nvim/init.lua` | lazy.nvim entrypoint |
 | `home/dot_config/nvim/lua/dotfiles_palette.lua.tmpl` | `~/.config/nvim/lua/dotfiles_palette.lua` | selected Neovim plugin, flavor, and colorscheme |
 | `home/dot_config/nvim/lua/gitleaks.lua` | `~/.config/nvim/lua/gitleaks.lua` | asynchronous read/save secret warnings; honors project `.gitleaks.toml` |
@@ -112,7 +144,7 @@ plugin updates should not dirty the dotfiles repository. See
 | `home/dot_markdownlint.yaml` | `~/.markdownlint.yaml` | markdown rules; nvim-lint points `--config` here |
 | `home/dot_config/yamllint/config` | `~/.config/yamllint/config` | yamllint's XDG config path |
 | `home/dot_gitconfig` | `~/.gitconfig` | shared Git behavior and credential helpers; gated on `git > config` |
-| `home/private_dot_gitconfig.personal.tmpl` | `~/.gitconfig.personal` | per-host name/email rendered from private chezmoi data with mode 600; gated on `git > personal` |
+| `home/dot_gitconfig` | `~/.gitconfig` | generic settings only; includes the unmanaged `~/.gitconfig.override` last and sets `user.useConfigOnly` |
 | `home/dot_gitignore_global` | `~/.gitignore_global` | global ignore patterns; gated on `git > ignore_global` (on by default) |
 | `home/.chezmoi.toml.tmpl` | `~/.config/chezmoi/chezmoi.toml` | prompts for components, palette, and install mode before apply |
 | `home/.chezmoiignore` | (templated) | ignores an off component's (or sub-feature's) target paths |

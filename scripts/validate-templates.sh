@@ -1,4 +1,5 @@
 #!/usr/bin/env bash
+# scripts/validate-templates.sh
 # Render the chezmoi templates that are gated by component and assert each
 # combination produces the correct output. Catches malformed Go template
 # syntax, broken TOML, and - for home/.chezmoi.toml.tmpl - any drift in the
@@ -17,12 +18,12 @@ export DOTFILES_NO_TUI=1
 export DOTFILES_INSTALL_MODE=configs
 
 REPO_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+AGENT_SKILLS_VALIDATOR="$REPO_DIR/scripts/validate-agent-skills.py"
 SOURCE_DIR="$REPO_DIR/home"
 EXTERNAL="$SOURCE_DIR/.chezmoiexternal.toml"
 IGNORE="$SOURCE_DIR/.chezmoiignore"
 CONFIG_TMPL="$SOURCE_DIR/.chezmoi.toml.tmpl"
 RUNONCE="$SOURCE_DIR/.chezmoiscripts/run_once_after_00-install.sh.tmpl"
-GIT_PERSONAL="$SOURCE_DIR/private_dot_gitconfig.personal.tmpl"
 NOTIFY_TMPL="$SOURCE_DIR/dot_config/notify/notify.yaml.tmpl"
 NOTIFY_SOUNDS="$SOURCE_DIR/dot_config/notify/sounds"
 
@@ -55,7 +56,7 @@ parse_toml() {
 # Render home/.chezmoi.toml.tmpl with componentSelection (and optionally gitSelection
 # / aiSelection / terminalSelection) pre-seeded, then echo the component booleans
 # in the fixed column order:
-#   zsh tmux neovim  git.config git.personal git.ignore_global  ai.codecompanion ai.claude_hooks ai.codex_hooks ai.statusline ai.opencode ai.copilot  terminal.ghostty terminal.iterm2
+#   zsh tmux neovim  git.config git.ignore_global  ai.codecompanion ai.claude_hooks ai.codex_hooks ai.statusline ai.opencode ai.copilot  terminal.ghostty terminal.iterm2
 # zsh/tmux/neovim are bare [data.components] bools; the rest live in the nested
 # [data.components.git] / [data.components.ai] / [data.components.terminal] tables.
 # terminal.ghostty/terminal.iterm2 are emitted for BOTH OSes (the .chezmoi.os gate
@@ -68,8 +69,6 @@ render_components() {
     cfgdir=$(mktemp -d)
     {
         printf '[data]\n    componentSelection = "%s"\n' "$selection"
-        printf '    gitName = "Template Test User"\n'
-        printf '    gitEmail = "template-test@example.invalid"\n'
         [[ -n "$gitsel"  ]] && printf '    gitSelection = "%s"\n'      "$gitsel"
         [[ -n "$aisel"   ]] && printf '    aiSelection = "%s"\n'       "$aisel"
         [[ -n "$termsel" ]] && printf '    terminalSelection = "%s"\n' "$termsel"
@@ -88,12 +87,11 @@ render_components() {
     fi
     # Pull the booleans out by key name (each is unique across the rendered
     # config), so reordering the lists later does not silently break assertions.
-    local zsh tmux neovim gconfig gpersonal gignore aicc aihooks aicodex aistatus aiopencode aicopilot ghostty iterm2
+    local zsh tmux neovim gconfig gignore aicc aihooks aicodex aistatus aiopencode aicopilot ghostty iterm2
     zsh=$(printf '%s\n' "$out" | sed -n 's/^[[:space:]]*zsh = \(.*\)$/\1/p')
     tmux=$(printf '%s\n' "$out" | sed -n 's/^[[:space:]]*tmux = \(.*\)$/\1/p')
     neovim=$(printf '%s\n' "$out" | sed -n 's/^[[:space:]]*neovim = \(.*\)$/\1/p')
     gconfig=$(printf '%s\n' "$out" | sed -n 's/^[[:space:]]*config = \(.*\)$/\1/p')
-    gpersonal=$(printf '%s\n' "$out" | sed -n 's/^[[:space:]]*personal = \(.*\)$/\1/p')
     gignore=$(printf '%s\n' "$out" | sed -n 's/^[[:space:]]*ignore_global = \(.*\)$/\1/p')
     aicc=$(printf '%s\n' "$out" | sed -n 's/^[[:space:]]*codecompanion = \(.*\)$/\1/p')
     aihooks=$(printf '%s\n' "$out" | sed -n 's/^[[:space:]]*claude_hooks = \(.*\)$/\1/p')
@@ -103,8 +101,8 @@ render_components() {
     aicopilot=$(printf '%s\n' "$out" | sed -n 's/^[[:space:]]*copilot = \(.*\)$/\1/p')
     ghostty=$(printf '%s\n' "$out" | sed -n 's/^[[:space:]]*ghostty = \(.*\)$/\1/p')
     iterm2=$(printf '%s\n' "$out" | sed -n 's/^[[:space:]]*iterm2 = \(.*\)$/\1/p')
-    printf '%s %s %s %s %s %s %s %s %s %s %s %s %s %s' \
-        "$zsh" "$tmux" "$neovim" "$gconfig" "$gpersonal" "$gignore" "$aicc" "$aihooks" "$aicodex" "$aistatus" "$aiopencode" "$aicopilot" "$ghostty" "$iterm2"
+    printf '%s %s %s %s %s %s %s %s %s %s %s %s %s' \
+        "$zsh" "$tmux" "$neovim" "$gconfig" "$gignore" "$aicc" "$aihooks" "$aicodex" "$aistatus" "$aiopencode" "$aicopilot" "$ghostty" "$iterm2"
 }
 
 # bool "true" if digit d (1..5) is present in the numeric string, else "false".
@@ -115,17 +113,17 @@ has_digit() {
     esac
 }
 
-COLS="zsh tmux neovim git.config git.personal git.ignore_global ai.codecompanion ai.claude_hooks ai.codex_hooks ai.statusline ai.opencode ai.copilot terminal.ghostty terminal.iterm2"
+COLS="zsh tmux neovim git.config git.ignore_global ai.codecompanion ai.claude_hooks ai.codex_hooks ai.statusline ai.opencode ai.copilot terminal.ghostty terminal.iterm2"
 
 # Assert a selection WITHOUT a sub-seed renders the expected top-level state.
 # The git/ai/terminal PARENTS map to their default sub-feature (git.ignore_global /
-# ai.codecompanion / terminal.ghostty); the opt-in sub-features (config, personal,
+# ai.opencode / terminal.ghostty); the opt-in sub-features (config,
 # claude_hooks, codex_hooks, statusline, iterm2) stay off unless explicitly selected.
 # Args: selection ezsh etmux eneovim egit eai eghostty eiterm2
-# (egit=git.ignore_global, eai=ai.codecompanion, eghostty=terminal.ghostty when the
+# (egit=git.ignore_global, eai=ai.opencode, eghostty=terminal.ghostty when the
 # respective parent is on; eiterm2 stays off without an explicit sub-seed.)
 assert_top() {
-    local selection="$1" want="$2 $3 $4 false false $5 $6 false false false false false $7 $8" got
+    local selection="$1" want="$2 $3 $4 false $5 false false false false $6 false $7 $8" got
     got=$(render_components "$selection") || {
         echo "validate-templates: FAILED to render/parse (sel='$selection'): $got" >&2
         fail=1
@@ -141,12 +139,12 @@ assert_top() {
 }
 
 # Assert a selection WITH explicit sub-selections renders the expected booleans.
-# Args: selection gitSel aiSel termSel  e1..e14 (in COLS order). Pass an empty
+# Args: selection gitSel aiSel termSel  e1..e13 (in COLS order). Pass an empty
 # seed ("") for any sub-menu you are not exercising.
 assert_sub() {
     local selection="$1" gitsel="$2" aisel="$3" termsel="$4"
     shift 4
-    local want="$1 $2 $3 $4 $5 $6 $7 $8 $9 ${10} ${11} ${12} ${13} ${14}" got
+    local want="$1 $2 $3 $4 $5 $6 $7 $8 $9 ${10} ${11} ${12} ${13}" got
     got=$(render_components "$selection" "$gitsel" "$aisel" "$termsel") || {
         echo "validate-templates: FAILED to render/parse (sel='$selection' git='$gitsel' ai='$aisel' term='$termsel'): $got" >&2
         fail=1
@@ -187,13 +185,11 @@ for d1 in 0 1; do for d2 in 0 1; do for d3 in 0 1; do for d4 in 0 1; do for d5 i
 done; done; done; done; done
 
 # --- keyword forms ---------------------------------------------------------
-# all  = default-on set (zsh tmux neovim git); ai + terminal off. git defaults to
-#        its ignore_global sub-feature only.
+# default = default-on set (zsh tmux neovim git); AI + terminal off. Git defaults
+#           to its independent global-ignore sub-feature only.
+assert_top "default" true true true true false false false
+# `all` is retained only to migrate an old persisted selection to `default`.
 assert_top "all"  true true true true false false false
-# all+ = everything: every parent on, each at its default sub-feature only
-#        (git.ignore_global, ai.codecompanion, terminal.ghostty). iterm2 is NOT a
-#        default sub-feature, so all+ leaves it off (select it explicitly to add it).
-assert_top "all+" true true true true true true false
 
 # --- space / order independence -------------------------------------------
 # Same selections expressed with spaces and reordered must match the no-space
@@ -213,7 +209,7 @@ assert_top ""                       true true true true false false false
 assert_top "Components to install:" true true true true false false false
 
 # --- terminal parent (opt-in, digit 6) -------------------------------------
-# terminal is not in the default set (all=false), so it stays off for "all" and
+# terminal is not in the default set, so it stays off for `default` and
 # the default fallback. Selecting digit 6 turns the parent on at its ghostty
 # sub-default (ghostty on, iterm2 off); iterm2 needs an explicit sub-seed (below).
 assert_top "6"   false false false false false true  false
@@ -223,40 +219,39 @@ assert_top "1 6" true  false false false false true  false
 # git parent on (4) with explicit sub-selection, by key and by number; overrides
 # the ignore_global default. ai parent on (5) likewise; terminal parent on (6)
 # below. The 4th assert_sub arg is the terminalSelection seed ("" = none). Columns
-# are the full 14 in COLS order: the ai group is codecompanion claude_hooks
+# are the full 13 in COLS order: the ai group is codecompanion claude_hooks
 # codex_hooks statusline opencode copilot, ending terminal.ghostty terminal.iterm2.
-assert_sub "4"   "config personal" "" "" false false false  true  true  false  false false false false false false  false false
-assert_sub "4"   "1 3"             "" "" false false false  true  false true   false false false false false false  false false
-assert_sub "3 5" "" "codecompanion claude_hooks" ""  false false true  false false false  true  true  false false false false  false false
-assert_sub "3 5" "" "codecompanion codex_hooks"  ""  false false true  false false false  true  false true  false false false  false false
-assert_sub "3 5" "" "statusline"                 ""  false false true  false false false  false false false true  false false  false false
-# ai parent on (5) with the opencode sub-feature only: opt-in, off by default, so
-# this is its dedicated on-path (codecompanion, the ai default sub, stays off).
-assert_sub "5"   "" "opencode"                   ""  false false false  false false false  false false false false true false  false false
+assert_sub "4"   "config" "" "" false false false  true  false  false false false false false false  false false
+assert_sub "4"   "1 3"    "" "" false false false  true  true   false false false false false false  false false
+assert_sub "3 5" "" "codecompanion claude_hooks" ""  false false true  false false  true  true  false false false false  false false
+assert_sub "3 5" "" "codecompanion codex_hooks"  ""  false false true  false false  true  false true  false false false  false false
+assert_sub "3 5" "" "statusline"                 ""  false false true  false false  false false false true  false false  false false
+# CodeCompanion forces Neovim on even when top-level component 3 was not selected.
+assert_sub "5"   "" "codecompanion"               ""  false false true  false false  true  false false false false false  false false
+# AI parent on (5) with its OpenCode V2 default.
+assert_sub "5"   "" "opencode"                   ""  false false false  false false  false false false false true false  false false
 # ai parent on (5) with the copilot sub-feature only: opt-in npm CLI binary like
 # opencode, off by default; its dedicated on-path (codecompanion stays off).
-assert_sub "5"   "" "copilot"                    ""  false false false  false false false  false false false false false true  false false
-assert_sub "4 5" "config" "claude_hooks"         ""  false false false  true  false false  false true  false false false false  false false
-# gum submenu output is stored as the leading key plus visible label text on
+assert_sub "5"   "" "copilot"                    ""  false false false  false false  false false false false false true  false false
+assert_sub "4 5" "config" "claude_hooks"         ""  false false false  true  false  false true  false false false false  false false
+# Gum submenu output is stored as the leading key plus visible label text on
 # older-compatible gum builds, so resolving by key containment must keep working.
 assert_sub "4 5" "config - ~/.gitconfig" "codecompanion - CodeCompanion.nvim assistant (needs neovim)" "" \
-    false false false  true false false  true false false false false false  false false
+    false false true  true false  true false false false false false  false false
 
 # terminal parent on (6) with explicit sub-selection, by key and by number.
 # ghostty is the default; iterm2 is added only when explicitly selected. iterm2's
 # data key is emitted on every OS (the .chezmoi.os gate lives in the file layer,
 # not the data keys), so these assert identically on macOS pre-commit and Linux CI.
-assert_sub "6"   "" "" "ghostty iterm2"  false false false  false false false  false false false false false false  true  true
-assert_sub "6"   "" "" "iterm2"          false false false  false false false  false false false false false false  false true
-assert_sub "6"   "" "" "1 2"             false false false  false false false  false false false false false false  true  true
-assert_sub "6"   "" "" "2"               false false false  false false false  false false false false false false  false true
-assert_sub "1 6" "" "" "ghostty"         true  false false  false false false  false false false false false false  true  false
+assert_sub "6"   "" "" "ghostty iterm2"  false false false  false false  false false false false false false  true  true
+assert_sub "6"   "" "" "iterm2"          false false false  false false  false false false false false false  false true
+assert_sub "6"   "" "" "1 2"             false false false  false false  false false false false false false  true  true
+assert_sub "6"   "" "" "2"               false false false  false false  false false false false false false  false true
+assert_sub "1 6" "" "" "ghostty"         true  false false  false false  false false false false false false  true  false
 
-# --- ai submenu whole-token resolution (opencode2 collision guard) ----------
-# opencode2's key superstrings "opencode" and its num (2) is a substring of the
-# key text, so the sub-feature resolver must match whole tokens, not substrings.
-# Selecting one ai sub-feature must enable exactly that one. This is the
-# regression guard for the substring->token fix in the resolver.
+# --- AI submenu whole-token resolution and migration ------------------------
+# Selecting one AI sub-feature enables exactly that one. The retired opencode2
+# token migrates to the canonical OpenCode V2 key.
 assert_ai_only() { # aiSelection expected_on_key
     local aisel="$1" want_key="$2" out cfgdir key val
     cfgdir=$(mktemp -d)
@@ -266,7 +261,7 @@ assert_ai_only() { # aiSelection expected_on_key
         fail=1; rm -rf "$cfgdir"; return
     fi
     rm -rf "$cfgdir"
-    for key in claude_hooks codex_hooks statusline opencode copilot codecompanion opencode2; do
+    for key in claude_hooks codex_hooks statusline opencode copilot codecompanion; do
         val=$(printf '%s\n' "$out" | sed -n "s/^[[:space:]]*${key} = \\(.*\\)\$/\\1/p")
         if [[ "$key" == "$want_key" ]]; then
             [[ "$val" == true ]] || { echo "validate-templates: ai '$aisel' expected $key=true, got '$val'" >&2; fail=1; }
@@ -275,9 +270,110 @@ assert_ai_only() { # aiSelection expected_on_key
         fi
     done
 }
-assert_ai_only "opencode2"    "opencode2"
+assert_ai_only "opencode2"    "opencode"
 assert_ai_only "opencode"     "opencode"
 assert_ai_only "codex_hooks"  "codex_hooks"
+
+# The old V2 token is rewritten in persisted data and never emitted as a child key.
+cfgdir=$(mktemp -d)
+printf '[data]\ncomponentSelection = "5"\naiSelection = "opencode2"\n' >"$cfgdir/chezmoi.toml"
+out=$(chezmoi execute-template --init --source "$REPO_DIR" --config "$cfgdir/chezmoi.toml" <"$CONFIG_TMPL")
+rm -rf "$cfgdir"
+printf '%s\n' "$out" | grep -q '^    aiSelection = "opencode"$' || {
+    echo "validate-templates: old opencode2 selection was not persisted as opencode" >&2
+    fail=1
+}
+if printf '%s\n' "$out" | grep -q '^[[:space:]]*opencode2 ='; then
+    echo "validate-templates: retired opencode2 component key was emitted" >&2
+    fail=1
+fi
+
+# A real old `all+` host carried resolved nested tables as well as raw submenu
+# strings. The tables could be newer than those strings after a manual edit, so
+# preserve their union while migrating all six current components. Do not replay
+# the retired theme/package-mode action rows.
+cfgdir=$(mktemp -d)
+cat >"$cfgdir/chezmoi.toml" <<'EOF'
+[data]
+componentSelection = "all+"
+gitSelection = "ignore_global"
+aiSelection = "codecompanion"
+terminalSelection = "ghostty"
+
+[data.components]
+zsh = true
+tmux = true
+neovim = true
+
+[data.components.git]
+config = true
+personal = true
+ignore_global = true
+
+[data.components.ai]
+claude_hooks = true
+codex_hooks = true
+statusline = false
+opencode = false
+copilot = false
+codecompanion = true
+opencode2 = true
+
+[data.components.terminal]
+ghostty = true
+iterm2 = true
+EOF
+out=$(chezmoi execute-template --init --source "$REPO_DIR" --config "$cfgdir/chezmoi.toml" <"$CONFIG_TMPL")
+rm -rf "$cfgdir"
+for expected in \
+    'componentSelection = "1 2 3 4 5 6"' \
+    'zsh = true' 'tmux = true' 'neovim = true' \
+    'config = true' 'ignore_global = true' \
+    'claude_hooks = true' 'codex_hooks = true' 'opencode = true' \
+    'codecompanion = true' \
+    'ghostty = true' 'iterm2 = true'; do
+    printf '%s\n' "$out" | grep -Fq "$expected" || {
+        echo "validate-templates: old all+ migration lost: $expected" >&2
+        fail=1
+    }
+done
+
+# Personal identity used to be independently selectable. Promote a personal-only
+# old host to managed Git config, but stop persisting identity data.
+cfgdir=$(mktemp -d)
+cat >"$cfgdir/chezmoi.toml" <<'EOF'
+[data]
+componentSelection = "4"
+gitSelection = "personal"
+gitName = "Legacy Personal User"
+gitEmail = "legacy-personal@example.invalid"
+
+[data.components]
+zsh = false
+tmux = false
+neovim = false
+
+[data.components.git]
+config = false
+personal = true
+ignore_global = false
+EOF
+out=$(chezmoi execute-template --init --source "$REPO_DIR" --config "$cfgdir/chezmoi.toml" <"$CONFIG_TMPL")
+rm -rf "$cfgdir"
+for expected in \
+    'gitSelection = "config"' \
+    'config = true'; do
+    printf '%s\n' "$out" | grep -Fq "$expected" || {
+        echo "validate-templates: personal-only Git migration lost: $expected" >&2
+        fail=1
+    }
+done
+for removed in 'gitPersonalSelection' 'gitName' 'gitEmail' 'personal ='; do
+    if printf '%s\n' "$out" | grep -Fq "$removed"; then
+        echo "validate-templates: retired Git identity data was still emitted: $removed" >&2
+        fail=1
+    fi
+done
 
 # --- home/.chezmoiexternal.toml: render + parse under each component combo --
 # The externals file only branches on zsh and tmux, so vary those two and pin
@@ -301,6 +397,17 @@ for combo in "${ext_combos[@]}"; do
     elif ! printf '%s' "$out" | parse_toml; then
         echo "validate-templates: rendered externals ($label) is not valid TOML" >&2
         fail=1
+    elif [[ "$label" == all-on ]]; then
+        entries=$(printf '%s\n' "$out" | grep -c 'type = "git-repo"' || true)
+        refreshes=$(printf '%s\n' "$out" | grep -c 'refreshPeriod = "0"' || true)
+        fast_forwards=$(printf '%s\n' "$out" | grep -c 'args = \["--ff-only"\]' || true)
+        if [[ "$entries" -ne "$refreshes" ]]; then
+            echo "validate-templates: every git external must disable automatic refresh" >&2
+            fail=1
+        elif [[ "$entries" -ne "$fast_forwards" ]]; then
+            echo "validate-templates: every git external must disable automatic refresh and declare --ff-only pull" >&2
+            fail=1
+        fi
     fi
     rm -rf "$cfgdir"
 done
@@ -338,18 +445,15 @@ assert_notify_gate false true  false false true
 assert_notify_gate false false true  false true
 assert_notify_gate false false false true  true
 
-# --- Git file gates + host-private identity render -----------------------------
-assert_git_gate() { # config personal ignore_global
-    local config="$1" personal="$2" ignore_global="$3"
-    local cfgdir ignored rendered
+# --- Git file gates + unmanaged private override ------------------------------
+assert_git_gate() { # config ignore_global
+    local config="$1" ignore_global="$2"
+    local cfgdir ignored
     cfgdir=$(mktemp -d)
     {
         printf '[data]\n'
-        printf '    gitName = "Template Test User"\n'
-        printf '    gitEmail = "template-test@example.invalid"\n'
         printf '[data.components.git]\n'
         printf '    config = %s\n' "$config"
-        printf '    personal = %s\n' "$personal"
         printf '    ignore_global = %s\n' "$ignore_global"
     } >"$cfgdir/chezmoi.toml"
     ignored=$(chezmoi execute-template --source "$REPO_DIR" --config "$cfgdir/chezmoi.toml" <"$IGNORE")
@@ -361,13 +465,12 @@ assert_git_gate() { # config personal ignore_global
         echo "validate-templates: disabled git config was not ignored" >&2
         fail=1
     fi
-    if [[ "$personal" == true ]] && printf '%s\n' "$ignored" | grep -qx '.gitconfig.personal'; then
-        echo "validate-templates: enabled personal git config was ignored" >&2
-        fail=1
-    elif [[ "$personal" == false ]] && ! printf '%s\n' "$ignored" | grep -qx '.gitconfig.personal'; then
-        echo "validate-templates: disabled personal git config was not ignored" >&2
-        fail=1
-    fi
+    for private_file in .gitconfig.override .gitconfig.personal .gitconfig.work; do
+        if ! printf '%s\n' "$ignored" | grep -qx "$private_file"; then
+            echo "validate-templates: private Git file was not unconditionally ignored: $private_file" >&2
+            fail=1
+        fi
+    done
     if [[ "$ignore_global" == true ]] && printf '%s\n' "$ignored" | grep -qx '.gitignore_global'; then
         echo "validate-templates: enabled global git ignore was ignored" >&2
         fail=1
@@ -375,23 +478,11 @@ assert_git_gate() { # config personal ignore_global
         echo "validate-templates: disabled global git ignore was not ignored" >&2
         fail=1
     fi
-
-    if [[ "$personal" == true ]]; then
-        if ! rendered=$(chezmoi execute-template --source "$REPO_DIR" --config "$cfgdir/chezmoi.toml" <"$GIT_PERSONAL" 2>&1); then
-            echo "validate-templates: personal git config render failed: $rendered" >&2
-            fail=1
-        elif [[ "$rendered" != $'[user]\n    name = "Template Test User"\n    email = "template-test@example.invalid"' ]]; then
-            echo "validate-templates: personal git identity rendered unexpected content" >&2
-            fail=1
-        fi
-    fi
     rm -rf "$cfgdir"
 }
 
-assert_git_gate false false false
-assert_git_gate true  false true
-assert_git_gate false true  true
-assert_git_gate true  true  true
+assert_git_gate false false
+assert_git_gate true  true
 
 # --- home/.chezmoiscripts/run_once_after_00-install.sh.tmpl: install vars ---
 # The terminal binary installs are gated by INSTALL_TERMINAL_* env vars dug from
@@ -417,6 +508,25 @@ assert_install_ghostty() {
 }
 assert_install_ghostty true  true
 assert_install_ghostty false false
+
+assert_package_run_render() {
+    local cfgdir out got
+    cfgdir=$(mktemp -d)
+    printf '[data]\n    installMode = "packages"\n    packageRun = 17\n' >"$cfgdir/chezmoi.toml"
+    out=$(chezmoi execute-template --source "$REPO_DIR" --config "$cfgdir/chezmoi.toml" <"$RUNONCE")
+    rm -rf "$cfgdir"
+    got=$(printf '%s\n' "$out" | sed -n 's/^export DOTFILES_PACKAGE_RUN=\(.*\)$/\1/p')
+    if [[ "$got" != 17 ]]; then
+        echo "validate-templates: run_once DOTFILES_PACKAGE_RUN mismatch: expected=17 got=$got" >&2
+        fail=1
+    fi
+}
+assert_package_run_render
+
+if grep -Fq 'git submodule update' "$RUNONCE"; then
+    echo "validate-templates: palette submodule initialization must stay behind package approval" >&2
+    fail=1
+fi
 
 # --- modify_ templates: gated JSON/TOML merge scripts ----------------------
 # Render each modify_*.tmpl under an ai sub-feature config, run the emitted merge
@@ -539,6 +649,13 @@ assert_notify_yaml() { # palette
 # generated, but the template lists palette keys by hand.
 assert_notify_yaml dracula
 assert_notify_yaml catppuccin-frappe
+
+# Agent skills have one compound gate across all seven AI sub-features. The
+# dedicated offline validator renders every on-path, checks the matching ignore
+# paths and externals, and verifies exact pins plus harness link layout.
+if ! python3 "$AGENT_SKILLS_VALIDATOR"; then
+    fail=1
+fi
 
 if (( fail )); then
     exit 1

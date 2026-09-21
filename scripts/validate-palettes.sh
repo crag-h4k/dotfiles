@@ -32,22 +32,29 @@ for palette in $(yq '.paletteOrder[]' "$SOURCE_DIR/.chezmoidata/palettes.yaml");
     render dot_config/notify/notify.yaml.tmpl > "$TMP_DIR/notify.yaml"
     yq '.' "$TMP_DIR/notify.yaml" >/dev/null
 
-    render dot_config/opencode/themes/gud.json.tmpl > "$TMP_DIR/opencode-gud.json"
-    # .defs.base (not .defs.background): the background def was renamed to base to
-    # avoid the theme-key self-reference. syntaxKeyword proves the full key set
-    # (chrome + syntax + diff + markdown) rendered, not just the chrome.
-    jq -e '.theme.primary.dark and .theme.syntaxKeyword.dark and .defs.base' "$TMP_DIR/opencode-gud.json" >/dev/null
-
-    # gud-lucent: the v2 translucent variant. Same keys as gud, but the three
-    # background keys resolve to "none" so terminal opacity shows through.
+    # The OpenCode V2 theme keeps its three backgrounds transparent so terminal
+    # opacity shows through.
     render dot_config/opencode/themes/gud-lucent.json.tmpl > "$TMP_DIR/opencode-gud-lucent.json"
     jq -e '.theme.syntaxKeyword.dark and (.theme.background.dark == "none") and (.theme.backgroundPanel.dark == "none")' "$TMP_DIR/opencode-gud-lucent.json" >/dev/null
 
     render dot_config/opencode/v2-plugins/statusline/tui.tsx.tmpl > "$TMP_DIR/opencode-statusline.tsx"
     grep -q '^  surface: "#[0-9a-fA-F]\{6\}",$' "$TMP_DIR/opencode-statusline.tsx"
+    foreground_spinner=$(sed -n 's/^  foregroundSpinner: "\(#[0-9a-fA-F]\{6\}\)",$/\1/p' "$TMP_DIR/opencode-statusline.tsx")
+    background_spinner=$(sed -n 's/^  subagents: "\(#[0-9a-fA-F]\{6\}\)",$/\1/p' "$TMP_DIR/opencode-statusline.tsx")
+    [[ -n "$foreground_spinner" && -n "$background_spinner" ]]
+    [[ "$foreground_spinner" != "$background_spinner" ]]
 
     render dot_config/opencode/cli.json.tmpl > "$TMP_DIR/opencode-cli.json"
-    jq -e '.theme.name == "gud-lucent" and (.plugins == ["-opencode.prompt.footer", "-opencode-copilot-statusline.tui", "./v2-plugins/statusline"])' "$TMP_DIR/opencode-cli.json" >/dev/null
+    jq -e '.theme.name == "gud-lucent"
+      and .tabs.enabled
+      and .keybinds.leader == "ctrl+g"
+      and .keybinds["session.tab.previous"] == "<leader>h"
+      and .keybinds["session.tab.next"] == "<leader>l"
+      and .keybinds["session.list"] == "<leader>t"
+      and .keybinds["session.first"] == "home"
+      and .keybinds["theme.switch"] == "none"
+      and .leader.timeout == 1500
+      and (.plugins == ["-opencode.prompt.footer", "-opencode-copilot-statusline.tui", "./v2-plugins/statusline"])' "$TMP_DIR/opencode-cli.json" >/dev/null
 
     render dot_config/iterm2/dotfiles.json.tmpl > "$TMP_DIR/iterm2.json"
     jq -e '.Profiles | length == 2' "$TMP_DIR/iterm2.json" >/dev/null

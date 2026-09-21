@@ -26,6 +26,16 @@ Mason does not install a duplicate.
 npm under `~/.local` on both platforms. `conform.nvim` shells out to that
 binary; Mason does not install a duplicate.
 
+The Python provider is transactional. A sibling venv receives the floating
+`pynvim` package and must import it before the stable
+`~/.local/share/nvim-venv` symlink changes. A working previous venv remains in
+the release directory, and a partial or corrupt legacy venv is repairable.
+
+On Debian, the upstream Neovim archive is checksum-verified and extracted as a
+complete versioned tree. The binary, runtime, and libraries pass a headless
+health check before one stable pointer and wrapper switch. No files are overlaid
+into the live runtime, and the previous tree remains available for rollback.
+
 nvim-treesitter's `main` branch builds parsers with the `tree-sitter` CLI, which
 is a separate package from the C library. On macOS, Homebrew split them: the
 `tree-sitter` formula ships only `libtree-sitter`, and the CLI lives in
@@ -38,11 +48,12 @@ before debugging further.
 
 Parser install is diffed against what is already present: `init.lua` installs
 only the parsers missing from the install dir, rather than the whole set on every
-launch. Run `:TSUpdate` to refresh installed parsers.
+launch. Approved package mode refreshes installed parsers. Run `:TSUpdate` for
+the same operation inside Neovim.
 
-Mason owns editor-only Gitleaks and the language servers. It installs packages
-only when missing. Startup does not update an installed package or reconcile
-exact versions between hosts.
+Mason owns editor-only Gitleaks and the language servers. Startup installs only
+missing packages. Approved package mode refreshes the registry and updates
+installed packages without imposing one exact version across hosts.
 
 ## LSP activation
 
@@ -78,14 +89,15 @@ Useful checks:
 ## Plugins and local revision state
 
 Lazy bootstraps itself under Neovim's data directory and syncs plugins during
-the Neovim installer. The declarative plugin list stays in the repo, while
-downloaded plugin state stays on the host.
+every approved package run. The declarative plugin list stays in the repo,
+while downloaded plugin state stays on the host.
 
 `lazy-lock.json` is ignored intentionally. Normal Lazy or Mason updates should
 not dirty the dotfiles checkout, and this repo does not promise exact
 cross-host runtime revision reconciliation.
 
-Use these commands when you want to update a machine:
+Use `cup` for the complete package-mode update, or these commands for an
+editor-only manual update:
 
 ```vim
 :Lazy sync

@@ -20,7 +20,7 @@ started=$SECONDS
 printf 'dotfiles: inspecting installed packages...\n' >"$TTY_DEVICE"
 # Force color: --display stdout is captured here (a pipe, not a TTY), but it
 # renders to the terminal below. _display still honors NO_COLOR.
-plan=$(DOTFILES_PLAN_COLOR=1 "$PLAN" --display)
+plan=$(DOTFILES_PLAN_APPROVED=0 DOTFILES_PLAN_COLOR=1 "$PLAN" --display)
 elapsed=$(( SECONDS - started ))
 printf 'dotfiles: package inspection complete (%ss).\n\n' "$elapsed" >"$TTY_DEVICE"
 

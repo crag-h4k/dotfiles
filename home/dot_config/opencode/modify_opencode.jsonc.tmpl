@@ -6,20 +6,19 @@
 # idempotent across repeated `chezmoi apply` runs.
 #
 # opencode.jsonc is JSONC and its comments are load-bearing (the per-plugin
-# supply-chain audit, the cc-safety-net fails-OPEN warning, the permission
-# rationale), so this follows dot_codex/modify_private_config.toml.tmpl and does
+# supply-chain audit and permission rationale), so this follows
+# dot_codex/modify_private_config.toml.tmpl and does
 # LINE-LEVEL surgery. It never json.loads/json.dumps the target: a round trip
 # through the json module would silently delete every comment in the file.
 #
 # Ownership boundary:
-#   OWNED  - re-asserted on every apply: the file header comment, "$schema", and
-#            V1 "plugin", V2 "plugins", and built-in agent color entries (with
-#            audit comments). A local edit to those is reverted so the rice and
-#            plugin pins stay reviewed here.
-#   SEEDED - written once, only when the incoming file has no "permission" key at
-#            all (fresh host, or empty stdin), so a new machine is not unguarded.
-#            An existing "permission" block is left completely alone, comments
-#            included; the permission set is deliberately unmanaged after seeding.
+#   OWNED  - re-asserted on every apply: the file header comment, "$schema", V2
+#            "plugins", and only agents.build.color / agents.plan.color. Every
+#            other agent field, nested comment, and custom agent is preserved.
+#            The retired singular "plugin" key is removed when present.
+#   SEEDED - native "permissions" are written only when the incoming file has no
+#            permission policy. The exact old seed is migrated; any customized
+#            V1 "permission" or V2 "permissions" policy is preserved verbatim.
 #   KEPT   - copied through verbatim, comments included: every other top-level
 #            key, in its original order. That is how machine-local "instructions"
 #            and "mcp" entries live in the target file without ever reaching the
@@ -35,8 +34,8 @@
 # stderr. Never destroy a hand-edited target, never block the rest of the apply.
 #
 # There is no component gate in here; the file is gated wholesale in
-# home/.chezmoiignore under (ai > opencode) OR (ai > opencode2). It stays a .tmpl
-# for parity with the other two modify_ scripts, and so a gate can be added later.
+# home/.chezmoiignore under ai > opencode. It stays a .tmpl for parity with the
+# other modify_ scripts and to render agent colors from the shared palette.
 import bisect
 import sys
 
@@ -48,57 +47,38 @@ HEADER = """\
 //
 // MERGED, NOT OVERWRITTEN. chezmoi maintains this file through the modify_
 // script home/dot_config/opencode/modify_opencode.jsonc.tmpl. It owns only the
-// header above, "$schema", V1 "plugin", V2 "plugins", and the built-in agent
-// colors, which it re-asserts on every apply;
+// header above, "$schema", V2 "plugins", agents.build.color, and
+// agents.plan.color, which it re-asserts on every apply;
 // every other top-level key is copied through verbatim, comments included.
 // Machine-local keys ("instructions", "mcp", host-specific subagents) belong
 // here in the target file and never reach the dotfiles repo.
 //
-// "permission" is seeded once, on a host that has no permission key yet, so a
-// new machine is not unguarded. After that it is yours to edit; chezmoi will not
-// touch it again.
+// Native "permissions" are seeded once so a new machine is not unguarded. The
+// exact retired seed is migrated automatically; customized policies are yours
+// and remain byte-for-byte unchanged.
 //
-// V1 reads its theme from tui.json; V2 reads cli.json. Their custom themes live
-// under ./themes/."""
+// Terminal settings and the selected theme live in cli.json."""
 
-# The owned body. Kept as literal text, not as data, so the audit comments are
-# part of what gets asserted rather than something a serializer can drop.
-OWNED = """\
-  "$schema": "https://opencode.ai/config.json",
+# Owned top-level entries stay literal so audit comments survive without a JSON
+# round trip. The agents entry is merged separately because only two nested color
+# fields belong to chezmoi.
+OWNED_SCHEMA = '''\
+  "$schema": "https://opencode.ai/config.json"'''
 
+BUILD_COLOR = "{{ $p.colors.green }}"
+PLAN_COLOR = "{{ $p.colors.blue }}"
+
+NEW_AGENTS = """\
   // Prompt metadata uses each agent's configured color. Render from the shared
   // palette so Build stays green and Plan stays light blue across theme changes.
   "agents": {
-    "build": { "color": "{{ $p.colors.green }}" },
-    "plan": { "color": "{{ $p.colors.blue }}" }
-  },
+    "build": { "color": "%s" },
+    "plan": { "color": "%s" }
+  }""" % (BUILD_COLOR, PLAN_COLOR)
 
-  // OpenCode V1 plugins, EXACT-pinned. Each runs arbitrary TypeScript at
-  // startup with the Bun shell + SDK client, so treat every entry as a
-  // code-reviewed dependency and re-review on each version bump. Bun auto-installs
-  // them into ~/.cache/opencode/node_modules. These require the 1.x plugin SDK.
-  //   opencode-vim-plugin - inline modal (vim) editing in the prompt input.
-  //   opencode-quota      - token/cost/quota readout (the /usage + /context gap).
-  "plugin": [
-    // TEMP-DISABLED to test the paste regression: a modal editor intercepts
-    // keystrokes, so pasted multi-line text gets run as vim commands - the most
-    // likely paste-mangle cause. Re-enable (or switch to $EDITOR/Ctrl+X e) after.
-    // "@leohenon/opencode-vim-plugin@0.1.6",
-    "@slkiser/opencode-quota@4.9.0",
-    // Dynamic context pruning: trims stale tool outputs to cut token spend on the
-    // metered Copilot backend. AGPL-3.0 (local-use only; policy check accepted).
-    "@tarquinen/opencode-dcp@3.1.15",
-    // Pre-execution guard: blocks destructive git/fs commands + sensitive-file
-    // reads via tool.execute.before. Audited @2.3.4: offline at runtime, no
-    // telemetry, add-only rules (cannot disable catastrophic protection). Install
-    // the terraform/aws/azure rulebooks and run `npx cc-safety-net doctor` (it
-    // fails OPEN silently on a broken config) for full coverage.
-    "cc-safety-net@2.3.4"
-  ],
-
-  // OpenCode V2 plugins, EXACT-pinned. V2 also discovers the legacy V1 list
-  // above for compatibility; those old packages fail closed because they do not
-  // export V2 definitions, while this native package loads independently.
+OWNED_PLUGINS = """\
+  // OpenCode V2 plugins, EXACT-pinned. Each runs arbitrary code at startup, so
+  // treat every entry as a code-reviewed dependency and re-review every bump.
   //   opencode-copilot-statusline - supplies monthly Copilot quota to the local
   //   V2 footer over RPC. Audited @1.0.0: its server half resolves OpenCode's existing
   //   github-copilot credential and sends it only to GitHub's Copilot quota API;
@@ -110,10 +90,8 @@ OWNED = """\
     "opencode-copilot-statusline@1.0.0"
   ]"""
 
-# Seed-only. Written just once, when the target carries no "permission" key.
-# Kept byte-identical to the block a seeded host ends up with, so a fresh machine
-# and an existing one converge on the same file instead of drifting by a comment.
-SEED_PERMISSION = """\
+# Retained byte-for-byte only to recognize and migrate the old generated seed.
+LEGACY_SEED_PERMISSION = """\
   // Permission model: edit asks before writing (approve-on-write), webfetch is
   // allowed. bash is a pattern -> action map; the last matching rule wins, so the
   // catch-all "*": "ask" comes first and the linter/test allowlist follows.
@@ -148,6 +126,254 @@ SEED_PERMISSION = """\
     }
   }"""
 
+# Seed-only native V2 policy. Last match wins, so narrow allows follow the broad
+# ask rule and hard denials are last. Shell stays ask unless a command is listed.
+SEED_PERMISSIONS = """\
+  // Permission model: ask by default, allow orchestration and read-only work,
+  // then finish with denials that saved approvals cannot override.
+  "permissions": [
+    { "action": "*", "resource": "*", "effect": "ask" },
+
+    { "action": "read", "resource": "*", "effect": "allow" },
+    { "action": "glob", "resource": "*", "effect": "allow" },
+    { "action": "grep", "resource": "*", "effect": "allow" },
+    { "action": "webfetch", "resource": "https://*", "effect": "allow" },
+    { "action": "websearch", "resource": "*", "effect": "allow" },
+    { "action": "question", "resource": "*", "effect": "allow" },
+    { "action": "skill", "resource": "*", "effect": "allow" },
+    { "action": "subagent", "resource": "*", "effect": "allow" },
+    // Code Mode still applies each nested tool's own permission rule.
+    { "action": "execute", "resource": "*", "effect": "allow" },
+
+    // External reads do not need a second directory prompt. Edit permissions
+    // remain separate, and sensitive directories are denied at the end.
+    { "action": "external_directory", "resource": "*", "effect": "allow" },
+
+    // Read-only MCP and browser operations. Mutating calls remain ask by omission.
+    { "action": "aws_documentation_*", "resource": "*", "effect": "allow" },
+    { "action": "aws_iam_policy_autopilot_generate_*", "resource": "*", "effect": "allow" },
+    { "action": "aws_mcp_aws___get_regional_availability", "resource": "*", "effect": "allow" },
+    { "action": "aws_mcp_aws___get_tasks", "resource": "*", "effect": "allow" },
+    { "action": "aws_mcp_aws___list_regions", "resource": "*", "effect": "allow" },
+    { "action": "aws_mcp_aws___read_documentation", "resource": "*", "effect": "allow" },
+    { "action": "aws_mcp_aws___retrieve_skill", "resource": "*", "effect": "allow" },
+    { "action": "aws_mcp_aws___search_documentation", "resource": "*", "effect": "allow" },
+    { "action": "terraform_get_*", "resource": "*", "effect": "allow" },
+    { "action": "terraform_search_*", "resource": "*", "effect": "allow" },
+    { "action": "confluence_confluence_check_*", "resource": "*", "effect": "allow" },
+    { "action": "confluence_confluence_download_*", "resource": "*", "effect": "allow" },
+    { "action": "confluence_confluence_get_*", "resource": "*", "effect": "allow" },
+    { "action": "confluence_confluence_list_*", "resource": "*", "effect": "allow" },
+    { "action": "confluence_confluence_search*", "resource": "*", "effect": "allow" },
+    { "action": "databricks_check_*", "resource": "*", "effect": "allow" },
+    { "action": "databricks_export_notebook", "resource": "*", "effect": "allow" },
+    { "action": "databricks_get_*", "resource": "*", "effect": "allow" },
+    { "action": "databricks_list_*", "resource": "*", "effect": "allow" },
+    { "action": "databricks_test_connection", "resource": "*", "effect": "allow" },
+    { "action": "databricks_validate_*", "resource": "*", "effect": "allow" },
+    { "action": "browser_back", "resource": "*", "effect": "allow" },
+    { "action": "browser_console", "resource": "*", "effect": "allow" },
+    { "action": "browser_find", "resource": "*", "effect": "allow" },
+    { "action": "browser_forward", "resource": "*", "effect": "allow" },
+    { "action": "browser_frames", "resource": "*", "effect": "allow" },
+    { "action": "browser_hover", "resource": "*", "effect": "allow" },
+    { "action": "browser_navigate", "resource": "*", "effect": "allow" },
+    { "action": "browser_network_get", "resource": "*", "effect": "allow" },
+    { "action": "browser_network_list", "resource": "*", "effect": "allow" },
+    { "action": "browser_reload", "resource": "*", "effect": "allow" },
+    { "action": "browser_screenshot", "resource": "*", "effect": "allow" },
+    { "action": "browser_scroll", "resource": "*", "effect": "allow" },
+    { "action": "browser_snapshot", "resource": "*", "effect": "allow" },
+    { "action": "browser_tabs_focus", "resource": "*", "effect": "allow" },
+    { "action": "browser_tabs_list", "resource": "*", "effect": "allow" },
+    { "action": "browser_tabs_open", "resource": "*", "effect": "allow" },
+    { "action": "browser_wait", "resource": "*", "effect": "allow" },
+    { "action": "opencode_models", "resource": "*", "effect": "allow" },
+
+    // Read-only local inspection.
+    { "action": "shell", "resource": "pwd *", "effect": "allow" },
+    { "action": "shell", "resource": "ls *", "effect": "allow" },
+    { "action": "shell", "resource": "stat *", "effect": "allow" },
+    { "action": "shell", "resource": "wc *", "effect": "allow" },
+    { "action": "shell", "resource": "file *", "effect": "allow" },
+    { "action": "shell", "resource": "mdls *", "effect": "allow" },
+    { "action": "shell", "resource": "pdfinfo *", "effect": "allow" },
+    { "action": "shell", "resource": "pdftotext * -", "effect": "allow" },
+    { "action": "shell", "resource": "plutil -p *", "effect": "allow" },
+    { "action": "shell", "resource": "unzip -l *", "effect": "allow" },
+    { "action": "shell", "resource": "tar -tf *", "effect": "allow" },
+    { "action": "shell", "resource": "tar -tzf *", "effect": "allow" },
+    { "action": "shell", "resource": "command -v *", "effect": "allow" },
+    { "action": "shell", "resource": "type *", "effect": "allow" },
+    { "action": "shell", "resource": "which *", "effect": "allow" },
+    { "action": "shell", "resource": "uname *", "effect": "allow" },
+    { "action": "shell", "resource": "sw_vers *", "effect": "allow" },
+    { "action": "shell", "resource": "git status *", "effect": "allow" },
+    { "action": "shell", "resource": "git diff *", "effect": "allow" },
+    { "action": "shell", "resource": "git log *", "effect": "allow" },
+    { "action": "shell", "resource": "git show *", "effect": "allow" },
+    { "action": "shell", "resource": "git branch", "effect": "allow" },
+    { "action": "shell", "resource": "git branch --list *", "effect": "allow" },
+    { "action": "shell", "resource": "git branch --show-current *", "effect": "allow" },
+    { "action": "shell", "resource": "git remote -v", "effect": "allow" },
+    { "action": "shell", "resource": "git remote get-url *", "effect": "allow" },
+    { "action": "shell", "resource": "git worktree list *", "effect": "allow" },
+    { "action": "shell", "resource": "git ls-files *", "effect": "allow" },
+    { "action": "shell", "resource": "git rev-parse *", "effect": "allow" },
+    { "action": "shell", "resource": "git describe *", "effect": "allow" },
+    { "action": "shell", "resource": "git tag --list *", "effect": "allow" },
+
+    // Project test, lint, format, and validation commands.
+    { "action": "shell", "resource": "pre-commit *", "effect": "allow" },
+    { "action": "shell", "resource": "shellcheck *", "effect": "allow" },
+    { "action": "shell", "resource": "markdownlint *", "effect": "allow" },
+    { "action": "shell", "resource": "markdownlint-cli2 *", "effect": "allow" },
+    { "action": "shell", "resource": "bats *", "effect": "allow" },
+    { "action": "shell", "resource": "luacheck *", "effect": "allow" },
+    { "action": "shell", "resource": "ruff *", "effect": "allow" },
+    { "action": "shell", "resource": "flake8 *", "effect": "allow" },
+    { "action": "shell", "resource": "black --check *", "effect": "allow" },
+    { "action": "shell", "resource": "yamllint *", "effect": "allow" },
+    { "action": "shell", "resource": "actionlint *", "effect": "allow" },
+    { "action": "shell", "resource": "stylua --check *", "effect": "allow" },
+    { "action": "shell", "resource": "tflint *", "effect": "allow" },
+    { "action": "shell", "resource": "tfsec *", "effect": "allow" },
+    { "action": "shell", "resource": "checkov *", "effect": "allow" },
+    { "action": "shell", "resource": "terraform fmt -check *", "effect": "allow" },
+    { "action": "shell", "resource": "terraform validate *", "effect": "allow" },
+    { "action": "shell", "resource": "golangci-lint *", "effect": "allow" },
+    { "action": "shell", "resource": "go test *", "effect": "allow" },
+    { "action": "shell", "resource": "go vet *", "effect": "allow" },
+    { "action": "shell", "resource": "pytest *", "effect": "allow" },
+    { "action": "shell", "resource": "eslint *", "effect": "allow" },
+    { "action": "shell", "resource": "prettier --check *", "effect": "allow" },
+    { "action": "shell", "resource": "npm test *", "effect": "allow" },
+    { "action": "shell", "resource": "npm run test *", "effect": "allow" },
+    { "action": "shell", "resource": "npm run lint *", "effect": "allow" },
+    { "action": "shell", "resource": "npm run check *", "effect": "allow" },
+    { "action": "shell", "resource": "npm run typecheck *", "effect": "allow" },
+    { "action": "shell", "resource": "cargo check *", "effect": "allow" },
+    { "action": "shell", "resource": "cargo test *", "effect": "allow" },
+    { "action": "shell", "resource": "cargo clippy *", "effect": "allow" },
+    { "action": "shell", "resource": "cargo fmt --check *", "effect": "allow" },
+
+    // Narrow GitHub CLI reads. Raw API access and every write remain ask.
+    { "action": "shell", "resource": "gh auth status", "effect": "allow" },
+    { "action": "shell", "resource": "gh status *", "effect": "allow" },
+    { "action": "shell", "resource": "gh pr list *", "effect": "allow" },
+    { "action": "shell", "resource": "gh pr view *", "effect": "allow" },
+    { "action": "shell", "resource": "gh pr status *", "effect": "allow" },
+    { "action": "shell", "resource": "gh pr checks *", "effect": "allow" },
+    { "action": "shell", "resource": "gh issue list *", "effect": "allow" },
+    { "action": "shell", "resource": "gh issue view *", "effect": "allow" },
+    { "action": "shell", "resource": "gh issue status *", "effect": "allow" },
+    { "action": "shell", "resource": "gh repo list *", "effect": "allow" },
+    { "action": "shell", "resource": "gh repo view *", "effect": "allow" },
+    { "action": "shell", "resource": "gh run list *", "effect": "allow" },
+    { "action": "shell", "resource": "gh run view *", "effect": "allow" },
+    { "action": "shell", "resource": "gh run watch *", "effect": "allow" },
+    { "action": "shell", "resource": "gh workflow list *", "effect": "allow" },
+    { "action": "shell", "resource": "gh workflow view *", "effect": "allow" },
+    { "action": "shell", "resource": "gh release list *", "effect": "allow" },
+    { "action": "shell", "resource": "gh release view *", "effect": "allow" },
+    { "action": "shell", "resource": "gh search *", "effect": "allow" },
+    { "action": "shell", "resource": "gh api -X GET *", "effect": "allow" },
+    { "action": "shell", "resource": "gh api --method GET *", "effect": "allow" },
+
+    // Final denials override saved approvals and every allow above.
+    { "action": "shell", "resource": "gh auth status --show-token", "effect": "deny" },
+    { "action": "shell", "resource": "gh auth status --show-token *", "effect": "deny" },
+    { "action": "shell", "resource": "gh auth status *--show-token*", "effect": "deny" },
+    { "action": "shell", "resource": "gh auth status -t", "effect": "deny" },
+    { "action": "shell", "resource": "gh auth status -t *", "effect": "deny" },
+    { "action": "shell", "resource": "gh auth status * -t", "effect": "deny" },
+    { "action": "shell", "resource": "gh auth status * -t *", "effect": "deny" },
+    { "action": "shell", "resource": "*gh auth status *--show-token*", "effect": "deny" },
+    { "action": "shell", "resource": "*gh auth status -t*", "effect": "deny" },
+    { "action": "shell", "resource": "*gh auth status * -t*", "effect": "deny" },
+    { "action": "shell", "resource": "git add *", "effect": "deny" },
+    { "action": "shell", "resource": "git commit *", "effect": "deny" },
+    { "action": "shell", "resource": "git rm *", "effect": "deny" },
+    { "action": "shell", "resource": "git push *", "effect": "deny" },
+    { "action": "shell", "resource": "git reset *", "effect": "deny" },
+    { "action": "shell", "resource": "git clean *", "effect": "deny" },
+    { "action": "shell", "resource": "git checkout *", "effect": "deny" },
+    { "action": "shell", "resource": "git restore *", "effect": "deny" },
+    { "action": "shell", "resource": "*git add *", "effect": "deny" },
+    { "action": "shell", "resource": "*git commit *", "effect": "deny" },
+    { "action": "shell", "resource": "*git rm *", "effect": "deny" },
+    { "action": "shell", "resource": "*git push *", "effect": "deny" },
+    { "action": "shell", "resource": "*git reset *", "effect": "deny" },
+    { "action": "shell", "resource": "*git clean *", "effect": "deny" },
+    { "action": "shell", "resource": "*git checkout *", "effect": "deny" },
+    { "action": "shell", "resource": "*git restore *", "effect": "deny" },
+    { "action": "shell", "resource": "*git * add *", "effect": "deny" },
+    { "action": "shell", "resource": "*git * commit *", "effect": "deny" },
+    { "action": "shell", "resource": "*git * rm *", "effect": "deny" },
+    { "action": "shell", "resource": "*git * push *", "effect": "deny" },
+    { "action": "shell", "resource": "*git * reset *", "effect": "deny" },
+    { "action": "shell", "resource": "*git * clean *", "effect": "deny" },
+    { "action": "shell", "resource": "*git * checkout *", "effect": "deny" },
+    { "action": "shell", "resource": "*git * restore *", "effect": "deny" },
+    { "action": "shell", "resource": "git * --output=*", "effect": "deny" },
+    { "action": "shell", "resource": "git * --output *", "effect": "deny" },
+    { "action": "shell", "resource": "rm -r *", "effect": "deny" },
+    { "action": "shell", "resource": "rm -rf *", "effect": "deny" },
+    { "action": "shell", "resource": "rm -fr *", "effect": "deny" },
+    { "action": "shell", "resource": "rm --recursive *", "effect": "deny" },
+    { "action": "shell", "resource": "rm --recursive --force *", "effect": "deny" },
+    { "action": "shell", "resource": "*rm -r *", "effect": "deny" },
+    { "action": "shell", "resource": "*rm -rf *", "effect": "deny" },
+    { "action": "shell", "resource": "*rm -fr *", "effect": "deny" },
+    { "action": "shell", "resource": "*rm -R *", "effect": "deny" },
+    { "action": "shell", "resource": "*rm -Rf *", "effect": "deny" },
+    { "action": "shell", "resource": "*rm -fR *", "effect": "deny" },
+    { "action": "shell", "resource": "*rm -r*", "effect": "deny" },
+    { "action": "shell", "resource": "*rm -R*", "effect": "deny" },
+    { "action": "shell", "resource": "*rm * -r*", "effect": "deny" },
+    { "action": "shell", "resource": "*rm * -R*", "effect": "deny" },
+    { "action": "shell", "resource": "*rm --recursive*", "effect": "deny" },
+    { "action": "shell", "resource": "*rm * --recursive*", "effect": "deny" },
+
+    { "action": "read", "resource": "*.env", "effect": "deny" },
+    { "action": "read", "resource": "*.env.*", "effect": "deny" },
+    { "action": "read", "resource": "*.pem", "effect": "deny" },
+    { "action": "read", "resource": "*.key", "effect": "deny" },
+    { "action": "read", "resource": "*id_rsa*", "effect": "deny" },
+    { "action": "read", "resource": "*id_ed25519*", "effect": "deny" },
+    { "action": "read", "resource": "~/.ssh/*", "effect": "deny" },
+    { "action": "read", "resource": "~/.aws/*", "effect": "deny" },
+    { "action": "read", "resource": "~/.azure/*", "effect": "deny" },
+    { "action": "read", "resource": "~/.config/gcloud/*", "effect": "deny" },
+    { "action": "read", "resource": "~/.config/gh/hosts.yml", "effect": "deny" },
+    { "action": "read", "resource": "~/.kube/config", "effect": "deny" },
+    { "action": "read", "resource": "~/.netrc", "effect": "deny" },
+    { "action": "read", "resource": "~/.npmrc", "effect": "deny" },
+    { "action": "read", "resource": "~/.pypirc", "effect": "deny" },
+    { "action": "read", "resource": "~/.docker/config.json", "effect": "deny" },
+    { "action": "read", "resource": "~/.claude.json", "effect": "deny" },
+    { "action": "edit", "resource": "*.env", "effect": "deny" },
+    { "action": "edit", "resource": "*.env.*", "effect": "deny" },
+    { "action": "edit", "resource": "*.pem", "effect": "deny" },
+    { "action": "edit", "resource": "*.key", "effect": "deny" },
+    { "action": "edit", "resource": "~/.ssh/*", "effect": "deny" },
+    { "action": "edit", "resource": "~/.aws/*", "effect": "deny" },
+    { "action": "edit", "resource": "~/.azure/*", "effect": "deny" },
+    { "action": "edit", "resource": "~/.config/gcloud/*", "effect": "deny" },
+    { "action": "edit", "resource": "~/.config/gh/hosts.yml", "effect": "deny" },
+    { "action": "edit", "resource": "~/.kube/config", "effect": "deny" },
+    { "action": "edit", "resource": "~/.netrc", "effect": "deny" },
+    { "action": "edit", "resource": "~/.npmrc", "effect": "deny" },
+    { "action": "edit", "resource": "~/.pypirc", "effect": "deny" },
+    { "action": "edit", "resource": "~/.docker/config.json", "effect": "deny" },
+    { "action": "edit", "resource": "~/.claude.json", "effect": "deny" },
+    { "action": "external_directory", "resource": "~/.ssh/*", "effect": "deny" },
+    { "action": "external_directory", "resource": "~/.aws/*", "effect": "deny" },
+    { "action": "external_directory", "resource": "~/.azure/*", "effect": "deny" },
+    { "action": "external_directory", "resource": "~/.config/gcloud/*", "effect": "deny" }
+  ]"""
+
+# `plugin` remains in the drop set so an existing V1 list is removed cleanly.
 OWNED_KEYS = ("$schema", "agents", "plugin", "plugins")
 
 
@@ -288,6 +514,118 @@ def set_trailing_comma(block, want):
     return False
 
 
+def entry_value_start(source, entry):
+    """Return the first non-comment byte after an entry's colon."""
+    i = entry["start"] + 1
+    while i < len(source):
+        if source[i] == "\\":
+            i += 2
+            continue
+        if source[i] == '"':
+            break
+        i += 1
+    colon = skip_ws_comments(source, i + 1)
+    if colon >= len(source) or source[colon] != ":":
+        raise ValueError("entry has no colon")
+    return skip_ws_comments(source, colon + 1)
+
+
+def string_token_end(source, start):
+    """Return one past a JSON string without consuming comments or whitespace."""
+    if start >= len(source) or source[start] != '"':
+        raise ValueError("managed agent color is not a string")
+    i = start + 1
+    while i < len(source):
+        if source[i] == "\\":
+            i += 2
+            continue
+        if source[i] == '"':
+            return i + 1
+        i += 1
+    raise ValueError("unterminated managed agent color")
+
+
+def line_indent(source, position):
+    """Return leading whitespace on the line containing position."""
+    start = source.rfind("\n", 0, position) + 1
+    prefix = source[start:position]
+    return prefix if not prefix.strip() else ""
+
+
+def insert_object_member(source, root_open, root_close, entries, member):
+    """Insert a first object member while leaving existing bytes untouched."""
+    if entries:
+        indent = line_indent(source, entries[0]["start"])
+    else:
+        indent = line_indent(source, root_close) + "  "
+    if not indent:
+        indent = "  "
+    comma = "," if entries else ""
+    if "\n" in source[root_open:root_close]:
+        insertion = "\n%s%s%s" % (indent, member, comma)
+    else:
+        insertion = " %s%s" % (member, comma)
+    return source[:root_open + 1] + insertion + source[root_open + 1:]
+
+
+def merge_agent_color(agents_block, agent_id, color):
+    """Set one built-in color while preserving every other agents byte."""
+    root_open, root_close, agents = scan(agents_block)
+    if root_open is None or root_close is None:
+        raise ValueError("agents is not a complete object")
+    agent = next((entry for entry in agents if entry["name"] == agent_id), None)
+    if agent is None:
+        member = '"%s": { "color": "%s" }' % (agent_id, color)
+        return insert_object_member(agents_block, root_open, root_close, agents, member)
+
+    value_start = entry_value_start(agents_block, agent)
+    if value_start >= len(agents_block) or agents_block[value_start] != "{":
+        raise ValueError("agent %r is not an object" % agent_id)
+    agent_source = agents_block[value_start:agent["end"]]
+    obj_open, obj_close, fields = scan(agent_source)
+    if obj_open is None or obj_close is None:
+        raise ValueError("agent %r object is incomplete" % agent_id)
+    color_entry = next((entry for entry in fields if entry["name"] == "color"), None)
+    if color_entry is None:
+        updated = insert_object_member(
+            agent_source,
+            obj_open,
+            obj_close,
+            fields,
+            '"color": "%s"' % color,
+        )
+        return agents_block[:value_start] + updated + agents_block[agent["end"]:]
+
+    color_start = entry_value_start(agent_source, color_entry)
+    color_end = string_token_end(agent_source, color_start)
+    updated = agent_source[:color_start] + '"%s"' % color + agent_source[color_end:]
+    return agents_block[:value_start] + updated + agents_block[agent["end"]:]
+
+
+def merge_agents(agents_block):
+    """Apply the two managed colors and leave custom agent configuration alone."""
+    # Insert Plan first so a completely missing pair renders Build before Plan.
+    agents_block = merge_agent_color(agents_block, "plan", PLAN_COLOR)
+    return merge_agent_color(agents_block, "build", BUILD_COLOR)
+
+
+def build_owned(agents_block):
+    """Build the managed top-level entries around a preserved agents block."""
+    blocks = [
+        OWNED_SCHEMA.split("\n"),
+        agents_block.split("\n"),
+        OWNED_PLUGINS.split("\n"),
+    ]
+    for block in blocks[:-1]:
+        set_trailing_comma(block, True)
+    out = []
+    for i, block in enumerate(blocks):
+        if i:
+            out.append("")
+        out.extend(block)
+    return out
+
+
 def render(owned, seed, kept):
     """Assemble header + root object from the owned, seeded, and kept blocks.
 
@@ -321,9 +659,9 @@ def emit(s):
 
 
 # Empty stdin means the target does not exist yet: emit the full generic file,
-# permission block included.
+# native permissions included.
 if not text.strip():
-    emit(render(OWNED.split("\n"), SEED_PERMISSION.split("\n"), []))
+    emit(render(build_owned(NEW_AGENTS), SEED_PERMISSIONS.split("\n"), []))
     raise SystemExit(0)
 
 root_open, root_close, entries = scan(text)
@@ -364,26 +702,61 @@ for e in entries:
     if lines[line_of(e["start"])][:column_of(e["start"])].strip():
         passthrough("top-level key %r does not start its own line" % e["name"])
 
-# Line span of every owned entry: its attached leading comment block, its own
-# lines, and the blank separator that followed it. Deleting the separator with
-# the block is what keeps repeated applies from accumulating blank lines.
+# Return an entry's attached comments and value lines. A comparison copy can have
+# its trailing comma normalized without changing the target text.
 body_start, body_end = open_line + 1, close_line  # body_end exclusive
-drop = set()
-for e in entries:
-    if e["name"] not in OWNED_KEYS:
-        continue
-    first = line_of(e["start"])
-    if e["sep"] is not None:
-        last = line_of(e["sep"])
+
+
+def entry_span(entry, include_blank_separator=False):
+    first = line_of(entry["start"])
+    if entry["sep"] is not None:
+        last = line_of(entry["sep"])
     else:
-        k = e["end"] - 1
-        while k > e["start"] and text[k].isspace():
+        k = entry["end"] - 1
+        while k > entry["start"] and text[k].isspace():
             k -= 1
         last = line_of(k)
     while first - 1 >= body_start and lines[first - 1].lstrip().startswith("//"):
         first -= 1
-    while last + 1 < body_end and not lines[last + 1].strip():
-        last += 1
+    if include_blank_separator:
+        while last + 1 < body_end and not lines[last + 1].strip():
+            last += 1
+    return first, last
+
+
+legacy_permission = False
+for entry in entries:
+    if entry["name"] != "permission":
+        continue
+    first, last = entry_span(entry)
+    candidate = lines[first:last + 1]
+    set_trailing_comma(candidate, False)
+    legacy_permission = candidate == LEGACY_SEED_PERMISSION.split("\n")
+    break
+
+
+agents_block = NEW_AGENTS
+for entry in entries:
+    if entry["name"] != "agents":
+        continue
+    first, last = entry_span(entry)
+    agent_lines = lines[first:last + 1]
+    set_trailing_comma(agent_lines, False)
+    try:
+        agents_block = merge_agents("\n".join(agent_lines))
+    except ValueError as exc:
+        passthrough("cannot merge agent colors: %s" % exc)
+    break
+
+
+# Line span of every owned entry: its attached leading comment block, its own
+# lines, and the blank separator that followed it. Deleting the separator with
+# the block is what keeps repeated applies from accumulating blank lines.
+drop = set()
+for e in entries:
+    if e["name"] not in OWNED_KEYS and not (e["name"] == "permission" and legacy_permission):
+        continue
+    first, last = entry_span(e, include_blank_separator=True)
     drop.update(range(first, last + 1))
 
 kept = [lines[i] for i in range(body_start, body_end) if i not in drop]
@@ -392,5 +765,9 @@ while kept and not kept[0].strip():
 while kept and not kept[-1].strip():
     kept.pop()
 
-seed = None if any(e["name"] == "permission" for e in entries) else SEED_PERMISSION.split("\n")
-emit(render(OWNED.split("\n"), seed, kept))
+has_native_permissions = any(e["name"] == "permissions" for e in entries)
+has_custom_legacy_permission = any(e["name"] == "permission" for e in entries) and not legacy_permission
+seed = None
+if not has_native_permissions and not has_custom_legacy_permission:
+    seed = SEED_PERMISSIONS.split("\n")
+emit(render(build_owned(agents_block), seed, kept))
