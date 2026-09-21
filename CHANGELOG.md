@@ -1,5 +1,16 @@
 # Changelog
 
+## [1.0.0](https://github.com/crag-h4k/dotfiles/compare/v0.4.0...v1.0.0) (2026-09-21)
+
+
+### ⚠ BREAKING CHANGES
+
+* Major restructure, remove support for opencode v1, various fixes
+
+### Features
+
+* Major restructure, remove support for opencode v1, various fixes ([7247712](https://github.com/crag-h4k/dotfiles/commit/72477129d22fc1bc1e2238e54e36d969a1d5b17d))
+
 ## [0.4.0](https://github.com/crag-h4k/dotfiles/compare/v0.3.0...v0.4.0) (2026-09-18)
 
 
