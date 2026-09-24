@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.0.1](https://github.com/crag-h4k/dotfiles/compare/v1.0.0...v1.0.1) (2026-09-24)
+
+
+### Bug Fixes
+
+* **install:** package   plan and initial backups ([#66](https://github.com/crag-h4k/dotfiles/issues/66)) ([3743d69](https://github.com/crag-h4k/dotfiles/commit/3743d69974f2290b679b8ea6a2b7b130e840b882))
+
 ## [1.0.0](https://github.com/crag-h4k/dotfiles/compare/v0.4.0...v1.0.0) (2026-09-21)
 
 
