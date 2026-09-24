@@ -98,7 +98,10 @@ main() {
                 # Rebuild manager-aware records afterward, then mutate only the
                 # selected formulae and casks.
                 package_try "Homebrew metadata refresh" brew update || true
-                while IFS=$'\t' read -r src name status _policy origin probe; do
+                # Read records on FD 3 so a mutating command in the loop body
+                # (e.g. a brew upgrade that touches stdin) cannot consume the
+                # record stream and silently drop every later formula.
+                while IFS=$'\t' read -r src name status _policy origin probe <&3; do
                     [[ "$src" == brew-formula ]] || continue
                     case "$status" in
                         planned)
@@ -111,8 +114,8 @@ main() {
                             package_skip "Homebrew formula $name is current"
                             ;;
                     esac
-                done < <(DOTFILES_PLAN_APPROVED=1 "$planner" --records)
-                while IFS=$'\t' read -r src name status _policy origin probe; do
+                done 3< <(DOTFILES_PLAN_APPROVED=1 "$planner" --records)
+                while IFS=$'\t' read -r src name status _policy origin probe <&3; do
                     [[ "$src" == brew-cask ]] || continue
                     if [[ "$name" == ghostty && -d /Applications/Ghostty.app ]] \
                         && ! brew list --cask ghostty >/dev/null 2>&1; then
@@ -124,7 +127,7 @@ main() {
                         update) package_try "Homebrew cask $name update" brew upgrade --cask "$name" || true ;;
                         installed) package_skip "Homebrew cask $name is current" ;;
                     esac
-                done < <(DOTFILES_PLAN_APPROVED=1 "$planner" --records)
+                done 3< <(DOTFILES_PLAN_APPROVED=1 "$planner" --records)
                 if [[ "$node_required" == true ]]; then
                     if package_try "Node.js 24+ verification" verify_node_min_major 24; then
                         node_ready=true
@@ -147,10 +150,10 @@ main() {
                 # apt-get install is intentionally scoped to each selected package.
                 # It installs missing dependencies and advances installed ones to
                 # their candidate version without running a distro-wide upgrade.
-                while IFS= read -r name; do
+                while IFS= read -r name <&3; do
                     [[ -n "$name" ]] || continue
                     package_try "APT package $name install/update" sudo apt-get install -y "$name" || true
-                done < <(DOTFILES_PLAN_APPROVED=1 "$planner" --names apt)
+                done 3< <(DOTFILES_PLAN_APPROVED=1 "$planner" --names apt)
                 # Neovim is one checksum-verified upstream tree so its binary,
                 # runtime, and libraries activate or roll back together.
                 [[ "$INSTALL_NEOVIM" == true ]] && { package_try "Neovim versioned release" install_neovim_debian || true; }
