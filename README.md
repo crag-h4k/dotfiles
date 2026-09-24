@@ -63,7 +63,10 @@ The bootstrap:
 1. Shows the deduplicated package plan before anything mutates a package
    manager.
 1. Backs up managed files and nearby local state under
-   `~/.dotfiles-backup/<timestamp>/`.
+   `~/.dotfiles-backup/<timestamp>/`. A pre-existing target whose type conflicts
+   with what chezmoi writes (for example a symlinked `~/.config/nvim` where a real
+   directory is managed) is *moved* into that snapshot as `<name>.pre-apply` so the
+   apply can proceed instead of aborting.
 1. Applies the selected configuration and, in package mode, installs the
    approved tools.
 

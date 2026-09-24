@@ -94,11 +94,23 @@ main() {
         case "$os" in
             macos)
                 require_cmd brew
+                # nvim-treesitter compiles parsers with `tree-sitter build`, which
+                # shells out to cc. A bottled-Homebrew arm64 host can run without Apple
+                # Command Line Tools, and /usr/bin/cc is only a stub until they are
+                # installed, so a neovim deploy would otherwise fail deep in parser
+                # provisioning. Gate on the toolchain up front: `xcode-select -p`
+                # succeeds only once the CLT (or Xcode) toolchain is present.
+                if [[ "$INSTALL_NEOVIM" == true ]] && ! xcode-select -p >/dev/null 2>&1; then
+                    die "neovim needs a C compiler (cc) to build tree-sitter parsers, but Apple Command Line Tools are not installed. Run: xcode-select --install"
+                fi
                 # Metadata refresh happens only after the user approves the plan.
                 # Rebuild manager-aware records afterward, then mutate only the
                 # selected formulae and casks.
                 package_try "Homebrew metadata refresh" brew update || true
-                while IFS=$'\t' read -r src name status _policy origin probe; do
+                # Read records on FD 3 so a mutating command in the loop body
+                # (e.g. a brew upgrade that touches stdin) cannot consume the
+                # record stream and silently drop every later formula.
+                while IFS=$'\t' read -r src name status _policy origin probe <&3; do
                     [[ "$src" == brew-formula ]] || continue
                     case "$status" in
                         planned)
@@ -111,8 +123,8 @@ main() {
                             package_skip "Homebrew formula $name is current"
                             ;;
                     esac
-                done < <(DOTFILES_PLAN_APPROVED=1 "$planner" --records)
-                while IFS=$'\t' read -r src name status _policy origin probe; do
+                done 3< <(DOTFILES_PLAN_APPROVED=1 "$planner" --records)
+                while IFS=$'\t' read -r src name status _policy origin probe <&3; do
                     [[ "$src" == brew-cask ]] || continue
                     if [[ "$name" == ghostty && -d /Applications/Ghostty.app ]] \
                         && ! brew list --cask ghostty >/dev/null 2>&1; then
@@ -124,7 +136,7 @@ main() {
                         update) package_try "Homebrew cask $name update" brew upgrade --cask "$name" || true ;;
                         installed) package_skip "Homebrew cask $name is current" ;;
                     esac
-                done < <(DOTFILES_PLAN_APPROVED=1 "$planner" --records)
+                done 3< <(DOTFILES_PLAN_APPROVED=1 "$planner" --records)
                 if [[ "$node_required" == true ]]; then
                     if package_try "Node.js 24+ verification" verify_node_min_major 24; then
                         node_ready=true
@@ -140,17 +152,14 @@ main() {
                 if node_runtime_selected; then
                     package_try "NodeSource APT repository" ensure_nodesource_apt_repo || true
                 fi
-                if [[ "$INSTALL_NEOVIM" == true ]]; then
-                    package_try "Trivy APT repository" ensure_trivy_apt_repo || true
-                fi
                 package_try "APT metadata refresh" sudo apt-get update || true
                 # apt-get install is intentionally scoped to each selected package.
                 # It installs missing dependencies and advances installed ones to
                 # their candidate version without running a distro-wide upgrade.
-                while IFS= read -r name; do
+                while IFS= read -r name <&3; do
                     [[ -n "$name" ]] || continue
                     package_try "APT package $name install/update" sudo apt-get install -y "$name" || true
-                done < <(DOTFILES_PLAN_APPROVED=1 "$planner" --names apt)
+                done 3< <(DOTFILES_PLAN_APPROVED=1 "$planner" --names apt)
                 # Neovim is one checksum-verified upstream tree so its binary,
                 # runtime, and libraries activate or roll back together.
                 [[ "$INSTALL_NEOVIM" == true ]] && { package_try "Neovim versioned release" install_neovim_debian || true; }
@@ -200,7 +209,9 @@ main() {
         # Chezmoi clones missing externals while applying. Package mode also
         # refreshes every selected checkout, but only by a clean fast-forward.
         # Missing checkouts remain chezmoi's responsibility.
-        while IFS=$'\t' read -r src name status _policy origin probe; do
+        # Read records on FD 3 (as the brew/cask/apt loops above) so a mutating
+        # git command in the body cannot consume the record stream.
+        while IFS=$'\t' read -r src name status _policy origin probe <&3; do
             local git_rc=0
             [[ "$src" == git-external || "$src" == git-runtime ]] || continue
             if [[ "$src" == git-runtime ]]; then
@@ -216,7 +227,7 @@ main() {
                     *) _package_results_failed=$((_package_results_failed + 1)) ;;
                 esac
             fi
-        done < <(DOTFILES_PLAN_APPROVED=1 "$planner" --records)
+        done 3< <(DOTFILES_PLAN_APPROVED=1 "$planner" --records)
         local pkg_elapsed=$(( SECONDS - pkg_started ))
         package_results_summary "package run"
         info "packages: installed/updated in ${pkg_elapsed}s"

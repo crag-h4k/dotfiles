@@ -15,7 +15,7 @@ build the local runtime.
 | Lazy | Neovim plugins installed on this machine |
 
 The package installer owns `markdownlint-cli2`, `prettierd`, ShellCheck,
-yamllint, TFLint, Trivy, and Luacheck. They remain available in a shell and can
+yamllint, TFLint, and Luacheck. They remain available in a shell and can
 be reused by CI or other editors.
 
 On macOS, Homebrew installs `markdownlint-cli2`. On Debian, it is installed
@@ -40,8 +40,12 @@ nvim-treesitter's `main` branch builds parsers with the `tree-sitter` CLI, which
 is a separate package from the C library. On macOS, Homebrew split them: the
 `tree-sitter` formula ships only `libtree-sitter`, and the CLI lives in
 `tree-sitter-cli` (installs the `tree-sitter` binary). The package plan installs
-both. On Debian, the library comes from apt and the CLI from a github-release
-binary under `~/.local`. Without the CLI, parser builds fail and
+both. On Debian there is no separate library package: Neovim's bundled runtime
+loads the parsers, and only the CLI is installed, from a github-release binary
+under `~/.local`. Parser compilation uses the system C compiler (`cc`): the
+Apple Command Line Tools on macOS, `build-essential` on Debian. A fresh macOS
+host without the Command Line Tools fails an early preflight that points at
+`xcode-select --install`. Without the CLI, parser builds fail and
 `~/.local/share/nvim/site/parser` stays empty, so startup keeps retrying the
 install. If a rebuilt machine hits that, confirm `tree-sitter --version` resolves
 before debugging further.

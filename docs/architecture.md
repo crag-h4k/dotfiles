@@ -78,7 +78,7 @@ staging or activation fails.
 
 The tmux `↓ • ↑` network indicator uses `xamut/tmux-network-bandwidth`,
 replacing the Linux-only `tmux-net-speed`. Its package set includes
-`coreutils` and `gawk` on macOS, and `gawk` and `net-tools` on Debian.
+`coreutils` on macOS, and `gawk` and `net-tools` on Debian.
 
 It sums every interface, so VPN and VM-bridge traffic is included.
 
@@ -93,7 +93,7 @@ It sums every interface, so VPN and VM-bridge traffic is included.
 | Lazy | Neovim plugins |
 
 The package installer owns shell-visible markdownlint-cli2, ShellCheck,
-yamllint, TFLint, Trivy, and Luacheck. Mason owns the configured language
+yamllint, TFLint, and Luacheck. Mason owns the configured language
 servers and editor-only Gitleaks.
 
 Startup installs missing Mason packages. Approved package mode also updates

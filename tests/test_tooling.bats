@@ -30,18 +30,6 @@ Architectures: arm64
 Signed-By: /etc/apt/keyrings/nodesource.asc" ]
 }
 
-@test "Trivy deb822 source uses the generic suite" {
-  run render_deb822_source \
-    "https://aquasecurity.github.io/trivy-repo/deb" \
-    "generic" \
-    "/etc/apt/keyrings/trivy.asc" \
-    "amd64"
-
-  [ "$status" -eq 0 ]
-  [[ "$output" == *"Suites: generic"* ]]
-  [[ "$output" == *"Architectures: amd64"* ]]
-}
-
 @test "GitHub CLI deb822 source uses the stable suite and canonical keyring" {
   run render_deb822_source \
     "https://cli.github.com/packages" \
@@ -222,29 +210,26 @@ STUB
     DOTFILES_APT_ROOT="$apt_root" DOTFILES_APT_ARCH=arm64 \
     DOTFILES_SUDO_LOG="$sudo_log" DOTFILES_CURL_LOG="$curl_log" \
     bash -c \
-    "source '$REPO_ROOT/scripts/common.sh'; ensure_gh_apt_repo; ensure_nodesource_apt_repo; ensure_trivy_apt_repo"
+    "source '$REPO_ROOT/scripts/common.sh'; ensure_gh_apt_repo; ensure_nodesource_apt_repo"
   [ "$status" -eq 0 ]
 
   [ -f "$apt_root/etc/apt/sources.list.d/github-cli.sources" ]
   [ -f "$apt_root/etc/apt/sources.list.d/nodesource.sources" ]
-  [ -f "$apt_root/etc/apt/sources.list.d/trivy.sources" ]
   grep -q '^URIs: https://cli.github.com/packages$' \
     "$apt_root/etc/apt/sources.list.d/github-cli.sources"
   grep -q '^Suites: nodistro$' \
     "$apt_root/etc/apt/sources.list.d/nodesource.sources"
-  grep -q '^Suites: generic$' \
-    "$apt_root/etc/apt/sources.list.d/trivy.sources"
   [ "$(awk '$0 == "Architectures: arm64" { count++ } END { print count + 0 }' \
-    "$apt_root"/etc/apt/sources.list.d/*.sources)" -eq 3 ]
-  [ "$(wc -l <"$sudo_log")" -eq 9 ]
-  [ "$(wc -l <"$curl_log")" -eq 3 ]
+    "$apt_root"/etc/apt/sources.list.d/*.sources)" -eq 2 ]
+  [ "$(wc -l <"$sudo_log")" -eq 6 ]
+  [ "$(wc -l <"$curl_log")" -eq 2 ]
 
   rm -f "$sudo_log" "$curl_log"
   run env PATH="$stub_dir:$PATH" \
     DOTFILES_APT_ROOT="$apt_root" DOTFILES_APT_ARCH=arm64 \
     DOTFILES_SUDO_LOG="$sudo_log" DOTFILES_CURL_LOG="$curl_log" \
     bash -c \
-    "source '$REPO_ROOT/scripts/common.sh'; ensure_gh_apt_repo; ensure_nodesource_apt_repo; ensure_trivy_apt_repo"
+    "source '$REPO_ROOT/scripts/common.sh'; ensure_gh_apt_repo; ensure_nodesource_apt_repo"
   [ "$status" -eq 0 ]
   [ ! -e "$sudo_log" ]
   [ ! -e "$curl_log" ]
@@ -479,7 +464,6 @@ STUB
     INSTALL_NEOVIM=true bash "$planner" --records
   [ "$status" -eq 0 ]
   [[ "$output" == *$'apt\tnodejs\tplanned\tfloating\tNodeSource Node.js 24 apt repository'* ]]
-  [[ "$output" == *$'apt\ttrivy\tplanned\tfloating\tAqua Security apt repository'* ]]
   [[ "$output" == *$'github-release\ttflint\tplanned\t'* ]]
   [[ "$output" == *$'github-release\ttenv\tplanned\t'* ]]
   [[ "$output" == *$'github-release\ttree-sitter-cli\tplanned\t'* ]]
@@ -498,7 +482,6 @@ STUB
   [[ "$output" == *$'brew-formula\tmarkdownlint-cli2\tplanned\t'* ]]
   [[ "$output" == *$'brew-formula\tshellcheck\tplanned\t'* ]]
   [[ "$output" == *$'brew-formula\ttenv\tplanned\t'* ]]
-  [[ "$output" == *$'brew-formula\ttrivy\tplanned\t'* ]]
   [[ "$output" == *$'brew-formula\tyamllint\tplanned\t'* ]]
   [[ "$output" == *$'brew-formula\tterraform-linters/tap/tflint\tplanned\t'* ]]
   [[ "$output" == *$'brew-formula\ttree-sitter\tplanned\t'* ]]

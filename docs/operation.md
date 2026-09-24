@@ -240,6 +240,18 @@ copied in plaintext into `~/.dotfiles-backup/`, with 20 snapshots retained.
 `~/.zsh_override` and `~/.zsh_private` sit loose in `$HOME` and are never swept,
 which is the right place for anything sensitive.
 
+The same script also clears fresh-install conflicts. chezmoi overwrites a plain
+pre-existing file, but it aborts the whole apply when a target already exists as a
+different filesystem type than the one it manages: a symlink or file where a
+directory goes (a symlinked `~/.config/nvim` is the common case), or a directory
+or special node (FIFO, socket, device) where a file or symlink goes. Before
+applying, the script moves each such target into the current snapshot as
+`<name>.pre-apply` so the apply proceeds. Only a genuine type mismatch is moved:
+a directory that chezmoi also manages as a directory (`~/.config`, `~/.claude`,
+`~/.codex`, `~/.local`) is left in place to merge, so that holds only when those
+paths are real directories. Recover an original from
+`~/.dotfiles-backup/<timestamp>/<relative-path>.pre-apply`.
+
 ### Reloading
 
 ```sh
@@ -357,13 +369,11 @@ troubleshooting.
 ## Docker and Terraform checks
 
 Neovim uses Docker's official language server for Dockerfiles and standard
-Compose filenames. For repository checks, use the first-party validators and
-Trivy:
+Compose filenames. For repository checks, use the first-party validators:
 
 ```sh
 docker build --check .
 docker compose config --quiet
-trivy config .
 ```
 
 Terraform runs through tenv's project-aware proxy. It honors project version
@@ -382,7 +392,6 @@ terraform fmt -check -recursive
 terraform init -backend=false
 terraform validate
 tflint --init && tflint
-trivy config .
 ```
 
 The managed `~/.tflint.hcl` enables only TFLint's portable recommended rules.
