@@ -135,6 +135,7 @@
 .config/opencode/cli.json
 .config/opencode/themes/gud-lucent.json
 .config/opencode/plugin/notify.ts
+.config/opencode/plugin/copilot-tiers.ts
 .config/opencode/v2-plugins
 .config/opencode/commands/iac-scan.md
 .local/bin/opencode2
