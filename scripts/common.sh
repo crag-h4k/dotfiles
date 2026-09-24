@@ -76,9 +76,9 @@ require_cmd() {
 # debian_codename → the running Debian/Ubuntu suite codename (e.g. "trixie").
 # Order: explicit override (tests/containers), /etc/os-release VERSION_CODENAME,
 # lsb_release, then a "trixie" default so a codename-less minimal image still
-# targets a real suite. Repos with a fixed suite (NodeSource "nodistro", Trivy
-# "generic", gh "stable") do not need this; it is for any repo that keys its
-# suite to the running codename.
+# targets a real suite. Repos with a fixed suite (NodeSource "nodistro", gh
+# "stable") do not need this; it is for any repo that keys its suite to the
+# running codename.
 debian_codename() {
     if [[ -n "${DOTFILES_DEBIAN_CODENAME:-}" ]]; then
         printf '%s\n' "$DOTFILES_DEBIAN_CODENAME"
@@ -285,16 +285,6 @@ ensure_nodesource_apt_repo() {
         "https://deb.nodesource.com/gpgkey/nodesource-repo.gpg.key" \
         "/etc/apt/keyrings/nodesource.asc" \
         "/etc/apt/sources.list.d/nodesource.sources"
-}
-
-ensure_trivy_apt_repo() {
-    install_debian_apt_repo \
-        "Aqua Security Trivy" \
-        "https://aquasecurity.github.io/trivy-repo/deb" \
-        "generic" \
-        "https://aquasecurity.github.io/trivy-repo/deb/public.key" \
-        "/etc/apt/keyrings/trivy.asc" \
-        "/etc/apt/sources.list.d/trivy.sources"
 }
 
 # Manage the canonical GitHub CLI Deb822 repository. The caller owns apt-get

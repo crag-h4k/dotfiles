@@ -238,7 +238,6 @@ _build() {
     case "$os" in
         macos)
             _add brew-formula git "Homebrew core"
-            _add brew-formula make "Homebrew core"
             _add brew-formula curl "Homebrew core"
             _add brew-formula gum "Homebrew core"
             _add brew-formula chezmoi "Homebrew core"
@@ -266,7 +265,7 @@ _build() {
                 # required on macOS (Debian gets the CLI via github-release below).
                 # No cmake/llvm here: `tree-sitter build` compiles parsers with cc
                 # (Apple CLT clang) directly, verified on macOS and Debian.
-                for pkg in go lua@5.4 luarocks markdownlint-cli2 neovim node python3 shellcheck tenv tree-sitter tree-sitter-cli trivy yamllint; do
+                for pkg in go lua@5.4 luarocks markdownlint-cli2 neovim node python3 shellcheck tenv tree-sitter tree-sitter-cli yamllint; do
                     _add brew-formula "$pkg" "Homebrew core"
                 done
                 _add brew-formula terraform-linters/tap/tflint "Homebrew tap terraform-linters/tap" tflint
@@ -283,7 +282,7 @@ _build() {
             [[ "$INSTALL_TERMINAL_ITERM2" == true ]] && _add brew-cask iterm2 "Homebrew cask"
             ;;
         debian)
-            for pkg in git make curl ca-certificates gnupg gum; do
+            for pkg in git curl ca-certificates gnupg gum; do
                 _add apt "$pkg" "Debian apt repository"
             done
             if [[ "$INSTALL_ZSH" == true ]]; then
@@ -313,7 +312,6 @@ _build() {
                     _add apt "$pkg" "Debian apt repository"
                 done
                 _add apt nodejs "NodeSource Node.js 24 apt repository"
-                _add apt trivy "Aqua Security apt repository"
                 # Neovim ships as one checksum-verified upstream tree so its
                 # binary, runtime, and libraries switch as a unit.
                 _add github-release neovim "https://github.com/neovim/neovim/releases" nvim

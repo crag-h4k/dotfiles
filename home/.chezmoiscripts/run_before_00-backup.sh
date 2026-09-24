@@ -96,7 +96,9 @@ done < <(chezmoi managed --path-style=absolute --include=files 2>/dev/null \
 #    whole apply) when a target already exists as a different filesystem TYPE: a symlink
 #    or file where a managed directory goes (e.g. a symlinked ~/.config/nvim from
 #    LazyVim/kickstart), or a real directory where a managed file/symlink/readonly
-#    external goes. Test -L before -e/-d, which follow symlinks (-e is even false for a
+#    external goes, or a special node (FIFO/named pipe, socket, block/char device)
+#    where a managed file or symlink goes. Test -L before -e/-d, which follow symlinks
+#    (-e is even false for a
 #    broken symlink). Directories chezmoi also manages as directories (~/.config,
 #    ~/.claude, ~/.codex, ~/.local) are left in place so their contents merge - only a
 #    genuine type mismatch is moved, never a mergeable directory.
@@ -110,20 +112,27 @@ while IFS= read -r t; do
     fi
 done < <(chezmoi managed --path-style=absolute --include=dirs 2>/dev/null | sort)
 
-# Managed symlinks (want a symlink): only a real directory conflicts. An existing file
-# or symlink is overwritten by chezmoi.
+# Managed symlinks (want a symlink): a real directory OR a special node (FIFO/named
+# pipe, socket, block/char device) conflicts - chezmoi cannot overwrite either in place,
+# and a FIFO/socket can even hang the write. An existing regular file or symlink is
+# overwritten cleanly, so leave those. Test -L first; then "exists but is not a regular
+# file" catches dirs and special nodes without touching regular files or symlinks.
 while IFS= read -r t; do
     [[ -z "$t" ]] && continue
-    if [[ -d "$t" && ! -L "$t" ]]; then
+    if [[ ! -L "$t" && -e "$t" && ! -f "$t" ]]; then
         move_aside "$t"
     fi
 done < <(chezmoi managed --path-style=absolute --include=symlinks 2>/dev/null)
 
-# Managed files (want a regular file): only a real directory conflicts. An existing file
-# or symlink is overwritten by chezmoi (content already copied in step 1).
+# Managed files (want a regular file): a real directory OR a special node (FIFO/named
+# pipe, socket, block/char device) conflicts - e.g. a FIFO at a managed
+# ~/.claude/settings.json would hang or error chezmoi when it writes that target. An
+# existing regular file or symlink is overwritten cleanly (content already copied in
+# step 1), so leave those. Test -L first; then "exists but is not a regular file"
+# catches dirs and special nodes without touching regular files or symlinks.
 while IFS= read -r t; do
     [[ -z "$t" ]] && continue
-    if [[ -d "$t" && ! -L "$t" ]]; then
+    if [[ ! -L "$t" && -e "$t" && ! -f "$t" ]]; then
         move_aside "$t"
     fi
 done < <(chezmoi managed --path-style=absolute --include=files 2>/dev/null)

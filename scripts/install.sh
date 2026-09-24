@@ -94,6 +94,15 @@ main() {
         case "$os" in
             macos)
                 require_cmd brew
+                # nvim-treesitter compiles parsers with `tree-sitter build`, which
+                # shells out to cc. A bottled-Homebrew arm64 host can run without Apple
+                # Command Line Tools, and /usr/bin/cc is only a stub until they are
+                # installed, so a neovim deploy would otherwise fail deep in parser
+                # provisioning. Gate on the toolchain up front: `xcode-select -p`
+                # succeeds only once the CLT (or Xcode) toolchain is present.
+                if [[ "$INSTALL_NEOVIM" == true ]] && ! xcode-select -p >/dev/null 2>&1; then
+                    die "neovim needs a C compiler (cc) to build tree-sitter parsers, but Apple Command Line Tools are not installed. Run: xcode-select --install"
+                fi
                 # Metadata refresh happens only after the user approves the plan.
                 # Rebuild manager-aware records afterward, then mutate only the
                 # selected formulae and casks.
@@ -142,9 +151,6 @@ main() {
                     { package_try "GitHub CLI APT repository" ensure_gh_apt_repo || true; }
                 if node_runtime_selected; then
                     package_try "NodeSource APT repository" ensure_nodesource_apt_repo || true
-                fi
-                if [[ "$INSTALL_NEOVIM" == true ]]; then
-                    package_try "Trivy APT repository" ensure_trivy_apt_repo || true
                 fi
                 package_try "APT metadata refresh" sudo apt-get update || true
                 # apt-get install is intentionally scoped to each selected package.
@@ -203,7 +209,9 @@ main() {
         # Chezmoi clones missing externals while applying. Package mode also
         # refreshes every selected checkout, but only by a clean fast-forward.
         # Missing checkouts remain chezmoi's responsibility.
-        while IFS=$'\t' read -r src name status _policy origin probe; do
+        # Read records on FD 3 (as the brew/cask/apt loops above) so a mutating
+        # git command in the body cannot consume the record stream.
+        while IFS=$'\t' read -r src name status _policy origin probe <&3; do
             local git_rc=0
             [[ "$src" == git-external || "$src" == git-runtime ]] || continue
             if [[ "$src" == git-runtime ]]; then
@@ -219,7 +227,7 @@ main() {
                     *) _package_results_failed=$((_package_results_failed + 1)) ;;
                 esac
             fi
-        done < <(DOTFILES_PLAN_APPROVED=1 "$planner" --records)
+        done 3< <(DOTFILES_PLAN_APPROVED=1 "$planner" --records)
         local pkg_elapsed=$(( SECONDS - pkg_started ))
         package_results_summary "package run"
         info "packages: installed/updated in ${pkg_elapsed}s"

@@ -249,7 +249,7 @@ Neovim.
 
 The Neovim component also installs the command-line tools behind its
 integrations. The cross-platform package plan owns shell-visible
-markdownlint-cli2, ShellCheck, yamllint, TFLint, Trivy, and Luacheck.
+markdownlint-cli2, ShellCheck, yamllint, TFLint, and Luacheck.
 
 Mason owns language servers and editor-only Gitleaks. It installs missing
 packages at startup but does not update or reconcile existing versions. See
@@ -353,7 +353,7 @@ DOTFILES_ASSUME_YES=1 \
 ### Adding APT repositories
 
 Some tools are not in Debian main and install from third-party APT repositories:
-NodeSource (Node.js 24), Aqua Security (Trivy), and the GitHub CLI. The installer
+NodeSource (Node.js 24) and the GitHub CLI. The installer
 adds each one only when a selected component needs it, and only if the host does
 not already provide it.
 
