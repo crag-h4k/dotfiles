@@ -240,6 +240,16 @@ copied in plaintext into `~/.dotfiles-backup/`, with 20 snapshots retained.
 `~/.zsh_override` and `~/.zsh_private` sit loose in `$HOME` and are never swept,
 which is the right place for anything sensitive.
 
+The same script also clears fresh-install conflicts. chezmoi overwrites a plain
+pre-existing file, but it aborts the whole apply when a target already exists as a
+different filesystem type than the one it manages: a symlink or file where a
+directory goes (a symlinked `~/.config/nvim` is the common case), or a directory
+where a file or symlink goes. Before applying, the script moves each such target
+into the current snapshot as `<name>.pre-apply` so the apply proceeds. Mergeable
+directories that chezmoi also manages as directories (`~/.config`, `~/.claude`,
+`~/.codex`, `~/.local`) are left in place. Recover an original from
+`~/.dotfiles-backup/<timestamp>/<relative-path>.pre-apply`.
+
 ### Reloading
 
 ```sh

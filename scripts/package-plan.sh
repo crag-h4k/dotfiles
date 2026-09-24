@@ -254,15 +254,19 @@ _build() {
             if [[ "$INSTALL_TMUX" == true ]]; then
                 _add brew-formula tmux "Homebrew core"
                 _add brew-formula reattach-to-user-namespace "Homebrew core"
+                # coreutils provides numfmt, used by the tmux-network-bandwidth
+                # widget's format_speed. No gawk: the plugin's macOS path is POSIX
+                # awk (system awk); only its Linux path needs gawk (3-arg match).
                 _add brew-formula coreutils "Homebrew core"
-                _add brew-formula gawk "Homebrew core"
             fi
             if [[ "$INSTALL_NEOVIM" == true ]]; then
                 # tree-sitter is the C library; tree-sitter-cli is the parser
                 # generator binary (`tree-sitter`) that nvim-treesitter's main
                 # branch needs to build parsers. Homebrew split them, so both are
                 # required on macOS (Debian gets the CLI via github-release below).
-                for pkg in cmake go llvm lua@5.4 luarocks markdownlint-cli2 neovim node python3 shellcheck tenv tree-sitter tree-sitter-cli trivy yamllint; do
+                # No cmake/llvm here: `tree-sitter build` compiles parsers with cc
+                # (Apple CLT clang) directly, verified on macOS and Debian.
+                for pkg in go lua@5.4 luarocks markdownlint-cli2 neovim node python3 shellcheck tenv tree-sitter tree-sitter-cli trivy yamllint; do
                     _add brew-formula "$pkg" "Homebrew core"
                 done
                 _add brew-formula terraform-linters/tap/tflint "Homebrew tap terraform-linters/tap" tflint
@@ -305,7 +309,7 @@ _build() {
                 done
             fi
             if [[ "$INSTALL_NEOVIM" == true ]]; then
-                for pkg in build-essential cmake golang jq luarocks python3 python3-pip python3-venv shellcheck unzip yamllint; do
+                for pkg in build-essential golang jq luarocks python3 python3-pip python3-venv shellcheck unzip yamllint; do
                     _add apt "$pkg" "Debian apt repository"
                 done
                 _add apt nodejs "NodeSource Node.js 24 apt repository"

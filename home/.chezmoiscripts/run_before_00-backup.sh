@@ -23,6 +23,7 @@ set -euo pipefail
 backup_root="$HOME/.dotfiles-backup"
 backup_dir="$backup_root/$(date +%Y%m%dT%H%M%S)"
 backed_up=0
+moved=0
 started=$SECONDS
 
 printf 'dotfiles: inspecting existing configs for backup...\n'
@@ -39,6 +40,29 @@ copy_into_backup() {
     mkdir -p "$(dirname "$dst")"
     cp -p "$src" "$dst"
     backed_up=$(( backed_up + 1 ))
+}
+
+# Move a type-conflicting target into the snapshot so chezmoi can write the managed
+# dir/file/symlink in its place. Stored under a ".pre-apply" name so the moved original
+# never collides with a content copy made by step 1. Warns and continues on a failed
+# move: the leftover conflict would surface in apply anyway, but one odd path should not
+# abort the whole backup.
+move_aside() {
+    local src="$1" rel dst n
+    rel="${src#"$HOME/"}"
+    dst="$backup_dir/$rel.pre-apply"
+    if [[ -e "$dst" || -L "$dst" ]]; then
+        n=1
+        while [[ -e "$dst.$n" || -L "$dst.$n" ]]; do n=$(( n + 1 )); done
+        dst="$dst.$n"
+    fi
+    mkdir -p "$(dirname "$dst")"
+    if mv "$src" "$dst"; then
+        moved=$(( moved + 1 ))
+        printf 'dotfiles: moved conflicting %s aside to %s\n' "$src" "$dst"
+    else
+        printf 'dotfiles: WARNING could not move %s aside; chezmoi apply may fail on it\n' "$src" >&2
+    fi
 }
 
 # 1. Every managed file (the configs themselves).
@@ -67,9 +91,57 @@ while IFS= read -r dir; do
 done < <(chezmoi managed --path-style=absolute --include=files 2>/dev/null \
          | while IFS= read -r t; do dirname "$t"; done | sort -u)
 
+# 3. Move aside targets whose on-disk type conflicts with what chezmoi will write.
+#    chezmoi silently overwrites a plain regular file, but hard-fails (aborting the
+#    whole apply) when a target already exists as a different filesystem TYPE: a symlink
+#    or file where a managed directory goes (e.g. a symlinked ~/.config/nvim from
+#    LazyVim/kickstart), or a real directory where a managed file/symlink/readonly
+#    external goes. Test -L before -e/-d, which follow symlinks (-e is even false for a
+#    broken symlink). Directories chezmoi also manages as directories (~/.config,
+#    ~/.claude, ~/.codex, ~/.local) are left in place so their contents merge - only a
+#    genuine type mismatch is moved, never a mergeable directory.
+
+# Managed dirs (want a real dir): shallowest-first, so moving a conflicting parent
+# clears its children before they are inspected.
+while IFS= read -r t; do
+    [[ -z "$t" ]] && continue
+    if [[ -L "$t" ]] || { [[ -e "$t" && ! -d "$t" ]]; }; then
+        move_aside "$t"
+    fi
+done < <(chezmoi managed --path-style=absolute --include=dirs 2>/dev/null | sort)
+
+# Managed symlinks (want a symlink): only a real directory conflicts. An existing file
+# or symlink is overwritten by chezmoi.
+while IFS= read -r t; do
+    [[ -z "$t" ]] && continue
+    if [[ -d "$t" && ! -L "$t" ]]; then
+        move_aside "$t"
+    fi
+done < <(chezmoi managed --path-style=absolute --include=symlinks 2>/dev/null)
+
+# Managed files (want a regular file): only a real directory conflicts. An existing file
+# or symlink is overwritten by chezmoi (content already copied in step 1).
+while IFS= read -r t; do
+    [[ -z "$t" ]] && continue
+    if [[ -d "$t" && ! -L "$t" ]]; then
+        move_aside "$t"
+    fi
+done < <(chezmoi managed --path-style=absolute --include=files 2>/dev/null)
+
+# Externals (git-repo dir targets like ~/.zsh/ohmyzsh, readonly file targets under
+# ~/.local/share/agent-skills): a symlink is invalid for either. A real dir/file is left
+# for chezmoi to handle (git pull / dirty-checkout skip, or file overwrite).
+while IFS= read -r t; do
+    [[ -z "$t" ]] && continue
+    if [[ -L "$t" ]]; then
+        move_aside "$t"
+    fi
+done < <(chezmoi managed --path-style=absolute --include=externals 2>/dev/null)
+
 elapsed=$(( SECONDS - started ))
-if (( backed_up > 0 )); then
-    printf 'dotfiles: backed up %d file(s) to %s (%ss)\n' "$backed_up" "$backup_dir" "$elapsed"
+if (( backed_up > 0 || moved > 0 )); then
+    printf 'dotfiles: backed up %d file(s), moved %d conflicting target(s) aside -> %s (%ss)\n' \
+        "$backed_up" "$moved" "$backup_dir" "$elapsed"
 else
     rm -rf "$backup_dir"
     printf 'dotfiles: no existing configs needed backup (%ss)\n' "$elapsed"
