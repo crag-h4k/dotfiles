@@ -26,6 +26,66 @@ STUB
   chmod +x "$PREFIX/bin/opencode2"
 }
 
+install_with_npm() {
+  local stub_dir="$BATS_TEST_TMPDIR/stubs" npm_log="$BATS_TEST_TMPDIR/npm.log"
+  mkdir -p "$stub_dir" "$HOME/.config/opencode"
+  rm "$PREFIX/bin/opencode2"
+  cat >"$stub_dir/npm" <<'STUB'
+#!/bin/sh
+printf '%s\n' "$*" >>"$NPM_LOG"
+if [ "$1" = --version ]; then
+  printf '%s\n' "$TEST_NPM_VERSION"
+  exit 0
+fi
+if [ "$1" = view ]; then
+  case "$2" in
+    @opentui/solid@latest) printf '0.5.11\n' ;;
+    @opentui/solid@0.5.11) printf '1.9.12\n' ;;
+    *) exit 1 ;;
+  esac
+  exit 0
+fi
+if [ "$1" = install ] && printf '%s\n' "$*" | grep -q '@opencode/cli@'; then
+  case "$TEST_NPM_VERSION" in
+    12.*) printf '%s\n' "$*" | grep -q -- '--allow-scripts=@opencode/cli' || exit 1 ;;
+    11.*) case "$*" in *--allow-scripts*) exit 1 ;; esac ;;
+  esac
+  while [ "$#" -gt 0 ]; do
+    if [ "$1" = --prefix ]; then
+      prefix=$2
+      break
+    fi
+    shift
+  done
+  mkdir -p "$prefix/bin"
+  cat >"$prefix/bin/opencode2" <<'BIN'
+#!/bin/sh
+printf 'opencode2 v2.0.8\n'
+BIN
+  chmod +x "$prefix/bin/opencode2"
+fi
+STUB
+  cat >"$stub_dir/node" <<'STUB'
+#!/bin/sh
+exit 0
+STUB
+  chmod +x "$stub_dir/npm" "$stub_dir/node"
+  before=$(cksum "$WRAPPER")
+
+  run env PATH="$stub_dir:$PATH" NPM_LOG="$npm_log" TEST_NPM_VERSION="$1" \
+    INSTALL_AI_OPENCODE=true OPENCODE2_VERSION=latest \
+    OPENCODE2_NPM_PREFIX="$PREFIX" OPENCODE2_WRAPPER="$WRAPPER" \
+    OPENCODE2_CONFIG_DIR="$HOME/.config/opencode" bash "$INSTALLER"
+
+  [ "$status" -eq 0 ]
+  [ "$(cksum "$WRAPPER")" = "$before" ]
+  grep -q '^install -g --prefix .* @opencode/cli@latest$' "$npm_log"
+  grep -q '^view @opentui/solid@latest version$' "$npm_log"
+  grep -q '^view @opentui/solid@0.5.11 peerDependencies.solid-js$' "$npm_log"
+  grep -q '^install --prefix .* --ignore-scripts --package-lock=false --no-save @opencode/plugin@2.0.8 @opentui/solid@0.5.11 solid-js@1.9.12$' "$npm_log"
+  [[ "$output" == *"activated @opencode/cli@2.0.8 and matching plugin runtime"* ]]
+}
+
 @test "update defaults to the isolated npm method" {
   run "$WRAPPER" update 2.1.0
   [ "$status" -eq 0 ]
@@ -179,54 +239,10 @@ arg=status" ]
   [[ "$output" == *"isolated binary resolves to the managed wrapper"* ]]
 }
 
-@test "installer leaves the managed wrapper untouched" {
-  local stub_dir="$BATS_TEST_TMPDIR/stubs" npm_log="$BATS_TEST_TMPDIR/npm.log"
-  mkdir -p "$stub_dir" "$HOME/.config/opencode"
-  rm "$PREFIX/bin/opencode2"
-  cat >"$stub_dir/npm" <<'STUB'
-#!/bin/sh
-printf '%s\n' "$*" >>"$NPM_LOG"
-if [ "$1" = view ]; then
-  case "$2" in
-    @opentui/solid@latest) printf '0.5.11\n' ;;
-    @opentui/solid@0.5.11) printf '1.9.12\n' ;;
-    *) exit 1 ;;
-  esac
-  exit 0
-fi
-if [ "$1" = install ] && printf '%s\n' "$*" | grep -q '@opencode/cli@'; then
-  while [ "$#" -gt 0 ]; do
-    if [ "$1" = --prefix ]; then
-      prefix=$2
-      break
-    fi
-    shift
-  done
-  mkdir -p "$prefix/bin"
-  cat >"$prefix/bin/opencode2" <<'BIN'
-#!/bin/sh
-printf 'opencode2 v2.0.8\n'
-BIN
-  chmod +x "$prefix/bin/opencode2"
-fi
-STUB
-  cat >"$stub_dir/node" <<'STUB'
-#!/bin/sh
-exit 0
-STUB
-  chmod +x "$stub_dir/npm" "$stub_dir/node"
-  before=$(cksum "$WRAPPER")
+@test "npm 11 installer leaves the managed wrapper untouched" {
+  install_with_npm 11.11.0
+}
 
-  run env PATH="$stub_dir:$PATH" NPM_LOG="$npm_log" \
-    INSTALL_AI_OPENCODE=true OPENCODE2_VERSION=latest \
-    OPENCODE2_NPM_PREFIX="$PREFIX" OPENCODE2_WRAPPER="$WRAPPER" \
-    OPENCODE2_CONFIG_DIR="$HOME/.config/opencode" bash "$INSTALLER"
-
-  [ "$status" -eq 0 ]
-  [ "$(cksum "$WRAPPER")" = "$before" ]
-  grep -q '^install -g --prefix .* @opencode/cli@latest$' "$npm_log"
-  grep -q '^view @opentui/solid@latest version$' "$npm_log"
-  grep -q '^view @opentui/solid@0.5.11 peerDependencies.solid-js$' "$npm_log"
-  grep -q '^install --prefix .* --ignore-scripts --package-lock=false --no-save @opencode/plugin@2.0.8 @opentui/solid@0.5.11 solid-js@1.9.12$' "$npm_log"
-  [[ "$output" == *"activated @opencode/cli@2.0.8 and matching plugin runtime"* ]]
+@test "npm 12 installer permits the CLI postinstall without enabling runtime scripts" {
+  install_with_npm 12.0.2
 }
