@@ -40,6 +40,8 @@
 .local/share/opencode2
 .zsh/custom/functions/local-*.zsh
 .gitconfig.override
+.gitconfig.github
+.gitconfig.forgejo
 .gitconfig.personal
 .gitconfig.work
 .zsh_override

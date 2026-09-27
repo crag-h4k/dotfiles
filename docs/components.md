@@ -160,6 +160,12 @@ chooses the server mode. Other subcommands pass through unchanged. Both installe
 and wrapper canonicalize their paths and reject a prefix whose binary resolves
 back to the managed wrapper.
 
+On npm 12 and newer, the installer explicitly allows `@opencode/cli`'s
+postinstall script, which replaces the package's placeholder launcher with the
+native executable. Plugin dependencies are still installed with
+`--ignore-scripts`. The CLI and plugin runtime are verified before activation;
+a failed install preserves the previous working release.
+
 `~/.config/opencode/opencode.jsonc` is merge-managed. Chezmoi reasserts the
 schema, built-in agent colors, and exact-pinned V2 plugin list while preserving
 unknown top-level keys and comments. A fresh host receives native ordered

@@ -102,7 +102,14 @@ main() {
     cli_stage=$(mktemp -d "$cli_releases/.stage.XXXXXX")
     runtime_stage=$(mktemp -d "$runtime_releases/.stage.XXXXXX")
 
-    if ! npm install -g --prefix "$cli_stage" "@opencode/cli@$OPENCODE2_VERSION"; then
+    local npm_version
+    local -a cli_install_args=(install -g --prefix "$cli_stage")
+    npm_version=$(npm --version)
+    # npm 12 blocks the postinstall that replaces the CLI's launcher placeholder.
+    if [[ "${npm_version%%.*}" -ge 12 ]]; then
+        cli_install_args+=(--allow-scripts=@opencode/cli)
+    fi
+    if ! npm "${cli_install_args[@]}" "@opencode/cli@$OPENCODE2_VERSION"; then
         warn "opencode2: staged CLI install failed; current CLI/runtime unchanged"
         rm -rf "$cli_stage" "$runtime_stage"
         return 1
