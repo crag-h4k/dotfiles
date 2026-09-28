@@ -9,7 +9,7 @@ setup() {
 @test "CI summary reports every gate and phase on a clean run" {
     run env \
         PR_METADATA_RESULT=success \
-        PRE_COMMIT_RESULT=success \
+        PREK_RESULT=success \
         TRIXIE_BUILD=success \
         TRIXIE_INSTALL=success \
         TRIXIE_SMOKE=success \
@@ -19,10 +19,10 @@ setup() {
         "$REPO_ROOT/.github/scripts/render-deployment-summary.sh" "$SUMMARY_FILE"
 
     [ "$status" -eq 0 ]
-    # 4 gate verdicts (pr-metadata, pre-commit, trixie, macos) + 6 phase cells.
+    # 4 gate verdicts (pr-metadata, prek, trixie, macos) + 6 phase cells.
     [ "$(grep -o ':white_check_mark: passed' "$SUMMARY_FILE" | wc -l | tr -d ' ')" -eq 10 ]
     grep -F '| PR metadata |' "$SUMMARY_FILE"
-    grep -F '| pre-commit |' "$SUMMARY_FILE"
+    grep -F '| prek |' "$SUMMARY_FILE"
     grep -F '| Debian Trixie |' "$SUMMARY_FILE"
     grep -F '| macOS |' "$SUMMARY_FILE"
 }
@@ -30,7 +30,7 @@ setup() {
 @test "CI summary surfaces a failed gate (e.g. PR metadata) even when deployments pass" {
     run env \
         PR_METADATA_RESULT=failure \
-        PRE_COMMIT_RESULT=success \
+        PREK_RESULT=success \
         TRIXIE_BUILD=success \
         TRIXIE_INSTALL=success \
         TRIXIE_SMOKE=success \
@@ -46,7 +46,7 @@ setup() {
 @test "CI summary preserves failed, skipped, cancelled, and unavailable outcomes" {
     run env \
         PR_METADATA_RESULT=success \
-        PRE_COMMIT_RESULT=success \
+        PREK_RESULT=failure \
         TRIXIE_BUILD=success \
         TRIXIE_INSTALL=failure \
         TRIXIE_SMOKE=skipped \
@@ -56,6 +56,7 @@ setup() {
         "$REPO_ROOT/.github/scripts/render-deployment-summary.sh" "$SUMMARY_FILE"
 
     [ "$status" -eq 0 ]
+    grep -F '| prek | :x: failed |' "$SUMMARY_FILE"
     grep -F ':x: failed' "$SUMMARY_FILE"
     grep -F ':fast_forward: skipped' "$SUMMARY_FILE"
     grep -F ':warning: cancelled' "$SUMMARY_FILE"

@@ -34,9 +34,11 @@ else must use the mapping; “update-stuff-final-2” can remain a local memory.
 The validator lives in `scripts/validate-pr-metadata.sh` and has Bats coverage
 in `tests/test_pr_metadata.bats`.
 
-## Pre-commit
+## prek
 
-The reusable pre-commit workflow runs the same hook set as local development:
+The reusable `.github/workflows/prek.yaml` workflow pins prek to the same
+version documented in [Contributing](../CONTRIBUTING.md) and runs
+`.pre-commit-config.yaml`, the hook set used for local commits:
 
 - secret scanning;
 - file-format and executable checks;
@@ -45,9 +47,11 @@ The reusable pre-commit workflow runs the same hook set as local development:
 - palette drift checks;
 - Python and Bats suites.
 
-The workflow checks out the palette submodule and installs only the system
-dependencies needed by hooks. Its sticky PR comment summarizes the hook
-outcomes without dumping a novel into the conversation.
+The workflow checks out the palette submodule and installs the system
+dependencies needed by hooks. It caches `~/.cache/prek` by operating system,
+architecture, prek version, and hook configuration. The shared CI summary
+comment includes the prek result. The job IDs stay `pre-commit` because the
+current `main` ruleset requires the check name `pre-commit / pre-commit`.
 
 ## Trixie deployment
 
@@ -78,7 +82,7 @@ which layer broke.
 
 ## Parallel jobs and summaries
 
-Trixie, macOS, pre-commit, and PR metadata are sibling jobs. GitHub can schedule
+Trixie, macOS, prek, and PR metadata are sibling jobs. GitHub can schedule
 them together instead of serializing two operating systems for no good reason.
 
 The deployment summary job posts one sticky table with build, install, and
@@ -96,6 +100,7 @@ The `main` ruleset should require:
 - squash merges and linear history;
 - `CI`;
 - `PR metadata`;
+- `pre-commit / pre-commit` (runs prek);
 - successful `trixie` deployment;
 - successful `macos` deployment.
 
@@ -109,13 +114,13 @@ Use focused tests while iterating:
 ```sh
 bats tests/test_pr_metadata.bats
 bats tests/test_ci_summary.bats
-pre-commit run actionlint --all-files
+prek run actionlint --all-files
 ```
 
 Run the full local gate before review:
 
 ```sh
-pre-commit run --all-files
+prek run --all-files
 ```
 
 The macOS job needs a macOS runner. The Trixie deployment can be reproduced

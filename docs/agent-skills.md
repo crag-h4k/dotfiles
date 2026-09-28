@@ -135,7 +135,7 @@ directory.
 5. Compare each immutable raw file with the matching archive member.
 6. Recalculate the archive and per-file SHA-256 values.
 7. Update the exact URLs, checksums, and provenance records together.
-8. Run the offline focused tests and complete pre-commit suite.
+8. Run the offline focused tests and complete prek suite.
 
 Do not replace a commit with a branch, moving tag, release-latest URL, package
 registry tag, marketplace cache, or installer.
@@ -172,5 +172,5 @@ command ordering, forbidden shell blocks, allowed URL hosts, and public-boundary
 patterns. The complete repository gate remains:
 
 ```zsh
-pre-commit run --all-files
+prek run --all-files
 ```

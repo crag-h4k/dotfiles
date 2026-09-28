@@ -227,6 +227,7 @@ SEED_PERMISSIONS = """\
 
     // Project test, lint, format, and validation commands.
     { "action": "shell", "resource": "pre-commit *", "effect": "allow" },
+    { "action": "shell", "resource": "prek *", "effect": "allow" },
     { "action": "shell", "resource": "shellcheck *", "effect": "allow" },
     { "action": "shell", "resource": "markdownlint *", "effect": "allow" },
     { "action": "shell", "resource": "markdownlint-cli2 *", "effect": "allow" },

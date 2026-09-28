@@ -347,6 +347,7 @@ def test_native_seed_has_narrow_allows_and_final_denials(script):
         ("opencode_models", "*", "allow"),
         ("shell", "pdftotext * -", "allow"),
         ("shell", "pre-commit *", "allow"),
+        ("shell", "prek *", "allow"),
         ("shell", "gh pr view *", "allow"),
     ):
         assert rule in triples

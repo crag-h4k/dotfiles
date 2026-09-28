@@ -35,6 +35,13 @@ On Debian, the upstream Neovim archive is checksum-verified and extracted as a
 complete versioned tree. The binary, runtime, and libraries pass a headless
 health check before one stable pointer and wrapper switch. No files are overlaid
 into the live runtime, and the previous tree remains available for rollback.
+Each health check has a ten-second deadline. Re-running the installer repairs
+the launcher even when the installed release is already current.
+
+If an older installer stops after the archive download reaches 100%, its
+generated launcher may be passing a literal `$@` instead of forwarding the
+health-check arguments. Use the corrected installer to rebuild the launcher;
+deleting the downloaded release is unnecessary.
 
 nvim-treesitter's `main` branch builds parsers with the `tree-sitter` CLI, which
 is a separate package from the C library. On macOS, Homebrew split them: the

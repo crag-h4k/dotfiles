@@ -440,6 +440,91 @@ STUB
   [ -e "${public}.previous" ]
 }
 
+@test "Neovim launcher forwards health-check and filename arguments unchanged" {
+  # shellcheck source=../scripts/common.sh
+  source "$COMMON"
+  local root="$BATS_TEST_TMPDIR/nvim arguments" public="$BATS_TEST_TMPDIR/bin/nvim"
+  local stage="$root/releases/.stage" stubs="$BATS_TEST_TMPDIR/stubs"
+  mkdir -p "$stage/bin" "$stage/share/nvim/runtime" "$stubs"
+  cat >"$stage/bin/nvim" <<'STUB'
+#!/bin/sh
+if [ "${1:-}" = --headless ]; then
+  [ "$#" -eq 6 ] && [ "$6" = +quitall ]
+else
+  printf '<%s>\n' "$@"
+fi
+STUB
+  printf '#!/bin/sh\nexec "$@"\n' >"$stubs/sudo"
+  chmod +x "$stage/bin/nvim" "$stubs/sudo"
+
+  PATH="$stubs:$PATH" run activate_neovim_tree "$root" "$public" vtest "$stage"
+  [ "$status" -eq 0 ]
+  run "$public" 'file with spaces' '' '*.lua'
+  [ "$status" -eq 0 ]
+  [ "$output" = $'<file with spaces>\n<>\n<*.lua>' ]
+}
+
+@test "Neovim current release repairs a broken launcher without downloading" {
+  # shellcheck source=../scripts/common.sh
+  source "$COMMON"
+  local root="$BATS_TEST_TMPDIR/nvim-current" public="$BATS_TEST_TMPDIR/bin/nvim"
+  local release="$root/releases/v1.2.3" stubs="$BATS_TEST_TMPDIR/stubs"
+  mkdir -p "$release/bin" "$release/share/nvim/runtime" "$(dirname "$public")" "$stubs"
+  cat >"$release/bin/nvim" <<'STUB'
+#!/bin/sh
+case "${1:-}" in
+  --version) printf 'NVIM v1.2.3\n' ;;
+  --headless) [ "$#" -eq 6 ] && [ "$6" = +quitall ] ;;
+  *) exit 1 ;;
+esac
+STUB
+  printf '#!/bin/sh\nexit 1\n' >"$public"
+  printf '#!/bin/sh\nexec "$@"\n' >"$stubs/sudo"
+  printf '#!/bin/sh\nexit 1\n' >"$stubs/curl"
+  printf '#!/bin/sh\nexit 1\n' >"$stubs/dpkg-query"
+  chmod +x "$release/bin/nvim" "$public" "$stubs"/*
+  ln -s releases/v1.2.3 "$root/current"
+  # Called by install_neovim_debian through Bats run.
+  # shellcheck disable=SC2317
+  github_latest_release_tag() { printf 'v1.2.3\n'; }
+
+  DOTFILES_NVIM_ROOT="$root" DOTFILES_NVIM_BIN="$public" PATH="$stubs:$PATH" run install_neovim_debian
+  [ "$status" -eq 0 ]
+  [ -x "$release/bin/nvim" ]
+  [ "$(readlink "$root/current")" = releases/v1.2.3 ]
+  run "$public" --version
+  [ "$status" -eq 0 ]
+  [ "$output" = 'NVIM v1.2.3' ]
+}
+
+@test "Neovim activation rolls back when its launcher health check hangs" {
+  # shellcheck source=../scripts/common.sh
+  source "$COMMON"
+  local root="$BATS_TEST_TMPDIR/nvim-timeout" public="$BATS_TEST_TMPDIR/bin/nvim"
+  local old="$root/releases/old" stage="$root/releases/.stage" stubs="$BATS_TEST_TMPDIR/stubs"
+  mkdir -p "$old/bin" "$old/share/nvim/runtime" "$stage/bin" "$stage/share/nvim/runtime" \
+    "$(dirname "$public")" "$stubs"
+  printf '#!/bin/sh\nexit 0\n' >"$old/bin/nvim"
+  printf '#!/bin/sh\nprintf "old public\\n"\n' >"$public"
+  cat >"$stage/bin/nvim" <<'STUB'
+#!/bin/sh
+case "$VIMRUNTIME" in
+  */current/*) exec sleep 60 ;;
+esac
+STUB
+  printf '#!/bin/sh\nexec "$@"\n' >"$stubs/sudo"
+  chmod +x "$old/bin/nvim" "$stage/bin/nvim" "$public" "$stubs/sudo"
+  ln -s releases/old "$root/current"
+
+  local started=$SECONDS
+  PATH="$stubs:$PATH" run activate_neovim_tree "$root" "$public" vtest "$stage"
+  [ "$status" -ne 0 ]
+  [ "$((SECONDS - started))" -lt 30 ]
+  [[ "$output" == *'rolled back'* ]]
+  [ "$(readlink "$root/current")" = releases/old ]
+  [ "$("$public")" = 'old public' ]
+}
+
 @test "Treesitter wait helper rejects a false task result" {
   command -v nvim >/dev/null 2>&1 || skip "nvim not available"
   run nvim --clean --headless -l "$REPO_ROOT/tests/test_neovim_update.lua"

@@ -360,7 +360,7 @@ operation.
 The official pinned pre-commit hook is the enforcement boundary:
 
 ```sh
-pre-commit run gitleaks --all-files
+prek run gitleaks --all-files
 ```
 
 See [Gitleaks](gitleaks.md) for exclusions, project allowlists, and
