@@ -39,7 +39,7 @@ servers, CLI plugins, hooks, telemetry, network clients, or tool dependencies.
 5. Compare each immutable raw file byte-for-byte with the archive member.
 6. Recalculate the archive and per-file SHA-256 values.
 7. Update the exact URLs, checksums, and this provenance record together.
-8. Run the offline skill validation and the complete pre-commit suite.
+8. Run the offline skill validation and the complete prek suite.
 
 Normal tests never fetch dependencies. A checksum mismatch stops chezmoi before
 the changed file reaches the canonical store.

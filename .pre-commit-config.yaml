@@ -1,6 +1,6 @@
 # .pre-commit-config.yaml
-# Pre-commit hooks for tilde. Run on every `git commit`; set up via
-# `pre-commit install` (see README "Daily operation").
+# Hooks run by prek on every `git commit`; set up via
+# `prek install --overwrite` (see CONTRIBUTING.md).
 
 # Vendored base16 scheme collection (git submodule at vendor/tinted-schemes);
 # never lint upstream files.
@@ -71,7 +71,7 @@ repos:
             home/dot_tmux/bin/executable_tpm-local-policy
           )$
 
-  # GitHub Actions workflow linting. golang-language hook: pre-commit builds
+  # GitHub Actions workflow linting. golang-language hook: prek builds
   # it from the go toolchain already installed by scripts/install.sh (go on
   # macOS, golang on Debian), so no separate system install is needed.
   - repo: https://github.com/rhysd/actionlint

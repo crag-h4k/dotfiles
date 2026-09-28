@@ -1,7 +1,7 @@
 # dns-sniff
 
 Wrap any command and log every DNS name it looks up, for building firewall or
-proxy allowlists before running dev tools (terraform, pre-commit, pip) on
+proxy allowlists before running dev tools (terraform, prek, pip) on
 restricted corporate CI runners.
 
 Deployed to `~/.zsh/bin/dns-sniff` (the capture engine) plus a zsh function of
@@ -23,7 +23,7 @@ end). Chezmoi-managed; source lives under `home/dot_zsh/`.
 
 ```zsh
 dns-sniff terraform init
-dns-sniff --flush pre-commit run --all-files
+dns-sniff --flush prek run --all-files
 dns-sniff -- curl -s https://example.com
 ```
 
