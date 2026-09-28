@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.0.2](https://github.com/crag-h4k/dotfiles/compare/v1.0.1...v1.0.2) (2026-09-27)
+
+
+### Bug Fixes
+
+* **opecode2:** compatibility with trixie opencode2 ([#68](https://github.com/crag-h4k/dotfiles/issues/68)) ([2d0dffc](https://github.com/crag-h4k/dotfiles/commit/2d0dffc916fbef45379e9760381209f8528317b7))
+
 ## [1.0.1](https://github.com/crag-h4k/dotfiles/compare/v1.0.0...v1.0.1) (2026-09-24)
 
 
