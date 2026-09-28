@@ -130,7 +130,7 @@ tooling](neovim.md) for the full split.
 | `home/dot_local/share/agent-skills/` | `~/.local/share/agent-skills/` | canonical Humanizer adapter and provenance; exact unslop and upstream Humanizer files arrive through checksummed externals |
 | `home/dot_claude/skills/symlink_*` | `~/.claude/skills/*` | per-skill links for Claude Code and CodeCompanion; never replaces the directory |
 | `home/dot_agents/skills/symlink_*` | `~/.agents/skills/*` | per-skill links for Codex, OpenCode V2, and GitHub Copilot |
-| `home/dot_config/opencode/commands/{unslop,humanize}.md` | `~/.config/opencode/commands/{unslop,humanize}.md` | prompt-only routers with no shell blocks |
+| `home/dot_config/opencode/commands/{handoff,unslop,humanize}.md` | `~/.config/opencode/commands/{handoff,unslop,humanize}.md` | prompt-only routers with no shell blocks |
 | `home/dot_config/nvim/init.lua` | `~/.config/nvim/init.lua` | lazy.nvim entrypoint |
 | `home/dot_config/nvim/lua/dotfiles_palette.lua.tmpl` | `~/.config/nvim/lua/dotfiles_palette.lua` | selected Neovim plugin, flavor, and colorscheme |
 | `home/dot_config/nvim/lua/gitleaks.lua` | `~/.config/nvim/lua/gitleaks.lua` | asynchronous read/save secret warnings; honors project `.gitleaks.toml` |

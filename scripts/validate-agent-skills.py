@@ -13,7 +13,7 @@ from urllib.parse import urlsplit
 
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
-SKILL_IDS = ("humanizer", "unslop-code", "unslop-text", "unslop-ui")
+SKILL_IDS = ("handoff", "humanizer", "unslop-code", "unslop-text", "unslop-ui")
 AI_FEATURES = (
     "claude_hooks",
     "codex_hooks",
@@ -37,8 +37,11 @@ PUBLIC_TEXT_FILES = (
     "home/dot_local/share/agent-skills/readonly_PROVENANCE.md",
     "home/dot_local/share/agent-skills/humanizer/readonly_SKILL.md",
     "home/dot_local/share/agent-skills/humanizer/agents/readonly_openai.yaml",
+    "home/dot_config/opencode/commands/handoff.md",
     "home/dot_config/opencode/commands/humanize.md",
     "home/dot_config/opencode/commands/unslop.md",
+    "home/dot_local/share/agent-skills/handoff/readonly_SKILL.md",
+    "home/dot_local/share/agent-skills/handoff/scripts/readonly_snapshot.sh",
 )
 EXPECTED_EXTERNALS = {
     ".local/share/agent-skills/unslop-code/SKILL.md": (
@@ -119,6 +122,7 @@ EXPECTED_GATED_TARGETS = {
     *(f".local/share/agent-skills/{skill_id}" for skill_id in SKILL_IDS),
     *(f".claude/skills/{skill_id}" for skill_id in SKILL_IDS),
     *(f".agents/skills/{skill_id}" for skill_id in SKILL_IDS),
+    ".config/opencode/commands/handoff.md",
     ".config/opencode/commands/humanize.md",
     ".config/opencode/commands/unslop.md",
 }
@@ -383,6 +387,8 @@ def validate_layout(root: Path) -> list[str]:
     canonical_root = root / "home/dot_local/share/agent-skills"
     expected_managed = {
         canonical_root / "readonly_PROVENANCE.md",
+        canonical_root / "handoff/readonly_SKILL.md",
+        canonical_root / "handoff/scripts/readonly_snapshot.sh",
         canonical_root / "humanizer/readonly_SKILL.md",
         canonical_root / "humanizer/agents/readonly_openai.yaml",
     }
@@ -443,7 +449,7 @@ def validate_invocation_policy(root: Path) -> list[str]:
     unslop_position = humanize.find("load `unslop-text`")
     if humanizer_position < 0 or unslop_position < humanizer_position:
         errors.append("humanize command does not run Humanizer before unslop-text")
-    for command in ("humanize", "unslop"):
+    for command in ("handoff", "humanize", "unslop"):
         text = (root / f"home/dot_config/opencode/commands/{command}.md").read_text(
             encoding="utf-8"
         )
