@@ -104,8 +104,8 @@ Nothing AI-related installs unless the AI component is selected.
 
 ### Writing-quality agent skills
 
-Selecting any `ai` sub-feature also installs `unslop-code`, `unslop-text`,
-`unslop-ui`, and the explicit-only `humanizer`. There is no separate submenu
+Selecting any `ai` sub-feature also installs `handoff`, `unslop-code`,
+`unslop-text`, `unslop-ui`, and the explicit-only `humanizer`. There is no separate submenu
 choice. A single canonical store under `~/.local/share/agent-skills` feeds
 per-skill links in both `~/.claude/skills` and `~/.agents/skills`.
 
@@ -115,8 +115,8 @@ both links point to the same canonical directories and resolve to one effective
 ID per skill.
 
 Humanizer never runs implicitly. An explicit humanization applies Humanizer
-first and `unslop-text` second. OpenCode also receives prompt-only `/unslop` and
-`/humanize` commands. See [Cross-harness agent skills](agent-skills.md) for pins,
+first and `unslop-text` second. OpenCode also receives prompt-only `/handoff`,
+`/unslop`, and `/humanize` commands. See [Cross-harness agent skills](agent-skills.md) for pins,
 licenses, invocation, update audit, and threat boundaries.
 
 CodeCompanion can send buffer contents to an LLM, so
