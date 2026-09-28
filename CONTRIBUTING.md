@@ -68,7 +68,20 @@ special files.
 Use a throwaway destination or the deployment tests when a change should not
 touch the current host.
 
-## Tests
+## Local commit hooks and tests
+
+Install the same prek version used by CI and register the Git hook in the
+checkout where you commit:
+
+```sh
+uv tool install prek==0.5.3
+prek install --overwrite
+```
+
+The overwrite option replaces an existing pre-commit launcher. As described in
+[prek's migration guide](https://prek.j178.dev/quickstart/#already-using-pre-commit),
+the hook set stays in `.pre-commit-config.yaml`. Linked worktrees share the
+repository's hook directory.
 
 Run the smallest relevant test while iterating:
 
@@ -81,7 +94,7 @@ shellcheck scripts/validate-pr-metadata.sh
 Before review, run the same complete gate as CI:
 
 ```sh
-pre-commit run --all-files
+prek run --all-files
 ```
 
 Pull requests also run native macOS and containerized Debian Trixie

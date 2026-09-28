@@ -33,8 +33,9 @@ jobs:
           PR_TITLE: ${{ github.event.pull_request.title }}
         run: scripts/validate-pr-metadata.sh
 
+  # Keep the required check name `pre-commit / pre-commit` in main's ruleset.
   pre-commit:
-    uses: ./.github/workflows/pre-commit.yaml
+    uses: ./.github/workflows/prek.yaml
 
   trixie-deployment:
     name: Trixie deployment
@@ -175,7 +176,7 @@ jobs:
   ci-summary:
     name: CI summary
     # always() + every gate so the comment reflects the real per-run outcome
-    # (including a red PR metadata / pre-commit), not just the deployment jobs.
+    # (including a red PR metadata / prek), not just the deployment jobs.
     needs: [pr-metadata, pre-commit, trixie-deployment, macos-deployment]
     if: always() && github.event_name == 'pull_request'
     runs-on: ubuntu-latest
@@ -185,7 +186,7 @@ jobs:
       - name: Render CI summary
         env:
           PR_METADATA_RESULT: ${{ needs.pr-metadata.result }}
-          PRE_COMMIT_RESULT: ${{ needs.pre-commit.result }}
+          PREK_RESULT: ${{ needs.pre-commit.result }}
           TRIXIE_BUILD: ${{ needs.trixie-deployment.outputs.build }}
           TRIXIE_INSTALL: ${{ needs.trixie-deployment.outputs.install }}
           TRIXIE_SMOKE: ${{ needs.trixie-deployment.outputs.smoke }}
@@ -222,12 +223,12 @@ jobs:
         env:
           EVENT_NAME: ${{ github.event_name }}
           PR_METADATA_RESULT: ${{ needs.pr-metadata.result }}
-          PRE_COMMIT_RESULT: ${{ needs.pre-commit.result }}
+          PREK_RESULT: ${{ needs.pre-commit.result }}
           TRIXIE_RESULT: ${{ needs.trixie-deployment.result }}
           MACOS_RESULT: ${{ needs.macos-deployment.result }}
         run: |
           printf 'PR metadata: %s\n' "$PR_METADATA_RESULT"
-          printf 'pre-commit: %s\n' "$PRE_COMMIT_RESULT"
+          printf 'prek: %s\n' "$PREK_RESULT"
           printf 'Trixie deployment: %s\n' "$TRIXIE_RESULT"
           printf 'macOS deployment: %s\n' "$MACOS_RESULT"
           if [[ "$EVENT_NAME" = pull_request ]]; then
@@ -235,7 +236,7 @@ jobs:
           else
             test "$PR_METADATA_RESULT" = skipped
           fi
-          test "$PRE_COMMIT_RESULT" = success
+          test "$PREK_RESULT" = success
           test "$TRIXIE_RESULT" = success
           test "$MACOS_RESULT" = success
 

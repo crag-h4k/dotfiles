@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # Render one sticky PR comment summarizing every required CI gate: PR metadata,
-# pre-commit, and the build/install/smoke phases for both deployment
+# prek, and the build/install/smoke phases for both deployment
 # environments. One always-current table so a red gate (for example PR metadata)
 # shows up in the comment, not only in the checks list, and the body changes with
 # each run instead of sitting on an all-green deployment view.
@@ -40,7 +40,7 @@ output_file="$1"
     printf '| Gate | Result |\n'
     printf '| --- | --- |\n'
     printf '| PR metadata | %s |\n' "$(format_status "${PR_METADATA_RESULT:-}")"
-    printf '| pre-commit | %s |\n' "$(format_status "${PRE_COMMIT_RESULT:-}")"
+    printf '| prek | %s |\n' "$(format_status "${PREK_RESULT:-}")"
     printf '| Debian Trixie | %s |\n' \
         "$(overall_status "${TRIXIE_BUILD:-}" "${TRIXIE_INSTALL:-}" "${TRIXIE_SMOKE:-}")"
     printf '| macOS | %s |\n' \
