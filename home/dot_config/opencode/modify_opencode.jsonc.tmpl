@@ -150,14 +150,16 @@ SEED_PERMISSIONS = """\
     { "action": "external_directory", "resource": "*", "effect": "allow" },
 
     // Read-only MCP and browser operations. Mutating calls remain ask by omission.
-    { "action": "aws_documentation_*", "resource": "*", "effect": "allow" },
-    { "action": "aws_iam_policy_autopilot_generate_*", "resource": "*", "effect": "allow" },
-    { "action": "aws_mcp_aws___get_regional_availability", "resource": "*", "effect": "allow" },
-    { "action": "aws_mcp_aws___get_tasks", "resource": "*", "effect": "allow" },
-    { "action": "aws_mcp_aws___list_regions", "resource": "*", "effect": "allow" },
-    { "action": "aws_mcp_aws___read_documentation", "resource": "*", "effect": "allow" },
-    { "action": "aws_mcp_aws___retrieve_skill", "resource": "*", "effect": "allow" },
-    { "action": "aws_mcp_aws___search_documentation", "resource": "*", "effect": "allow" },
+    // Permission actions keep the server name's hyphens. Underscore forms do not
+    // match aws-documentation, aws-iam-policy-autopilot, or aws-mcp.
+    { "action": "aws-documentation_*", "resource": "*", "effect": "allow" },
+    { "action": "aws-iam-policy-autopilot_generate_*", "resource": "*", "effect": "allow" },
+    { "action": "aws-mcp_aws___get_regional_availability", "resource": "*", "effect": "allow" },
+    { "action": "aws-mcp_aws___get_tasks", "resource": "*", "effect": "allow" },
+    { "action": "aws-mcp_aws___list_regions", "resource": "*", "effect": "allow" },
+    { "action": "aws-mcp_aws___read_documentation", "resource": "*", "effect": "allow" },
+    { "action": "aws-mcp_aws___retrieve_skill", "resource": "*", "effect": "allow" },
+    { "action": "aws-mcp_aws___search_documentation", "resource": "*", "effect": "allow" },
     { "action": "terraform_get_*", "resource": "*", "effect": "allow" },
     { "action": "terraform_search_*", "resource": "*", "effect": "allow" },
     { "action": "confluence_confluence_check_*", "resource": "*", "effect": "allow" },

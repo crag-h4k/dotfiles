@@ -17,3 +17,6 @@ lazy-lock.json
 
 # Logs
 *.log
+
+# pbvar cross-build staging (assets are published to GitHub Releases, not tracked)
+tools/pbvar/dist/

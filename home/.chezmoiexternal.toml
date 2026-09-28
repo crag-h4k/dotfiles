@@ -47,6 +47,18 @@
         args = ["--depth=1"]
     [".zsh/custom/plugins/zsh-completions".pull]
         args = ["--ff-only"]
+
+# pbvar clipboard->env helper: one prebuilt binary per platform, published to
+# GitHub Releases by .github/workflows/pbvar-build.yaml (source in tools/pbvar).
+# chezmoi fetches the arch-matched asset to ~/.local/bin/pbvar; the wrapper is in
+# home/dot_zsh/aliases. Bump $pbvarTag to roll a new release. No checksum: it is a
+# first-party release over HTTPS; add checksum.sha256 if you want integrity pinning.
+{{ $pbvarTag := "pbvar-v0.1.0" -}}
+[".local/bin/pbvar"]
+    type = "file"
+    url = "https://github.com/crag-h4k/dotfiles/releases/download/{{ $pbvarTag }}/pbvar_{{ .chezmoi.os }}_{{ .chezmoi.arch }}"
+    executable = true
+    refreshPeriod = "168h"
 {{ end -}}
 {{ if $agentSkillsEnabled -}}
 # Cross-harness writing-quality skills use exact public commits and per-file
