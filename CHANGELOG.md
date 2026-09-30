@@ -1,5 +1,19 @@
 # Changelog
 
+## [1.0.3](https://github.com/crag-h4k/dotfiles/compare/v1.0.2...v1.0.3) (2026-09-28)
+
+
+### Bug Fixes
+
+* **neovim:** fixes neovim hanging install ([#70](https://github.com/crag-h4k/dotfiles/issues/70)) ([f54d603](https://github.com/crag-h4k/dotfiles/commit/f54d60315c83346d42a660b1791850af86a2caf9))
+
+## [1.0.2](https://github.com/crag-h4k/dotfiles/compare/v1.0.1...v1.0.2) (2026-09-27)
+
+
+### Bug Fixes
+
+* **opecode2:** compatibility with trixie opencode2 ([#68](https://github.com/crag-h4k/dotfiles/issues/68)) ([2d0dffc](https://github.com/crag-h4k/dotfiles/commit/2d0dffc916fbef45379e9760381209f8528317b7))
+
 ## [1.0.1](https://github.com/crag-h4k/dotfiles/compare/v1.0.0...v1.0.1) (2026-09-24)
 
 

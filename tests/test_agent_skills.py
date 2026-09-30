@@ -79,7 +79,10 @@ class LayoutRejectionTests(unittest.TestCase):
                 )
         canonical = root / "home/dot_local/share/agent-skills"
         (canonical / "humanizer/agents").mkdir(parents=True)
+        (canonical / "handoff/scripts").mkdir(parents=True)
         (canonical / "readonly_PROVENANCE.md").touch()
+        (canonical / "handoff/readonly_SKILL.md").touch()
+        (canonical / "handoff/scripts/readonly_snapshot.sh").touch()
         (canonical / "humanizer/readonly_SKILL.md").touch()
         (canonical / "humanizer/agents/readonly_openai.yaml").touch()
         return root

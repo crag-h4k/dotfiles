@@ -2,7 +2,7 @@
 # ~/.zsh/bin/dns-sniff
 # DNS capture engine: wrap a command and log every DNS query it makes, for
 # building firewall/proxy allowlists before running tools on restricted
-# corporate CI runners (terraform, pre-commit, pip, etc.).
+# corporate CI runners (terraform, prek, pip, etc.).
 #
 # Captures via tcpdump (built-in on macOS; apt-installed on Debian); needs sudo
 # for raw socket access. The sudo credential prompt appears once at startup.
@@ -830,7 +830,7 @@ def run_foreground(argv):
             '  dns-<cmd>-<YYYY-MM-DD_HHMMSS>.pcap       (opt-in with --pcap)\n\n'
             'Examples:\n'
             '  dns-sniff terraform init\n'
-            '  dns-sniff --pcap pre-commit run --all-files\n'
+            '  dns-sniff --pcap prek run --all-files\n'
             '  dns-sniff --no-log curl -s https://example.com\n'
             '  dns-sniff --log-dir /tmp pip install -r requirements.txt\n'
             '  dns-sniff --iface en0 curl -s https://example.com\n'

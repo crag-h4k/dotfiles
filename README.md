@@ -124,7 +124,7 @@ checkout dirty.
 | [Notifications](docs/notifications.md) | tmux-native process and Claude/Codex attention cues |
 | [Sounds](docs/sounds.md) | Notifier sound provenance, licensing, auditioning, and loudness targets |
 | [Palettes](docs/palettes.md) | Shared base16 catalog and authoring workflow |
-| [CI](docs/ci.md) | PR metadata, pre-commit, and parallel macOS/Trixie deployments |
+| [CI](docs/ci.md) | PR metadata, prek, and parallel macOS/Trixie deployments |
 | [Releases](docs/releases.md) | Conventional titles, Release Please, SemVer, and deliberate publishing |
 | [Contributing](CONTRIBUTING.md) | Branches, worktrees, tests, and squash-merge rules |
 

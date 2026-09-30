@@ -2,7 +2,7 @@
 # Gitleaks
 
 Gitleaks has two jobs here: warn early in Neovim and enforce before a secret
-reaches Git history. The editor is helpful; pre-commit is the bouncer.
+reaches Git history. The editor is helpful; prek runs the commit hook.
 
 ## Neovim warnings
 
@@ -70,7 +70,7 @@ Gitleaks rules remain enabled.
 The official pinned hook scans staged content with redaction:
 
 ```sh
-pre-commit run gitleaks --all-files
+prek run gitleaks --all-files
 ```
 
 Unlike the Neovim integration, a finding here fails the check. That boundary is
@@ -93,7 +93,7 @@ command -v gitleaks
 gitleaks version
 ```
 
-Run the project policy directly when editor and pre-commit results disagree:
+Run the project policy directly when editor and prek results disagree:
 
 ```sh
 gitleaks dir --redact --config .gitleaks.toml .

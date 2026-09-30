@@ -63,11 +63,17 @@ DOTFILES_INSTALL_MODE=packages DOTFILES_NO_TUI=1 \
     --config-path "$generated_config" \
     --no-tty
 
-chezmoi \
+# archive still materializes uncached externals. Without --no-tty and with
+# progress left on auto, that download opens /dev/tty. macOS runners have no
+# controlling terminal, so the open fails with "device not configured".
+GIT_TERMINAL_PROMPT=0 \
+    chezmoi \
     --source "$target_source" \
     --config "$generated_config" \
     --destination "$render_home" \
     --refresh-externals=never \
+    --no-tty \
+    --progress=false \
     archive \
     --format tar \
     --output "$archive_file"

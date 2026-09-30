@@ -104,8 +104,8 @@ Nothing AI-related installs unless the AI component is selected.
 
 ### Writing-quality agent skills
 
-Selecting any `ai` sub-feature also installs `unslop-code`, `unslop-text`,
-`unslop-ui`, and the explicit-only `humanizer`. There is no separate submenu
+Selecting any `ai` sub-feature also installs `handoff`, `unslop-code`,
+`unslop-text`, `unslop-ui`, and the explicit-only `humanizer`. There is no separate submenu
 choice. A single canonical store under `~/.local/share/agent-skills` feeds
 per-skill links in both `~/.claude/skills` and `~/.agents/skills`.
 
@@ -115,8 +115,8 @@ both links point to the same canonical directories and resolve to one effective
 ID per skill.
 
 Humanizer never runs implicitly. An explicit humanization applies Humanizer
-first and `unslop-text` second. OpenCode also receives prompt-only `/unslop` and
-`/humanize` commands. See [Cross-harness agent skills](agent-skills.md) for pins,
+first and `unslop-text` second. OpenCode also receives prompt-only `/handoff`,
+`/unslop`, and `/humanize` commands. See [Cross-harness agent skills](agent-skills.md) for pins,
 licenses, invocation, update audit, and threat boundaries.
 
 CodeCompanion can send buffer contents to an LLM, so
@@ -159,6 +159,12 @@ unless `--standalone`, `--server`, or `OPENCODE2_BACKGROUND_SERVICE=true` alread
 chooses the server mode. Other subcommands pass through unchanged. Both installer
 and wrapper canonicalize their paths and reject a prefix whose binary resolves
 back to the managed wrapper.
+
+On npm 12 and newer, the installer explicitly allows `@opencode/cli`'s
+postinstall script, which replaces the package's placeholder launcher with the
+native executable. Plugin dependencies are still installed with
+`--ignore-scripts`. The CLI and plugin runtime are verified before activation;
+a failed install preserves the previous working release.
 
 `~/.config/opencode/opencode.jsonc` is merge-managed. Chezmoi reasserts the
 schema, built-in agent colors, and exact-pinned V2 plugin list while preserving

@@ -337,7 +337,9 @@ def test_native_seed_has_narrow_allows_and_final_denials(script):
         ("subagent", "*", "allow"),
         ("execute", "*", "allow"),
         ("external_directory", "*", "allow"),
-        ("aws_documentation_*", "*", "allow"),
+        ("aws-documentation_*", "*", "allow"),
+        ("aws-iam-policy-autopilot_generate_*", "*", "allow"),
+        ("aws-mcp_aws___get_tasks", "*", "allow"),
         ("terraform_get_*", "*", "allow"),
         ("confluence_confluence_get_*", "*", "allow"),
         ("databricks_list_*", "*", "allow"),
@@ -345,6 +347,7 @@ def test_native_seed_has_narrow_allows_and_final_denials(script):
         ("opencode_models", "*", "allow"),
         ("shell", "pdftotext * -", "allow"),
         ("shell", "pre-commit *", "allow"),
+        ("shell", "prek *", "allow"),
         ("shell", "gh pr view *", "allow"),
     ):
         assert rule in triples
@@ -375,7 +378,9 @@ def test_read_only_tools_do_not_remove_mutation_prompts(script):
         "skill",
         "subagent",
         "execute",
-        "aws_documentation_read_documentation",
+        "aws-documentation_read_documentation",
+        "aws-iam-policy-autopilot_generate_application_policies",
+        "aws-mcp_aws___get_tasks",
         "terraform_get_provider_details",
         "confluence_confluence_get_page",
         "databricks_list_jobs",
@@ -384,9 +389,15 @@ def test_read_only_tools_do_not_remove_mutation_prompts(script):
     ):
         assert permission_effect(rules, action, "*") == "allow", action
 
+    # Underscore forms are the bug: OpenCode keeps hyphens in the server name.
+    assert permission_effect(rules, "aws_documentation_read_documentation", "*") == "ask"
+    assert permission_effect(
+        rules, "aws_iam_policy_autopilot_generate_application_policies", "*"
+    ) == "ask"
+
     for action in (
-        "aws_iam_policy_autopilot_fix_access_denied",
-        "aws_mcp_aws___run_script",
+        "aws-iam-policy-autopilot_fix_access_denied",
+        "aws-mcp_aws___run_script",
         "confluence_confluence_delete_page",
         "databricks_create_job",
         "browser_click",

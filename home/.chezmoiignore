@@ -40,13 +40,15 @@
 .local/share/opencode2
 .zsh/custom/functions/local-*.zsh
 .gitconfig.override
+.gitconfig.github
+.gitconfig.forgejo
 .gitconfig.personal
 .gitconfig.work
 .zsh_override
 .zsh_private
 {{/* Writing-quality skills are an automatic child of the existing AI parent.
      Any selected AI sub-feature enables the one canonical skill store, the
-     per-skill harness links, and the two OpenCode commands. Keep this expression
+     per-skill harness links, and the OpenCode commands. Keep this expression
      aligned with home/.chezmoiexternal.toml. */}}
 {{ $agentSkillsEnabled := or
      (dig "components" "ai" "claude_hooks" false .)
@@ -57,18 +59,22 @@
      (dig "components" "ai" "codecompanion" false .) -}}
 {{ if not $agentSkillsEnabled -}}
 .local/share/agent-skills/PROVENANCE.md
+.local/share/agent-skills/handoff
 .local/share/agent-skills/humanizer
 .local/share/agent-skills/unslop-code
 .local/share/agent-skills/unslop-text
 .local/share/agent-skills/unslop-ui
+.claude/skills/handoff
 .claude/skills/humanizer
 .claude/skills/unslop-code
 .claude/skills/unslop-text
 .claude/skills/unslop-ui
+.agents/skills/handoff
 .agents/skills/humanizer
 .agents/skills/unslop-code
 .agents/skills/unslop-text
 .agents/skills/unslop-ui
+.config/opencode/commands/handoff.md
 .config/opencode/commands/humanize.md
 .config/opencode/commands/unslop.md
 {{ end -}}

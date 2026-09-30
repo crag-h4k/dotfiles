@@ -6,6 +6,7 @@
 - [Selection and layout](#selection-and-layout)
 - [Harness support](#harness-support)
 - [Invocation](#invocation)
+  - [Handoff](#handoff)
   - [Unslop](#unslop)
   - [Humanizer](#humanizer)
 - [Provenance and pins](#provenance-and-pins)
@@ -25,6 +26,7 @@ The only canonical copies live under `~/.local/share/agent-skills/`:
 ```text
 ~/.local/share/agent-skills/
 ├── PROVENANCE.md
+├── handoff/
 ├── humanizer/
 ├── unslop-code/
 ├── unslop-text/
@@ -33,7 +35,7 @@ The only canonical copies live under `~/.local/share/agent-skills/`:
 
 Chezmoi creates one relative symlink per skill under both `~/.claude/skills/`
 and `~/.agents/skills/`. It never replaces either skills directory. Existing
-and future skills beside these four remain untouched.
+and future skills beside these five remain untouched.
 
 ## Harness support
 
@@ -45,7 +47,8 @@ and future skills beside these four remain untouched.
 | OpenCode V2 | `~/.agents/skills` | Native compatibility root; also sees `.claude`, but both links resolve to the same canonical directory and one effective ID |
 | GitHub Copilot | `~/.agents/skills` | Native personal skill discovery; Humanizer uses explicit-only frontmatter |
 
-OpenCode commands live at `~/.config/opencode/commands/unslop.md` and
+OpenCode commands live at `~/.config/opencode/commands/handoff.md`,
+`~/.config/opencode/commands/unslop.md`, and
 `~/.config/opencode/commands/humanize.md`. They are prompt-only Markdown with no
 shell interpolation.
 
@@ -53,6 +56,25 @@ Other harnesses are unsupported. A future integration should warn and continue
 rather than fail chezmoi apply or create a parallel skill copy.
 
 ## Invocation
+
+### Handoff
+
+`handoff` is available for normal model selection. In OpenCode, use:
+
+```text
+/handoff
+/handoff resume <project>
+/handoff list
+/handoff close <project>
+```
+
+Save writes a new file only on an explicit save. Resume reads the newest open
+file, re-checks live state, reports drift, and stops. It does not start work.
+The handoff root comes from the user or from harness instructions. The skill
+does not invent one. The snapshot script prints git state only. It does not
+print the environment or file contents. A draft that contains a private-key
+block, a cloud access key, a service token, or a password assignment is not
+written.
 
 ### Unslop
 
@@ -91,7 +113,8 @@ Humanizer's adapter carries all host-specific controls:
 - OpenCode V2: `metadata.opencode/autoinvoke: false`
 - Codex: `policy.allow_implicit_invocation: false`
 
-No implicit-invocation restrictions are added to the unslop skills.
+No implicit-invocation restrictions are added to the unslop skills or to
+`handoff`.
 
 ## Provenance and pins
 
@@ -135,7 +158,7 @@ directory.
 5. Compare each immutable raw file with the matching archive member.
 6. Recalculate the archive and per-file SHA-256 values.
 7. Update the exact URLs, checksums, and provenance records together.
-8. Run the offline focused tests and complete pre-commit suite.
+8. Run the offline focused tests and complete prek suite.
 
 Do not replace a commit with a branch, moving tag, release-latest URL, package
 registry tag, marketplace cache, or installer.
@@ -152,6 +175,8 @@ registry tag, marketplace cache, or installer.
 - Humanizer is unavailable to implicit model selection. Its file mode requires
   an explicit edit request for a named file.
 - Unslop's OpenCode router defaults to a read-only audit.
+- Handoff resume is read-only until the user says to continue. Save refuses
+  secret-shaped values instead of writing them.
 - For these skills, only chezmoi uses the network, during external
   materialization. It accepts bytes only from the two exact public commit paths
   and verifies every file before writing it.
@@ -172,5 +197,5 @@ command ordering, forbidden shell blocks, allowed URL hosts, and public-boundary
 patterns. The complete repository gate remains:
 
 ```zsh
-pre-commit run --all-files
+prek run --all-files
 ```

@@ -323,11 +323,12 @@
 {{-   $paletteInput = trim (env "DOTFILES_PALETTE") -}}
 {{-   if and (eq $paletteInput "") (not (env "DOTFILES_NO_TUI")) -}}
 {{-     if and (lookPath "gum") (stdinIsATTY) -}}
-{{-       $paletteOpts := list -}}
 {{-       $paletteOptOf := dict -}}
 {{-       range $paletteDefs }}{{- $paletteOptOf = set $paletteOptOf .id (printf "%s (%s)" .name .id) -}}{{- end -}}
-{{-       range $paletteDefs }}{{- $paletteOpts = append $paletteOpts (squote (get $paletteOptOf .id)) -}}{{- end -}}
-{{-       $pcmd := printf "test -e /dev/tty && gum filter --header %s --placeholder %s --selected %s %s </dev/tty 2>/dev/tty || true" (squote "Pick a color theme") (squote "Type to filter themes...") (squote (get $paletteOptOf $palette)) (join " " $paletteOpts) -}}
+{{- /* Gum 0.14 (Debian Trixie) lacks filter --selected; list the current theme first so Enter keeps it. */ -}}
+{{-       $paletteOpts := list (squote (get $paletteOptOf $palette)) -}}
+{{-       range $paletteDefs }}{{- if ne .id $palette }}{{- $paletteOpts = append $paletteOpts (squote (get $paletteOptOf .id)) -}}{{- end }}{{- end -}}
+{{-       $pcmd := printf "test -e /dev/tty && gum filter --header %s --placeholder %s %s </dev/tty 2>/dev/tty || true" (squote "Pick a color theme") (squote "Type to filter themes...") (join " " $paletteOpts) -}}
 {{-       $paletteChoice := trim (output "sh" "-c" $pcmd) -}}
 {{-       range $paletteDefs }}{{- if eq $paletteChoice (get $paletteOptOf .id) }}{{- $paletteInput = .id -}}{{- end }}{{- end -}}
 {{-     else -}}

@@ -28,6 +28,7 @@ package_results_reset() {
 package_try() {
     local label="$1"
     shift
+    info "$label: starting"
     if "$@"; then
         _package_results_ok=$((_package_results_ok + 1))
         info "$label: ok"
@@ -627,11 +628,28 @@ bootstrap_tenv_terraform() {
     TENV_AUTO_INSTALL=true TENV_VALIDATION=signature "$tenv_bin" tf use latest
 }
 
+_neovim_binary_health() {
+    python3 - "$1" <<'PY'
+import subprocess
+import sys
+
+try:
+    result = subprocess.run(
+        [sys.argv[1], "--headless", "-u", "NONE", "-i", "NONE", "+quitall"],
+        stdin=subprocess.DEVNULL, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
+        timeout=10,
+    )
+except (OSError, subprocess.TimeoutExpired):
+    sys.exit(1)
+sys.exit(result.returncode)
+PY
+}
+
 _neovim_tree_health() {
     local tree="$1"
     [[ -x "$tree/bin/nvim" && -d "$tree/share/nvim/runtime" ]] || return 1
     VIMRUNTIME="$tree/share/nvim/runtime" \
-        "$tree/bin/nvim" --headless -u NONE -i NONE '+quitall' >/dev/null 2>&1
+        _neovim_binary_health "$tree/bin/nvim"
 }
 
 # Replace one path with another using rename(2) semantics. Unlike `mv -f`,
@@ -674,15 +692,17 @@ activate_neovim_tree() {
 
     _neovim_tree_health "$stage" || { warn "neovim staged tree failed its headless health check"; return 1; }
     sudo mkdir -p "$releases" "$(dirname "$public_bin")"
-    if [[ -e "$release" ]]; then
-        if _neovim_tree_health "$release"; then
-            sudo rm -rf "$stage"
+    if [[ "$stage" != "$release" ]]; then
+        if [[ -e "$release" ]]; then
+            if _neovim_tree_health "$release"; then
+                sudo rm -rf "$stage"
+            else
+                sudo mv "$release" "${release}.invalid.$(date +%s).$$"
+                sudo mv "$stage" "$release"
+            fi
         else
-            sudo mv "$release" "${release}.invalid.$(date +%s).$$"
             sudo mv "$stage" "$release"
         fi
-    else
-        sudo mv "$stage" "$release"
     fi
 
     if [[ -e "$root/current" || -L "$root/current" ]]; then
@@ -694,7 +714,7 @@ activate_neovim_tree() {
     {
         printf '#!/bin/sh\n'
         printf 'export VIMRUNTIME=%s\n' "$(printf '%q' "$root/current/share/nvim/runtime")"
-        printf 'exec %s "\$@"\n' "$(printf '%q' "$root/current/bin/nvim")"
+        printf 'exec %s "$@"\n' "$(printf '%q' "$root/current/bin/nvim")"
     } >"$wrapper_tmp"
     sudo install -m 0755 "$wrapper_tmp" "$wrapper_stage" || { rm -f "$wrapper_tmp"; return 1; }
     rm -f "$wrapper_tmp"
@@ -710,7 +730,7 @@ activate_neovim_tree() {
         _restore_neovim_pointer "$root" "$old_target"
         return 1
     fi
-    if ! "$public_bin" --headless -u NONE -i NONE '+quitall' >/dev/null 2>&1; then
+    if ! _neovim_binary_health "$public_bin"; then
         _restore_neovim_pointer "$root" "$old_target"
         if [[ -e "$public_backup" || -L "$public_backup" ]]; then
             sudo mv -f "$public_backup" "$public_bin"
@@ -739,6 +759,7 @@ install_neovim_debian() {
         installed=${installed#NVIM v}
         if [[ "$installed" == "$latest" ]]; then
             info "neovim ${installed} versioned tree is current"
+            activate_neovim_tree "$root" "$public_bin" "$tag" "$root/releases/$tag" || return 1
             if command -v dpkg-query >/dev/null 2>&1 \
                 && [[ "$(dpkg-query -W -f='${Status}' neovim 2>/dev/null || true)" == "install ok installed" ]]; then
                 sudo apt-get remove -y neovim || warn "could not remove the conflicting APT neovim package"

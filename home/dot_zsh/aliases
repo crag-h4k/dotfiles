@@ -28,6 +28,12 @@ alias "newvenv"="rm -rf venv && python3 -m venv venv"
 alias "flake8"="flake8 --append-config ~/.flake8"
 alias "sourcez"="source ~/.zshrc"
 alias "du"="du -h"
+# clipboard
+# pbvar NAME [--raw]: export an env var in THIS shell from the clipboard. The
+# pbvar binary (~/.local/bin/pbvar, fetched by chezmoi from a GitHub release)
+# can't set the parent shell's env, so eval its `export NAME=...` output. See
+# tools/pbvar for the source and OSC 52 details.
+pbvar() { local o; o="$(command pbvar "$@")" || return; eval "$o" }
 alias "recent_f_changes"="ls -ltrRh"
 alias "watch"="watch -n .1 -c"
 alias "meow"="highlight"
