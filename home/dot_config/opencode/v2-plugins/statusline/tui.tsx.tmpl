@@ -37,7 +37,25 @@ const COLOR = {
   limit: {{ $p.colors.blue | quote }},
   limitWarning: {{ $p.colors.yellow | quote }},
   limitError: {{ $p.colors.red | quote }},
+  tierIncluded: {{ $p.colors.green | quote }},
+  tierStandard: {{ $p.colors.blue | quote }},
+  tierPremium: {{ $p.colors.orange | quote }},
+  tierHeavy: {{ $p.colors.red | quote }},
 }
+
+// Model-tier icon sets for the Copilot premium-request badge. Two ramps ship; one
+// is active at a time. Swap by setting `tierIcons = "heat"` (or "value") in the
+// [data] section of ~/.config/chezmoi/chezmoi.toml, then `chezmoi apply` — no plugin
+// edit. Both ramps escalate cheap -> spendy. Glyphs verified present in
+// Hack Nerd Font Mono.
+//   value: circle-outline -> cash -> gem -> money-sack
+//   heat:  snowflake -> campfire -> fire -> fire-alert
+const TIER_ICONS = {
+  value: { included: "󰝥", standard: "󰄔", premium: "󰦕", heavy: "󰿶" },
+  heat: { included: "󰜗", standard: "󰻶", premium: "󰈸", heavy: "󱗗" },
+} as const
+const TIER_ICON_SET = {{ dig "tierIcons" "value" . | quote }} as keyof typeof TIER_ICONS
+const TIER_ICON = TIER_ICONS[TIER_ICON_SET] ?? TIER_ICONS.value
 
 type Location = { directory: string; workspaceID?: string }
 type GitStats = { files: number; additions: number; deletions: number }
@@ -49,6 +67,11 @@ type CopilotUsage = {
   entitlement: number
   unlimited: boolean
 }
+// modelID -> GitHub Copilot picker category ("lightweight" | "versatile" |
+// "powerful"), from plugin/copilot-tiers.ts. Premium-request multipliers no longer
+// apply on usage-based plans, so the picker category is the authoritative tier axis.
+type TierMap = Record<string, string>
+type ModelTier = { icon: string; color: string; text: string }
 
 const COPILOT_RPC = Rpc.define({
   id: "opencode-copilot-statusline",
@@ -77,6 +100,66 @@ const COPILOT_RPC = Rpc.define({
   },
   events: {},
 })
+
+const TIERS_RPC = Rpc.define({
+  id: "dotfiles.copilot-tiers",
+  methods: {
+    get: {
+      input: { type: "object", properties: {}, additionalProperties: false },
+      output: {
+        type: "object",
+        properties: {
+          models: { type: "object", additionalProperties: { type: "string" } },
+        },
+        additionalProperties: false,
+      },
+    },
+  },
+  events: {},
+})
+
+const BANDS = {
+  Included: { icon: TIER_ICON.included, color: COLOR.tierIncluded },
+  Standard: { icon: TIER_ICON.standard, color: COLOR.tierStandard },
+  Premium: { icon: TIER_ICON.premium, color: COLOR.tierPremium },
+  Heavy: { icon: TIER_ICON.heavy, color: COLOR.tierHeavy },
+} as const
+type BandName = keyof typeof BANDS
+
+function band(name: BandName): ModelTier {
+  return { icon: BANDS[name].icon, color: BANDS[name].color, text: name }
+}
+
+// GitHub's Copilot picker category is the authoritative tier axis. "powerful" is split
+// by catalog output price so the priciest (Opus-class, gpt-5.5) read Heavy and the rest
+// read Premium; an unpriced powerful model defaults to Heavy (they are the flagships).
+function categoryBand(category: string, outputCost: number | undefined): BandName | undefined {
+  if (category === "lightweight") return "Included"
+  if (category === "versatile") return "Standard"
+  if (category === "powerful") return outputCost === undefined || outputCost >= 25 ? "Heavy" : "Premium"
+  return undefined
+}
+
+// Fallback band from the model's base output price (USD per million tokens), used before
+// the picker-category map lands, for non-Copilot providers, and for unknown categories.
+function usdBand(outputPerMillion: number): BandName {
+  if (outputPerMillion <= 5) return "Included"
+  if (outputPerMillion <= 12) return "Standard"
+  if (outputPerMillion <= 20) return "Premium"
+  return "Heavy"
+}
+
+function modelOutputCost(
+  context: ReturnType<typeof usePlugin>,
+  location: Location,
+  ref: { providerID: string; id: string },
+): number | undefined {
+  const info = context.data.location.model
+    .list(location)
+    ?.find((candidate) => candidate.providerID === ref.providerID && candidate.id === ref.id)
+  const output = info?.cost?.[0]?.output
+  return typeof output === "number" ? output : undefined
+}
 
 const COMPACT_NUMBER = new Intl.NumberFormat("en-US", {
   notation: "compact",
@@ -155,6 +238,21 @@ function IdentityPill(props: { value: Identity }) {
   )
 }
 
+function TierPill(props: { value: ModelTier }) {
+  return (
+    <box flexDirection="row" flexShrink={0}>
+      <text fg={COLOR.surface}></text>
+      <text fg={props.value.color} bg={COLOR.surface} wrapMode="none">
+        {` ${props.value.icon}`}
+      </text>
+      <text fg={COLOR.foreground} bg={COLOR.surface} wrapMode="none">
+        {` ${props.value.text} `}
+      </text>
+      <text fg={COLOR.surface}></text>
+    </box>
+  )
+}
+
 function useSpinnerClock(active: () => boolean) {
   const [tick, setTick] = createSignal(0)
 
@@ -182,6 +280,7 @@ function StatusPills(props: {
   contextUsage?: string
   cost?: string
   provider?: ProviderStatus
+  tier?: ModelTier
 }) {
   const context = usePlugin()
   const terminal = useTerminalDimensions()
@@ -306,6 +405,9 @@ function StatusPills(props: {
       <Show when={visibility().provider && props.provider}>
         {(value) => <Pill icon={PROVIDER_ICON} value={value().text} accent={value().color} />}
       </Show>
+      <Show when={visibility().identity && props.tier}>
+        {(tier) => <TierPill value={tier()} />}
+      </Show>
     </box>
   )
 }
@@ -359,6 +461,7 @@ function SessionFooter(props: {
   git: () => GitStats
   now: () => number
   copilot: () => CopilotUsage | undefined
+  tiers: () => TierMap
 }) {
   const context = usePlugin()
   const session = createMemo(() =>
@@ -396,6 +499,25 @@ function SessionFooter(props: {
     return { text: `GitHub Copilot ${usage.usedPercent}%`, color }
   })
 
+  const tier = createMemo<ModelTier | undefined>(() => {
+    try {
+      const active = session()
+      const model = active?.model
+      if (!model) return undefined
+      const output = modelOutputCost(context, active.location, model)
+      // GitHub picker category is the source of truth for Copilot; price only splits
+      // the "powerful" band. Before the map lands / for other providers, band by price.
+      if (model.providerID === "github-copilot") {
+        const category = props.tiers()[model.id]
+        const name = category ? categoryBand(category, output) : undefined
+        if (name) return band(name)
+      }
+      return output === undefined ? undefined : band(usdBand(output))
+    } catch {
+      return undefined
+    }
+  })
+
   const guidance = createMemo(() => {
     if (props.mode === "shell") return "esc exit shell mode"
     const id = props.sessionID
@@ -428,6 +550,7 @@ function SessionFooter(props: {
         contextUsage={usage().context}
         cost={usage().cost}
         provider={provider()}
+        tier={tier()}
       />
     </box>
   )
@@ -440,7 +563,9 @@ export default Plugin.define({
     const [git, setGit] = createSignal<GitStats>({ files: 0, additions: 0, deletions: 0 })
     const [now, setNow] = createSignal(Date.now())
     const [copilot, setCopilot] = createSignal<CopilotUsage>()
+    const [tiers, setTiers] = createSignal<TierMap>({})
     const copilotRpc = context.client.rpc(COPILOT_RPC)
+    const tiersRpc = context.client.rpc(TIERS_RPC)
     let refreshTimer: ReturnType<typeof setTimeout> | undefined
 
     async function refreshGit() {
@@ -471,13 +596,25 @@ export default Plugin.define({
       }
     }
 
+    async function refreshTiers() {
+      try {
+        const result = (await tiersRpc.get({})) as { models?: TierMap }
+        if (result.models) setTiers(result.models)
+      } catch {
+        // Keep last-good; the catalog USD fallback covers the badge meanwhile.
+      }
+    }
+
     void context.data.location.vcs.sync(location)
     void context.data.project.sync()
     void refreshGit()
     void refreshCopilot()
+    void refreshTiers()
 
     const clock = setInterval(() => setNow(Date.now()), 30_000)
     const quota = setInterval(() => void refreshCopilot(), 60_000)
+    // Multipliers change rarely; the server plugin also caches. Refresh every 6h.
+    const tierClock = setInterval(() => void refreshTiers(), 6 * 60 * 60 * 1_000)
     const stopFiles = context.data.on("filesystem.changed", scheduleGitRefresh)
     const stopBranch = context.data.on("vcs.branch.updated", () => {
       void context.data.location.vcs.sync(location)
@@ -496,6 +633,7 @@ export default Plugin.define({
           git={git}
           now={now}
           copilot={copilot}
+          tiers={tiers}
         />
       ),
     })
@@ -518,6 +656,7 @@ export default Plugin.define({
       if (refreshTimer) clearTimeout(refreshTimer)
       clearInterval(clock)
       clearInterval(quota)
+      clearInterval(tierClock)
       stopFiles()
       stopBranch()
       sessionFooter()
