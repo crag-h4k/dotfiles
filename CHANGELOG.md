@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.1.0](https://github.com/crag-h4k/dotfiles/compare/v1.0.3...v1.1.0) (2026-09-30)
+
+
+### Features
+
+* **statusline:** adds copilot model cost to statusline  ([#75](https://github.com/crag-h4k/dotfiles/issues/75)) ([a123271](https://github.com/crag-h4k/dotfiles/commit/a123271a3306a2f0cdf51c0c0e21ca9408cfff56))
+
 ## [1.0.3](https://github.com/crag-h4k/dotfiles/compare/v1.0.2...v1.0.3) (2026-09-28)
 
 
