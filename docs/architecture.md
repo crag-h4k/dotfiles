@@ -44,16 +44,17 @@ Shared palette data lives in `home/.chezmoidata/palettes.yaml`. Templates render
 one selection into Ghostty, iTerm2, tmux, notifications, Claude, Codex, and
 Neovim. Consumers do not keep their own slightly different copies.
 
-Package planning starts in `scripts/package-plan.sh`. The init template displays
-the deduplicated plan, and `scripts/install.sh` uses those same records for
-Homebrew, APT, casks, release archives, npm, pip, and LuaRocks.
+Package planning starts in `scripts/package-plan.sh`. It refreshes the active
+package manager before init displays the deduplicated plan, and
+`scripts/install.sh` uses those same records for Homebrew, APT, casks, release
+archives, npm, pip, and LuaRocks.
 
-The pre-approval plan does not invoke a package manager. On approval, each
-manager refreshes or inspects its own metadata and only the selected records
-are changed. Independent operations report their own failure and the run ends
+The plan refreshes package metadata before one approval prompt. After approval,
+Homebrew and APT use that fresh metadata and batch selected package-manager
+operations. Independent operations report their own failure and the run ends
 with an aggregate result summary.
 
-Every package-manager mutation requires a `[y/N]` confirmation. Set
+Each package run has one `[y/N]` confirmation after the refreshed plan. Set
 `DOTFILES_ASSUME_YES=1` for an unattended deployment. Declining, or running
 headlessly without that opt-in, applies configuration only and does not change
 the stored `installMode`.

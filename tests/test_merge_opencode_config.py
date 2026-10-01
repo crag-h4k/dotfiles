@@ -321,6 +321,23 @@ def test_existing_native_permissions_and_comments_are_preserved(script):
     assert "// Local policy stays private and unchanged." in out
 
 
+def test_existing_native_permissions_migrate_the_hook_driver(script):
+    src = """\
+{
+  // Keep this local policy comment.
+  "permissions": [
+    { "action": "shell", "resource": "pre-commit *", "effect": "allow" },
+    { "action": "shell", "resource": "terraform plan *", "effect": "allow" }
+  ]
+}
+"""
+    out, _ = merge(script, src)
+    assert '"resource": "prek *"' in out
+    assert '"resource": "pre-commit *"' not in out
+    assert '"resource": "terraform plan *"' in out
+    assert "// Keep this local policy comment." in out
+
+
 def test_native_seed_has_narrow_allows_and_final_denials(script):
     out, _ = merge(script, "")
     rules = parse(out)["permissions"]
@@ -346,7 +363,6 @@ def test_native_seed_has_narrow_allows_and_final_denials(script):
         ("browser_snapshot", "*", "allow"),
         ("opencode_models", "*", "allow"),
         ("shell", "pdftotext * -", "allow"),
-        ("shell", "pre-commit *", "allow"),
         ("shell", "prek *", "allow"),
         ("shell", "gh pr view *", "allow"),
     ):
@@ -362,7 +378,7 @@ def test_native_seed_has_narrow_allows_and_final_denials(script):
     )
 
     resources = {resource for action, resource, effect in triples if action == "shell" and effect == "allow"}
-    assert "gh api *" not in resources
+    assert "gh api *" in resources
     assert "git push *" not in resources
     assert "aws *" not in resources
     assert "python *" not in resources
@@ -410,7 +426,8 @@ def test_read_only_tools_do_not_remove_mutation_prompts(script):
     assert permission_effect(rules, "shell", "cat docs/operation.md") == "ask"
     assert permission_effect(rules, "shell", "cat .env") == "ask"
     assert permission_effect(rules, "shell", "pdftotext design.pdf -") == "allow"
-    assert permission_effect(rules, "shell", "gh api repos/example/project") == "ask"
+    assert permission_effect(rules, "shell", "gh api repos/example/project") == "allow"
+    assert permission_effect(rules, "shell", "gh api repos/example/project -f name=value") == "ask"
     assert permission_effect(
         rules, "shell", "gh api -X GET repos/example/project"
     ) == "allow"
@@ -479,13 +496,13 @@ def test_hard_denials_cover_git_global_options_and_recursive_rm(script):
         assert permission_effect(rules, "shell", command) == "deny", command
 
     shell_rules = [rule for rule in rules if rule["action"] == "shell"]
-    last_allow = max(
-        i for i, rule in enumerate(shell_rules) if rule["effect"] == "allow"
+    last_allow = max(i for i, rule in enumerate(shell_rules) if rule["effect"] == "allow")
+    first_destructive_deny = min(
+        i
+        for i, rule in enumerate(shell_rules)
+        if rule["effect"] == "deny" and rule["resource"] in {"git add *", "rm -r *"}
     )
-    first_deny = min(
-        i for i, rule in enumerate(shell_rules) if rule["effect"] == "deny"
-    )
-    assert first_deny > last_allow
+    assert first_destructive_deny > last_allow
 
 
 def test_seeded_block_matches_the_generic_base(script):

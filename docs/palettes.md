@@ -55,7 +55,7 @@ Authoring time only, never at `chezmoi apply` or `init`. Run it when you:
 
 There is no regeneration schedule. CI runs `build-palettes.py --check` and
 fails when the committed catalog differs from fresh output. The same check runs
-in pre-commit and skips itself if the submodule is not initialized.
+in prek and skips itself if the submodule is not initialized.
 
 ## base16 to semantic mapping
 
@@ -93,7 +93,7 @@ accent reaches roughly 3:1 contrast against the tint.
    ```
 
 Removing a scheme is the same edit in reverse. `validate-palettes.sh` renders every
-catalog entry across all consumers, so a broken scheme fails pre-commit.
+catalog entry across all consumers, so a broken scheme fails prek.
 
 ## Command line
 

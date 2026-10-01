@@ -5,7 +5,7 @@
 # syntax, broken TOML, and - for home/.chezmoi.toml.tmpl - any drift in the
 # selection parser, which a single `chezmoi apply` would not exercise.
 #
-# Runs in pre-commit. Requires chezmoi (rendering) and python3 with tomllib
+# Runs in prek. Requires chezmoi (rendering) and python3 with tomllib
 # (3.11+, for TOML parsing). If tomllib is missing, the render and the boolean
 # assertions still run; only the structural TOML parse is skipped.
 
@@ -61,7 +61,7 @@ parse_toml() {
 # [data.components.git] / [data.components.ai] / [data.components.terminal] tables.
 # terminal.ghostty/terminal.iterm2 are emitted for BOTH OSes (the .chezmoi.os gate
 # lives in the file layer, not the data keys), so these assertions are
-# OS-independent and match on macOS pre-commit and Linux CI alike. Pre-seeding
+# OS-independent and match on macOS prek and Linux CI alike. Pre-seeding
 # makes promptStringOnce return the value instead of prompting, so the parser is
 # exercised deterministically. --init makes promptStringOnce available.
 render_components() {
@@ -242,7 +242,7 @@ assert_sub "4 5" "config - ~/.gitconfig" "codecompanion - CodeCompanion.nvim ass
 # terminal parent on (6) with explicit sub-selection, by key and by number.
 # ghostty is the default; iterm2 is added only when explicitly selected. iterm2's
 # data key is emitted on every OS (the .chezmoi.os gate lives in the file layer,
-# not the data keys), so these assert identically on macOS pre-commit and Linux CI.
+# not the data keys), so these assert identically on macOS prek and Linux CI.
 assert_sub "6"   "" "" "ghostty iterm2"  false false false  false false  false false false false false false  true  true
 assert_sub "6"   "" "" "iterm2"          false false false  false false  false false false false false false  false true
 assert_sub "6"   "" "" "1 2"             false false false  false false  false false false false false false  true  true

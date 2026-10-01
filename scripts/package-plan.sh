@@ -22,6 +22,7 @@ INSTALL_TERMINAL_ITERM2="${INSTALL_TERMINAL_ITERM2:-false}"
 [[ "$INSTALL_AI_CODECOMPANION" == true ]] && INSTALL_NEOVIM=true
 OPENCODE2_VERSION="${OPENCODE2_VERSION:-latest}"
 COPILOT_VERSION="${COPILOT_VERSION:-prerelease}"
+PREK_VERSION="${PREK_VERSION:-0.5.4}"
 _plan_mode="${1:---records}"
 _status_result=planned
 _brew_inventory_loaded=0
@@ -32,6 +33,29 @@ _brew_outdated_formulae=$'\n'
 _brew_outdated_casks=$'\n'
 _apt_upgradable_loaded=0
 _apt_upgradable=$'\n'
+_npm_local_loaded=0
+_npm_local_installed=$'\n'
+_npm_local_outdated=$'\n'
+_npm_opencode_loaded=0
+_npm_opencode_installed=$'\n'
+_npm_opencode_outdated=$'\n'
+
+_refresh() {
+    case "$(_plan_os)" in
+        macos)
+            require_cmd brew
+            brew update
+            ;;
+        debian)
+            require_cmd sudo
+            sudo apt-get update
+            ;;
+        *)
+            printf 'package-plan: unsupported platform\n' >&2
+            return 1
+            ;;
+    esac
+}
 
 _plan_approved() {
     case "${DOTFILES_PLAN_APPROVED:-}" in
@@ -101,6 +125,46 @@ _load_apt_upgradable() {
     _apt_upgradable=$'\n'"$output"$'\n'
 }
 
+# Load one npm prefix at a time. `npm list` and `npm outdated` each operate on
+# every selected global package in the prefix, avoiding one registry request per
+# package in the displayed plan. npm exits 1 when updates exist, so retain its
+# JSON output instead of treating that status as a planner failure.
+_load_npm_inventory() {
+    local prefix="$1" kind loaded_var installed_var outdated_var output names
+    if [[ "$prefix" == "$HOME/.local/share/opencode2" ]]; then
+        kind=opencode
+    else
+        kind=local
+    fi
+    loaded_var="_npm_${kind}_loaded"
+    installed_var="_npm_${kind}_installed"
+    outdated_var="_npm_${kind}_outdated"
+    [[ "${!loaded_var}" -eq 1 ]] && return 0
+    printf -v "$loaded_var" '%s' 1
+    _plan_approved || return 0
+    command -v npm >/dev/null 2>&1 || return 0
+
+    output=$(npm list -g --depth=0 --parseable --prefix "$prefix" 2>/dev/null || true)
+    names=$(printf '%s\n' "$output" | sed -n 's#^.*/node_modules/##p')
+    printf -v "$installed_var" '%s' $'\n'"$names"$'\n'
+
+    output=$(npm outdated -g --json --prefix "$prefix" 2>/dev/null || true)
+    names=$(printf '%s' "$output" | node -e '
+let input = ""
+process.stdin.setEncoding("utf8")
+process.stdin.on("data", (chunk) => { input += chunk })
+process.stdin.on("end", () => {
+  try { console.log(Object.keys(JSON.parse(input)).join("\\n")) } catch {}
+})
+' 2>/dev/null || true)
+    printf -v "$outdated_var" '%s' $'\n'"$names"$'\n'
+}
+
+_npm_member() {
+    local name="$1" inventory="$2"
+    [[ "$inventory" == *$'\n'"$name"$'\n'* ]]
+}
+
 # Membership test against a newline-delimited brew inventory, alias-aware: a
 # digit-suffixed alias (python3) also matches its versioned formula (python@3.x),
 # which is the name `brew list` and `brew outdated` actually report.
@@ -118,7 +182,10 @@ _status() {
     local source="$1" name="$2" probe="${3:-}" policy="${4:-floating}"
     local lookup="${name##*/}"
     _status_result=planned
-    [[ "${DOTFILES_PLAN_ASSUME_MISSING:-0}" == 1 ]] && return 0
+    if [[ "${DOTFILES_PLAN_ASSUME_MISSING:-0}" == 1 ]]; then
+        [[ "$policy" == remove ]] && _status_result=installed
+        return 0
+    fi
     [[ "$_plan_mode" == --names ]] && return 0
     case "$source" in
         brew-formula)
@@ -157,9 +224,20 @@ _status() {
             command -v "$probe" >/dev/null 2>&1 && _status_result=installed
             ;;
         npm)
-            if _plan_approved && command -v npm >/dev/null 2>&1 &&
-                npm list -g --depth=0 --prefix "$HOME/.local" "$name" >/dev/null 2>&1; then
-                _status_result=installed
+            local npm_prefix="$HOME/.local"
+            [[ "$name" == "@opencode/cli" ]] && npm_prefix="$HOME/.local/share/opencode2"
+            if _plan_approved; then
+                _load_npm_inventory "$npm_prefix"
+                local npm_kind=local npm_installed npm_outdated npm_installed_var npm_outdated_var
+                [[ "$npm_prefix" == "$HOME/.local/share/opencode2" ]] && npm_kind=opencode
+                npm_installed_var="_npm_${npm_kind}_installed"
+                npm_outdated_var="_npm_${npm_kind}_outdated"
+                npm_installed="${!npm_installed_var}"
+                npm_outdated="${!npm_outdated_var}"
+                if _npm_member "$name" "$npm_installed"; then
+                    _status_result=installed
+                    _npm_member "$name" "$npm_outdated" && _status_result=update
+                fi
             fi
             ;;
         pip)
@@ -175,6 +253,16 @@ _status() {
             ;;
         npm-runtime)
             [[ -d "$probe" ]] && _status_result=installed
+            ;;
+        astral-uv)
+            command -v "$probe" >/dev/null 2>&1 && _status_result=installed
+            ;;
+        uv-tool)
+            if command -v "$probe" >/dev/null 2>&1; then
+                local want="${policy#pinned:}" have
+                have=$("$probe" --version 2>/dev/null | awk '{print $2}')
+                [[ "$have" == "$want" ]] && _status_result=installed
+            fi
             ;;
         git-external|git-runtime)
             [[ -e "$probe" ]] && _status_result=installed
@@ -200,11 +288,14 @@ _status() {
             *) command -v "$probe" >/dev/null 2>&1 && _status_result=installed ;;
         esac
     fi
+    if [[ "$policy" == remove && "$_status_result" != planned ]]; then
+        _status_result=remove
+    fi
     # Floating non-system sources are intentionally refreshed on every approved
     # package run. Before approval this also makes the plan honest without
     # invoking npm, pip, LuaRocks, Homebrew, or APT for inventory.
     if [[ "$_status_result" == installed && "$policy" == floating ]]; then
-        if ! _plan_approved || [[ "$source" != brew-formula && "$source" != brew-cask && "$source" != apt ]]; then
+        if ! _plan_approved || [[ "$source" != brew-formula && "$source" != brew-cask && "$source" != apt && "$source" != npm ]]; then
             _status_result=update
         fi
     fi
@@ -241,6 +332,7 @@ _build() {
             _add brew-formula curl "Homebrew core"
             _add brew-formula gum "Homebrew core"
             _add brew-formula chezmoi "Homebrew core"
+            _add brew-formula prek "Homebrew core"
             if [[ "$INSTALL_ZSH" == true ]]; then
                 _add brew-formula zsh "Homebrew core"
                 _add brew-formula gh "Homebrew core"
@@ -280,6 +372,7 @@ _build() {
             fi
             [[ "$INSTALL_TERMINAL_GHOSTTY" == true ]] && _add brew-cask ghostty "Homebrew cask"
             [[ "$INSTALL_TERMINAL_ITERM2" == true ]] && _add brew-cask iterm2 "Homebrew cask"
+            _add brew-formula pre-commit "Legacy hook runner removal" pre-commit remove
             ;;
         debian)
             for pkg in git curl ca-certificates gnupg gum; do
@@ -323,6 +416,8 @@ _build() {
                 _add npm @fsouza/prettierd "https://www.npmjs.com/package/@fsouza/prettierd" prettierd
             fi
             [[ "$INSTALL_NOTIFY" == true ]] && _add github-release yq "https://github.com/mikefarah/yq/releases" yq
+            _add astral-uv uv "https://astral.sh/uv" uv managed
+            _add uv-tool prek "Astral uv tool" prek "pinned:$PREK_VERSION"
             if [[ "$INSTALL_AI_STATUSLINE" == true ]]; then
                 _add apt jq "Debian apt repository"
                 _add apt python3 "Debian apt repository"
@@ -361,13 +456,10 @@ _build() {
     [[ "$INSTALL_AI_CODECOMPANION" == true ]] &&
         _add npm @agentclientprotocol/claude-agent-acp "https://www.npmjs.com/package/@agentclientprotocol/claude-agent-acp" claude-agent-acp
     # OpenCode V2: @opencode/cli is isolated under ~/.local/share/opencode2;
-    # chezmoi manages the ~/.local/bin/opencode2 wrapper. CLI and exact-pinned
-    # plugin runtime releases activate transactionally.
+    # chezmoi manages the ~/.local/bin/opencode2 wrapper. Its runtime helper
+    # derives the matching local plugin SDK from the installed CLI version.
     if [[ "$INSTALL_AI_OPENCODE" == true ]]; then
         _add npm @opencode/cli "https://www.npmjs.com/package/@opencode/cli" opencode2 "$(_version_policy "$OPENCODE2_VERSION")"
-        _add npm-runtime "OpenCode plugin API" "https://www.npmjs.com/package/@opencode/plugin" "$HOME/.config/opencode/node_modules/@opencode/plugin" floating:matches-cli
-        _add npm-runtime "OpenTUI Solid runtime" "https://www.npmjs.com/package/@opentui/solid" "$HOME/.config/opencode/node_modules/@opentui/solid"
-        _add npm-runtime "SolidJS runtime" "https://www.npmjs.com/package/solid-js" "$HOME/.config/opencode/node_modules/solid-js"
     fi
     # GitHub Copilot CLI: @github/copilot npm package into the ~/.local prefix
     # (scripts/install-copilot.sh), cross-platform, so it sits outside the OS case
@@ -404,7 +496,7 @@ _display() {
         c_new=""; c_upd=""; c_old=""; c_hdr=""; c_rst=""
     fi
     printf '%sInstall plan%s\n' "$c_hdr" "$c_rst"
-    for tier in planned update installed; do
+        for tier in remove planned update installed; do
         n=0
         for record in "${_records[@]}"; do
             IFS=$'\t' read -r source name status policy origin probe <<< "$record"
@@ -412,13 +504,14 @@ _display() {
         done
         [[ "$n" -eq 0 ]] && continue
         case "$tier" in
+            remove)    label="To remove"  ; tcolor="$c_upd" ;;
             planned)   label="To install" ; tcolor="$c_new" ;;
             update)    label="To update"  ; tcolor="$c_upd" ;;
             installed) label="Up to date" ; tcolor="$c_old" ;;
         esac
         printf '\n%s%s (%d)%s\n' "$c_hdr" "$label" "$n" "$c_rst"
         # Cluster by source within the tier, following the install order.
-        for wanted in brew-formula brew-cask apt github-release npm npm-runtime pip luarocks neovim-plugin treesitter-parsers mason-packages git-runtime git-external; do
+        for wanted in brew-formula brew-cask apt github-release astral-uv uv-tool npm npm-runtime pip luarocks neovim-plugin treesitter-parsers mason-packages git-runtime git-external; do
             for record in "${_records[@]}"; do
                 IFS=$'\t' read -r source name status policy origin probe <<< "$record"
                 [[ "$source" == "$wanted" && "$status" == "$tier" ]] || continue
@@ -447,11 +540,12 @@ case "$_plan_mode" in
     # accidental, not an error. Normalize it so a caller capturing the plan under
     # `set -e` - confirm-install.sh does `plan=$(... --display)` - does not abort
     # on that stray non-zero.
+    --refresh) _refresh ;;
     --display) _display || true ;;
     --records) printf '%s\n' "${_records[@]}" ;;
     --names)
         [[ -n "${2:-}" ]] || { printf 'package-plan: --names requires a source\n' >&2; exit 2; }
         _names "$2"
         ;;
-    *) printf 'usage: package-plan.sh --display | --records | --names SOURCE\n' >&2; exit 2 ;;
+    *) printf 'usage: package-plan.sh --refresh | --display | --records | --names SOURCE\n' >&2; exit 2 ;;
 esac

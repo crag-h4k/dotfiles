@@ -50,8 +50,7 @@ version documented in [Contributing](../CONTRIBUTING.md) and runs
 The workflow checks out the palette submodule and installs the system
 dependencies needed by hooks. It caches `~/.cache/prek` by operating system,
 architecture, prek version, and hook configuration. The shared CI summary
-comment includes the prek result. The job IDs stay `pre-commit` because the
-current `main` ruleset requires the check name `pre-commit / pre-commit`.
+comment includes the prek result. The workflow and job names are both `prek`.
 
 ## Trixie deployment
 
@@ -100,7 +99,7 @@ The `main` ruleset should require:
 - squash merges and linear history;
 - `CI`;
 - `PR metadata`;
-- `pre-commit / pre-commit` (runs prek);
+- `ci / prek` (runs prek);
 - successful `trixie` deployment;
 - successful `macos` deployment.
 

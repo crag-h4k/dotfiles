@@ -17,8 +17,9 @@
 #            other agent field, nested comment, and custom agent is preserved.
 #            The retired singular "plugin" key is removed when present.
 #   SEEDED - native "permissions" are written only when the incoming file has no
-#            permission policy. The exact old seed is migrated; any customized
-#            V1 "permission" or V2 "permissions" policy is preserved verbatim.
+#            permission policy. The exact old seed is migrated. Existing native
+#            permissions retain their policy, except the standard `pre-commit *`
+#            shell allow is renamed to `prek *`.
 #   KEPT   - copied through verbatim, comments included: every other top-level
 #            key, in its original order. That is how machine-local "instructions"
 #            and "mcp" entries live in the target file without ever reaching the
@@ -226,7 +227,6 @@ SEED_PERMISSIONS = """\
     { "action": "shell", "resource": "git tag --list *", "effect": "allow" },
 
     // Project test, lint, format, and validation commands.
-    { "action": "shell", "resource": "pre-commit *", "effect": "allow" },
     { "action": "shell", "resource": "prek *", "effect": "allow" },
     { "action": "shell", "resource": "shellcheck *", "effect": "allow" },
     { "action": "shell", "resource": "markdownlint *", "effect": "allow" },
@@ -260,7 +260,9 @@ SEED_PERMISSIONS = """\
     { "action": "shell", "resource": "cargo clippy *", "effect": "allow" },
     { "action": "shell", "resource": "cargo fmt --check *", "effect": "allow" },
 
-    // Narrow GitHub CLI reads. Raw API access and every write remain ask.
+    // GitHub CLI reads. A bare `gh api <endpoint>` defaults to GET, so permit it
+    // alongside explicit GET forms. API writes and payload-bearing defaults ask
+    // below; an explicit GET can still carry query fields.
     { "action": "shell", "resource": "gh auth status", "effect": "allow" },
     { "action": "shell", "resource": "gh status *", "effect": "allow" },
     { "action": "shell", "resource": "gh pr list *", "effect": "allow" },
@@ -280,6 +282,7 @@ SEED_PERMISSIONS = """\
     { "action": "shell", "resource": "gh release list *", "effect": "allow" },
     { "action": "shell", "resource": "gh release view *", "effect": "allow" },
     { "action": "shell", "resource": "gh search *", "effect": "allow" },
+    { "action": "shell", "resource": "gh api *", "effect": "allow" },
     { "action": "shell", "resource": "gh api -X GET *", "effect": "allow" },
     { "action": "shell", "resource": "gh api --method GET *", "effect": "allow" },
 
@@ -294,6 +297,19 @@ SEED_PERMISSIONS = """\
     { "action": "shell", "resource": "*gh auth status *--show-token*", "effect": "deny" },
     { "action": "shell", "resource": "*gh auth status -t*", "effect": "deny" },
     { "action": "shell", "resource": "*gh auth status * -t*", "effect": "deny" },
+    // `gh api` defaults to POST when fields or input are supplied. Ask for those
+    // forms and every explicit method first, then restore explicit GET below.
+    { "action": "shell", "resource": "gh api *-f *", "effect": "ask" },
+    { "action": "shell", "resource": "gh api *-F *", "effect": "ask" },
+    { "action": "shell", "resource": "gh api *--raw-field *", "effect": "ask" },
+    { "action": "shell", "resource": "gh api *--field *", "effect": "ask" },
+    { "action": "shell", "resource": "gh api *--input *", "effect": "ask" },
+    { "action": "shell", "resource": "gh api *-X*", "effect": "ask" },
+    { "action": "shell", "resource": "gh api *--method*", "effect": "ask" },
+    { "action": "shell", "resource": "gh api *-X GET*", "effect": "allow" },
+    { "action": "shell", "resource": "gh api *-XGET*", "effect": "allow" },
+    { "action": "shell", "resource": "gh api *--method GET*", "effect": "allow" },
+    { "action": "shell", "resource": "gh api *--method=GET*", "effect": "allow" },
     { "action": "shell", "resource": "git add *", "effect": "deny" },
     { "action": "shell", "resource": "git commit *", "effect": "deny" },
     { "action": "shell", "resource": "git rm *", "effect": "deny" },
@@ -770,6 +786,11 @@ while kept and not kept[-1].strip():
 
 has_native_permissions = any(e["name"] == "permissions" for e in entries)
 has_custom_legacy_permission = any(e["name"] == "permission" for e in entries) and not legacy_permission
+# prek reads the same .pre-commit-config.yaml but is the supported hook runner.
+# Migrate this exact generic shell allow in existing native policies without
+# reserializing or otherwise changing comments and local permission choices.
+if has_native_permissions:
+    kept = [line.replace('"resource": "pre-commit *"', '"resource": "prek *"') for line in kept]
 seed = None
 if not has_native_permissions and not has_custom_legacy_permission:
     seed = SEED_PERMISSIONS.split("\n")

@@ -198,14 +198,16 @@ render_deb822_source() {
 
 # Confirm before adding a NEW apt repository. install_debian_apt_repo calls this
 # only when it is about to write a key + source, never when the repo is already
-# present. Only gates on Debian (where we actually mutate apt). Bypassed by
+# present. The package plan's single approval authorizes this too, so a package
+# run cannot stop for a second confirmation while adding a selected repository.
+# Only gates on Debian (where we actually mutate apt). Bypassed by
 # DOTFILES_ASSUME_YES, which CI and containers export. With neither an opt-in nor
 # a usable terminal it declines, so an unattended host never silently gains a
 # third-party repo. Returns 0 to proceed, non-zero to skip.
 apt_repo_confirm() {
     local label="$1" uri="$2" dev resp
     [[ "$(os_detect)" == debian ]] || return 0
-    if _is_truthy "${DOTFILES_ASSUME_YES:-}"; then
+    if _is_truthy "${DOTFILES_ASSUME_YES:-}" || _is_truthy "${DOTFILES_PACKAGES_APPROVED:-}"; then
         return 0
     fi
     dev="${DOTFILES_TTY:-/dev/tty}"
@@ -275,6 +277,7 @@ install_debian_apt_repo() {
         rm -rf "$tmp_dir"
         return 1
     fi
+    export DOTFILES_APT_REPO_CHANGED=true
     rm -rf "$tmp_dir"
 }
 
@@ -324,6 +327,26 @@ ensure_chezmoi() {
             return 1
             ;;
     esac
+}
+
+# Astral's documented standalone installer puts uv in ~/.local/bin. Keep shell
+# profile edits disabled: dot_zshenv already adds that directory to PATH.
+install_uv_debian() {
+    command -v uv >/dev/null 2>&1 && return 0
+    require_cmd curl
+    local installer
+    installer=$(mktemp) || return 1
+    if ! curl -fsSL -o "$installer" https://astral.sh/uv/install.sh \
+        || ! UV_NO_MODIFY_PATH=1 sh "$installer"; then
+        rm -f "$installer"
+        warn "uv standalone installer failed"
+        return 1
+    fi
+    rm -f "$installer"
+    command -v uv >/dev/null 2>&1 || {
+        warn "uv installer completed without an executable on PATH"
+        return 1
+    }
 }
 
 github_latest_release_tag() {
@@ -1118,11 +1141,10 @@ _pkg_confirm_sentinel() {
 #
 # Decision order:
 #   1. DOTFILES_ASSUME_YES truthy (1/true/yes/y)       -> proceed silently.
-#   2. one-shot sentinel present and younger than ~10m -> proceed, consume it
-#      (confirm-install.sh writes it when "packages" is chosen at init, so the
-#      apply immediately following an interactive init does not re-prompt).
-#   3. a usable controlling terminal                   -> show the package plan,
-#      prompt [y/N] (default N); only y/yes proceeds.
+#   2. one-shot sentinel present and younger than ~10m -> proceed, consume it.
+#      confirm-install.sh creates it after refreshing and showing the plan.
+#   3. a usable controlling terminal                   -> refresh package metadata,
+#      show the plan, prompt [y/N] (default N).
 #   4. no terminal and no opt-in                        -> decline.
 #
 # Reads the answer from ${DOTFILES_TTY:-/dev/tty} and writes the plan + prompt to
@@ -1152,7 +1174,11 @@ pkg_confirm() {
 
     dev="${DOTFILES_TTY:-/dev/tty}"
     if [[ -e "$dev" ]] && (: <"$dev") 2>/dev/null; then
-        plan="$(DOTFILES_PLAN_APPROVED=0 "$_COMMON_SH_DIR/package-plan.sh" --display 2>/dev/null || true)"
+        if ! "$_COMMON_SH_DIR/package-plan.sh" --refresh >>"$dev" 2>&1; then
+            warn "could not refresh package metadata; skipping package install"
+            return 1
+        fi
+        plan="$(DOTFILES_PLAN_APPROVED=1 "$_COMMON_SH_DIR/package-plan.sh" --display 2>/dev/null || true)"
         {
             if [[ -n "$plan" ]]; then
                 printf '%s\n\n' "$plan"
