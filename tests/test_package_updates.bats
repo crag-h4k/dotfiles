@@ -46,7 +46,7 @@ for arg in "\$@"; do
   if [ "\$previous" = --prefix ]; then prefix="\$arg"; fi
   previous="\$arg"
 done
-case "\$1" in
+  case "\$1" in
   view)
     case "\$2" in
       @opentui/solid@latest) printf '0.5.11\n' ;;
@@ -54,8 +54,9 @@ case "\$1" in
       *) exit 1 ;;
     esac
     ;;
-  install)
+   install)
     if printf '%s\n' "\$*" | grep -q '@opencode/cli@'; then
+      [ "\${NPM_CLI_FAIL:-0}" = 1 ] && exit 1
       mkdir -p "\$prefix/bin"
       cat >"\$prefix/bin/opencode2" <<CLI
 #!/bin/sh
@@ -110,15 +111,15 @@ STUB
   [[ "$output" == *"focused summary: ok=1 failed=1 skipped=0"* ]]
 }
 
-@test "planner marks floating, matching, and exact dependencies explicitly" {
+@test "planner marks floating, managed, and exact dependencies explicitly" {
   run env DOTFILES_PLAN_OS=debian DOTFILES_PLAN_ASSUME_MISSING=1 \
     INSTALL_NEOVIM=true INSTALL_AI_OPENCODE=true \
     OPENCODE2_VERSION=2.0.8 bash "$PLANNER" --records
   [ "$status" -eq 0 ]
   [[ "$output" == *$'github-release\ttree-sitter-cli\tplanned\tpinned:v0.26.11\t'* ]]
   [[ "$output" == *$'npm\t@opencode/cli\tplanned\tpinned:2.0.8\t'* ]]
-  [[ "$output" == *$'npm-runtime\tOpenCode plugin API\tplanned\tfloating:matches-cli\t'* ]]
-  [[ "$output" == *$'npm-runtime\tOpenTUI Solid runtime\tplanned\tfloating\t'* ]]
+  [[ "$output" == *$'astral-uv\tuv\tplanned\tmanaged\t'* ]]
+  [[ "$output" == *$'uv-tool\tprek\tplanned\tpinned:0.5.4\t'* ]]
   [[ "$output" == *$'npm\t@fsouza/prettierd\tplanned\tfloating\t'* ]]
 }
 
@@ -230,74 +231,46 @@ STUB
   grep -Fq 'Lazy! sync' "$nvim_log"
 }
 
-@test "OpenCode 2 stages and activates the CLI and matching runtime" {
+@test "OpenCode 2 installs into its npm-owned isolated prefix" {
   local home="$BATS_TEST_TMPDIR/home" stubs="$BATS_TEST_TMPDIR/stubs"
-  local prefix="$home/runtime" config="$home/config" npm_log="$BATS_TEST_TMPDIR/npm.log"
-  local old_cli="$home/old/opencode2"
-  mkdir -p "$stubs" "$(dirname "$old_cli")" "$config/node_modules" "$home/bin" "$prefix/bin"
-  printf 'old runtime\n' >"$config/node_modules/marker"
-  cat >"$old_cli" <<'STUB'
-#!/bin/sh
-printf 'opencode2 v1.0.0\n'
-STUB
-  chmod +x "$old_cli"
-  ln -s "$old_cli" "$prefix/bin/opencode2"
+  local prefix="$home/runtime" npm_log="$BATS_TEST_TMPDIR/npm.log"
+  mkdir -p "$stubs" "$home/bin" "$prefix/bin"
   cp "$REPO_ROOT/home/dot_local/bin/executable_opencode2" "$home/bin/opencode2"
   chmod +x "$home/bin/opencode2"
   write_opencode_stubs "$stubs" "$npm_log"
+  printf '#!/bin/sh\nexit 0\n' >"$stubs/sync-runtime"
+  chmod +x "$stubs/sync-runtime"
 
   run env HOME="$home" PATH="$stubs:$PATH" INSTALL_AI_OPENCODE=true \
     OPENCODE2_VERSION=2.0.8 OPENCODE2_NPM_PREFIX="$prefix" \
-    OPENCODE2_WRAPPER="$home/bin/opencode2" OPENCODE2_CONFIG_DIR="$config" \
+    OPENCODE2_WRAPPER="$home/bin/opencode2" OPENCODE2_RUNTIME_SYNC="$stubs/sync-runtime" \
     bash "$OPENCODE2_INSTALL"
   [ "$status" -eq 0 ]
   grep -Fq 'install -g --prefix' "$npm_log"
-  grep -Fq 'view @opentui/solid@latest version' "$npm_log"
-  grep -Fq 'view @opentui/solid@0.5.11 peerDependencies.solid-js' "$npm_log"
-  grep -Fq '@opencode/plugin@2.0.8 @opentui/solid@0.5.11 solid-js@1.9.12' "$npm_log"
-  [ -L "$prefix/bin/opencode2" ]
-  [ -L "$config/node_modules" ]
+  [ -x "$prefix/bin/opencode2" ]
   [ "$(OPENCODE2_NPM_PREFIX="$prefix" "$home/bin/opencode2" --version)" = "opencode2 v2.0.8" ]
-  run find "$config/.runtime-releases" -path '*/previous-*/marker' -print
-  [ -n "$output" ]
 }
 
-@test "OpenCode runtime verification supports import-only ESM packages" {
-  local runtime="$BATS_TEST_TMPDIR/opencode-esm-runtime"
-  local package
-  for package in @opencode/plugin @opentui/solid solid-js; do
-    mkdir -p "$runtime/node_modules/$package"
-    printf 'export default {}\n' >"$runtime/node_modules/$package/index.js"
-    printf '{"name":"%s","version":"2.0.12","type":"module","exports":{".":{"import":"./index.js"}}}\n' \
-      "$package" >"$runtime/node_modules/$package/package.json"
-  done
-
-  run bash -c "source '$OPENCODE2_INSTALL'; verify_opencode_runtime '$runtime' 2.0.12"
-
-  [ "$status" -eq 0 ]
-}
-
-@test "failed OpenCode runtime staging preserves the working CLI and runtime" {
+@test "failed OpenCode npm install leaves the current executable in place" {
   local home="$BATS_TEST_TMPDIR/home" stubs="$BATS_TEST_TMPDIR/stubs"
-  local prefix="$home/runtime" config="$home/config" npm_log="$BATS_TEST_TMPDIR/npm.log"
+  local prefix="$home/runtime" npm_log="$BATS_TEST_TMPDIR/npm.log"
   local old_cli="$home/old/opencode2"
-  mkdir -p "$stubs" "$(dirname "$old_cli")" "$config/node_modules" "$home/bin" "$prefix/bin"
-  printf 'keep me\n' >"$config/node_modules/marker"
+  mkdir -p "$stubs" "$(dirname "$old_cli")" "$home/bin" "$prefix/bin"
   printf '#!/bin/sh\nprintf "old cli\\n"\n' >"$old_cli"
   chmod +x "$old_cli"
   ln -s "$old_cli" "$prefix/bin/opencode2"
   cp "$REPO_ROOT/home/dot_local/bin/executable_opencode2" "$home/bin/opencode2"
   chmod +x "$home/bin/opencode2"
   write_opencode_stubs "$stubs" "$npm_log"
+  printf '#!/bin/sh\nexit 0\n' >"$stubs/sync-runtime"
+  chmod +x "$stubs/sync-runtime"
 
   run env HOME="$home" PATH="$stubs:$PATH" INSTALL_AI_OPENCODE=true \
-    NPM_RUNTIME_FAIL=1 OPENCODE2_VERSION=2.0.8 OPENCODE2_NPM_PREFIX="$prefix" \
-    OPENCODE2_WRAPPER="$home/bin/opencode2" OPENCODE2_CONFIG_DIR="$config" \
+    NPM_CLI_FAIL=1 OPENCODE2_VERSION=2.0.8 OPENCODE2_NPM_PREFIX="$prefix" \
+    OPENCODE2_WRAPPER="$home/bin/opencode2" OPENCODE2_RUNTIME_SYNC="$stubs/sync-runtime" \
     bash "$OPENCODE2_INSTALL"
   [ "$status" -ne 0 ]
   [ "$(readlink "$prefix/bin/opencode2")" = "$old_cli" ]
-  [ ! -L "$config/node_modules" ]
-  [ "$(cat "$config/node_modules/marker")" = "keep me" ]
 }
 
 @test "atomic binary replacement leaves no partial destination" {

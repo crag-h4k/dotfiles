@@ -3,7 +3,7 @@
 
   Kept as a chezmoi template purely so this rationale can live in the source
   without shipping to the target. cli.json is named .json, the v2 docs document
-  no .jsonc variant, and the repo's check-json pre-commit hook enforces strict
+   no .jsonc variant, and the repo's check-json prek hook enforces strict
   JSON, so the rendered file must not contain // comments.
 
   attention: v2 ships a built-in notifications plugin that raises OS
@@ -50,5 +50,8 @@
     "-opencode.prompt.footer",
     "-opencode-copilot-statusline.tui",
     "./v2-plugins/statusline"
-  ]
+  ],
+  "session": {
+    "sidebar": "hide"
+  }
 }

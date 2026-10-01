@@ -3,9 +3,9 @@
 # ~/.config/nvim/init.lua need. Neovim plugins themselves come from
 # lazy.nvim at first launch.
 #
-# luacheck (the repo's pre-commit lua linter) is installed here onto PATH:
+# luacheck (the repo's prek Lua linter) is installed here onto PATH:
 # luacheck 1.2.0 does not run on Lua 5.5 (Homebrew's default), so on macOS it is
-# built against lua@5.4. The pre-commit hook runs it as language:system. StyLua
+# built against lua@5.4. The prek hook runs it as language:system. StyLua
 # needs nothing here: its hook (stylua-github) downloads its own prebuilt binary.
 #
 # When the ai > codecompanion sub-feature is selected (exported as
@@ -117,7 +117,7 @@ main() {
     local nvim_venv="$HOME/.local/share/nvim-venv"
     package_try "Neovim Python provider transaction" update_nvim_venv "$nvim_venv" || true
 
-    # luacheck for the pre-commit lua linter (runs as language:system, so it must
+    # luacheck for the prek Lua linter (runs as language:system, so it must
     # be on PATH). luacheck 1.2.0 does not run on Lua 5.5; on macOS build it
     # against lua@5.4. Installed to the user rock tree and symlinked into
     # ~/.local/bin (already on PATH per the zsh config).

@@ -1,6 +1,7 @@
 #!/usr/bin/env bats
 # tests/test_opencode2_wrapper.bats
-# Verify the managed wrapper and isolated installer without package mutations.
+# Verify the managed wrapper and npm-owned isolated installer without package
+# mutations.
 
 bats_require_minimum_version 1.5.0
 
@@ -28,8 +29,7 @@ STUB
 
 install_with_npm() {
   local stub_dir="$BATS_TEST_TMPDIR/stubs" npm_log="$BATS_TEST_TMPDIR/npm.log"
-  mkdir -p "$stub_dir" "$HOME/.config/opencode"
-  rm "$PREFIX/bin/opencode2"
+  mkdir -p "$stub_dir"
   cat >"$stub_dir/npm" <<'STUB'
 #!/bin/sh
 printf '%s\n' "$*" >>"$NPM_LOG"
@@ -45,19 +45,20 @@ if [ "$1" = view ]; then
   esac
   exit 0
 fi
-if [ "$1" = install ] && printf '%s\n' "$*" | grep -q '@opencode/cli@'; then
+  if [ "$1" = install ] && printf '%s\n' "$*" | grep -q '@opencode/cli@'; then
   case "$TEST_NPM_VERSION" in
     12.*) printf '%s\n' "$*" | grep -q -- '--allow-scripts=@opencode/cli' || exit 1 ;;
     11.*) case "$*" in *--allow-scripts*) exit 1 ;; esac ;;
   esac
-  while [ "$#" -gt 0 ]; do
+    while [ "$#" -gt 0 ]; do
     if [ "$1" = --prefix ]; then
       prefix=$2
       break
     fi
     shift
-  done
-  mkdir -p "$prefix/bin"
+    done
+    [ "${NPM_CLI_FAIL:-0}" = 1 ] && exit 1
+    mkdir -p "$prefix/bin"
   cat >"$prefix/bin/opencode2" <<'BIN'
 #!/bin/sh
 printf 'opencode2 v2.0.8\n'
@@ -69,21 +70,23 @@ STUB
 #!/bin/sh
 exit 0
 STUB
-  chmod +x "$stub_dir/npm" "$stub_dir/node"
+  cat >"$stub_dir/sync-runtime" <<'STUB'
+#!/bin/sh
+exit 0
+STUB
+  chmod +x "$stub_dir/npm" "$stub_dir/node" "$stub_dir/sync-runtime"
   before=$(cksum "$WRAPPER")
 
   run env PATH="$stub_dir:$PATH" NPM_LOG="$npm_log" TEST_NPM_VERSION="$1" \
     INSTALL_AI_OPENCODE=true OPENCODE2_VERSION=latest \
     OPENCODE2_NPM_PREFIX="$PREFIX" OPENCODE2_WRAPPER="$WRAPPER" \
+    OPENCODE2_RUNTIME_SYNC="$stub_dir/sync-runtime" \
     OPENCODE2_CONFIG_DIR="$HOME/.config/opencode" bash "$INSTALLER"
 
   [ "$status" -eq 0 ]
   [ "$(cksum "$WRAPPER")" = "$before" ]
-  grep -q '^install -g --prefix .* @opencode/cli@latest$' "$npm_log"
-  grep -q '^view @opentui/solid@latest version$' "$npm_log"
-  grep -q '^view @opentui/solid@0.5.11 peerDependencies.solid-js$' "$npm_log"
-  grep -q '^install --prefix .* --ignore-scripts --package-lock=false --no-save @opencode/plugin@2.0.8 @opentui/solid@0.5.11 solid-js@1.9.12$' "$npm_log"
-  [[ "$output" == *"activated @opencode/cli@2.0.8 and matching plugin runtime"* ]]
+  grep -Eq "^install -g --prefix $PREFIX( --allow-scripts=@opencode/cli)? @opencode/cli@latest$" "$npm_log"
+  [[ "$output" == *"installed @opencode/cli@2.0.8"* ]]
 }
 
 @test "update defaults to the isolated npm method" {

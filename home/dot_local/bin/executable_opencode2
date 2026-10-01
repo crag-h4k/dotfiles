@@ -22,6 +22,16 @@ fi
 
 export NPM_CONFIG_PREFIX="$prefix"
 
+case "${1:-}" in
+  --version|-v) ;;
+  *)
+    runtime_sync="$HOME/.config/opencode/sync-runtime.sh"
+    if [[ -r "$runtime_sync" ]]; then
+      bash "$runtime_sync" "$binary"
+    fi
+    ;;
+esac
+
 if (( $# > 0 )) && [[ "$1" == update || "$1" == upgrade ]]; then
   explicit_method=false
   for arg in "${@:2}"; do

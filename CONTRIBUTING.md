@@ -74,7 +74,7 @@ Install the same prek version used by CI and register the Git hook in the
 checkout where you commit:
 
 ```sh
-uv tool install prek==0.5.3
+uv tool install prek==0.5.4
 prek install --overwrite
 ```
 

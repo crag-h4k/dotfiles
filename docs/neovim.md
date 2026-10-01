@@ -122,7 +122,7 @@ host. “It updated itself” is not a release strategy.
 
 `nvim-lint` consumes the shell-visible tools installed by the package plan.
 Diagnostics are editor feedback; repository enforcement still belongs to
-pre-commit and project CI.
+prek and project CI.
 
 Gitleaks is the exception on the executable side because its read/save scans
 exist only for Neovim. See [Gitleaks](gitleaks.md) for exclusions, project
