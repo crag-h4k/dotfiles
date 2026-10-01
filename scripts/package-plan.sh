@@ -183,7 +183,7 @@ _status() {
     local lookup="${name##*/}"
     _status_result=planned
     if [[ "${DOTFILES_PLAN_ASSUME_MISSING:-0}" == 1 ]]; then
-        [[ "$policy" == remove ]] && _status_result=installed
+        [[ "$policy" == remove ]] && _status_result=absent
         return 0
     fi
     [[ "$_plan_mode" == --names ]] && return 0
@@ -288,8 +288,11 @@ _status() {
             *) command -v "$probe" >/dev/null 2>&1 && _status_result=installed ;;
         esac
     fi
-    if [[ "$policy" == remove && "$_status_result" != planned ]]; then
-        _status_result=remove
+    if [[ "$policy" == remove ]]; then
+        case "$_status_result" in
+            installed|update) _status_result=remove ;;
+            *) _status_result=absent ;;
+        esac
     fi
     # Floating non-system sources are intentionally refreshed on every approved
     # package run. Before approval this also makes the plan honest without

@@ -11,7 +11,7 @@ PLANNER="${BATS_TEST_DIRNAME}/../scripts/package-plan.sh"
     INSTALL_TERMINAL_GHOSTTY=true INSTALL_TERMINAL_ITERM2=true \
     bash "$PLANNER" --records
   [ "$status" -eq 0 ]
-  [ -z "$(printf '%s\n' "$output" | awk -F '\t' 'NF != 6 || ($3 != "installed" && $3 != "planned" && $3 != "update")')" ]
+  [ -z "$(printf '%s\n' "$output" | awk -F '\t' 'NF != 6 || ($3 != "absent" && $3 != "installed" && $3 != "planned" && $3 != "remove" && $3 != "update")')" ]
   [ "$(printf '%s\n' "$output" | grep -c $'^brew-formula\tpython3\t')" -eq 1 ]
   [[ "$output" == *$'brew-cask\tghostty\tplanned\tfloating\tHomebrew cask'* ]]
   [[ "$output" == *$'npm\t@agentclientprotocol/claude-agent-acp\tplanned\t'* ]]
@@ -134,6 +134,25 @@ STUB
   [ "$status" -eq 0 ]
   [[ "$output" == *$'brew-formula\tpre-commit\tremove\tremove\tLegacy hook runner removal'* ]]
   [[ "$output" == *$'brew-formula\tprek\tinstalled\tfloating\tHomebrew core'* ]]
+}
+
+@test "Homebrew plan never installs an absent legacy pre-commit formula" {
+  local stubdir="${BATS_TEST_TMPDIR}/pre-commit-absent"
+  mkdir -p "$stubdir"
+  cat > "${stubdir}/brew" <<'STUB'
+#!/bin/sh
+case "$*" in
+  "list --formula") printf 'prek\n' ;;
+  "list --cask"|"outdated --formula --quiet"|"outdated --cask --quiet") ;;
+esac
+STUB
+  chmod +x "${stubdir}/brew"
+
+  run env PATH="${stubdir}:${PATH}" DOTFILES_PLAN_OS=macos DOTFILES_PLAN_APPROVED=1 \
+    bash "$PLANNER" --records
+
+  [ "$status" -eq 0 ]
+  [[ "$output" == *$'brew-formula\tpre-commit\tabsent\tremove\tLegacy hook runner removal'* ]]
 }
 
 @test "npm inventory checks each global prefix once" {
