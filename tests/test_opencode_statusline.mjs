@@ -8,6 +8,10 @@ import {
   LIMIT_MAX_AGE_MS, LIMITS_RPC_SCHEMA, limitSummary, parseClaudeUsage, parseCodexUsage,
 } from "../home/dot_config/opencode/v2-plugins/statusline/limits.mjs"
 import { setupProviderUsage } from "../home/dot_config/opencode/v2-plugins/statusline/usage-server.mjs"
+import {
+  quotaLabel,
+  weeklyQuota,
+} from "../home/dot_config/opencode/v2-plugins/statusline/openai-quota.mjs"
 
 import {
   BACKGROUND_SPINNER_FRAMES,
@@ -281,4 +285,36 @@ test("direct quota failures retain figures briefly, and account changes clear th
   ok = false
   now += LIMIT_MAX_AGE_MS
   assert.deepEqual(await get(), { providers: {} })
+})
+
+test("weekly quota uses only the seven-day window", () => {
+  const hourly = { limit_window_seconds: 18_000, used_percent: 80 }
+  const weekly = { limit_window_seconds: 604_800, used_percent: 37.4 }
+  assert.deepEqual(weeklyQuota({ rate_limit: { primary_window: hourly, secondary_window: weekly } }), {
+    remainingPercent: 63,
+  })
+  assert.deepEqual(weeklyQuota({ rate_limit: { primary_window: weekly } }), {
+    remainingPercent: 63,
+  })
+  assert.equal(weeklyQuota({ rate_limit: { primary_window: hourly } }), undefined)
+  assert.equal(weeklyQuota({ rate_limit: { secondary_window: { ...weekly, used_percent: NaN } } }), undefined)
+  assert.equal(weeklyQuota({ rate_limit: { primary_window: weekly, secondary_window: weekly } }), undefined)
+  assert.equal(weeklyQuota({ rate_limit: null }), undefined)
+})
+
+test("quota pill follows the model provider and never shows Codex for API keys", () => {
+  const copilot = { usedPercent: 71, unlimited: false }
+  const openai = { auth: "oauth", weekly: { remainingPercent: 63 } }
+  assert.deepEqual(quotaLabel("github-copilot", copilot, openai), {
+    text: "GitHub Copilot 71%",
+    usedPercent: 71,
+  })
+  assert.deepEqual(quotaLabel("openai", copilot, openai), {
+    text: "Codex 63% left",
+    usedPercent: 37,
+  })
+  assert.equal(quotaLabel("openai", copilot, { auth: "key" }), undefined)
+  assert.equal(quotaLabel("openai", copilot, { auth: "none" }), undefined)
+  assert.equal(quotaLabel("anthropic", copilot, openai), undefined)
+  assert.equal(quotaLabel("openai", copilot, { auth: "oauth" })?.text, "Codex unavailable")
 })

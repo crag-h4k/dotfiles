@@ -202,13 +202,21 @@ unlocked runtime under `~/.local/share/opencode2/plugin-runtime` and links its
 `node_modules` into `~/.config/opencode`. Chezmoi does not track the runtime,
 manifest, lockfile, or dependency tree.
 
-The local renderer reproduces context usage and aggregate session cost. It
-calls the `opencode-copilot-statusline@1.0.0` server RPC for the monthly limit,
-and the local `plugin/provider-usage.ts` RPC for Claude and Codex subscription
-limits. The latter resolves OpenCode's active OAuth connections on the server;
-API keys do not expose subscription limits. Available windows show labels such
-as `5h 12% · week 34%`. Codex windows are classified by their reported duration,
-including accounts whose primary window is weekly. Missing windows are omitted.
+The local renderer reproduces context usage and aggregate session cost. Its
+provider pill follows the active session model automatically. GitHub Copilot
+uses the `opencode-copilot-statusline@1.0.0` server RPC for monthly used
+percentage. OpenAI with ChatGPT OAuth uses the local `plugin/codex-quota.ts`
+RPC for weekly remaining percentage, shown as `Codex 63% left`. API-key OpenAI
+has no subscription quota pill. If OAuth quota is unavailable, the pill says
+`Codex unavailable`. The Codex RPC queries an undocumented ChatGPT usage
+endpoint with the active OpenCode credential and returns only quota data.
+
+The existing `plugin/provider-usage.ts` RPC supplies Claude and gateway
+subscription limits. Available windows show labels such as
+`5h 12% · week 34%`, with missing windows omitted. Codex windows are classified
+by their reported duration, including accounts whose primary window is weekly.
+Providers without a quota source have no pill. There is no separate Gum
+component or quota configuration switch.
 Context, cost, and provider usage are separate left-aligned pills after the
 activity pills. Reset countdowns are omitted.
 
@@ -236,7 +244,7 @@ switches clear the previous account's cache.
 | Subagents | Running child sessions and queued child prompts | Orange single-cell animation while children run; static icon for queued-only work; hidden without child work |
 | Context | Latest post-compaction context usage | Left-aligned pill; survives longest among usage pills |
 | Estimated cost | Aggregate session-family cost | Left-aligned pill; hidden before context at narrow widths |
-| Provider limit | Copilot monthly percentage, or available Claude/Codex subscription windows for direct logins and gateway feeds | Left-aligned pill; hidden first at narrow widths; no reset countdown |
+| Provider limit | Copilot monthly used percentage, OpenAI weekly remaining percentage, or available Claude/gateway subscription windows | Automatically follows the active provider; hidden first at narrow widths; no reset countdown |
 
 The plugin refreshes Git status after filesystem and branch events with a 250
 ms debounce, and refreshes provider limits every 60 seconds. During execution

@@ -142,6 +142,7 @@
 .config/opencode/themes/gud-lucent.json
 .config/opencode/plugin/notify.ts
 .config/opencode/plugin/copilot-tiers.ts
+.config/opencode/plugin/codex-quota.ts
 .config/opencode/plugin/provider-usage.ts
 .config/opencode/v2-plugins
 .config/opencode/commands/iac-scan.md

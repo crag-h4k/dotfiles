@@ -6,6 +6,7 @@ import { Rpc } from "@opencode/plugin/rpc"
 import { useTerminalDimensions } from "@opentui/solid"
 import { createEffect, createMemo, createSignal, onCleanup, Show } from "solid-js"
 import { LIMIT_ICON, LIMITS_RPC_SCHEMA, limitSummary } from "./limits.mjs"
+import { quotaLabel } from "./openai-quota.mjs"
 import {
   SPINNER_INTERVAL_MS,
   CONTEXT_ICON,
@@ -70,6 +71,7 @@ type CopilotUsage = {
   entitlement: number
   unlimited: boolean
 }
+type OpenAIQuota = { auth: "oauth" | "key" | "none"; weekly?: { remainingPercent: number } }
 // modelID -> GitHub Copilot picker category ("lightweight" | "versatile" |
 // "powerful"), from plugin/copilot-tiers.ts. Premium-request multipliers no longer
 // apply on usage-based plans, so the picker category is the authoritative tier axis.
@@ -97,6 +99,30 @@ const COPILOT_RPC = Rpc.define({
             additionalProperties: false,
           },
         },
+        additionalProperties: false,
+      },
+    },
+  },
+  events: {},
+})
+
+const CODEX_RPC = Rpc.define({
+  id: "dotfiles.codex-quota",
+  methods: {
+    get: {
+      input: { type: "object", properties: {}, additionalProperties: false },
+      output: {
+        type: "object",
+        properties: {
+          auth: { type: "string", enum: ["oauth", "key", "none"] },
+          weekly: {
+            type: "object",
+            properties: { remainingPercent: { type: "number" } },
+            required: ["remainingPercent"],
+            additionalProperties: false,
+          },
+        },
+        required: ["auth"],
         additionalProperties: false,
       },
     },
@@ -466,6 +492,7 @@ function SessionFooter(props: {
   git: () => GitStats
   now: () => number
   copilot: () => CopilotUsage | undefined
+  openai: () => OpenAIQuota | undefined
   limits: () => ProviderLimits
   tiers: () => TierMap
 }) {
@@ -494,7 +521,7 @@ function SessionFooter(props: {
   const provider = createMemo(() => {
     const id = session()?.model?.providerID
     if (!id) return undefined
-    if (id !== "github-copilot") {
+    if (id !== "github-copilot" && id !== "openai") {
       const info = context.data.location.provider.list(props.location)?.find((value) => value.id === id)
       const summary = limitSummary(props.limits()[id], props.now())
       if (!summary) return undefined
@@ -503,16 +530,15 @@ function SessionFooter(props: {
         : summary.usedPercent >= 70 ? COLOR.limitWarning : COLOR.limit
       return { text: `${info?.name ?? id} ${summary.text}`, color, icon: LIMIT_ICON }
     }
-    const usage = props.copilot()
-    if (!usage) return { text: "GitHub Copilot", color: COLOR.limitError }
-    if (usage.unlimited) return { text: "GitHub Copilot ∞", color: COLOR.limit }
+    const status = quotaLabel(id, props.copilot(), props.openai())
+    if (!status) return undefined
     const color =
-      usage.usedPercent >= 90
+      status.usedPercent >= 90
         ? COLOR.limitError
-        : usage.usedPercent >= 70
+        : status.usedPercent >= 70
           ? COLOR.limitWarning
           : COLOR.limit
-    return { text: `GitHub Copilot ${usage.usedPercent}%`, color }
+    return { text: status.text, color, icon: id === "openai" ? LIMIT_ICON : undefined }
   })
 
   const tier = createMemo<ModelTier | undefined>(() => {
@@ -579,9 +605,11 @@ export default Plugin.define({
     const [git, setGit] = createSignal<GitStats>({ files: 0, additions: 0, deletions: 0 })
     const [now, setNow] = createSignal(Date.now())
     const [copilot, setCopilot] = createSignal<CopilotUsage>()
+    const [openai, setOpenAI] = createSignal<OpenAIQuota>()
     const [limits, setLimits] = createSignal<ProviderLimits>({})
     const [tiers, setTiers] = createSignal<TierMap>({})
     const copilotRpc = context.client.rpc(COPILOT_RPC)
+    const codexRpc = context.client.rpc(CODEX_RPC)
     const limitsRpc = context.client.rpc(LIMITS_RPC)
     const tiersRpc = context.client.rpc(TIERS_RPC)
     let refreshTimer: ReturnType<typeof setTimeout> | undefined
@@ -614,6 +642,14 @@ export default Plugin.define({
       }
     }
 
+    async function refreshCodex() {
+      try {
+        setOpenAI((await codexRpc.get({})) as OpenAIQuota)
+      } catch {
+        setOpenAI(undefined)
+      }
+    }
+
     async function refreshTiers() {
       try {
         const result = (await tiersRpc.get({})) as { models?: TierMap }
@@ -636,11 +672,15 @@ export default Plugin.define({
     void context.data.project.sync()
     void refreshGit()
     void refreshCopilot()
+    void refreshCodex()
     void refreshLimits()
     void refreshTiers()
 
     const clock = setInterval(() => setNow(Date.now()), 30_000)
-    const quota = setInterval(() => void refreshCopilot(), 60_000)
+    const quota = setInterval(() => {
+      void refreshCopilot()
+      void refreshCodex()
+    }, 60_000)
     const limitsClock = setInterval(() => void refreshLimits(), 60_000)
     // Multipliers change rarely; the server plugin also caches. Refresh every 6h.
     const tierClock = setInterval(() => void refreshTiers(), 6 * 60 * 60 * 1_000)
@@ -662,6 +702,7 @@ export default Plugin.define({
           git={git}
           now={now}
           copilot={copilot}
+          openai={openai}
           limits={limits}
           tiers={tiers}
         />
