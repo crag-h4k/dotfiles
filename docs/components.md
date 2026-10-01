@@ -204,9 +204,23 @@ manifest, lockfile, or dependency tree.
 
 The local renderer reproduces context usage and aggregate session cost. It
 calls the `opencode-copilot-statusline@1.0.0` server RPC for the monthly limit,
-but renders only the provider and used percentage. The reset countdown is
-intentionally omitted. Context, cost, and provider usage are separate
-left-aligned pills after the activity pills.
+and the local `plugin/provider-usage.ts` RPC for Claude and Codex subscription
+limits. The latter resolves OpenCode's active OAuth connections on the server;
+API keys do not expose subscription limits. Available windows show labels such
+as `5h 12% · week 34%`. Codex windows are classified by their reported duration,
+including accounts whose primary window is weekly. Missing windows are omitted.
+Context, cost, and provider usage are separate left-aligned pills after the
+activity pills. Reset countdowns are omitted.
+
+Gateways can publish sanitized quota figures in
+`~/.cache/opencode/provider-usage/usage.json`, or override the path with
+`OPENCODE_PROVIDER_USAGE_FILE` in the server environment. The file contains a
+`providers` object keyed by the configured provider ID, with `updatedAt` as Unix
+milliseconds and `windows` entries containing `period` (`5h` or `week`) and
+`usedPercent`. The server strips other fields before returning RPC data. Brain's
+collector supplies `household` this way; upstream credentials stay in the
+gateway's private storage. Figures expire after five minutes, and direct-account
+switches clear the previous account's cache.
 
 ```text
 󰉋 project   main •2 +14 -3  ⠋ 󰚩 build · gpt-5.6-sol · xhigh  󰥔 12m  O 1 run  󰍛 43.9K (4%)  ≈ $23.79  󰊤 GitHub Copilot 52%
@@ -222,10 +236,10 @@ left-aligned pills after the activity pills.
 | Subagents | Running child sessions and queued child prompts | Orange single-cell animation while children run; static icon for queued-only work; hidden without child work |
 | Context | Latest post-compaction context usage | Left-aligned pill; survives longest among usage pills |
 | Estimated cost | Aggregate session-family cost | Left-aligned pill; hidden before context at narrow widths |
-| Provider limit | Active provider plus monthly used percentage | Left-aligned pill; hidden first at narrow widths; no reset countdown |
+| Provider limit | Copilot monthly percentage, or available Claude/Codex subscription windows for direct logins and gateway feeds | Left-aligned pill; hidden first at narrow widths; no reset countdown |
 
 The plugin refreshes Git status after filesystem and branch events with a 250
-ms debounce, and refreshes the Copilot limit every 60 seconds. During execution
+ms debounce, and refreshes provider limits every 60 seconds. During execution
 the configured interrupt shortcut precedes the pills while the latest usage
 values remain visible when width permits. Shell mode shows its exit guidance. Its colors
 render from `.chezmoidata/palettes.yaml`, so changing `data.palette` keeps the
