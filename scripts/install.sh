@@ -75,6 +75,7 @@ main() {
     if [[ "$DOTFILES_INSTALL_MODE" == packages ]]; then
         if pkg_confirm "chezmoi apply"; then
             do_packages=true
+            export DOTFILES_PACKAGES_APPROVED=true
         else
             info "package install declined for this run; applying configs only (installMode unchanged; re-run to install)"
         fi
@@ -85,6 +86,10 @@ main() {
         local planner="$SCRIPT_DIR/package-plan.sh"
         local source_root
         local src name status _policy origin probe
+        local -a brew_formula_install=() brew_formula_update=() brew_formula_remove=()
+        local -a brew_cask_install=() brew_cask_update=()
+        local -a apt_packages=()
+        export DOTFILES_APT_REPO_CHANGED=false
         source_root="${DOTFILES_SOURCE_ROOT:-$(cd "$SCRIPT_DIR/.." && pwd)}"
         package_results_reset
         if [[ -f "$source_root/.gitmodules" ]]; then
@@ -103,40 +108,31 @@ main() {
                 if [[ "$INSTALL_NEOVIM" == true ]] && ! xcode-select -p >/dev/null 2>&1; then
                     die "neovim needs a C compiler (cc) to build tree-sitter parsers, but Apple Command Line Tools are not installed. Run: xcode-select --install"
                 fi
-                # Metadata refresh happens only after the user approves the plan.
-                # Rebuild manager-aware records afterward, then mutate only the
-                # selected formulae and casks.
-                package_try "Homebrew metadata refresh" brew update || true
-                # Read records on FD 3 so a mutating command in the loop body
-                # (e.g. a brew upgrade that touches stdin) cannot consume the
-                # record stream and silently drop every later formula.
+                # The plan refreshes Homebrew metadata before the single approval.
+                # Rebuild its status inventory from that metadata, then batch every
+                # requested formula and cask by action. Homebrew would otherwise ask
+                # once for every install or upgrade command.
                 while IFS=$'\t' read -r src name status _policy origin probe <&3; do
-                    [[ "$src" == brew-formula ]] || continue
-                    case "$status" in
-                        planned)
-                            package_try "Homebrew formula $name install" brew install "$name" || true
-                            ;;
-                        update)
-                            package_try "Homebrew formula $name update" brew upgrade "$name" || true
-                            ;;
-                        installed)
-                            package_skip "Homebrew formula $name is current"
-                            ;;
+                    case "$src:$status" in
+                        brew-formula:planned) brew_formula_install+=("$name") ;;
+                        brew-formula:update) brew_formula_update+=("$name") ;;
+                        brew-formula:remove) brew_formula_remove+=("$name") ;;
+                        brew-formula:installed) package_skip "Homebrew formula $name is current" ;;
+                        brew-cask:planned) brew_cask_install+=("$name") ;;
+                        brew-cask:update) brew_cask_update+=("$name") ;;
+                        brew-cask:installed) package_skip "Homebrew cask $name is current" ;;
                     esac
                 done 3< <(DOTFILES_PLAN_APPROVED=1 "$planner" --records)
-                while IFS=$'\t' read -r src name status _policy origin probe <&3; do
-                    [[ "$src" == brew-cask ]] || continue
-                    if [[ "$name" == ghostty && -d /Applications/Ghostty.app ]] \
-                        && ! brew list --cask ghostty >/dev/null 2>&1; then
-                        package_skip "Ghostty is unmanaged by Homebrew; update the app manually"
-                        continue
-                    fi
-                    case "$status" in
-                        planned) package_try "Homebrew cask $name install" brew install --cask "$name" || true ;;
-                        update) package_try "Homebrew cask $name update" brew upgrade --cask "$name" || true ;;
-                        installed) package_skip "Homebrew cask $name is current" ;;
-                    esac
-                done 3< <(DOTFILES_PLAN_APPROVED=1 "$planner" --records)
+                ((${#brew_formula_install[@]} == 0)) ||
+                    package_try "Homebrew formula install" brew install --no-ask "${brew_formula_install[@]}" || true
+                ((${#brew_formula_update[@]} == 0)) ||
+                    package_try "Homebrew formula update" brew upgrade --no-ask "${brew_formula_update[@]}" || true
+                ((${#brew_formula_remove[@]} == 0)) ||
+                    package_try "Homebrew legacy tool removal" brew uninstall "${brew_formula_remove[@]}" || true
+                ((${#brew_cask_install[@]} == 0)) ||
+                    package_try "Homebrew cask install" brew install --cask --no-ask "${brew_cask_install[@]}" || true
+                ((${#brew_cask_update[@]} == 0)) ||
+                    package_try "Homebrew cask update" brew upgrade --cask --no-ask "${brew_cask_update[@]}" || true
                 if [[ "$node_required" == true ]]; then
                     if package_try "Node.js 24+ verification" verify_node_min_major 24; then
                         node_ready=true
@@ -152,14 +148,20 @@ main() {
                 if node_runtime_selected; then
                     package_try "NodeSource APT repository" ensure_nodesource_apt_repo || true
                 fi
-                package_try "APT metadata refresh" sudo apt-get update || true
-                # apt-get install is intentionally scoped to each selected package.
-                # It installs missing dependencies and advances installed ones to
-                # their candidate version without running a distro-wide upgrade.
+                # Adding a selected third-party repository happens only after the
+                # package plan is approved. Refresh once more only in that case so
+                # its selected package is available to the single batch install.
+                if [[ "$DOTFILES_APT_REPO_CHANGED" == true ]]; then
+                    package_try "APT metadata refresh after repository setup" sudo apt-get update || true
+                fi
                 while IFS= read -r name <&3; do
-                    [[ -n "$name" ]] || continue
-                    package_try "APT package $name install/update" sudo apt-get install -y "$name" || true
+                    [[ -n "$name" ]] && apt_packages+=("$name")
                 done 3< <(DOTFILES_PLAN_APPROVED=1 "$planner" --names apt)
+                # apt-get install with several names installs missing dependencies
+                # and advances only this selected set. It never performs a
+                # distribution-wide upgrade.
+                ((${#apt_packages[@]} == 0)) ||
+                    package_try "APT selected package install/update" sudo apt-get install -y "${apt_packages[@]}" || true
                 # Neovim is one checksum-verified upstream tree so its binary,
                 # runtime, and libraries activate or roll back together.
                 [[ "$INSTALL_NEOVIM" == true ]] && { package_try "Neovim versioned release" install_neovim_debian || true; }
@@ -204,6 +206,10 @@ main() {
             else
                 package_skip "GitHub Copilot CLI; Node.js 24+ unavailable"
             fi
+        fi
+        if [[ "$os" == debian ]]; then
+            package_try "prek pinned hook runner" \
+                env PREK_VERSION="${PREK_VERSION:-0.5.4}" bash "$SCRIPT_DIR/install-prek.sh" || true
         fi
 
         # Chezmoi clones missing externals while applying. Package mode also

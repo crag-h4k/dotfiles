@@ -29,8 +29,9 @@ chezmoi apply
 chezmoi apply --refresh-externals
 
 # Re-run package provisioning without deleting chezmoi script state. This
-# opens the package plan and mode confirmation. Selecting packages advances the
-# persisted packageRun trigger and reruns only the content-hashed installer:
+# refreshes package metadata, shows the package plan, and asks once for approval.
+# Approving advances the persisted packageRun trigger and reruns only the
+# content-hashed installer:
 cup
 
 # Run the same update without a TTY. All three opt-ins are required:
@@ -357,7 +358,7 @@ Mason installs Gitleaks for Neovim. Normal buffers are scanned asynchronously
 after read and save. Findings are warning diagnostics and never block either
 operation.
 
-The official pinned pre-commit hook is the enforcement boundary:
+The official pinned prek hook is the enforcement boundary:
 
 ```sh
 prek run gitleaks --all-files

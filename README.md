@@ -120,7 +120,7 @@ checkout dirty.
 | [Architecture](docs/architecture.md) | Source-root boundaries, ownership, and rendered paths |
 | [Operation](docs/operation.md) | Daily chezmoi work, tmux behavior, statuslines, and removal |
 | [Neovim](docs/neovim.md) | Lazy, Mason, LSPs, linters, and local revision state |
-| [Gitleaks](docs/gitleaks.md) | Editor warnings, project allowlists, exclusions, and pre-commit enforcement |
+| [Gitleaks](docs/gitleaks.md) | Editor warnings, project allowlists, exclusions, and prek enforcement |
 | [Notifications](docs/notifications.md) | tmux-native process and Claude/Codex attention cues |
 | [Sounds](docs/sounds.md) | Notifier sound provenance, licensing, auditioning, and loudness targets |
 | [Palettes](docs/palettes.md) | Shared base16 catalog and authoring workflow |

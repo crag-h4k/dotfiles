@@ -134,6 +134,12 @@ NodeSource Node.js 24 repository. If repository setup, package installation, or
 Node 24-or-newer verification fails, only npm-dependent steps are skipped. Python,
 LuaRocks, Git externals, and editor updates continue.
 
+Prek is the managed hook runner. macOS installs the Homebrew formula and removes
+the legacy `pre-commit` formula during the same approved package run without
+autoremove or cache deletion. Debian installs Astral uv with its official
+standalone installer, then uses it to install the CI-pinned `prek==0.5.4` tool
+under `~/.local/bin`.
+
 The OpenCode wrapper, Copilot CLI, and ACP bridge live in `~/.local/bin`. They are
 reachable by name only through the `zsh` component, which puts that directory on
 `PATH` (via `~/.zshenv`) and defines the `oc` / `oc2` / `oc2bg` aliases. With
@@ -153,18 +159,21 @@ cannot color the wrong pane. See [Notifications](notifications.md#opencode).
 
 The managed `~/.local/bin/opencode2` wrapper executes the isolated binary at
 `~/.local/share/opencode2/bin/opencode2` and sets that directory as the npm
-prefix. `opencode2 update` and `opencode2 upgrade` add `--method npm` unless an
-explicit method is present before `--`. Interactive launches add `--standalone`
-unless `--standalone`, `--server`, or `OPENCODE2_BACKGROUND_SERVICE=true` already
-chooses the server mode. Other subcommands pass through unchanged. Both installer
-and wrapper canonicalize their paths and reject a prefix whose binary resolves
-back to the managed wrapper.
+prefix. npm owns the CLI version in that isolated prefix. OpenCode's native
+`/update` action sees the same prefix, so it and package mode update the same
+installation. `opencode2 update` and `opencode2 upgrade` add `--method npm`
+unless an explicit method is present before `--`. Interactive launches add
+`--standalone` unless `--standalone`, `--server`, or
+`OPENCODE2_BACKGROUND_SERVICE=true` already chooses the server mode. Other
+subcommands pass through unchanged. The wrapper canonicalizes its paths and
+rejects a prefix whose binary resolves back to the managed wrapper.
 
 On npm 12 and newer, the installer explicitly allows `@opencode/cli`'s
 postinstall script, which replaces the package's placeholder launcher with the
-native executable. Plugin dependencies are still installed with
-`--ignore-scripts`. The CLI and plugin runtime are verified before activation;
-a failed install preserves the previous working release.
+native executable. `~/.config/opencode/sync-runtime.sh` installs the local
+plugin SDK at the active CLI version. The wrapper runs it before OpenCode starts
+when the versions differ, including after a native `/update`, so the runtime is
+not version-pinned in dotfiles and cannot remain stale.
 
 `~/.config/opencode/opencode.jsonc` is merge-managed. Chezmoi reasserts the
 schema, built-in agent colors, and exact-pinned V2 plugin list while preserving
@@ -315,10 +324,12 @@ The final screen groups the deduplicated package plan by status: install,
 update, then current. Colors honor `NO_COLOR`, and every line names its package
 source and whether it floats or is pinned.
 
-The pre-approval plan uses command and path probes. It does not invoke
-Homebrew, APT, npm, pip, or LuaRocks. After approval, Homebrew refreshes its
-metadata and checks its managed inventory; APT refreshes metadata before
-installing only the selected package names.
+The plan refreshes Homebrew or APT metadata before it is shown, then uses the
+fresh package-manager inventory to classify selected items as install, update,
+or current. The single `[y/N]` after the plan authorizes all package work. On
+macOS, dotfiles passes Homebrew's `--no-ask` after that approval so Homebrew
+does not ask again. On Debian, a new selected third-party repository triggers
+one extra metadata refresh after it is added.
 
 Package mode installs missing tools and updates the managed set. Config-only
 mode still clones missing selected chezmoi externals and runs safe finalizers,
@@ -331,14 +342,14 @@ Chezmoi clones them while materializing selected configuration, before the
 checks status, tracking configuration, and declared URL after package approval,
 then fetches only the matching tracking remote and fast-forwards clean branches.
 
-On macOS, package mode upgrades outdated managed formulae and casks. An
-existing Ghostty app that is not managed by Homebrew is reported as a manual
-exception. On Debian, individual `apt-get install` calls select the current
-candidate version without running a distribution upgrade. Ghostty remains a
-manual install there too.
+On macOS, package mode batches selected formula and cask installs and upgrades.
+An existing Ghostty app that is not managed by Homebrew is reported as a manual
+exception. On Debian, one `apt-get install` command selects the current
+candidate version for the managed package set without running a distribution
+upgrade. Ghostty remains a manual install there too.
 
-Floating npm CLIs, OpenCode runtime dependencies, Neovim Python providers,
-LuaRocks tools, checksum-verified GitHub release binaries, Lazy plugins,
+Floating npm CLIs, Neovim Python providers, LuaRocks tools,
+checksum-verified GitHub release binaries, Lazy plugins,
 Treesitter parsers, and installed Mason packages update on every approved
 package run. Selected chezmoi Git externals and installer-owned TPM repositories
 advance only when their checkout is clean and the remote change is a
@@ -346,20 +357,17 @@ fast-forward. Dirty, detached, ahead, or diverged checkouts are skipped with a
 warning.
 
 Exact versions remain source-controlled. Package mode reasserts the pinned
-tree-sitter CLI instead of advancing it. OpenCode's plugin API follows the
-installed CLI version. The installer resolves one OpenTUI Solid release, then
-installs the exact `solid-js` peer that release declares instead of floating the
-two packages independently. The pinned OpenCode statusline plugin reference,
-pre-commit revisions, and palette submodule commit change only through
-repository updates. Initializing that exact palette submodule commit happens
-only after package approval.
+tree-sitter CLI instead of advancing it. The pinned OpenCode statusline plugin
+reference, prek revisions, and palette submodule commit change only
+through repository updates. Initializing that exact palette submodule commit
+happens only after package approval.
 
-The plan appears on first init, when `DOTFILES_INSTALL_MODE` is set, or when the
-`package mode` setup action is selected. A normal later init reuses the saved mode.
+The plan appears on first init or when the `package mode` setup action is
+selected. A normal later init reuses the saved mode.
 
-When a component change triggers the installer, its `[y/N]` prompt shows the
-plan again. `cup` uses a scoped re-init that keeps the component choices and
-opens the same plan and mode confirmation.
+When a component change triggers the installer, its `[y/N]` prompt refreshes and
+shows the plan again. `cup` uses a scoped re-init that keeps the component
+choices and opens the same plan and approval prompt.
 
 Non-interactive init requires `DOTFILES_INSTALL_MODE=configs` or
 `DOTFILES_INSTALL_MODE=packages`. Without one, chezmoi stops before apply.

@@ -3,7 +3,7 @@ name: prek
 
 # Enforce the same hooks that run locally - including validate-templates.sh,
 # which renders the component-gated chezmoi templates and parses the result.
-# workflow_call-only: invoked by ci.yaml's pre-commit job for both the
+# workflow_call-only: invoked by ci.yaml's prek job for both the
 # pull-request and push-to-main cases, so there is one run per push, not two.
 on:
   workflow_call:
@@ -12,11 +12,10 @@ permissions:
   contents: read
 
 jobs:
-  # main requires the existing `pre-commit / pre-commit` check name.
-  pre-commit:
+  prek:
     runs-on: ubuntu-latest
     env:
-      PREK_VERSION: "0.5.3"
+      PREK_VERSION: "0.5.4"
     steps:
       - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7
         with:
@@ -84,7 +83,7 @@ jobs:
 
       # continue-on-error so the job reaches the explicit exit-1 below (which
       # fails it for real) with a recorded outcome. The pass/fail result surfaces
-      # in the CI summary comment (ci.yaml's ci-summary job) via needs.pre-commit;
+      # in the CI summary comment (ci.yaml's ci-summary job) via needs.prek;
       # the full hook output stays in this job's log.
       - name: Run prek
         id: run-prek

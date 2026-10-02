@@ -85,21 +85,21 @@ export_install_base() {
 @test "pkg_confirm: tty answer 'y' proceeds" {
   local ttyf="${BATS_TEST_TMPDIR}/tty-y"
   printf 'y\n' > "$ttyf"
-  run bash -c "source '${COMMON}'; DOTFILES_PLAN_OS=macos DOTFILES_PLAN_ASSUME_MISSING=1 DOTFILES_TTY='${ttyf}' DOTFILES_PKG_CONFIRM_SENTINEL='${NO_SENTINEL}' pkg_confirm smoke"
+  run env PATH="${STUB_DIR}:${PATH}" bash -c "source '${COMMON}'; DOTFILES_PLAN_OS=macos DOTFILES_PLAN_ASSUME_MISSING=1 DOTFILES_TTY='${ttyf}' DOTFILES_PKG_CONFIRM_SENTINEL='${NO_SENTINEL}' pkg_confirm smoke"
   [ "$status" -eq 0 ]
 }
 
 @test "pkg_confirm: empty tty answer declines (default N)" {
   local ttyf="${BATS_TEST_TMPDIR}/tty-empty"
   printf '\n' > "$ttyf"
-  run bash -c "source '${COMMON}'; DOTFILES_PLAN_OS=macos DOTFILES_PLAN_ASSUME_MISSING=1 DOTFILES_TTY='${ttyf}' DOTFILES_PKG_CONFIRM_SENTINEL='${NO_SENTINEL}' pkg_confirm smoke"
+  run env PATH="${STUB_DIR}:${PATH}" bash -c "source '${COMMON}'; DOTFILES_PLAN_OS=macos DOTFILES_PLAN_ASSUME_MISSING=1 DOTFILES_TTY='${ttyf}' DOTFILES_PKG_CONFIRM_SENTINEL='${NO_SENTINEL}' pkg_confirm smoke"
   [ "$status" -ne 0 ]
 }
 
 @test "pkg_confirm: 'n' tty answer declines" {
   local ttyf="${BATS_TEST_TMPDIR}/tty-n"
   printf 'n\n' > "$ttyf"
-  run bash -c "source '${COMMON}'; DOTFILES_PLAN_OS=macos DOTFILES_PLAN_ASSUME_MISSING=1 DOTFILES_TTY='${ttyf}' DOTFILES_PKG_CONFIRM_SENTINEL='${NO_SENTINEL}' pkg_confirm smoke"
+  run env PATH="${STUB_DIR}:${PATH}" bash -c "source '${COMMON}'; DOTFILES_PLAN_OS=macos DOTFILES_PLAN_ASSUME_MISSING=1 DOTFILES_TTY='${ttyf}' DOTFILES_PKG_CONFIRM_SENTINEL='${NO_SENTINEL}' pkg_confirm smoke"
   [ "$status" -ne 0 ]
 }
 
@@ -170,8 +170,11 @@ export_install_base() {
   export DOTFILES_TTY="${ttyf}" DOTFILES_PKG_CONFIRM_SENTINEL="${NO_SENTINEL}"
   run bash "$INSTALL"
   [ "$status" -eq 0 ]
-  [ ! -f "$BREW_LOG" ]
   [[ "$output" == *"declined for this run"* ]]
+  # The rejected run now refreshes metadata before showing the plan, but does
+  # not install or upgrade a package after the answer is no.
+  run grep -E '(^|[[:space:]])(install|upgrade)([[:space:]]|$)' "$BREW_LOG"
+  [ "$status" -ne 0 ]
 }
 
 @test "install.sh packages, fresh sentinel proceeds and consumes it" {

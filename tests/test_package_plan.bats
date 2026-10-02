@@ -11,7 +11,7 @@ PLANNER="${BATS_TEST_DIRNAME}/../scripts/package-plan.sh"
     INSTALL_TERMINAL_GHOSTTY=true INSTALL_TERMINAL_ITERM2=true \
     bash "$PLANNER" --records
   [ "$status" -eq 0 ]
-  [ -z "$(printf '%s\n' "$output" | awk -F '\t' 'NF != 6 || ($3 != "installed" && $3 != "planned" && $3 != "update")')" ]
+  [ -z "$(printf '%s\n' "$output" | awk -F '\t' 'NF != 6 || ($3 != "absent" && $3 != "installed" && $3 != "planned" && $3 != "remove" && $3 != "update")')" ]
   [ "$(printf '%s\n' "$output" | grep -c $'^brew-formula\tpython3\t')" -eq 1 ]
   [[ "$output" == *$'brew-cask\tghostty\tplanned\tfloating\tHomebrew cask'* ]]
   [[ "$output" == *$'npm\t@agentclientprotocol/claude-agent-acp\tplanned\t'* ]]
@@ -98,6 +98,95 @@ STUB
   [ "$status" -eq 0 ]
   [ "$(grep -c 'list --formula' "$log")" -eq 1 ]
   [ "$(grep -c 'list --cask' "$log")" -eq 1 ]
+}
+
+@test "package metadata refresh is one manager call before the plan" {
+  local stubdir="${BATS_TEST_TMPDIR}/refresh-stub" log="${BATS_TEST_TMPDIR}/refresh.log"
+  mkdir -p "$stubdir"
+  cat > "${stubdir}/brew" <<STUB
+#!/bin/sh
+echo "\$*" >> "${log}"
+exit 0
+STUB
+  chmod +x "${stubdir}/brew"
+
+  run env PATH="${stubdir}:${PATH}" DOTFILES_PLAN_OS=macos bash "$PLANNER" --refresh
+
+  [ "$status" -eq 0 ]
+  [ "$(grep -c '^update$' "$log")" -eq 1 ]
+}
+
+@test "Homebrew plan removes the legacy pre-commit formula without removing dependencies" {
+  local stubdir="${BATS_TEST_TMPDIR}/pre-commit-removal"
+  mkdir -p "$stubdir"
+  cat > "${stubdir}/brew" <<'STUB'
+#!/bin/sh
+case "$*" in
+  "list --formula") printf 'pre-commit\nprek\n' ;;
+  "list --cask"|"outdated --formula --quiet"|"outdated --cask --quiet") ;;
+esac
+STUB
+  chmod +x "${stubdir}/brew"
+
+  run env PATH="${stubdir}:${PATH}" DOTFILES_PLAN_OS=macos DOTFILES_PLAN_APPROVED=1 \
+    bash "$PLANNER" --records
+
+  [ "$status" -eq 0 ]
+  [[ "$output" == *$'brew-formula\tpre-commit\tremove\tremove\tLegacy hook runner removal'* ]]
+  [[ "$output" == *$'brew-formula\tprek\tinstalled\tfloating\tHomebrew core'* ]]
+}
+
+@test "Homebrew plan never installs an absent legacy pre-commit formula" {
+  local stubdir="${BATS_TEST_TMPDIR}/pre-commit-absent"
+  mkdir -p "$stubdir"
+  cat > "${stubdir}/brew" <<'STUB'
+#!/bin/sh
+case "$*" in
+  "list --formula") printf 'prek\n' ;;
+  "list --cask"|"outdated --formula --quiet"|"outdated --cask --quiet") ;;
+esac
+STUB
+  chmod +x "${stubdir}/brew"
+
+  run env PATH="${stubdir}:${PATH}" DOTFILES_PLAN_OS=macos DOTFILES_PLAN_APPROVED=1 \
+    bash "$PLANNER" --records
+
+  [ "$status" -eq 0 ]
+  [[ "$output" == *$'brew-formula\tpre-commit\tabsent\tremove\tLegacy hook runner removal'* ]]
+}
+
+@test "npm inventory checks each global prefix once" {
+  local stubdir="${BATS_TEST_TMPDIR}/npm-inventory" log="${BATS_TEST_TMPDIR}/npm-inventory.log"
+  mkdir -p "$stubdir"
+  cat > "${stubdir}/brew" <<'STUB'
+#!/bin/sh
+exit 0
+STUB
+  cat > "${stubdir}/npm" <<STUB
+#!/bin/sh
+printf '%s\n' "\$*" >> "${log}"
+case "\$1" in
+  list)
+    case "\$*" in
+      *opencode2*) printf '%s\n' "\$HOME/.local/share/opencode2/lib/node_modules/@opencode/cli" ;;
+      *) printf '%s\n' "\$HOME/.local/lib/node_modules/markdownlint-cli2" "\$HOME/.local/lib/node_modules/@fsouza/prettierd" ;;
+    esac
+    ;;
+  outdated) printf '{}' ;;
+esac
+STUB
+  chmod +x "${stubdir}/brew" "${stubdir}/npm"
+
+  run env PATH="${stubdir}:${PATH}" DOTFILES_PLAN_OS=macos DOTFILES_PLAN_APPROVED=1 \
+    INSTALL_NEOVIM=true INSTALL_AI_OPENCODE=true bash "$PLANNER" --records
+
+  [ "$status" -eq 0 ]
+  [[ "$output" == *$'npm\t@opencode/cli\tinstalled\t'* ]]
+  [[ "$output" == *$'npm\t@fsouza/prettierd\tinstalled\t'* ]]
+  [ "$(grep -c 'list -g --depth=0 --parseable --prefix .*opencode2' "$log")" -eq 1 ]
+  [ "$(grep -c 'list -g --depth=0 --parseable --prefix .*\.local$' "$log")" -eq 1 ]
+  [ "$(grep -c 'outdated -g --json --prefix .*opencode2' "$log")" -eq 1 ]
+  [ "$(grep -c 'outdated -g --json --prefix .*\.local$' "$log")" -eq 1 ]
 }
 
 @test "managed Ghostty cask remains eligible for update" {

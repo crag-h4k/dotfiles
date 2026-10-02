@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # scripts/confirm-install.sh
-# Show the package plan on the controlling TTY and emit only the selected mode.
+# Refresh package metadata, show the plan, and emit the selected install mode.
 
 set -euo pipefail
 
@@ -17,35 +17,28 @@ if [[ ! -e "$TTY_DEVICE" ]]; then
 fi
 
 started=$SECONDS
-printf 'dotfiles: inspecting installed packages...\n' >"$TTY_DEVICE"
+printf 'dotfiles: refreshing package metadata...\n' >"$TTY_DEVICE"
+if ! "$PLAN" --refresh >"$TTY_DEVICE" 2>&1; then
+    printf 'dotfiles: package metadata refresh failed; configuration-only apply selected.\n' >"$TTY_DEVICE"
+    printf 'configs\n'
+    exit 0
+fi
 # Force color: --display stdout is captured here (a pipe, not a TTY), but it
-# renders to the terminal below. _display still honors NO_COLOR.
-plan=$(DOTFILES_PLAN_APPROVED=0 DOTFILES_PLAN_COLOR=1 "$PLAN" --display)
+# renders to the terminal below. A refreshed inventory lets the plan show the
+# actual missing and outdated selected packages rather than a guess from PATH.
+plan=$(DOTFILES_PLAN_APPROVED=1 DOTFILES_PLAN_COLOR=1 "$PLAN" --display)
 elapsed=$(( SECONDS - started ))
-printf 'dotfiles: package inspection complete (%ss).\n\n' "$elapsed" >"$TTY_DEVICE"
+printf 'dotfiles: package metadata refresh and inspection complete (%ss).\n\n' "$elapsed" >"$TTY_DEVICE"
 
 # Print the plan directly, no border box, so the new/outdated items at the top
 # are the first thing read.
 printf '%s\n\n' "$plan" >"$TTY_DEVICE"
 
-if [[ -z "${DOTFILES_NO_TUI:-}" ]] && command -v gum >/dev/null 2>&1; then
-    # Keep stdin on the terminal so gum can read its color/cursor replies.
-    # SC2094: reading and writing the same TTY device in one command is
-    # intentional (that is how a TTY works).
-    # shellcheck disable=SC2094
-    choice=$(gum choose \
-        --header "Choose what chezmoi should apply:" \
-        --selected "Install configs and packages" \
-        "Install configs and packages" \
-        "Install configs only" \
-        "Exit" <"$TTY_DEVICE" 2>"$TTY_DEVICE" || true)
-else
-    printf '1) Install configs and packages\n2) Install configs only\n3) Exit\nChoice [1]: ' >"$TTY_DEVICE"
-    IFS= read -r choice <"$TTY_DEVICE" || choice=3
-fi
+printf 'dotfiles: apply this package plan? [y/N] ' >"$TTY_DEVICE"
+IFS= read -r choice <"$TTY_DEVICE" || choice=""
 
 case "$choice" in
-    "Install configs and packages"|1|"")
+    [Yy]|[Yy][Ee][Ss])
         # One-shot handshake so the apply that immediately follows this interactive
         # init does not re-prompt. The shared resolver rejects stale inherited
         # XDG_RUNTIME_DIR values and selects an owned UID-specific fallback.
@@ -54,6 +47,5 @@ case "$choice" in
         [[ -z "$_sentinel" ]] || date +%s >"$_sentinel" 2>/dev/null || true
         printf 'packages\n'
         ;;
-    "Install configs only"|2) printf 'configs\n' ;;
-    *) printf 'exit\n' ;;
+    *) printf 'configs\n' ;;
 esac

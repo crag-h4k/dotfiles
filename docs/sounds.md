@@ -137,7 +137,7 @@ Any new sound has to satisfy all of these.
 
 `scripts/validate-templates.sh` asserts that every `sound:` named in the rendered
 notify config exists in this directory. Adding files is always safe; renaming or
-deleting one that a group references fails the pre-commit hook.
+deleting one that a group references fails the prek hook.
 
 ## Adding a sound
 

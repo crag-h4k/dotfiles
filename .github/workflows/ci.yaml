@@ -33,8 +33,7 @@ jobs:
           PR_TITLE: ${{ github.event.pull_request.title }}
         run: scripts/validate-pr-metadata.sh
 
-  # Keep the required check name `pre-commit / pre-commit` in main's ruleset.
-  pre-commit:
+  prek:
     uses: ./.github/workflows/prek.yaml
 
   trixie-deployment:
@@ -177,7 +176,7 @@ jobs:
     name: CI summary
     # always() + every gate so the comment reflects the real per-run outcome
     # (including a red PR metadata / prek), not just the deployment jobs.
-    needs: [pr-metadata, pre-commit, trixie-deployment, macos-deployment]
+    needs: [pr-metadata, prek, trixie-deployment, macos-deployment]
     if: always() && github.event_name == 'pull_request'
     runs-on: ubuntu-latest
     steps:
@@ -186,7 +185,7 @@ jobs:
       - name: Render CI summary
         env:
           PR_METADATA_RESULT: ${{ needs.pr-metadata.result }}
-          PREK_RESULT: ${{ needs.pre-commit.result }}
+          PREK_RESULT: ${{ needs.prek.result }}
           TRIXIE_BUILD: ${{ needs.trixie-deployment.outputs.build }}
           TRIXIE_INSTALL: ${{ needs.trixie-deployment.outputs.install }}
           TRIXIE_SMOKE: ${{ needs.trixie-deployment.outputs.smoke }}
@@ -204,18 +203,9 @@ jobs:
           header: deployment-validation
           path: deployment-summary.md
 
-      # The pre-commit job used to post its own sticky comment; its status now
-      # lives in the table above. Remove the superseded comment (no-op once gone).
-      - name: Remove the superseded pre-commit comment
-        continue-on-error: true
-        uses: marocchino/sticky-pull-request-comment@5770ad5eb8f42dd2c4f34da00c94c5381e49af88 # v3.0.5
-        with:
-          header: pre-commit
-          delete: true
-
   ci:
     name: CI
-    needs: [pr-metadata, pre-commit, trixie-deployment, macos-deployment]
+    needs: [pr-metadata, prek, trixie-deployment, macos-deployment]
     if: always()
     runs-on: ubuntu-latest
     steps:
@@ -223,7 +213,7 @@ jobs:
         env:
           EVENT_NAME: ${{ github.event_name }}
           PR_METADATA_RESULT: ${{ needs.pr-metadata.result }}
-          PREK_RESULT: ${{ needs.pre-commit.result }}
+          PREK_RESULT: ${{ needs.prek.result }}
           TRIXIE_RESULT: ${{ needs.trixie-deployment.result }}
           MACOS_RESULT: ${{ needs.macos-deployment.result }}
         run: |

@@ -44,7 +44,7 @@ for palette in $(yq '.paletteOrder[]' "$SOURCE_DIR/.chezmoidata/palettes.yaml");
     [[ -n "$foreground_spinner" && -n "$background_spinner" ]]
     [[ "$foreground_spinner" != "$background_spinner" ]]
 
-    render dot_config/opencode/cli.json.tmpl > "$TMP_DIR/opencode-cli.json"
+    render dot_config/opencode/private_cli.json.tmpl > "$TMP_DIR/opencode-cli.json"
     jq -e '.theme.name == "gud-lucent"
       and .tabs.enabled
       and .keybinds.leader == "ctrl+g"
@@ -53,8 +53,9 @@ for palette in $(yq '.paletteOrder[]' "$SOURCE_DIR/.chezmoidata/palettes.yaml");
       and .keybinds["session.list"] == "<leader>t"
       and .keybinds["session.first"] == "home"
       and .keybinds["theme.switch"] == "none"
-      and .leader.timeout == 1500
-      and (.plugins == ["-opencode.prompt.footer", "-opencode-copilot-statusline.tui", "./v2-plugins/statusline"])' "$TMP_DIR/opencode-cli.json" >/dev/null
+       and .leader.timeout == 1500
+       and .session.sidebar == "hide"
+       and (.plugins == ["-opencode.prompt.footer", "-opencode-copilot-statusline.tui", "./v2-plugins/statusline"])' "$TMP_DIR/opencode-cli.json" >/dev/null
 
     render dot_config/iterm2/dotfiles.json.tmpl > "$TMP_DIR/iterm2.json"
     jq -e '.Profiles | length == 2' "$TMP_DIR/iterm2.json" >/dev/null

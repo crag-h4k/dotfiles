@@ -144,6 +144,7 @@
 .config/opencode/plugin/copilot-tiers.ts
 .config/opencode/plugin/codex-quota.ts
 .config/opencode/plugin/provider-usage.ts
+.config/opencode/sync-runtime.sh
 .config/opencode/v2-plugins
 .config/opencode/commands/iac-scan.md
 .local/bin/opencode2
