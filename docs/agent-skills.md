@@ -6,6 +6,7 @@
 - [Selection and layout](#selection-and-layout)
 - [Harness support](#harness-support)
 - [Invocation](#invocation)
+  - [Dotfiles maintenance](#dotfiles-maintenance)
   - [Handoff](#handoff)
   - [Unslop](#unslop)
   - [Humanizer](#humanizer)
@@ -17,8 +18,8 @@
 
 ## Selection and layout
 
-Writing-quality skills install automatically when any existing `ai` sub-feature
-is selected. There is no separate picker or `writing_quality` flag. A host with
+Shared skills install automatically when any existing `ai` sub-feature
+is selected. There is no separate skill picker or `writing_quality` flag. A host with
 every `ai` sub-feature disabled gets none of these assets.
 
 The only canonical copies live under `~/.local/share/agent-skills/`:
@@ -26,6 +27,7 @@ The only canonical copies live under `~/.local/share/agent-skills/`:
 ```text
 ~/.local/share/agent-skills/
 ├── PROVENANCE.md
+├── chezmoi-dotfiles/
 ├── handoff/
 ├── humanizer/
 ├── unslop-code/
@@ -35,7 +37,7 @@ The only canonical copies live under `~/.local/share/agent-skills/`:
 
 Chezmoi creates one relative symlink per skill under both `~/.claude/skills/`
 and `~/.agents/skills/`. It never replaces either skills directory. Existing
-and future skills beside these five remain untouched.
+and future skills beside these six remain untouched.
 
 ## Harness support
 
@@ -47,7 +49,8 @@ and future skills beside these five remain untouched.
 | OpenCode V2 | `~/.agents/skills` | Native compatibility root; also sees `.claude`, but both links resolve to the same canonical directory and one effective ID |
 | GitHub Copilot | `~/.agents/skills` | Native personal skill discovery; Humanizer uses explicit-only frontmatter |
 
-OpenCode commands live at `~/.config/opencode/commands/handoff.md`,
+OpenCode commands live at `~/.config/opencode/commands/dotfiles.md`,
+`~/.config/opencode/commands/handoff.md`,
 `~/.config/opencode/commands/unslop.md`, and
 `~/.config/opencode/commands/humanize.md`. They are prompt-only Markdown with no
 shell interpolation.
@@ -56,6 +59,27 @@ Other harnesses are unsupported. A future integration should warn and continue
 rather than fail chezmoi apply or create a parallel skill copy.
 
 ## Invocation
+
+### Dotfiles maintenance
+
+`chezmoi-dotfiles` is available for normal model selection and supports this
+workstation repository, primarily through OpenCode2. It loads scoped guidance
+and the references needed for the current task. Use OpenCode's prompt-only router:
+
+```text
+/dotfiles
+/dotfiles diagnose a repeated package update
+/dotfiles refresh-guidance
+```
+
+No arguments reports orientation without edits. `refresh-guidance` explicitly
+reviews available history and current behavior; routine maintenance does not scan
+all chats. A task keeps its authorized scope and execution mode. The command and
+skill grant no tool permissions and do not automatically deploy or publish.
+
+The canonical `SKILL.md` and references are first-party read-only assets. Read
+the source skill directly when working on a checkout before its normal apply.
+See [Agent guidance](agent-guidance.md) for the scoped contracts and evidence.
 
 ### Handoff
 
@@ -113,10 +137,14 @@ Humanizer's adapter carries all host-specific controls:
 - OpenCode V2: `metadata.opencode/autoinvoke: false`
 - Codex: `policy.allow_implicit_invocation: false`
 
-No implicit-invocation restrictions are added to the unslop skills or to
-`handoff`.
+No implicit-invocation restrictions are added to the unslop skills, `handoff`,
+or `chezmoi-dotfiles`.
 
 ## Provenance and pins
+
+`handoff` and `chezmoi-dotfiles` are authored in this repository and have no
+external pin. Maintenance references carry sanitized decisions and workflows;
+private session data and local harness settings remain outside the public source.
 
 | Skills | Audited upstream | Archive SHA-256 |
 | --- | --- | --- |
@@ -177,9 +205,10 @@ registry tag, marketplace cache, or installer.
 - Unslop's OpenCode router defaults to a read-only audit.
 - Handoff resume is read-only until the user says to continue. Save refuses
   secret-shaped values instead of writing them.
-- For these skills, only chezmoi uses the network, during external
+- Upstream asset downloads happen through chezmoi during external
   materialization. It accepts bytes only from the two exact public commit paths
-  and verifies every file before writing it.
+  and verifies every file before writing it. First-party maintenance uses the
+  host agent's normal tool permissions for the requested task.
 
 ## Validation
 
@@ -191,10 +220,12 @@ python3 -m unittest tests/test_agent_skills.py
 scripts/validate-templates.sh
 ```
 
-The validator checks pins, checksums, all seven AI sub-feature gates, per-skill
+The validator checks pins, checksums, every current AI sub-feature gate, per-skill
 symlink targets, duplicate discovery roots, Humanizer invocation metadata,
 command ordering, forbidden shell blocks, allowed URL hosts, and public-boundary
-patterns. The complete repository gate remains:
+patterns. Tests also render the maintenance assets into a disposable home,
+preserve unrelated skills, and exclude repository guidance from managed targets
+and archives. The complete repository gate remains:
 
 ```zsh
 prek run --all-files

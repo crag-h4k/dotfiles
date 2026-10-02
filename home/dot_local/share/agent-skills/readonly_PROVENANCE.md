@@ -18,8 +18,11 @@ Each fetched file has its own SHA-256 in
 `home/.chezmoiexternal.toml`. Humanizer's original `SKILL.md`,
 `agents/openai.yaml`, and license remain unchanged under `humanizer/upstream/`.
 The adjacent adapter adds cross-harness invocation policy without altering the
-upstream files. `handoff` is authored in this repository. It has no upstream
-pin.
+upstream files. `handoff` and `chezmoi-dotfiles` are authored in this repository
+and have no upstream pin. The maintenance skill adapts earlier private guidance
+to current public repository behavior. Its decisions reference records sanitized
+evidence; private transcripts, account configuration, and employer material are
+excluded. It installs read-only with the other canonical skills.
 
 ## Included boundaries
 

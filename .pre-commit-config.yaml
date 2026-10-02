@@ -109,7 +109,7 @@ repos:
         entry: python3 -m unittest tests/test_agent_skills.py
         language: system
         pass_filenames: false
-        files: ^(docs/agent-skills\.md|home/(\.chezmoi(ignore|external\.toml)|dot_(agents|claude)/skills/.*|dot_config/opencode/commands/(humanize|unslop)\.md|dot_local/share/agent-skills/.*)|scripts/validate-agent-skills\.py|tests/test_agent_skills\.py)$
+        files: ^((.*/)?AGENTS\.md|docs/agent-(skills|guidance)\.md|home/(\.chezmoi(ignore|external\.toml)|dot_(agents|claude)/skills/.*|dot_config/opencode/commands/(dotfiles|handoff|humanize|unslop)\.md|dot_local/share/agent-skills/.*)|scripts/validate-agent-skills\.py|tests/test_agent_skills\.py)$
 
       - id: luacheck
         name: luacheck

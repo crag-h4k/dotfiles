@@ -7,7 +7,7 @@
   - [Palette and install confirmation](#palette-and-install-confirmation)
   - [Adding APT repositories](#adding-apt-repositories)
   - [Sub-feature submenus (git, ai, terminal)](#sub-feature-submenus-git-ai-terminal)
-  - [Writing-quality agent skills](#writing-quality-agent-skills)
+  - [Shared agent skills](#shared-agent-skills)
   - [OpenCode V2 footer](#opencode-v2-footer)
   - [Terminal (Ghostty, iTerm2)](#terminal-ghostty-iterm2)
     - [Ghostty](#ghostty)
@@ -102,12 +102,13 @@ The submenu only appears when its parent is selected.
 
 Nothing AI-related installs unless the AI component is selected.
 
-### Writing-quality agent skills
+### Shared agent skills
 
-Selecting any `ai` sub-feature also installs `handoff`, `unslop-code`,
-`unslop-text`, `unslop-ui`, and the explicit-only `humanizer`. There is no separate submenu
-choice. A single canonical store under `~/.local/share/agent-skills` feeds
-per-skill links in both `~/.claude/skills` and `~/.agents/skills`.
+Selecting any `ai` sub-feature also installs `chezmoi-dotfiles`, `handoff`,
+`unslop-code`, `unslop-text`, `unslop-ui`, and the explicit-only `humanizer`.
+There is no separate submenu choice. A single canonical store under
+`~/.local/share/agent-skills` feeds per-skill links in both `~/.claude/skills`
+and `~/.agents/skills`.
 
 Claude Code and CodeCompanion use the Claude root. Codex, OpenCode V2, and
 GitHub Copilot use the Agent Skills root. OpenCode may discover both roots, but
@@ -115,9 +116,11 @@ both links point to the same canonical directories and resolve to one effective
 ID per skill.
 
 Humanizer never runs implicitly. An explicit humanization applies Humanizer
-first and `unslop-text` second. OpenCode also receives prompt-only `/handoff`,
-`/unslop`, and `/humanize` commands. See [Cross-harness agent skills](agent-skills.md) for pins,
-licenses, invocation, update audit, and threat boundaries.
+first and `unslop-text` second. OpenCode also receives prompt-only `/dotfiles`,
+`/handoff`, `/unslop`, and `/humanize` commands. See
+[Cross-harness agent skills](agent-skills.md) for pins, licenses, invocation,
+update audit, and threat boundaries, and [Agent guidance](agent-guidance.md)
+for the maintenance workflow.
 
 CodeCompanion can send buffer contents to an LLM, so
 `~/.config/nvim/.codecompanion-enabled` gates it at startup. Add or remove that

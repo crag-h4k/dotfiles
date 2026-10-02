@@ -128,10 +128,10 @@ dirty the dotfiles repository. See [Neovim tooling](neovim.md) for the full spli
 | `home/dot_claude/executable_statusline-tokens.py` | `~/.claude/statusline-tokens.py` | detached updater that walks the transcript + subagents for a token total; gated on `ai > statusline` |
 | `home/dot_config/statusline/palette.sh.tmpl` | `~/.config/statusline/palette.sh` | semantic truecolor exports rendered from the selected palette |
 | `home/dot_codex/themes/dotfiles.tmTheme.tmpl` | `~/.codex/themes/dotfiles.tmTheme` | selected-palette Codex theme, configured through `tui.theme="dotfiles"` |
-| `home/dot_local/share/agent-skills/` | `~/.local/share/agent-skills/` | canonical Humanizer adapter and provenance; exact unslop and upstream Humanizer files arrive through checksummed externals |
+| `home/dot_local/share/agent-skills/` | `~/.local/share/agent-skills/` | canonical first-party skills, Humanizer adapter, and provenance; exact unslop and upstream Humanizer files arrive through checksummed externals |
 | `home/dot_claude/skills/symlink_*` | `~/.claude/skills/*` | per-skill links for Claude Code and CodeCompanion; never replaces the directory |
 | `home/dot_agents/skills/symlink_*` | `~/.agents/skills/*` | per-skill links for Codex, OpenCode V2, and GitHub Copilot |
-| `home/dot_config/opencode/commands/{handoff,unslop,humanize}.md` | `~/.config/opencode/commands/{handoff,unslop,humanize}.md` | prompt-only routers with no shell blocks |
+| `home/dot_config/opencode/commands/{dotfiles,handoff,unslop,humanize}.md` | `~/.config/opencode/commands/{dotfiles,handoff,unslop,humanize}.md` | prompt-only routers with no shell blocks |
 | `home/dot_config/nvim/init.lua` | `~/.config/nvim/init.lua` | lazy.nvim entrypoint |
 | `home/dot_config/nvim/lua/dotfiles_palette.lua.tmpl` | `~/.config/nvim/lua/dotfiles_palette.lua` | selected Neovim plugin, flavor, and colorscheme |
 | `home/dot_config/nvim/lua/gitleaks.lua` | `~/.config/nvim/lua/gitleaks.lua` | asynchronous read/save secret warnings; honors project `.gitleaks.toml` |

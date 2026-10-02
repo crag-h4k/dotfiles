@@ -117,6 +117,7 @@ checkout dirty.
 | --- | --- |
 | [Components](docs/components.md) | Pickers, sub-features, package mode, and changing a host later |
 | [Agent skills](docs/agent-skills.md) | Cross-harness layout, invocation policy, immutable pins, and threat boundaries |
+| [Agent guidance](docs/agent-guidance.md) | Repository instructions, maintenance workflows, and recorded decisions |
 | [Architecture](docs/architecture.md) | Source-root boundaries, ownership, and rendered paths |
 | [Operation](docs/operation.md) | Daily chezmoi work, tmux behavior, statuslines, and removal |
 | [Neovim](docs/neovim.md) | Lazy, Mason, LSPs, linters, and local revision state |

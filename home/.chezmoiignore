@@ -1,4 +1,7 @@
 # home/.chezmoiignore
+# Agent contracts describe repository work; never deploy them into a home.
+AGENTS.md
+**/AGENTS.md
 *.example
 *.ig
 # Python bytecode (e.g. from validating modify_*.json scripts). A cached
@@ -64,21 +67,25 @@
 {{ if not $agentSkillsEnabled -}}
 .local/share/agent-skills/PROVENANCE.md
 .local/share/agent-skills/handoff
+.local/share/agent-skills/chezmoi-dotfiles
 .local/share/agent-skills/humanizer
 .local/share/agent-skills/unslop-code
 .local/share/agent-skills/unslop-text
 .local/share/agent-skills/unslop-ui
 .claude/skills/handoff
+.claude/skills/chezmoi-dotfiles
 .claude/skills/humanizer
 .claude/skills/unslop-code
 .claude/skills/unslop-text
 .claude/skills/unslop-ui
 .agents/skills/handoff
+.agents/skills/chezmoi-dotfiles
 .agents/skills/humanizer
 .agents/skills/unslop-code
 .agents/skills/unslop-text
 .agents/skills/unslop-ui
 .config/opencode/commands/handoff.md
+.config/opencode/commands/dotfiles.md
 .config/opencode/commands/humanize.md
 .config/opencode/commands/unslop.md
 {{ end -}}

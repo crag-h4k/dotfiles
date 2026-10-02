@@ -13,7 +13,25 @@ from urllib.parse import urlsplit
 
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
-SKILL_IDS = ("handoff", "humanizer", "unslop-code", "unslop-text", "unslop-ui")
+SKILL_IDS = (
+    "chezmoi-dotfiles", "handoff", "humanizer", "unslop-code", "unslop-text", "unslop-ui"
+)
+GUIDANCE_FILES = (
+    "AGENTS.md",
+    "home/AGENTS.md",
+    "scripts/AGENTS.md",
+    "tests/AGENTS.md",
+    ".github/AGENTS.md",
+    "docs/AGENTS.md",
+    "home/dot_config/opencode/AGENTS.md",
+    "home/dot_config/nvim/AGENTS.md",
+    "home/dot_config/notify/AGENTS.md",
+)
+DOTFILES_SKILL_FILES = (
+    "readonly_SKILL.md",
+    "references/readonly_workflows.md",
+    "references/readonly_decisions.md",
+)
 AI_FEATURES = (
     "claude_hooks",
     "codex_hooks",
@@ -33,11 +51,16 @@ ALLOWED_URL_HOSTS = {
     "www.chezmoi.io",
 }
 PUBLIC_TEXT_FILES = (
+    *GUIDANCE_FILES,
+    "docs/agent-guidance.md",
     "docs/agent-skills.md",
+    *(f"home/dot_local/share/agent-skills/chezmoi-dotfiles/{path}"
+      for path in DOTFILES_SKILL_FILES),
     "home/dot_local/share/agent-skills/readonly_PROVENANCE.md",
     "home/dot_local/share/agent-skills/humanizer/readonly_SKILL.md",
     "home/dot_local/share/agent-skills/humanizer/agents/readonly_openai.yaml",
     "home/dot_config/opencode/commands/handoff.md",
+    "home/dot_config/opencode/commands/dotfiles.md",
     "home/dot_config/opencode/commands/humanize.md",
     "home/dot_config/opencode/commands/unslop.md",
     "home/dot_local/share/agent-skills/handoff/readonly_SKILL.md",
@@ -123,6 +146,7 @@ EXPECTED_GATED_TARGETS = {
     *(f".claude/skills/{skill_id}" for skill_id in SKILL_IDS),
     *(f".agents/skills/{skill_id}" for skill_id in SKILL_IDS),
     ".config/opencode/commands/handoff.md",
+    ".config/opencode/commands/dotfiles.md",
     ".config/opencode/commands/humanize.md",
     ".config/opencode/commands/unslop.md",
 }
@@ -223,10 +247,10 @@ def scan_public_text(label: str, text: str) -> list[str]:
     return errors
 
 
-def render_template(root: Path, source: str, enabled_features: set[str]) -> str:
-    """Render a chezmoi template with a complete synthetic AI component table."""
+def component_config(enabled_features: set[str]) -> str:
+    """Build an isolated configs-only fixture for the AI selection matrix."""
     lines = [
-        '[data]\ninstallMode = "configs"',
+        '[data]\ninstallMode = "configs"\npalette = "dracula"',
         "[data.components]",
         "zsh = false",
         "tmux = false",
@@ -248,10 +272,14 @@ def render_template(root: Path, source: str, enabled_features: set[str]) -> str:
             "iterm2 = false",
         )
     )
+    return "\n".join(lines) + "\n"
 
+
+def render_template(root: Path, source: str, enabled_features: set[str]) -> str:
+    """Render a chezmoi template with a complete synthetic AI component table."""
     with tempfile.TemporaryDirectory() as temp_dir:
         config = Path(temp_dir) / "chezmoi.toml"
-        config.write_text("\n".join(lines) + "\n", encoding="utf-8")
+        config.write_text(component_config(enabled_features), encoding="utf-8")
         result = subprocess.run(
             [
                 "chezmoi",
@@ -391,6 +419,7 @@ def validate_layout(root: Path) -> list[str]:
         canonical_root / "handoff/scripts/readonly_snapshot.sh",
         canonical_root / "humanizer/readonly_SKILL.md",
         canonical_root / "humanizer/agents/readonly_openai.yaml",
+        *(canonical_root / "chezmoi-dotfiles" / path for path in DOTFILES_SKILL_FILES),
     }
     actual_managed = {path for path in canonical_root.rglob("*") if path.is_file()}
     if actual_managed != expected_managed:
@@ -414,6 +443,29 @@ def validate_component_contract(root: Path) -> list[str]:
             errors.append(f"{relative}: required component file is missing")
         elif forbidden_toggle.search(path.read_text(encoding="utf-8")):
             errors.append(f"{relative}: writing quality must not have a separate toggle")
+    return errors
+
+
+def validate_maintainer_skill(root: Path) -> list[str]:
+    """Check the first-party manifest without imposing a tool permission policy."""
+    text = (
+        root / "home/dot_local/share/agent-skills/chezmoi-dotfiles/readonly_SKILL.md"
+    ).read_text(encoding="utf-8")
+    match = re.match(r"\A---\n(.*?)\n---\n", text, re.DOTALL)
+    if match is None:
+        return ["chezmoi-dotfiles: missing YAML frontmatter"]
+    header = match.group(1)
+    errors: list[str] = []
+    if not re.search(r"^name: chezmoi-dotfiles$", header, re.MULTILINE):
+        errors.append("chezmoi-dotfiles: manifest name must match its discovery ID")
+    if not re.search(r"^description: \S", header, re.MULTILINE):
+        errors.append("chezmoi-dotfiles: missing discovery description")
+    if re.search(r"^allowed-tools:", header, re.MULTILINE):
+        errors.append("chezmoi-dotfiles: manifest must not pre-approve tools")
+    if re.search(
+        r"(?:disable-model-invocation:\s*true|opencode/autoinvoke:\s*false)", header
+    ):
+        errors.append("chezmoi-dotfiles: normal model selection must remain enabled")
     return errors
 
 
@@ -449,7 +501,7 @@ def validate_invocation_policy(root: Path) -> list[str]:
     unslop_position = humanize.find("load `unslop-text`")
     if humanizer_position < 0 or unslop_position < humanizer_position:
         errors.append("humanize command does not run Humanizer before unslop-text")
-    for command in ("handoff", "humanize", "unslop"):
+    for command in ("dotfiles", "handoff", "humanize", "unslop"):
         text = (root / f"home/dot_config/opencode/commands/{command}.md").read_text(
             encoding="utf-8"
         )
@@ -480,6 +532,7 @@ def validate_repository(root: Path = REPO_ROOT) -> list[str]:
         validate_ignore_contract,
         validate_layout,
         validate_component_contract,
+        validate_maintainer_skill,
         validate_invocation_policy,
         validate_public_text,
     ):
