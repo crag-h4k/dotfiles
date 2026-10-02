@@ -143,10 +143,13 @@ main() {
         export DOTFILES_APT_REPO_CHANGED=false
         source_root="${DOTFILES_SOURCE_ROOT:-$(cd "$SCRIPT_DIR/.." && pwd)}"
         package_results_reset
-        # Archive-based deployments retain .gitmodules for template rendering but
-        # deliberately exclude Git metadata and submodule content. There is no
-        # checkout to repair in that case.
-        if [[ -f "$source_root/.gitmodules" && ( -d "$source_root/.git" || -f "$source_root/.git" ) ]]; then
+        # Archive-based deployments retain .gitmodules for template rendering and
+        # ChezMoi may initialize a Git directory there. Only a gitlink proves that
+        # this source is a checkout that actually owns the palette submodule.
+        if [[ -f "$source_root/.gitmodules" ]] \
+            && git --no-optional-locks -c safe.directory="$source_root" -C "$source_root" \
+                ls-files --stage -- vendor/tinted-schemes 2>/dev/null \
+                | awk '$1 == "160000" && $3 == "0" { found = 1 } END { exit !found }'; then
             package_try "pinned palette submodule" \
                 ensure_pinned_palette "$source_root" || true
         fi

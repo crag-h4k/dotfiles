@@ -112,9 +112,9 @@ STUB
   [[ "$output" == *"failed=0"* ]]
 }
 
-@test "archive source skips palette repair without Git metadata" {
+@test "archive source skips palette repair without a palette gitlink" {
   local source="$BATS_TEST_TMPDIR/archive-source"
-  mkdir -p "$source"
+  mkdir -p "$source/.git"
   : >"$source/.gitmodules"
   export DOTFILES_PACKAGE_PLAN="$BATS_TEST_TMPDIR/current-plan"
   printf 'brew-formula\tgit\tinstalled\tfloating\torigin\tgit\t1.2.3\t1.2.3\tcurrent\n' >"$DOTFILES_PACKAGE_PLAN"
