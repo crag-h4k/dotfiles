@@ -1,4 +1,7 @@
 # home/.chezmoiignore
+# Agent contracts describe repository work; never deploy them into a home.
+AGENTS.md
+**/AGENTS.md
 *.example
 *.ig
 # Python bytecode (e.g. from validating modify_*.json scripts). A cached
@@ -35,6 +38,10 @@
 .config/opencode/node_modules
 .config/opencode/package.json
 .config/opencode/package-lock.json
+.config/opencode/cli.override.json
+.config/opencode/override.zsh
+.config/opencode/remote.env
+.config/opencode/v2-plugins/local
 .tmux/conf.d/override.conf
 .tmux/plugins
 .local/share/opencode2
@@ -60,21 +67,25 @@
 {{ if not $agentSkillsEnabled -}}
 .local/share/agent-skills/PROVENANCE.md
 .local/share/agent-skills/handoff
+.local/share/agent-skills/chezmoi-dotfiles
 .local/share/agent-skills/humanizer
 .local/share/agent-skills/unslop-code
 .local/share/agent-skills/unslop-text
 .local/share/agent-skills/unslop-ui
 .claude/skills/handoff
+.claude/skills/chezmoi-dotfiles
 .claude/skills/humanizer
 .claude/skills/unslop-code
 .claude/skills/unslop-text
 .claude/skills/unslop-ui
 .agents/skills/handoff
+.agents/skills/chezmoi-dotfiles
 .agents/skills/humanizer
 .agents/skills/unslop-code
 .agents/skills/unslop-text
 .agents/skills/unslop-ui
 .config/opencode/commands/handoff.md
+.config/opencode/commands/dotfiles.md
 .config/opencode/commands/humanize.md
 .config/opencode/commands/unslop.md
 {{ end -}}
@@ -142,8 +153,12 @@
 .config/opencode/themes/gud-lucent.json
 .config/opencode/plugin/notify.ts
 .config/opencode/plugin/copilot-tiers.ts
+.config/opencode/plugin/codex-quota.ts
+.config/opencode/plugin/provider-usage.ts
 .config/opencode/sync-runtime.sh
 .config/opencode/v2-plugins
+.config/opencode/agents/dotfiles-demo.md
+.config/opencode/demo
 .config/opencode/commands/iac-scan.md
 .local/bin/opencode2
 {{ end -}}

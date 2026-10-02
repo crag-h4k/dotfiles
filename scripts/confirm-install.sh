@@ -26,13 +26,20 @@ fi
 # Force color: --display stdout is captured here (a pipe, not a TTY), but it
 # renders to the terminal below. A refreshed inventory lets the plan show the
 # actual missing and outdated selected packages rather than a guess from PATH.
-plan=$(DOTFILES_PLAN_APPROVED=1 DOTFILES_PLAN_COLOR=1 "$PLAN" --display)
+package_plan_create
+plan=$(DOTFILES_PLAN_COLOR=1 "$PLAN" --display-file "$DOTFILES_PACKAGE_PLAN")
 elapsed=$(( SECONDS - started ))
 printf 'dotfiles: package metadata refresh and inspection complete (%ss).\n\n' "$elapsed" >"$TTY_DEVICE"
 
 # Print the plan directly, no border box, so the new/outdated items at the top
 # are the first thing read.
 printf '%s\n\n' "$plan" >"$TTY_DEVICE"
+
+if package_plan_is_current "$DOTFILES_PACKAGE_PLAN"; then
+    package_plan_save_approval
+    printf 'packages\n'
+    exit 0
+fi
 
 printf 'dotfiles: apply this package plan? [y/N] ' >"$TTY_DEVICE"
 IFS= read -r choice <"$TTY_DEVICE" || choice=""
@@ -42,9 +49,7 @@ case "$choice" in
         # One-shot handshake so the apply that immediately follows this interactive
         # init does not re-prompt. The shared resolver rejects stale inherited
         # XDG_RUNTIME_DIR values and selects an owned UID-specific fallback.
-        _sentinel=""
-        _sentinel=$(_pkg_confirm_sentinel) || true
-        [[ -z "$_sentinel" ]] || date +%s >"$_sentinel" 2>/dev/null || true
+        package_plan_save_approval
         printf 'packages\n'
         ;;
     *) printf 'configs\n' ;;

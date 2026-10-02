@@ -22,6 +22,11 @@ fi
 
 export NPM_CONFIG_PREFIX="$prefix"
 
+cli_override="$HOME/.config/opencode/cli.override.json"
+if [[ -r "$cli_override" && -z "${OPENCODE_CLI_CONFIG_CONTENT:-}" ]]; then
+  export OPENCODE_CLI_CONFIG_CONTENT="$(<"$cli_override")"
+fi
+
 case "${1:-}" in
   --version|-v) ;;
   *)
@@ -59,6 +64,11 @@ for arg in "$@"; do
     --standalone|--server|--server=*) explicit_server=true ;;
   esac
 done
+
+local_override="$HOME/.config/opencode/override.zsh"
+if [[ -r "$local_override" ]]; then
+  source "$local_override" || exit $?
+fi
 
 if [[ "$interactive" == true && "$explicit_server" == false \
   && "${OPENCODE2_BACKGROUND_SERVICE:-false}" != true ]]; then

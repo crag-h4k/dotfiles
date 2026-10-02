@@ -54,14 +54,15 @@ Homebrew and APT use that fresh metadata and batch selected package-manager
 operations. Independent operations report their own failure and the run ends
 with an aggregate result summary.
 
-Each package run has one `[y/N]` confirmation after the refreshed plan. Set
-`DOTFILES_ASSUME_YES=1` for an unattended deployment. Declining, or running
-headlessly without that opt-in, applies configuration only and does not change
-the stored `installMode`.
+Each package run with pending work has one `[y/N]` confirmation after the
+refreshed plan. A fully current plan displays a green `Everything is up to
+date.` message and continues without prompting. Set `DOTFILES_ASSUME_YES=1`
+for an unattended deployment. Declining, or running headlessly without that
+opt-in, applies configuration only and does not change the stored `installMode`.
 
 On Debian, NodeSource and Aqua Security use explicit signed APT sources.
-NodeSource is selected for Neovim or any Node-dependent AI feature. TFLint,
-tenv, Neovim, tree-sitter CLI, and yq release downloads are
+NodeSource is selected for Neovim or any Node-dependent AI feature. tenv,
+Neovim, tree-sitter CLI, and yq release downloads are
 checksum-verified; user-local executables use atomic replacement. tenv also
 verifies HashiCorp signatures when its `terraform` proxy installs a project
 version.
@@ -94,13 +95,13 @@ It sums every interface, so VPN and VM-bridge traffic is included.
 | Lazy | Neovim plugins |
 
 The package installer owns shell-visible markdownlint-cli2, ShellCheck,
-yamllint, TFLint, and Luacheck. Mason owns the configured language
-servers and editor-only Gitleaks.
+yamllint, and Luacheck. Mason owns TFLint, the configured language servers,
+and editor-only Gitleaks.
 
-Startup installs missing Mason packages. Approved package mode also updates
-installed Mason packages, Lazy plugins, and Treesitter parsers. Their revision
-state remains local and does not dirty the dotfiles repository. See [Neovim
-tooling](neovim.md) for the full split.
+Startup installs missing Mason packages. Package mode previews individual Mason
+packages, Lazy plugins, and Treesitter parsers, then applies only approved
+version or revision changes. Their revision state remains local and does not
+dirty the dotfiles repository. See [Neovim tooling](neovim.md) for the full split.
 
 ## What lives where
 
@@ -128,10 +129,10 @@ tooling](neovim.md) for the full split.
 | `home/dot_claude/executable_statusline-tokens.py` | `~/.claude/statusline-tokens.py` | detached updater that walks the transcript + subagents for a token total; gated on `ai > statusline` |
 | `home/dot_config/statusline/palette.sh.tmpl` | `~/.config/statusline/palette.sh` | semantic truecolor exports rendered from the selected palette |
 | `home/dot_codex/themes/dotfiles.tmTheme.tmpl` | `~/.codex/themes/dotfiles.tmTheme` | selected-palette Codex theme, configured through `tui.theme="dotfiles"` |
-| `home/dot_local/share/agent-skills/` | `~/.local/share/agent-skills/` | canonical Humanizer adapter and provenance; exact unslop and upstream Humanizer files arrive through checksummed externals |
+| `home/dot_local/share/agent-skills/` | `~/.local/share/agent-skills/` | canonical first-party skills, Humanizer adapter, and provenance; exact unslop and upstream Humanizer files arrive through checksummed externals |
 | `home/dot_claude/skills/symlink_*` | `~/.claude/skills/*` | per-skill links for Claude Code and CodeCompanion; never replaces the directory |
 | `home/dot_agents/skills/symlink_*` | `~/.agents/skills/*` | per-skill links for Codex, OpenCode V2, and GitHub Copilot |
-| `home/dot_config/opencode/commands/{handoff,unslop,humanize}.md` | `~/.config/opencode/commands/{handoff,unslop,humanize}.md` | prompt-only routers with no shell blocks |
+| `home/dot_config/opencode/commands/{dotfiles,handoff,unslop,humanize}.md` | `~/.config/opencode/commands/{dotfiles,handoff,unslop,humanize}.md` | prompt-only routers with no shell blocks |
 | `home/dot_config/nvim/init.lua` | `~/.config/nvim/init.lua` | lazy.nvim entrypoint |
 | `home/dot_config/nvim/lua/dotfiles_palette.lua.tmpl` | `~/.config/nvim/lua/dotfiles_palette.lua` | selected Neovim plugin, flavor, and colorscheme |
 | `home/dot_config/nvim/lua/gitleaks.lua` | `~/.config/nvim/lua/gitleaks.lua` | asynchronous read/save secret warnings; honors project `.gitleaks.toml` |

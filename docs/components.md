@@ -7,7 +7,7 @@
   - [Palette and install confirmation](#palette-and-install-confirmation)
   - [Adding APT repositories](#adding-apt-repositories)
   - [Sub-feature submenus (git, ai, terminal)](#sub-feature-submenus-git-ai-terminal)
-  - [Writing-quality agent skills](#writing-quality-agent-skills)
+  - [Shared agent skills](#shared-agent-skills)
   - [OpenCode V2 footer](#opencode-v2-footer)
   - [Terminal (Ghostty, iTerm2)](#terminal-ghostty-iterm2)
     - [Ghostty](#ghostty)
@@ -102,12 +102,13 @@ The submenu only appears when its parent is selected.
 
 Nothing AI-related installs unless the AI component is selected.
 
-### Writing-quality agent skills
+### Shared agent skills
 
-Selecting any `ai` sub-feature also installs `handoff`, `unslop-code`,
-`unslop-text`, `unslop-ui`, and the explicit-only `humanizer`. There is no separate submenu
-choice. A single canonical store under `~/.local/share/agent-skills` feeds
-per-skill links in both `~/.claude/skills` and `~/.agents/skills`.
+Selecting any `ai` sub-feature also installs `chezmoi-dotfiles`, `handoff`,
+`unslop-code`, `unslop-text`, `unslop-ui`, and the explicit-only `humanizer`.
+There is no separate submenu choice. A single canonical store under
+`~/.local/share/agent-skills` feeds per-skill links in both `~/.claude/skills`
+and `~/.agents/skills`.
 
 Claude Code and CodeCompanion use the Claude root. Codex, OpenCode V2, and
 GitHub Copilot use the Agent Skills root. OpenCode may discover both roots, but
@@ -115,9 +116,11 @@ both links point to the same canonical directories and resolve to one effective
 ID per skill.
 
 Humanizer never runs implicitly. An explicit humanization applies Humanizer
-first and `unslop-text` second. OpenCode also receives prompt-only `/handoff`,
-`/unslop`, and `/humanize` commands. See [Cross-harness agent skills](agent-skills.md) for pins,
-licenses, invocation, update audit, and threat boundaries.
+first and `unslop-text` second. OpenCode also receives prompt-only `/dotfiles`,
+`/handoff`, `/unslop`, and `/humanize` commands. See
+[Cross-harness agent skills](agent-skills.md) for pins, licenses, invocation,
+update audit, and threat boundaries, and [Agent guidance](agent-guidance.md)
+for the maintenance workflow.
 
 CodeCompanion can send buffer contents to an LLM, so
 `~/.config/nvim/.codecompanion-enabled` gates it at startup. Add or remove that
@@ -175,6 +178,10 @@ plugin SDK at the active CLI version. The wrapper runs it before OpenCode starts
 when the versions differ, including after a native `/update`, so the runtime is
 not version-pinned in dotfiles and cannot remain stale.
 
+The installer migrates `bin/opencode2` links into an older `releases/` layout
+before npm takes ownership. It retains the old release and restores its link
+if CLI verification or the matching runtime installation fails.
+
 `~/.config/opencode/opencode.jsonc` is merge-managed. Chezmoi reasserts the
 schema, built-in agent colors, and exact-pinned V2 plugin list while preserving
 unknown top-level keys and comments. A fresh host receives native ordered
@@ -211,11 +218,36 @@ unlocked runtime under `~/.local/share/opencode2/plugin-runtime` and links its
 `node_modules` into `~/.config/opencode`. Chezmoi does not track the runtime,
 manifest, lockfile, or dependency tree.
 
-The local renderer reproduces context usage and aggregate session cost. It
-calls the `opencode-copilot-statusline@1.0.0` server RPC for the monthly limit,
-but renders only the provider and used percentage. The reset countdown is
-intentionally omitted. Context, cost, and provider usage are separate
-left-aligned pills after the activity pills.
+The local renderer reproduces context usage and aggregate session cost. Its
+provider pill follows the active session model automatically. GitHub Copilot
+uses the `opencode-copilot-statusline@1.0.0` server RPC for monthly used
+percentage. OpenAI with ChatGPT OAuth uses the local `plugin/codex-quota.ts`
+RPC for weekly remaining percentage, shown as `Codex 63% left`. API-key OpenAI
+has no subscription quota pill. If OAuth quota is unavailable, the pill says
+`Codex unavailable`. The Codex RPC queries an undocumented ChatGPT usage
+endpoint with the active OpenCode credential and returns only quota data.
+
+The existing `plugin/provider-usage.ts` RPC supplies Claude and gateway
+subscription limits. Available windows show labels such as
+`5h 12% · week 34%`, with missing windows omitted. Codex windows are classified
+by their reported duration, including accounts whose primary window is weekly.
+Providers without a quota source have no pill. There is no separate Gum
+component or quota configuration switch.
+Provider usage sits at the far right, after the model tier. When quota data
+is available, the footer reserves 50 columns for it and delays less essential
+pills. It appears from 125 columns with Git or 95 without Git, so a 151-column
+iPad terminal can show the quota and context together. Context and cost remain
+separate left-aligned pills. Reset countdowns are omitted.
+
+Gateways can publish sanitized quota figures in
+`~/.cache/opencode/provider-usage/usage.json`, or override the path with
+`OPENCODE_PROVIDER_USAGE_FILE` in the server environment. The file contains a
+`providers` object keyed by the configured provider ID, with `updatedAt` as Unix
+milliseconds and `windows` entries containing `period` (`5h` or `week`) and
+`usedPercent`. The server strips other fields before returning RPC data. Brain's
+collector supplies `household` this way; upstream credentials stay in the
+gateway's private storage. Figures expire after five minutes, and direct-account
+switches clear the previous account's cache.
 
 ```text
 󰉋 project   main •2 +14 -3  ⠋ 󰚩 build · gpt-5.6-sol · xhigh  󰥔 12m  O 1 run  󰍛 43.9K (4%)  ≈ $23.79  󰊤 GitHub Copilot 52%
@@ -231,10 +263,10 @@ left-aligned pills after the activity pills.
 | Subagents | Running child sessions and queued child prompts | Orange single-cell animation while children run; static icon for queued-only work; hidden without child work |
 | Context | Latest post-compaction context usage | Left-aligned pill; survives longest among usage pills |
 | Estimated cost | Aggregate session-family cost | Left-aligned pill; hidden before context at narrow widths |
-| Provider limit | Active provider plus monthly used percentage | Left-aligned pill; hidden first at narrow widths; no reset countdown |
+| Provider limit | Copilot monthly used percentage, OpenAI weekly remaining percentage, or available Claude/gateway subscription windows | Follows the active provider; visible from 125 columns with Git or 95 without; reserves space before identity, elapsed time and cost; no reset countdown |
 
 The plugin refreshes Git status after filesystem and branch events with a 250
-ms debounce, and refreshes the Copilot limit every 60 seconds. During execution
+ms debounce, and refreshes provider limits every 60 seconds. During execution
 the configured interrupt shortcut precedes the pills while the latest usage
 values remain visible when width permits. Shell mode shows its exit guidance. Its colors
 render from `.chezmoidata/palettes.yaml`, so changing `data.palette` keeps the
@@ -244,6 +276,18 @@ The spinner clock exists only while a visible foreground spinner or running
 child needs it. Both animations can appear together. Foreground and subagent
 frames update only their single-cell glyphs, leaving Git, context, cost, and
 quota calculations off the animation path.
+
+Selecting `ai.opencode` includes this footer. The separate `ai.statusline`
+selection controls Claude's statusline and Codex's theme.
+
+`/demo` opens a fresh session using the selected provider and model, with the
+lowest supported reasoning variant. Its dedicated agent reads one small bundled
+file and answers in at most 60 words, with a two-step limit. It cannot edit files,
+run shell commands, or launch subagents. The completion toast reports actual
+usage; normal system and tool instructions still consume input tokens.
+`/demo diagnostics` opens a local glyph comparison and renderer-capability view
+without making a model request. Compare it inside and outside tmux when icons
+fail in a terminal client.
 
 The same palette overrides the built-in prompt metadata colors through
 `agents.build.color` and `agents.plan.color`. Build renders in palette green;
@@ -264,7 +308,7 @@ Neovim.
 
 The Neovim component also installs the command-line tools behind its
 integrations. The cross-platform package plan owns shell-visible
-markdownlint-cli2, ShellCheck, yamllint, TFLint, and Luacheck.
+markdownlint-cli2, ShellCheck, yamllint, and Luacheck. Mason owns TFLint.
 
 Mason owns language servers and editor-only Gitleaks. It installs missing
 packages at startup but does not update or reconcile existing versions. See
@@ -298,16 +342,23 @@ not need Python, the submodule, or network access.
 Set `DOTFILES_PALETTE=<id>` for a non-interactive selection. See
 [Palette catalog](palettes.md) for generation and mapping details.
 
-The final screen groups the deduplicated package plan by status: install,
-update, then current. Colors honor `NO_COLOR`, and every line names its package
-source and whether it floats or is pinned.
+The final screen shows pending install, update, removal, check, and blocked
+actions. Current packages remain in the resolved plan but stay out of the
+display. Colors honor `NO_COLOR`, and every line names its package source and
+whether it floats or is pinned.
 
 The plan refreshes Homebrew or APT metadata before it is shown, then uses the
-fresh package-manager inventory to classify selected items as install, update,
-or current. The single `[y/N]` after the plan authorizes all package work. On
-macOS, dotfiles passes Homebrew's `--no-ask` after that approval so Homebrew
-does not ask again. On Debian, a new selected third-party repository triggers
-one extra metadata refresh after it is added.
+fresh inventory and upstream versions to resolve one plan. The installer and
+its child scripts consume those same decisions and exact target versions.
+Matching installed versions are skipped. Failed metadata lookups are reported
+as blocked instead of prompting blind reinstalls. Missing executable or runtime
+files still trigger repair. The saved approval is scoped to the source tree,
+component selection, and relevant installer content.
+Pending package work uses one `[y/N]` confirmation. A fully current plan prints
+`Everything is up to date.` in green and continues without a prompt. On macOS,
+dotfiles passes Homebrew's `--no-ask` after approval so Homebrew does not ask
+again. On Debian, a new selected third-party repository triggers one extra
+metadata refresh after it is added.
 
 Package mode installs missing tools and updates the managed set. Config-only
 mode still clones missing selected chezmoi externals and runs safe finalizers,
@@ -323,16 +374,33 @@ then fetches only the matching tracking remote and fast-forwards clean branches.
 On macOS, package mode batches selected formula and cask installs and upgrades.
 An existing Ghostty app that is not managed by Homebrew is reported as a manual
 exception. On Debian, one `apt-get install` command selects the current
-candidate version for the managed package set without running a distribution
+candidate versions for missing or outdated managed packages without running a distribution
 upgrade. Ghostty remains a manual install there too.
 
-Floating npm CLIs, Neovim Python providers, LuaRocks tools,
-checksum-verified GitHub release binaries, Lazy plugins,
-Treesitter parsers, and installed Mason packages update on every approved
-package run. Selected chezmoi Git externals and installer-owned TPM repositories
-advance only when their checkout is clean and the remote change is a
-fast-forward. Dirty, detached, ahead, or diverged checkouts are skipped with a
-warning.
+Floating npm CLIs, Neovim Python providers, LuaRocks tools, and
+checksum-verified GitHub release binaries install only when their resolved
+version differs or their installation needs repair. The plan also lists each
+Lazy plugin, Treesitter parser, Mason package, and selected Zsh or tmux Git
+checkout with its installed and candidate version or revision. Current items
+are skipped; metadata failures appear under `Could not check`.
+
+Native discovery refreshes registry metadata and Git objects without installing
+packages or changing checked-out files. Parser candidates come from the planned
+Treesitter plugin revision. Execution uses the selected versions and commits
+instead of resolving a different update set after approval. Dirty, detached,
+ahead, or diverged managed Git checkouts are reported before installation.
+
+On a fresh host, missing Git or Neovim managers appear as bootstrap
+prerequisites. Missing chezmoi externals are resolved after configuration
+materializes them. The installer then displays the concrete package details
+and confirms any new actions before continuing; a current set needs no second
+approval. Unattended mode retains its explicit assume-yes behavior.
+
+Every installer run saves output, its plan, and final exit status under
+`${XDG_STATE_HOME:-~/.local/state}/dotfiles/install/`, with private permissions.
+`scripts/install.sh --log` displays the latest log and `--log-path` prints its
+path; neither option starts installation. Independent steps continue after a
+failure, but the final installer result is nonzero so chezmoi can retry it.
 
 Exact versions remain source-controlled. Package mode reasserts the pinned
 tree-sitter CLI instead of advancing it. The pinned OpenCode statusline plugin

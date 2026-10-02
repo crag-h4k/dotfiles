@@ -50,14 +50,14 @@ jobs:
       - name: Add chezmoi to PATH
         run: echo "$HOME/.local/bin" >> "$GITHUB_PATH"
 
-      # luacheck and bats run as language:system hooks, so they must
-      # be on PATH. zsh is required by test_process.bats (_notify_resolve_bin
+      # luacheck runs as a language:system hook, so it must be on PATH.
+      # zsh is required by test_process.bats (_notify_resolve_bin
       # uses zsh-specific syntax and is tested via `zsh -c`). tmux runs the TPM
       # parser and startup tests against the current checkout above.
-      - name: Install bats-core, tmux, zsh, and LuaRocks
+      - name: Install tmux, zsh, and LuaRocks
         run: |
           sudo apt-get update
-          sudo apt-get install -y luarocks bats tmux zsh
+          sudo apt-get install -y luarocks tmux zsh
 
       - name: Detect Lua version
         id: lua

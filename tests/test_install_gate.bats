@@ -89,6 +89,20 @@ export_install_base() {
   [ "$status" -eq 0 ]
 }
 
+@test "pkg_confirm: current plan proceeds without a terminal response" {
+  local ttyf="${BATS_TEST_TMPDIR}/current-plan-tty" plan="${BATS_TEST_TMPDIR}/current-plan"
+  : >"$ttyf"
+  printf 'brew-formula\tgit\tinstalled\tfloating\tHomebrew core\tgit\t-\t-\tcurrent\n' >"$plan"
+  # $PLAN expands in the isolated child shell.
+  # shellcheck disable=SC2016
+  run env PATH="${STUB_DIR}:${PATH}" DOTFILES_PLAN_OS=macos DOTFILES_TTY="$ttyf" \
+    DOTFILES_PKG_CONFIRM_SENTINEL="${NO_SENTINEL}" PLAN="$plan" \
+    bash -c 'source "$1"; package_plan_create() { export DOTFILES_PACKAGE_PLAN="$PLAN"; }; pkg_confirm smoke' _ "$COMMON"
+  [ "$status" -eq 0 ]
+  [[ "$(cat "$ttyf")" == *"Everything is up to date."* ]]
+  [[ "$(cat "$ttyf")" != *"Install/update packages now?"* ]]
+}
+
 @test "pkg_confirm: empty tty answer declines (default N)" {
   local ttyf="${BATS_TEST_TMPDIR}/tty-empty"
   printf '\n' > "$ttyf"

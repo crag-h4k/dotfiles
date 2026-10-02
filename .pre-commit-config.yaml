@@ -109,7 +109,7 @@ repos:
         entry: python3 -m unittest tests/test_agent_skills.py
         language: system
         pass_filenames: false
-        files: ^(docs/agent-skills\.md|home/(\.chezmoi(ignore|external\.toml)|dot_(agents|claude)/skills/.*|dot_config/opencode/commands/(humanize|unslop)\.md|dot_local/share/agent-skills/.*)|scripts/validate-agent-skills\.py|tests/test_agent_skills\.py)$
+        files: ^((.*/)?AGENTS\.md|docs/agent-(skills|guidance)\.md|home/(\.chezmoi(ignore|external\.toml)|dot_(agents|claude)/skills/.*|dot_config/opencode/commands/(dotfiles|handoff|humanize|unslop)\.md|dot_local/share/agent-skills/.*)|scripts/validate-agent-skills\.py|tests/test_agent_skills\.py)$
 
       - id: luacheck
         name: luacheck
@@ -147,7 +147,7 @@ repos:
         # The OpenCode notifier plugin is TypeScript and had no gate whatsoever:
         # a parse error would install cleanly and only fail at runtime, inside a
         # plugin host that swallows plugin errors. Syntax only; see the script.
-        files: ^(home/dot_config/opencode/(plugin/.*\.ts|v2-plugins/.*\.tsx\.tmpl)|scripts/ts-syntax\.js|tests/test_opencode_notify_plugin\.js)$
+        files: ^(home/dot_config/opencode/(plugin/.*\.ts|v2-plugins/.*\.(ts|tsx)(\.tmpl)?)|scripts/ts-syntax\.js|tests/test_opencode_notify_plugin\.js)$
 
       - id: validate-palettes
         name: validate shared palettes render
@@ -163,6 +163,13 @@ repos:
         pass_filenames: false
         files: ^(home/dot_config/opencode/v2-plugins/statusline/.*|tests/test_opencode_statusline\.mjs)$
 
+      - id: test-opencode-demo
+        name: node test (opencode demo)
+        entry: node --test tests/test_opencode_demo.mjs
+        language: system
+        pass_filenames: false
+        files: ^(home/dot_config/opencode/(v2-plugins/statusline/demo\.mjs|agents/dotfiles-demo\.md|demo/.*)|tests/test_opencode_demo\.mjs)$
+
       - id: build-palettes-check
         name: palette catalog matches base16 schemes
         entry: python3 scripts/build-palettes.py --check
@@ -176,7 +183,8 @@ repos:
         name: bats (palette initialization)
         entry: bats
         args: [tests/test_palette_init.bats]
-        language: system
+        language: node
+        additional_dependencies: ['bats@1.13.0']
         pass_filenames: false
         files: ^(home/\.chezmoi\.toml\.tmpl|tests/test_palette_init\.bats)$
 
@@ -185,7 +193,7 @@ repos:
         entry: python3 tests/test_package_run.py
         language: system
         pass_filenames: false
-        files: ^(home/(\.chezmoi\.toml\.tmpl|\.chezmoiexternal\.toml|\.chezmoiscripts/run_once_after_00-install\.sh\.tmpl|dot_zsh/aliases)|scripts/(common|confirm-install|install[^/]*)\.sh|tests/test_package_run\.py)$
+        files: ^(home/(\.chezmoi\.toml\.tmpl|\.chezmoiexternal\.toml|\.chezmoiscripts/run_once_after_00-install\.sh\.tmpl|dot_zsh/aliases)|home/dot_config/nvim/init\.lua|scripts/(common|confirm-install|install[^/]*|package-resolve)\.sh|scripts/(plan-neovim-packages|neovim-package-lib)\.lua|tests/test_package_run\.py)$
 
       - id: pytest-notify
         name: pytest notify (modify_settings.json.tmpl)
@@ -220,16 +228,18 @@ repos:
       - id: bats-notify
         name: bats (installer + notify + statusline + render-shim + package-plan + tooling)
         entry: bats
-        args: [tests/test_confirm_install.bats, tests/test_install_gate.bats, tests/test_lib.bats, tests/test_process.bats, tests/test_statusline_command.bats, tests/test_render_modify_shim.bats, tests/test_package_plan.bats, tests/test_package_updates.bats, tests/test_git_externals.bats, tests/test_git_override.bats, tests/test_tooling.bats, tests/test_opencode_events.bats, tests/test_opencode2_wrapper.bats]
-        language: system
+        args: [tests/test_confirm_install.bats, tests/test_install_gate.bats, tests/test_lib.bats, tests/test_process.bats, tests/test_statusline_command.bats, tests/test_render_modify_shim.bats, tests/test_package_plan.bats, tests/test_package_reconcile.bats, tests/test_package_git_plan.bats, tests/test_pinned_palette.bats, tests/test_neovim_package_plan.bats, tests/test_package_updates.bats, tests/test_git_externals.bats, tests/test_git_override.bats, tests/test_tooling.bats, tests/test_opencode_events.bats, tests/test_opencode2_wrapper.bats]
+        language: node
+        additional_dependencies: ['bats@1.13.0']
         pass_filenames: false
-        files: ^(\.gitignore|config/linters/gitleaks\.toml|\.pre-commit-config\.yaml|home/dot_(gitconfig|config/notify/.*|config/opencode/plugin/notify\.ts|config/nvim/(init\.lua|lua/gitleaks\.lua)|zsh/(aliases|custom/functions/notify-process\.zsh))|home/dot_claude/executable_statusline-command\.sh|home/dot_local/bin/executable_opencode2|scripts/(common|confirm-install|install[^/]*|package-plan|neovim-update-lib|update-neovim-packages)\.(sh|lua)|home/dot_claude/modify_settings\.json\.tmpl|home/dot_codex/modify_private_config\.toml\.tmpl|tests/pty_run\.py|tests/test_(confirm_install|install_gate|lib|process|statusline_command|render_modify_shim|package_plan|package_updates|git_externals|git_override|tooling|opencode_events|opencode2_wrapper)\.bats|tests/test_neovim_update\.lua|tests/fixtures/.*)$
+        files: ^(\.gitignore|config/linters/gitleaks\.toml|\.pre-commit-config\.yaml|home/dot_(gitconfig|config/notify/.*|config/opencode/plugin/notify\.ts|config/nvim/(init\.lua|lua/gitleaks\.lua)|zsh/(aliases|custom/functions/notify-process\.zsh))|home/dot_claude/executable_statusline-command\.sh|home/dot_local/bin/executable_opencode2|scripts/(common|confirm-install|install[^/]*|package-plan|package-resolve|neovim-update-lib|neovim-package-lib|plan-neovim-packages|update-neovim-packages)\.(sh|lua)|home/dot_claude/modify_settings\.json\.tmpl|home/dot_codex/modify_private_config\.toml\.tmpl|tests/pty_run\.py|tests/test_(confirm_install|install_gate|lib|process|statusline_command|render_modify_shim|package_plan|package_reconcile|package_git_plan|pinned_palette|neovim_package_plan|package_updates|git_externals|git_override|tooling|opencode_events|opencode2_wrapper)\.bats|tests/test_neovim_update\.lua|tests/fixtures/.*)$
 
       - id: bats-tmux-startup
         name: bats (tmux startup config selection)
         entry: bats
         args: [tests/test_tmux_startup.bats]
-        language: system
+        language: node
+        additional_dependencies: ['bats@1.13.0']
         pass_filenames: false
         files: ^(home/dot_zshrc|home/dot_tmux/conf\.d/notify\.conf|tests/test_tmux_startup\.bats)$
 
@@ -237,7 +247,8 @@ repos:
         name: bats (tmux plugin overrides)
         entry: bats
         args: [tests/test_tmux_plugins.bats]
-        language: system
+        language: node
+        additional_dependencies: ['bats@1.13.0']
         pass_filenames: false
         files: ^(home/(\.chezmoiexternal\.toml|dot_tmux(\.conf|/.*))|tests/test_tmux_plugins\.bats)$
 
@@ -245,7 +256,8 @@ repos:
         name: bats (chezmoi source-root layout)
         entry: bats
         args: [tests/test_source_layout.bats]
-        language: system
+        language: node
+        additional_dependencies: ['bats@1.13.0']
         pass_filenames: false
         files: ^(\.chezmoiroot|home/|config/linters/|scripts/|tests/test_source_layout\.bats)$
 
@@ -253,7 +265,8 @@ repos:
         name: bats (deployment PR summary)
         entry: bats
         args: [tests/test_ci_summary.bats]
-        language: system
+        language: node
+        additional_dependencies: ['bats@1.13.0']
         pass_filenames: false
         files: ^(\.github/(scripts/render-deployment-summary\.sh|workflows/ci\.yaml)|tests/test_ci_summary\.bats)$
 
@@ -261,6 +274,7 @@ repos:
         name: bats (branch and PR title convention)
         entry: bats
         args: [tests/test_pr_metadata.bats]
-        language: system
+        language: node
+        additional_dependencies: ['bats@1.13.0']
         pass_filenames: false
         files: ^(\.github/workflows/ci\.yaml|scripts/validate-pr-metadata\.sh|tests/test_pr_metadata\.bats)$

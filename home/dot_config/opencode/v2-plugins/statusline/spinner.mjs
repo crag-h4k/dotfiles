@@ -103,13 +103,16 @@ export function subagentLabel(activity) {
  * @param {number} width
  * @param {boolean} hasGit
  * @param {boolean} home
+ * @param {boolean} hasProvider
  */
-export function statusVisibility(width, hasGit, home) {
+export function statusVisibility(width, hasGit, home, hasProvider = false) {
+  const quotaVisible = !home && hasProvider && width >= (hasGit ? 125 : 95)
+  const reserved = quotaVisible ? 50 : 0
   return {
-    identity: !home && width >= 85 && (!hasGit || width >= 125),
-    elapsed: !home && width >= 115 && (!hasGit || width >= 150),
-    context: !home && width >= (hasGit ? 95 : 75),
-    cost: !home && width >= (hasGit ? 135 : 105),
-    provider: !home && width >= (hasGit ? 175 : 145),
+    identity: !home && width >= 85 + reserved && (!hasGit || width >= 125 + reserved),
+    elapsed: !home && width >= 115 + reserved && (!hasGit || width >= 150 + reserved),
+    context: !home && width >= (hasGit ? 95 : 75) + reserved,
+    cost: !home && width >= (hasGit ? 135 : 105) + reserved,
+    provider: quotaVisible || (!home && width >= (hasGit ? 175 : 145)),
   }
 }

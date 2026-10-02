@@ -28,7 +28,23 @@ runtime_version=""
 if [[ -r "$runtime_package" ]]; then
     runtime_version="$(node -p "JSON.parse(require('node:fs').readFileSync(process.argv[1], 'utf8')).version" "$runtime_package" 2>/dev/null || true)"
 fi
-[[ "$runtime_version" == "$cli_version" ]] && exit 0
+runtime_healthy() {
+    node - "$config_dir" <<'JS'
+const fs = require("node:fs")
+const path = require("node:path")
+for (const name of ["@opencode/plugin", "@opentui/solid", "solid-js"]) {
+  const file = path.join(process.argv[2], "node_modules", name, "package.json")
+  const pkg = JSON.parse(fs.readFileSync(file, "utf8"))
+  if (!pkg.version) process.exit(1)
+  const entry = pkg.exports?.["."]?.import
+  if (typeof entry === "string") fs.accessSync(path.resolve(path.dirname(file), entry))
+  else require.resolve(name, { paths: [process.argv[2]] })
+}
+JS
+}
+if [[ "$runtime_version" == "$cli_version" ]] && runtime_healthy >/dev/null 2>&1; then
+    exit 0
+fi
 
 opentui_version="$(npm view @opentui/solid@latest version 2>/dev/null)" || {
     printf 'opencode2: could not resolve the OpenTUI Solid release\n' >&2
@@ -49,5 +65,9 @@ npm install --prefix "$config_dir" --ignore-scripts --package-lock=false --no-sa
 runtime_version="$(node -p "JSON.parse(require('node:fs').readFileSync(process.argv[1], 'utf8')).version" "$runtime_package" 2>/dev/null || true)"
 [[ "$runtime_version" == "$cli_version" ]] || {
     printf 'opencode2: plugin runtime does not match CLI version %s\n' "$cli_version" >&2
+    exit 1
+}
+runtime_healthy || {
+    printf 'opencode2: plugin runtime dependencies are incomplete\n' >&2
     exit 1
 }

@@ -49,6 +49,143 @@ package_results_summary() {
     info "$scope summary: ok=$_package_results_ok failed=$_package_results_failed skipped=$_package_results_skipped"
 }
 
+
+package_plan_field() {
+    local source="$1" name="$2" field="$3"
+    [[ -n "${DOTFILES_PACKAGE_PLAN:-}" && -r "$DOTFILES_PACKAGE_PLAN" ]] || return 0
+    awk -F '\t' -v source="$source" -v name="$name" -v field="$field" \
+        '$1 == source && $2 == name { if ($field != "-") print $field; exit }' "$DOTFILES_PACKAGE_PLAN"
+}
+
+package_target() { package_plan_field "$1" "$2" 8; }
+
+package_needs_action() {
+    [[ -n "${DOTFILES_PACKAGE_PLAN:-}" ]] || return 0
+    case "$(package_plan_field "$1" "$2" 3)" in
+        planned|update|check) return 0 ;;
+        *) return 1 ;;
+    esac
+}
+
+package_action_try() {
+    local source="$1" name="$2" label="$3" status reason
+    shift 3
+    status=$(package_plan_field "$source" "$name" 3)
+    if [[ "$status" == blocked ]]; then
+        reason=$(package_plan_field "$source" "$name" 9)
+        _package_results_failed=$((_package_results_failed + 1))
+        warn "$label: ${reason:-could not check}; skipped"
+        return 1
+    fi
+    if ! package_needs_action "$source" "$name"; then
+        package_skip "$label is current or not selected"
+        return 0
+    fi
+    package_try "$label" "$@"
+}
+
+package_plan_signature() {
+    local flag
+    {
+        printf '%s\n' "$_COMMON_SH_DIR" "$(os_detect)"
+        for flag in INSTALL_ZSH INSTALL_TMUX INSTALL_NEOVIM INSTALL_NOTIFY \
+            INSTALL_AI_CODECOMPANION INSTALL_AI_STATUSLINE INSTALL_AI_OPENCODE \
+            INSTALL_AI_COPILOT INSTALL_TERMINAL_GHOSTTY INSTALL_TERMINAL_ITERM2; do
+            printf '%s=%s\n' "$flag" "${!flag:-false}"
+        done
+        printf '%s\n' "${OPENCODE2_VERSION:-latest}" "${COPILOT_VERSION:-prerelease}" "${PREK_VERSION:-0.5.4}"
+        cksum "$_COMMON_SH_DIR/package-plan.sh" "$_COMMON_SH_DIR/package-resolve.sh" "$_COMMON_SH_DIR/common.sh"
+        for flag in "$_COMMON_SH_DIR/plan-neovim-packages.lua" "$_COMMON_SH_DIR/neovim-package-lib.lua" \
+            "$_COMMON_SH_DIR/neovim-update-lib.lua" \
+            "$_COMMON_SH_DIR/install-neovim.sh" "$_COMMON_SH_DIR/update-neovim-packages.lua" \
+            "$_COMMON_SH_DIR/../home/dot_config/nvim/init.lua"; do
+            [[ ! -f "$flag" ]] || cksum "$flag"
+        done
+    } | cksum
+}
+
+package_plan_create() {
+    local runtime plan
+    runtime=$(_pkg_confirm_runtime_dir) || return 1
+    plan=$(mktemp "$runtime/package-plan.XXXXXX") || return 1
+    chmod 600 "$plan"
+    if ! DOTFILES_PLAN_APPROVED=1 "$_COMMON_SH_DIR/package-plan.sh" --resolved >"$plan"; then
+        rm -f "$plan"
+        return 1
+    fi
+    export DOTFILES_PACKAGE_PLAN="$plan"
+}
+
+package_plan_is_current() {
+    awk -F '\t' 'BEGIN { current = 1 } { rows++ } $3 != "installed" && $3 != "absent" { current = 0 } END { exit !(rows && current) }' "$1"
+}
+
+package_plan_needs_confirmation() {
+    awk -F '\t' '$3 ~ /^(planned|update|check|remove)$/ { action = 1 } END { exit !action }' "$1"
+}
+
+package_plan_confirm() {
+    local plan="$1" label="$2" dev="${DOTFILES_TTY:-/dev/tty}" response
+    "$_COMMON_SH_DIR/package-plan.sh" --display-file "$plan" || return 1
+    if ! package_plan_needs_confirmation "$plan"; then
+        return 0
+    fi
+    if _is_truthy "${DOTFILES_ASSUME_YES:-}"; then return 0; fi
+    if [[ ! -e "$dev" ]] || ! (: <"$dev") 2>/dev/null; then
+        warn "$label: no terminal available to approve the resolved plan"
+        return 1
+    fi
+    printf 'dotfiles: apply %s? [y/N] ' "$label" >>"$dev"
+    IFS= read -r response <"$dev" || response=""
+    case "$response" in
+        [Yy]|[Yy][Ee][Ss]) return 0 ;;
+        *) return 1 ;;
+    esac
+}
+
+package_plan_resolve_deferred_git() {
+    local source name status policy origin probe current target reason
+    local deferred merged
+    local -a _records=()
+    while IFS=$'\t' read -r source name status policy origin probe current target reason; do
+        if [[ ( "$source" == git-runtime || "$source" == git-external ) && "$status" == check ]]; then
+            _records+=("$source"$'\t'"$name"$'\t'"$status"$'\t'"$policy"$'\t'"$origin"$'\t'"$probe")
+        fi
+    done <"$DOTFILES_PACKAGE_PLAN"
+    [[ "${#_records[@]}" -gt 0 ]] || return 0
+    # shellcheck source-path=SCRIPTDIR
+    # shellcheck source=package-resolve.sh
+    source "$_COMMON_SH_DIR/package-resolve.sh"
+    _resolve_records
+    deferred=$(mktemp "${DOTFILES_PACKAGE_PLAN}.git.XXXXXX") || return 1
+    merged=$(mktemp "${DOTFILES_PACKAGE_PLAN}.merged.XXXXXX") || { rm -f "$deferred"; return 1; }
+    printf '%s\n' "${_records[@]}" | awk -F '\t' 'BEGIN { OFS="\t" }
+        $3 == "check" {
+            $3="blocked"
+            $9=($9 == "resolve after chezmoi materializes the checkout") \
+                ? "chezmoi did not materialize the checkout" : "Git is still unavailable after base package installation"
+        }
+        { print }
+    ' >"$deferred"
+    if ! package_plan_confirm "$deferred" "Git packages resolved after bootstrap"; then
+        awk -F '\t' 'BEGIN { OFS="\t" } { $3="blocked"; $9="resolved Git plan was not approved"; print }' \
+            "$deferred" >"$merged"
+        cat "$merged" >"$deferred"
+    fi
+    awk -F '\t' 'NR == FNR { rows[$1 FS $2]=$0; next }
+        { key=$1 FS $2; if (key in rows) print rows[key]; else print }
+    ' "$deferred" "$DOTFILES_PACKAGE_PLAN" >"$merged"
+    mv "$merged" "$DOTFILES_PACKAGE_PLAN"
+    rm -f "$deferred"
+}
+
+package_plan_save_approval() {
+    local sentinel
+    sentinel=$(_pkg_confirm_sentinel) || return 1
+    (umask 077; printf '%s\n%s\n%s\n' "$(date +%s)" "$(package_plan_signature)" \
+        "${DOTFILES_PACKAGE_PLAN:-}" >"$sentinel")
+}
+
 # os_detect → "macos" | "debian" | "unsupported"
 os_detect() {
     # Shared with package-plan tests so installer paths can be exercised with
@@ -349,46 +486,98 @@ install_uv_debian() {
     }
 }
 
-github_latest_release_tag() {
-    local repo="$1" tmp_json tag
-    tmp_json=$(mktemp)
-    if ! curl -fsSL -o "$tmp_json" "https://api.github.com/repos/${repo}/releases/latest"; then
-        rm -f "$tmp_json"
+# Parse metadata as JSON: GitHub may return either compact or indented responses.
+_github_release_value() {
+    local file="$1" asset="${2:-}"
+    if command -v python3 >/dev/null 2>&1; then
+        python3 - "$file" "$asset" <<'PYJSON'
+import json
+import sys
+
+try:
+    with open(sys.argv[1], encoding="utf-8") as handle:
+        data = json.load(handle)
+    asset = sys.argv[2]
+    if asset:
+        value = next(item["digest"] for item in data.get("assets", []) if item.get("name") == asset)
+    else:
+        value = data["tag_name"]
+    if not isinstance(value, str):
+        raise ValueError("release metadata field is not a string")
+    print(value)
+except (OSError, ValueError, KeyError, StopIteration, TypeError):
+    sys.exit(1)
+PYJSON
+    elif command -v node >/dev/null 2>&1; then
+        node - "$file" "$asset" <<'JSJSON'
+const fs = require("node:fs")
+try {
+  const data = JSON.parse(fs.readFileSync(process.argv[2], "utf8"))
+  const asset = process.argv[3]
+  const value = asset ? data.assets?.find((item) => item.name === asset)?.digest : data.tag_name
+  if (typeof value !== "string") process.exit(1)
+  console.log(value)
+} catch { process.exit(1) }
+JSJSON
+    elif command -v jq >/dev/null 2>&1; then
+        jq -er --arg asset "$asset" \
+            'if $asset == "" then .tag_name else .assets[] | select(.name == $asset) | .digest end | strings' "$file"
+    else
+        warn "release metadata requires Python, Node.js, or jq"
         return 1
     fi
-    tag=$(awk -F'"' '/"tag_name":/{print $4; exit}' "$tmp_json")
-    rm -f "$tmp_json"
-    [[ -n "$tag" ]] || return 1
+}
+
+release_version_valid() {
+    [[ "$1" =~ ^v?[0-9]+\.[0-9]+\.[0-9]+([+-][0-9A-Za-z.-]+)?$ ]]
+}
+
+github_latest_release_redirect_tag() {
+    local repo="$1" url tag
+    if ! url=$(curl -fsSIL --connect-timeout 10 --max-time 30 -o /dev/null \
+        -w '%{url_effective}' "https://github.com/${repo}/releases/latest"); then
+        return 1
+    fi
+    case "$url" in
+        "https://github.com/${repo}/releases/tag/"*) tag=${url##*/} ;;
+        *) return 1 ;;
+    esac
+    release_version_valid "$tag" || return 1
     printf '%s\n' "$tag"
 }
 
-github_latest_release_asset_sha256() {
-    local repo="$1" asset="$2" tmp_json digest
+github_latest_release_tag() {
+    local repo="$1" tmp_json tag
     tmp_json=$(mktemp)
-    if ! curl -fsSL -o "$tmp_json" "https://api.github.com/repos/${repo}/releases/latest"; then
+    if curl -fsSL --connect-timeout 10 --max-time 30 -o "$tmp_json" "https://api.github.com/repos/${repo}/releases/latest" \
+        && tag=$(_github_release_value "$tmp_json") \
+        && release_version_valid "$tag"; then
+        rm -f "$tmp_json"
+        printf '%s\n' "$tag"
+        return 0
+    fi
+    rm -f "$tmp_json"
+    github_latest_release_redirect_tag "$repo"
+}
+
+github_latest_release_asset_sha256() {
+    local repo="$1" asset="$2" tag="${3:-latest}" tmp_json digest endpoint="latest"
+    if [[ "$tag" != latest ]]; then
+        release_version_valid "$tag" || return 1
+        endpoint="tags/$tag"
+    fi
+    tmp_json=$(mktemp)
+    if ! curl -fsSL --connect-timeout 10 --max-time 30 -o "$tmp_json" "https://api.github.com/repos/${repo}/releases/$endpoint"; then
         rm -f "$tmp_json"
         return 1
     fi
-    digest=$(awk -F'"' -v asset="$asset" '
-        $2 == "name" && $4 == asset { found = 1; next }
-        found && $2 == "digest" && $4 ~ /^sha256:/ {
-            sub(/^sha256:/, "", $4)
-            print $4
-            exit
-        }
-        found && $2 == "name" { found = 0 }
-    ' "$tmp_json")
+    if ! digest=$(_github_release_value "$tmp_json" "$asset"); then
+        rm -f "$tmp_json"
+        return 1
+    fi
     rm -f "$tmp_json"
-    [[ "$digest" =~ ^[0-9a-fA-F]{64}$ ]] || return 1
-    printf '%s\n' "$digest"
-}
-
-tflint_release_arch() {
-    case "$1" in
-        x86_64|amd64)  echo "amd64" ;;
-        aarch64|arm64) echo "arm64" ;;
-        *) return 1 ;;
-    esac
+    [[ "$digest" =~ ^sha256:[0-9a-fA-F]{64}$ ]] || return 1
+    printf '%s\n' "${digest#sha256:}"
 }
 
 tenv_release_arch() {
@@ -519,43 +708,13 @@ install_tree_sitter_cli_debian() {
     info "tree-sitter CLI installed: $("$HOME/.local/bin/tree-sitter" --version 2>/dev/null)"
 }
 
-install_tflint_debian() {
-    require_cmd curl
-    require_cmd unzip
-    local arch tag asset tmp_dir
-    arch=$(tflint_release_arch "$(uname -m)") \
-        || { warn "unsupported arch $(uname -m) for tflint"; return 1; }
-    tag=$(github_latest_release_tag terraform-linters/tflint) \
-        || { warn "could not determine the latest tflint release"; return 1; }
-    asset="tflint_linux_${arch}.zip"
-    tmp_dir=$(mktemp -d)
-    info "fetching tflint ${tag} (${arch})"
-    if ! curl -fsSL -o "$tmp_dir/$asset" \
-        "https://github.com/terraform-linters/tflint/releases/download/${tag}/${asset}" \
-        || ! curl -fsSL -o "$tmp_dir/checksums.txt" \
-        "https://github.com/terraform-linters/tflint/releases/download/${tag}/checksums.txt" \
-        || ! verify_release_checksum "$tmp_dir" checksums.txt "$asset"; then
-        warn "tflint download or checksum verification failed"
-        rm -rf "$tmp_dir"
-        return 1
-    fi
-    unzip -oq "$tmp_dir/$asset" -d "$tmp_dir/unpack"
-    mkdir -p "$HOME/.local/bin"
-    if ! atomic_install_binary "$tmp_dir/unpack/tflint" "$HOME/.local/bin/tflint"; then
-        warn "tflint atomic replacement failed"
-        rm -rf "$tmp_dir"
-        return 1
-    fi
-    rm -rf "$tmp_dir"
-    info "tflint installed: $("$HOME/.local/bin/tflint" --version 2>/dev/null | head -1)"
-}
-
 install_tenv_debian() {
     require_cmd curl
     local arch tag asset checksums tmp_dir
     arch=$(tenv_release_arch "$(uname -m)") \
         || { warn "unsupported arch $(uname -m) for tenv"; return 1; }
-    tag=$(github_latest_release_tag tofuutils/tenv) \
+    tag=$(package_target github-release tenv)
+    [[ -n "$tag" ]] || tag=$(github_latest_release_tag tofuutils/tenv) \
         || { warn "could not determine the latest tenv release"; return 1; }
     asset="tenv_${tag}_Linux_${arch}.tar.gz"
     checksums="tenv_${tag}_checksums.txt"
@@ -638,7 +797,7 @@ _prepare_tenv_terraform_lock() {
 }
 
 bootstrap_tenv_terraform() {
-    local tenv_bin lock_file
+    local tenv_bin lock_file target
     if [[ -x "$HOME/.local/bin/tenv" ]]; then
         tenv_bin="$HOME/.local/bin/tenv"
     else
@@ -646,9 +805,11 @@ bootstrap_tenv_terraform() {
     fi
     lock_file=$(_tenv_terraform_lock_file)
     _prepare_tenv_terraform_lock "$lock_file" || return 1
-    info "installing the latest stable Terraform fallback with tenv"
-    TENV_AUTO_INSTALL=true TENV_VALIDATION=signature "$tenv_bin" tf install latest
-    TENV_AUTO_INSTALL=true TENV_VALIDATION=signature "$tenv_bin" tf use latest
+    target=$(package_target github-release terraform)
+    target="${target:-latest}"
+    info "installing Terraform fallback $target with tenv"
+    TENV_AUTO_INSTALL=true TENV_VALIDATION=signature "$tenv_bin" tf install "$target" || return 1
+    TENV_AUTO_INSTALL=true TENV_VALIDATION=signature "$tenv_bin" tf use "$target"
 }
 
 _neovim_binary_health() {
@@ -774,7 +935,8 @@ install_neovim_debian() {
     local tag latest installed="" arch tmp_dir asset expected_sha stage
 
     info "fetching latest neovim release tag from GitHub"
-    tag=$(github_latest_release_tag neovim/neovim) \
+    tag=$(package_target github-release neovim)
+    [[ -n "$tag" ]] || tag=$(github_latest_release_tag neovim/neovim) \
         || { warn "could not determine latest neovim release tag"; return 1; }
     latest="${tag#v}"
     if [[ -x "$root/current/bin/nvim" ]] && _neovim_tree_health "$root/current"; then
@@ -799,7 +961,7 @@ install_neovim_debian() {
 
     tmp_dir=$(mktemp -d)
     asset="nvim-linux-${arch}.tar.gz"
-    expected_sha=$(github_latest_release_asset_sha256 neovim/neovim "$asset") \
+    expected_sha=$(github_latest_release_asset_sha256 neovim/neovim "$asset" "$tag") \
         || { warn "neovim ${tag} release metadata has no SHA256 digest for $asset"; rm -rf "$tmp_dir"; return 1; }
     if ! curl -fSL -o "$tmp_dir/$asset" \
         "https://github.com/neovim/neovim/releases/download/${tag}/${asset}" \
@@ -854,7 +1016,8 @@ fetch_yq() {
             ;;
     esac
     require_cmd curl
-    tag=$(github_latest_release_tag mikefarah/yq) \
+    tag=$(package_target github-release yq)
+    [[ -n "$tag" ]] || tag=$(github_latest_release_tag mikefarah/yq) \
         || { warn "could not determine the latest yq release"; return 1; }
     asset="yq_${os}_${arch}"
     tmp_dir=$(mktemp -d)
@@ -893,6 +1056,54 @@ install_yq_debian() {
     fetch_yq linux
 }
 
+_palette_submodule_current() {
+    local path="$1" pinned="$2" head files file
+    [[ -e "$path/.git" ]] || return 1
+    head=$(git --no-optional-locks -c safe.directory="$path" -c core.fsmonitor=false \
+        -C "$path" rev-parse --verify HEAD 2>/dev/null) || return 1
+    [[ "$head" == "$pinned" ]] || return 1
+    files=$(git --no-optional-locks -c safe.directory="$path" -c core.fsmonitor=false \
+        -C "$path" ls-tree -r --name-only "$pinned") || return 1
+    [[ -n "$files" ]] || return 1
+    while IFS= read -r file; do
+        [[ -e "$path/$file" || -L "$path/$file" ]] || return 1
+    done <<<"$files"
+}
+
+ensure_pinned_palette() {
+    local root path pinned git_dir
+    root=$(cd "$1" && pwd -P) || return 1
+    path="$root/vendor/tinted-schemes"
+    # This checkout may be shared with another account. Trust only these reads;
+    # initialization below remains restricted to the owner of its Git state.
+    pinned=$(git --no-optional-locks -c safe.directory="$root" -c core.fsmonitor=false \
+        -C "$root" ls-files --stage -- vendor/tinted-schemes \
+        | awk '$1 == "160000" && $3 == "0" { print $2 }') || return 1
+    if [[ ! "$pinned" =~ ^[0-9a-f]{40,64}$ ]]; then
+        warn "cannot read the pinned palette commit from $root"
+        return 1
+    fi
+    if _palette_submodule_current "$path" "$pinned"; then
+        info "pinned palette is already current"
+        return 0
+    fi
+    git_dir=$(git --no-optional-locks -c safe.directory="$root" \
+        -C "$root" rev-parse --absolute-git-dir) || return 1
+    if [[ ! -O "$root" || ! -O "$git_dir" \
+        || ( -e "$git_dir/index" && ! -O "$git_dir/index" ) \
+        || ( -e "$path" && ! -O "$path" ) ]]; then
+        warn "pinned palette needs initialization or repair by the owner of $root; shared source left unchanged"
+        return 1
+    fi
+    if ! git -C "$root" submodule update --init --depth 1 -- vendor/tinted-schemes; then
+        return 1
+    fi
+    if ! _palette_submodule_current "$path" "$pinned"; then
+        warn "pinned palette has missing files or an unexpected commit; leaving the checkout untouched"
+        return 1
+    fi
+}
+
 canonical_git_url() {
     local url="$1" path dir base
     url="${url%/}"
@@ -912,6 +1123,101 @@ canonical_git_url() {
     base=$(basename "$path")
     dir=$(cd "$dir" 2>/dev/null && pwd -P) || return 1
     printf 'file://%s/%s\n' "${dir%/}" "$base"
+}
+
+# Inspect ownership and tracking without changing refs or the working tree.
+git_checkout_inspect() {
+    local url="$1" path="$2" inside dirty actual declared top
+    _git_head="" _git_branch="" _git_remote="" _git_ref="" _git_problem=""
+    if ! inside=$(git -C "$path" rev-parse --is-inside-work-tree 2>/dev/null) || [[ "$inside" != true ]]; then
+        _git_problem="path is not a git repository"
+    elif ! top=$(git -C "$path" rev-parse --show-toplevel) || [[ "$top" != "$(cd "$path" && pwd -P)" ]]; then
+        _git_problem="path is not the repository root"
+    elif ! dirty=$(git --no-optional-locks -C "$path" status --porcelain 2>/dev/null); then
+        _git_problem="could not inspect checkout status"
+    elif [[ -n "$dirty" ]]; then
+        _git_problem="local changes present"
+    elif ! _git_branch=$(git -C "$path" symbolic-ref --quiet --short HEAD 2>/dev/null); then
+        _git_problem="detached HEAD"
+    elif ! _git_remote=$(git -C "$path" config --get "branch.$_git_branch.remote") || [[ "$_git_remote" == . ]]; then
+        _git_problem="branch has no tracking remote"
+    elif ! _git_ref=$(git -C "$path" config --get "branch.$_git_branch.merge") || [[ "$_git_ref" != refs/heads/* ]]; then
+        _git_problem="branch has no upstream branch"
+    elif ! actual=$(git -C "$path" remote get-url "$_git_remote") \
+        || ! actual=$(canonical_git_url "$actual") || ! declared=$(canonical_git_url "$url"); then
+        _git_problem="could not inspect tracking remote URL"
+    elif [[ "$actual" != "$declared" ]]; then
+        _git_problem="tracking remote URL does not match declared source"
+    elif ! _git_head=$(git -C "$path" rev-parse HEAD); then
+        _git_problem="could not inspect HEAD"
+    fi
+    [[ -z "$_git_problem" ]]
+}
+
+git_fetch_candidate() {
+    local path="$1" url="$2" target="$3"
+    git -C "$path" cat-file -e "$target^{commit}" 2>/dev/null && return 0
+    git -C "$path" fetch --quiet --no-write-fetch-head --no-tags --no-auto-maintenance --recurse-submodules=no --refmap= -- "$url" "$target"
+}
+
+apply_git_package() {
+    local source="$1" label="$2" url="$3" path="$4" current="$5" target="$6" policy="$7"
+    local branch="${policy#branch:}" upstream stage base
+    upstream="${branch#*:}"
+    branch="${branch%%:*}"
+    if [[ ! "$target" =~ ^[0-9a-f]{40,64}$ || "$policy" != branch:* ]]; then
+        warn "$label: approved plan has no exact Git target"
+        return 1
+    fi
+    if [[ ! -e "$path" && ! -L "$path" ]]; then
+        if [[ "$current" != - ]]; then
+            warn "$label: checkout disappeared after planning; run a new plan"
+            return 1
+        fi
+        if [[ "$source" != git-runtime ]]; then
+            warn "$label: checkout is missing; chezmoi must materialize it"
+            return 1
+        fi
+        mkdir -p "$(dirname "$path")"
+        stage=$(mktemp -d "${path}.install.XXXXXX") || return 1
+        if ! git init --quiet "$stage" \
+            || ! git -C "$stage" remote add origin "$url" \
+            || ! git_fetch_candidate "$stage" "$url" "$target" \
+            || ! git -C "$stage" checkout --quiet -b "$branch" "$target" \
+            || ! git -C "$stage" update-ref "refs/remotes/origin/$branch" "$target" \
+            || ! git -C "$stage" config "branch.$branch.remote" origin \
+            || ! git -C "$stage" config "branch.$branch.merge" "refs/heads/$upstream"; then
+            rm -rf "$stage"
+            return 1
+        fi
+        if [[ -e "$path" || -L "$path" ]]; then
+            warn "$label: checkout appeared after planning; run a new plan"
+            rm -rf "$stage"
+            return 1
+        fi
+        mv "$stage" "$path"
+        return
+    fi
+    if [[ "$source" == git-runtime && "$current" == - ]]; then
+        warn "$label: checkout appeared after planning; run a new plan"
+        return 1
+    fi
+    if ! git_checkout_inspect "$url" "$path"; then
+        warn "$label: $_git_problem; run a new plan"
+        return 1
+    fi
+    if [[ "$_git_branch" != "$branch" || "$_git_ref" != "refs/heads/$upstream" \
+        || ( "$current" != - && "$_git_head" != "$current" ) ]]; then
+        warn "$label: checkout changed after planning; run a new plan"
+        return 1
+    fi
+    [[ "$_git_head" != "$target" ]] || return 0
+    if ! git_fetch_candidate "$path" "$url" "$target" \
+        || ! base=$(git -C "$path" merge-base HEAD "$target") || [[ "$base" != "$_git_head" ]]; then
+        warn "$label: approved target is not a clean fast-forward"
+        return 1
+    fi
+    git -C "$path" merge --ff-only "$target"
 }
 
 # Chezmoi materializes selected missing externals as configuration payloads.
@@ -1154,7 +1460,7 @@ _pkg_confirm_sentinel() {
 # $1 (optional): a short context label shown in the prompt.
 pkg_confirm() {
     local label="${1:-package install/update}"
-    local sentinel dev plan resp
+    local sentinel dev plan resp signature saved_plan
 
     if _is_truthy "${DOTFILES_ASSUME_YES:-}"; then
         return 0
@@ -1164,9 +1470,19 @@ pkg_confirm() {
     sentinel=$(_pkg_confirm_sentinel) || true
     if [[ -n "$sentinel" && -f "$sentinel" ]]; then
         if [[ -n "$(find "$sentinel" -mmin -10 2>/dev/null)" ]]; then
+            signature=$(sed -n '2p' "$sentinel")
+            saved_plan=$(sed -n '3p' "$sentinel")
             rm -f "$sentinel"
-            info "package install pre-confirmed at init; proceeding"
-            return 0
+            if [[ -z "$signature" ]]; then
+                # Accept the legacy timestamp-only handshake for one transition.
+                return 0
+            fi
+            if [[ "$signature" == "$(package_plan_signature)" && -f "$saved_plan" && -O "$saved_plan" && ! -L "$saved_plan" ]]; then
+                export DOTFILES_PACKAGE_PLAN="$saved_plan"
+                info "package install pre-confirmed at init; using the approved plan"
+                return 0
+            fi
+            warn "package selection or installer changed; rebuilding the plan"
         fi
         # Stale sentinel (past the window): never trust it, clean it up.
         rm -f "$sentinel"
@@ -1178,10 +1494,17 @@ pkg_confirm() {
             warn "could not refresh package metadata; skipping package install"
             return 1
         fi
-        plan="$(DOTFILES_PLAN_APPROVED=1 "$_COMMON_SH_DIR/package-plan.sh" --display 2>/dev/null || true)"
+        package_plan_create || { warn "could not resolve package plan"; return 1; }
+        plan="$(DOTFILES_PLAN_COLOR=1 "$_COMMON_SH_DIR/package-plan.sh" --display-file "$DOTFILES_PACKAGE_PLAN")"
         {
             if [[ -n "$plan" ]]; then
                 printf '%s\n\n' "$plan"
+            fi
+            if package_plan_is_current "$DOTFILES_PACKAGE_PLAN"; then
+                return 0
+            fi
+            if ! package_plan_needs_confirmation "$DOTFILES_PACKAGE_PLAN"; then
+                return 0
             fi
             printf 'dotfiles: %s. Install/update packages now? [y/N] ' "$label"
         } >>"$dev"

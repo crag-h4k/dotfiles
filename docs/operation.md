@@ -29,7 +29,8 @@ chezmoi apply
 chezmoi apply --refresh-externals
 
 # Re-run package provisioning without deleting chezmoi script state. This
-# refreshes package metadata, shows the package plan, and asks once for approval.
+# refreshes package metadata, shows pending work, and asks once for approval.
+# If nothing needs work, it prints “Everything is up to date.” and continues.
 # Approving advances the persisted packageRun trigger and reruns only the
 # content-hashed installer:
 cup
@@ -40,6 +41,12 @@ DOTFILES_PACKAGE_UPDATE=1 DOTFILES_INSTALL_MODE=packages \
 
 # Inspect what chezmoi thinks should change:
 chezmoi diff
+
+# Read the latest installer log without running package work:
+bash ~/dotfiles/scripts/install.sh --log
+
+# Print the log filename for copying or searching:
+bash ~/dotfiles/scripts/install.sh --log-path
 
 # Sync chezmoi source with this repo's origin:
 chezmoi update                     # git pull in source + apply
@@ -57,6 +64,14 @@ The repository-level `.chezmoiroot` still directs chezmoi into `home/`. It is
 safe to review a worktree this way without replacing your normal source
 directory.
 
+When applying from another account's checkout, the installer can reuse the
+palette submodule if its checkout matches the pinned commit and its tracked
+files are present. Only the checkout owner can initialize or repair that
+submodule. The verification uses command-scoped Git trust for the exact paths;
+it does not add a global `safe.directory` exception or change source ownership.
+Packages installed under `$HOME`, including Luacheck, belong to the account
+running chezmoi.
+
 ## Local overrides
 
 Each managed tool reads one unmanaged file where you can change its behavior
@@ -68,6 +83,8 @@ settings in these files, and `chezmoi update` keeps working:
 - Zsh: `~/.zsh_override`
 - Neovim: `~/.config/nvim/lua/override.lua`
 - Git: `~/.gitconfig.override`
+- OpenCode CLI settings: `~/.config/opencode/cli.override.json`
+- OpenCode launch behavior: `~/.config/opencode/override.zsh`
 
 None are chezmoi-managed. Each is listed
 unconditionally in `home/.chezmoiignore`, so chezmoi never applies or removes
@@ -83,6 +100,19 @@ missing include, Zsh uses an `[[ -r ]]` guard, and Neovim uses a guarded
 Each override loads after its managed base. Most load at the absolute end. tmux
 loads its override before the managed plugin list and the final TPM command so
 local plugin declarations and options exist before plugin startup.
+
+The OpenCode wrapper passes `cli.override.json` to the native
+`OPENCODE_CLI_CONFIG_CONTENT` loader. An explicitly exported value takes
+precedence over the file. Use this local JSON file for terminal preferences
+and extra CLI plugins. Keep private plugins under
+`~/.config/opencode/v2-plugins/local/`, which is also ignored by chezmoi.
+
+The wrapper sources `override.zsh` after resolving its isolated `binary` and
+classifying `interactive` and `explicit_server`, before choosing standalone
+mode. The override can export environment variables or execute `"$binary"`
+with local server arguments. Credentials can be sourced from the ignored
+`~/.config/opencode/remote.env`; keep them out of the public source tree.
+A failed override stops the launch.
 
 ```text
 # ~/.config/ghostty/override.conf
@@ -392,12 +422,12 @@ tenv tf use -w 1.15.7        # write .terraform-version in this project
 terraform fmt -check -recursive
 terraform init -backend=false
 terraform validate
-tflint --init && tflint
 ```
 
-The managed `~/.tflint.hcl` enables only TFLint's portable recommended rules.
-Cloud-provider rulesets belong in each project; an AWS plugin has no business
-loading in every Terraform repository.
+Mason installs TFLint for Neovim. Terminal and CI workflows should use the
+project's own TFLint provisioning. The managed `~/.tflint.hcl` enables only
+TFLint's portable recommended rules. Cloud-provider rulesets belong in each
+project; an AWS plugin has no business loading in every Terraform repository.
 
 ## Supported platforms
 
@@ -417,7 +447,7 @@ chezmoi purge          # removes chezmoi source and state
 rm -rf ~/.zsh ~/.tmux ~/.config/nvim ~/.config/yamllint ~/.local/share/nvim-venv
 rm -f ~/.zshrc ~/.zshenv ~/.tmux.conf
 rm -f ~/.darglint ~/.flake8 ~/.tflint.hcl ~/.markdownlint.yaml
-rm -f ~/.gitignore_global ~/.local/bin/tenv ~/.local/bin/terraform ~/.local/bin/tflint
+rm -f ~/.gitignore_global ~/.local/bin/tenv ~/.local/bin/terraform
 rm -rf ~/.tenv
 rm -f ~/dotfiles    # convenience symlink created by install.sh
 ```

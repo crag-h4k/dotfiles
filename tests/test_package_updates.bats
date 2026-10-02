@@ -47,6 +47,7 @@ for arg in "\$@"; do
   previous="\$arg"
 done
   case "\$1" in
+  --version) printf '%s\n' "\${NPM_TEST_VERSION:-11.15.0}" ;;
   view)
     case "\$2" in
       @opentui/solid@latest) printf '0.5.11\n' ;;
@@ -158,7 +159,7 @@ STUB
   done
 }
 
-@test "Neovim package step refreshes floating npm pip LuaRocks Lazy Treesitter and Mason state" {
+@test "Neovim package step installs approved npm pip and LuaRocks targets" {
   local home="$BATS_TEST_TMPDIR/home" stubs="$BATS_TEST_TMPDIR/stubs"
   local npm_log="$BATS_TEST_TMPDIR/npm.log" pip_log="$BATS_TEST_TMPDIR/pip.log"
   local rock_log="$BATS_TEST_TMPDIR/rock.log" nvim_log="$BATS_TEST_TMPDIR/nvim.log"
@@ -185,15 +186,21 @@ printf '%s\n' "\$*" >>'$nvim_log'
 STUB
   chmod +x "$stubs"/*
 
-  run env HOME="$home" PATH="$stubs:$PATH" DOTFILES_PLAN_OS=macos \
+  local plan="$BATS_TEST_TMPDIR/approved.tsv"
+  {
+    printf 'npm\t@fsouza/prettierd\tplanned\tfloating\tregistry\t-\t-\t-\tmissing\n'
+    printf 'npm\t@agentclientprotocol/claude-agent-acp\tplanned\tfloating\tregistry\t-\t-\t-\tmissing\n'
+    printf 'pip\tpynvim\tplanned\tfloating\tregistry\t-\t-\t-\tmissing\n'
+    printf 'luarocks\tluacheck\tplanned\tfloating\tregistry\t-\t-\t-\tmissing\n'
+  } >"$plan"
+  run env HOME="$home" PATH="$stubs:$PATH" DOTFILES_PLAN_OS=macos DOTFILES_PACKAGE_PLAN="$plan" \
     INSTALL_AI_CODECOMPANION=true bash "$NVIM_INSTALL"
   [ "$status" -eq 0 ]
   grep -Fq '@fsouza/prettierd@latest' "$npm_log"
   grep -Fq '@agentclientprotocol/claude-agent-acp@latest' "$npm_log"
   grep -Fq -- '-m pip install --quiet --upgrade pynvim' "$pip_log"
-  grep -Fq 'install --local luacheck' "$rock_log"
-  grep -Fq 'Lazy! sync' "$nvim_log"
-  grep -Fq 'update-neovim-packages.lua' "$nvim_log"
+  grep -Fq "install --tree $home/.luarocks luacheck" "$rock_log"
+  [ ! -e "$nvim_log" ]
 }
 
 @test "unready Node skips only Neovim npm work" {
@@ -222,13 +229,20 @@ printf '%s\n' "\$*" >>'$nvim_log'
 STUB
   chmod +x "$stubs"/*
 
-  run env HOME="$home" PATH="$stubs:$PATH" DOTFILES_PLAN_OS=macos \
+  local plan="$BATS_TEST_TMPDIR/approved.tsv"
+  {
+    printf 'npm\t@fsouza/prettierd\tplanned\tfloating\tregistry\t-\t-\t-\tmissing\n'
+    printf 'npm\t@agentclientprotocol/claude-agent-acp\tplanned\tfloating\tregistry\t-\t-\t-\tmissing\n'
+    printf 'pip\tpynvim\tplanned\tfloating\tregistry\t-\t-\t-\tmissing\n'
+    printf 'luarocks\tluacheck\tplanned\tfloating\tregistry\t-\t-\t-\tmissing\n'
+  } >"$plan"
+  run env HOME="$home" PATH="$stubs:$PATH" DOTFILES_PLAN_OS=macos DOTFILES_PACKAGE_PLAN="$plan" \
     DOTFILES_NODE_READY=false INSTALL_AI_CODECOMPANION=true bash "$NVIM_INSTALL"
   [ "$status" -eq 0 ]
   [ ! -e "$npm_log" ]
   grep -Fq -- '-m pip install --quiet --upgrade pynvim' "$pip_log"
-  grep -Fq 'install --local luacheck' "$rock_log"
-  grep -Fq 'Lazy! sync' "$nvim_log"
+  grep -Fq "install --tree $home/.luarocks luacheck" "$rock_log"
+  [ ! -e "$nvim_log" ]
 }
 
 @test "OpenCode 2 installs into its npm-owned isolated prefix" {
@@ -549,8 +563,122 @@ STUB
     INSTALL_AI_COPILOT=false \
     INSTALL_TERMINAL_GHOSTTY=false INSTALL_TERMINAL_ITERM2=false \
     bash "$root/scripts/install.sh"
-  [ "$status" -eq 0 ]
+  [ "$status" -eq 1 ]
   [[ "$output" == *"OpenCode V2 CLI and matching runtime; Node.js 24+ unavailable: skipped"* ]]
   run grep -E '(^|[[:space:]])(install|ci)([[:space:]]|$)' "$npm_log"
   [ "$status" -ne 0 ]
+}
+
+@test "Debian Luacheck uses an explicit account tree accepted by root" {
+  local home="$BATS_TEST_TMPDIR/root home" stubs="$BATS_TEST_TMPDIR/rocks-stubs"
+  local plan="$BATS_TEST_TMPDIR/rocks-plan" log="$BATS_TEST_TMPDIR/rocks-log"
+  mkdir -p "$home" "$stubs"
+  printf 'luarocks\tluacheck\tplanned\tfloating\tregistry\tluacheck\t-\t1.2.0-1\tmissing\n' >"$plan"
+  cat >"$stubs/luarocks" <<STUB
+#!/bin/sh
+printf '%s\n' "\$*" >>'$log'
+case "\$*" in *--local*) printf 'Error: --local cannot be used by the superuser\n' >&2; exit 42 ;; esac
+[ "\$1" = install ] && [ "\$2" = --tree ] && [ "\$3" = "\$HOME/.luarocks" ] || exit 43
+mkdir -p "\$HOME/.luarocks/bin"
+printf '#!/bin/sh\nexit 0\n' >"\$HOME/.luarocks/bin/luacheck"
+chmod +x "\$HOME/.luarocks/bin/luacheck"
+STUB
+  chmod +x "$stubs/luarocks"
+  run env HOME="$home" PATH="$stubs:$PATH" DOTFILES_PLAN_OS=debian \
+    DOTFILES_PACKAGE_PLAN="$plan" bash "$NVIM_INSTALL"
+  [ "$status" -eq 0 ]
+  [ "$(cat "$log")" = "install --tree $home/.luarocks luacheck 1.2.0-1" ]
+  [ -x "$home/.local/bin/luacheck" ]
+}
+
+@test "current Neovim dependencies do not invoke their installers" {
+  local home="$BATS_TEST_TMPDIR/current-home" stubs="$BATS_TEST_TMPDIR/current-stubs"
+  local plan="$BATS_TEST_TMPDIR/current-plan" log="$BATS_TEST_TMPDIR/current-log"
+  mkdir -p "$home/.config/nvim" "$stubs"
+  : >"$home/.config/nvim/init.lua"
+  for manager in npm python3 luarocks nvim; do
+    printf '#!/bin/sh\nprintf "%%s\\n" "%s $*" >>"%s"\nexit 1\n' "$manager" "$log" >"$stubs/$manager"
+    chmod +x "$stubs/$manager"
+  done
+  for record in 'npm markdownlint-cli2' 'npm @fsouza/prettierd' 'npm @agentclientprotocol/claude-agent-acp' 'pip pynvim' 'luarocks luacheck'; do
+    read -r source name <<<"$record"
+    printf '%s\t%s\tinstalled\tfloating\tregistry\t-\t1.0\t1.0\tcurrent\n' "$source" "$name" >>"$plan"
+  done
+  {
+    printf 'neovim-plugin\tlazy.nvim plugin set\tinstalled\tmanaged\t-\t-\t1\t1\tcurrent\n'
+    printf 'treesitter-parsers\tinstalled parser set\tinstalled\tmanaged\t-\t-\t1\t1\tcurrent\n'
+    printf 'mason-packages\tinstalled Mason package set\tinstalled\tmanaged\t-\t-\t1\t1\tcurrent\n'
+  } >>"$plan"
+  run env HOME="$home" PATH="$stubs:$PATH" DOTFILES_PLAN_OS=debian \
+    INSTALL_AI_CODECOMPANION=true DOTFILES_PACKAGE_PLAN="$plan" bash "$NVIM_INSTALL"
+  [ "$status" -eq 0 ]
+  [ ! -e "$log" ]
+  [[ "$output" == *'ok=0 failed=0 skipped=6'* ]]
+}
+
+@test "OpenCode permits its lifecycle script starting with npm 11.16" {
+  local version home stubs prefix npm_log
+  for version in 11.15.0 11.16.0 11.19.0 12.0.0; do
+    home="$BATS_TEST_TMPDIR/npm-$version"
+    stubs="$home/stubs"
+    prefix="$home/runtime"
+    npm_log="$home/npm.log"
+    mkdir -p "$stubs" "$home/bin" "$prefix/bin"
+    cp "$REPO_ROOT/home/dot_local/bin/executable_opencode2" "$home/bin/opencode2"
+    chmod +x "$home/bin/opencode2"
+    write_opencode_stubs "$stubs" "$npm_log"
+    printf '#!/bin/sh\nexit 0\n' >"$stubs/sync-runtime"
+    run env HOME="$home" PATH="$stubs:$PATH" INSTALL_AI_OPENCODE=true NPM_TEST_VERSION="$version" \
+      OPENCODE2_VERSION=2.0.8 OPENCODE2_NPM_PREFIX="$prefix" OPENCODE2_WRAPPER="$home/bin/opencode2" \
+      OPENCODE2_RUNTIME_SYNC="$stubs/sync-runtime" bash "$OPENCODE2_INSTALL"
+    [ "$status" -eq 0 ]
+    if [[ "$version" == 11.15.0 ]]; then
+      run grep -Fq -- '--allow-scripts=' "$npm_log"
+      [ "$status" -ne 0 ]
+    else
+      grep -Fq -- '--allow-scripts=@opencode/cli' "$npm_log"
+    fi
+  done
+}
+
+@test "current npm-owned OpenCode skips reinstall and checks its runtime" {
+  local home="$BATS_TEST_TMPDIR/current-opencode" stubs="$BATS_TEST_TMPDIR/current-opencode/stubs"
+  local prefix="$home/runtime" npm_log="$home/npm.log" runtime_log="$home/runtime.log"
+  local package="$prefix/lib/node_modules/@opencode/cli"
+  mkdir -p "$stubs" "$home/bin" "$prefix/bin" "$package/bin"
+  printf '#!/bin/sh\nprintf "opencode2 v2.0.8\\n"\n' >"$package/bin/opencode.exe"
+  printf '{"name":"@opencode/cli","version":"2.0.8"}\n' >"$package/package.json"
+  chmod +x "$package/bin/opencode.exe"
+  ln -s ../lib/node_modules/@opencode/cli/bin/opencode.exe "$prefix/bin/opencode2"
+  cp "$REPO_ROOT/home/dot_local/bin/executable_opencode2" "$home/bin/opencode2"
+  chmod +x "$home/bin/opencode2"
+  write_opencode_stubs "$stubs" "$npm_log"
+  printf '#!/bin/sh\nprintf "checked\\n" >>"%s"\n' "$runtime_log" >"$stubs/sync-runtime"
+  run env HOME="$home" PATH="$stubs:$PATH" INSTALL_AI_OPENCODE=true NPM_TEST_VERSION=11.19.0 \
+    OPENCODE2_VERSION=2.0.8 OPENCODE2_NPM_PREFIX="$prefix" OPENCODE2_WRAPPER="$home/bin/opencode2" \
+    OPENCODE2_RUNTIME_SYNC="$stubs/sync-runtime" bash "$OPENCODE2_INSTALL"
+  [ "$status" -eq 0 ]
+  run grep -Fq 'install -g' "$npm_log"
+  [ "$status" -ne 0 ]
+  [ "$(cat "$runtime_log")" = checked ]
+}
+
+@test "runtime sync repairs missing dependencies and skips the healthy second run" {
+  local home="$BATS_TEST_TMPDIR/runtime-home" stubs="$BATS_TEST_TMPDIR/runtime-stubs"
+  local config="$home/config" log="$home/npm.log" binary="$home/opencode2"
+  mkdir -p "$config/node_modules/@opencode/plugin" "$stubs"
+  printf '#!/bin/sh\nprintf "opencode2 v2.0.8\\n"\n' >"$binary"
+  chmod +x "$binary"
+  printf '{"name":"@opencode/plugin","version":"2.0.8","main":"index.js"}\n' >"$config/node_modules/@opencode/plugin/package.json"
+  printf 'module.exports = {}\n' >"$config/node_modules/@opencode/plugin/index.js"
+  write_opencode_stubs "$stubs" "$log"
+  run env HOME="$home" PATH="$stubs:$PATH" \
+    bash "$REPO_ROOT/home/dot_config/opencode/executable_sync-runtime.sh" "$binary" "$config"
+  [ "$status" -eq 0 ]
+  grep -Fq 'install --prefix' "$log"
+  : >"$log"
+  run env HOME="$home" PATH="$stubs:$PATH" \
+    bash "$REPO_ROOT/home/dot_config/opencode/executable_sync-runtime.sh" "$binary" "$config"
+  [ "$status" -eq 0 ]
+  [ ! -s "$log" ]
 }
