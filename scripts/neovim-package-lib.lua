@@ -20,9 +20,14 @@ function M.command(args)
   return vim.trim(result.stdout or "")
 end
 
-function M.clean_plugin(directory, origin)
+function M.clean_plugin(directory, origin, treesitter)
   local status = M.command({ "git", "--no-optional-locks", "-C", directory, "status", "--porcelain", "--untracked-files=all" })
-  assert(status == "", "plugin has local changes")
+  if status ~= "" then
+    for line in status:gmatch("[^\r\n]+") do
+      local generated = treesitter and (line:match("^%?%? parser/[^/]+%.so$") or line:match("^%?%? parser%-info/[^/]+%.revision$"))
+      assert(generated, "plugin has local changes")
+    end
+  end
   if origin then
     local actual = M.command({ "git", "-C", directory, "config", "--get", "remote.origin.url" })
     assert(actual == origin, "plugin origin changed")

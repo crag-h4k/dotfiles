@@ -143,7 +143,10 @@ main() {
         export DOTFILES_APT_REPO_CHANGED=false
         source_root="${DOTFILES_SOURCE_ROOT:-$(cd "$SCRIPT_DIR/.." && pwd)}"
         package_results_reset
-        if [[ -f "$source_root/.gitmodules" ]]; then
+        # Archive-based deployments retain .gitmodules for template rendering but
+        # deliberately exclude Git metadata and submodule content. There is no
+        # checkout to repair in that case.
+        if [[ -f "$source_root/.gitmodules" && ( -d "$source_root/.git" || -f "$source_root/.git" ) ]]; then
             package_try "pinned palette submodule" \
                 ensure_pinned_palette "$source_root" || true
         fi

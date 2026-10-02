@@ -524,20 +524,32 @@ release_version_valid() {
     [[ "$1" =~ ^v?[0-9]+\.[0-9]+\.[0-9]+([+-][0-9A-Za-z.-]+)?$ ]]
 }
 
+github_latest_release_redirect_tag() {
+    local repo="$1" url tag
+    if ! url=$(curl -fsSIL --connect-timeout 10 --max-time 30 -o /dev/null \
+        -w '%{url_effective}' "https://github.com/${repo}/releases/latest"); then
+        return 1
+    fi
+    case "$url" in
+        "https://github.com/${repo}/releases/tag/"*) tag=${url##*/} ;;
+        *) return 1 ;;
+    esac
+    release_version_valid "$tag" || return 1
+    printf '%s\n' "$tag"
+}
+
 github_latest_release_tag() {
     local repo="$1" tmp_json tag
     tmp_json=$(mktemp)
-    if ! curl -fsSL --connect-timeout 10 --max-time 30 -o "$tmp_json" "https://api.github.com/repos/${repo}/releases/latest"; then
+    if curl -fsSL --connect-timeout 10 --max-time 30 -o "$tmp_json" "https://api.github.com/repos/${repo}/releases/latest" \
+        && tag=$(_github_release_value "$tmp_json") \
+        && release_version_valid "$tag"; then
         rm -f "$tmp_json"
-        return 1
-    fi
-    if ! tag=$(_github_release_value "$tmp_json"); then
-        rm -f "$tmp_json"
-        return 1
+        printf '%s\n' "$tag"
+        return 0
     fi
     rm -f "$tmp_json"
-    release_version_valid "$tag" || return 1
-    printf '%s\n' "$tag"
+    github_latest_release_redirect_tag "$repo"
 }
 
 github_latest_release_asset_sha256() {

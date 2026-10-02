@@ -42,7 +42,7 @@ local function apply()
       if row[3] == "planned" or row[3] == "update" then
         assert(plugin.dir == row[6] and plugin.url == row[5], "plugin configuration changed since approval: " .. row[2])
         if plugin._.installed then
-          lib.clean_plugin(plugin.dir, row[5])
+          lib.clean_plugin(plugin.dir, row[5], row[2] == "nvim-treesitter")
         end
         local current = git.info(plugin.dir)
         assert((current and current.commit or "-") == row[7], "plugin changed since approval: " .. row[2])

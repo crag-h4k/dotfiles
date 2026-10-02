@@ -42,7 +42,7 @@ for _, name in ipairs(lib.keys(config.plugins)) do
     if plugin._.is_local or plugin.pin then
       return assert(current, "local or pinned plugin is missing")
     elseif plugin._.installed then
-      lib.clean_plugin(plugin.dir, plugin.url)
+      lib.clean_plugin(plugin.dir, plugin.url, name == "nvim-treesitter")
       assert(not plugin.version and not plugin.tag, "version-constrained plugin metadata is unsupported")
       local args =
         { "git", "-C", plugin.dir, "fetch", "--quiet", "--no-write-fetch-head", "--no-tags", "--no-auto-maintenance", "--recurse-submodules=no", "origin" }
