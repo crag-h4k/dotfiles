@@ -279,7 +279,8 @@ STUB
   git clone -q "$REMOTE" "$probe"
   run package_plan_resolve_deferred_git
   [ "$status" -eq 0 ]
-  [[ "$output" == *'Installed (1)'* ]]
+  [[ "$output" == *'Install plan'* ]]
+  [[ "$output" != *'Installed (1)'* ]]
   [ "$(package_plan_field git-external sample 3)" = installed ]
   [ "$(package_target git-external sample)" = "$wanted" ]
   [ ! -e "$DOTFILES_TTY" ]

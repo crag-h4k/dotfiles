@@ -310,12 +310,19 @@ STUB
   mkdir -p "$HOME/.luarocks/bin"
   printf '#!/bin/sh\nexit 0\n' >"$HOME/.luarocks/bin/luacheck"
   chmod +x "$HOME/.luarocks/bin/luacheck"
+  export TEST_LUA_DIR="$BATS_TEST_TMPDIR/lua-5.4"
+  cat >"$BATS_TEST_TMPDIR/bin/brew" <<'STUB'
+#!/bin/sh
+[ "$1" = --prefix ] && [ "$2" = lua@5.4 ] || exit 44
+printf '%s\n' "$TEST_LUA_DIR"
+STUB
   cat >"$BATS_TEST_TMPDIR/bin/luarocks" <<'STUB'
 #!/bin/sh
-[ "$1" = --lua-version=5.4 ] && [ "$2" = --tree ] && [ "$3" = "$HOME/.luarocks" ] || exit 43
+[ "$1" = --lua-version=5.4 ] && [ "$2" = --lua-dir ] && [ "$3" = "$TEST_LUA_DIR" ] \
+  && [ "$4" = --tree ] && [ "$5" = "$HOME/.luarocks" ] || exit 43
 printf 'luacheck\t1.2.0-1\tinstalled\t%s\n' "$HOME/.luarocks"
 STUB
-  chmod +x "$BATS_TEST_TMPDIR/bin/luarocks"
+  chmod +x "$BATS_TEST_TMPDIR/bin/brew" "$BATS_TEST_TMPDIR/bin/luarocks"
   # Variable expansion belongs to the isolated child shell.
   # shellcheck disable=SC2016
   run bash -c 'source "$1/scripts/common.sh"; source "$1/scripts/package-resolve.sh"; _plan_os() { echo macos; }; name=luacheck; probe=luacheck; current=-; candidate=-; _resolve_luarocks; printf "%s\n" "$status"' _ "$ROOT"
