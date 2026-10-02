@@ -147,6 +147,29 @@ test("responsive thresholds hold at narrow, 99, 200, and 240 columns", () => {
   })
 })
 
+test("quota keeps its space at the iPad terminal width", () => {
+  assert.equal(statusVisibility(124, true, false, true).provider, false)
+  assert.equal(statusVisibility(125, true, false, true).provider, true)
+  assert.deepEqual(statusVisibility(151, true, false, true), {
+    identity: false,
+    elapsed: false,
+    context: true,
+    cost: false,
+    provider: true,
+  })
+  assert.equal(statusVisibility(151, true, false, false).identity, true)
+  assert.equal(statusVisibility(94, false, false, true).provider, false)
+  assert.equal(statusVisibility(95, false, false, true).provider, true)
+  assert.equal(statusVisibility(240, true, true, true).provider, false)
+  assert.deepEqual(statusVisibility(240, true, false, true), {
+    identity: true,
+    elapsed: true,
+    context: true,
+    cost: true,
+    provider: true,
+  })
+})
+
 test("usage and provider values render as left-side pills", () => {
   assert.match(STATUSLINE_SOURCE, /icon=\{CONTEXT_ICON\}/)
   assert.match(STATUSLINE_SOURCE, /icon=\{COST_ICON\}/)
@@ -155,6 +178,8 @@ test("usage and provider values render as left-side pills", () => {
   assert.doesNotMatch(STATUSLINE_SOURCE, /<box flexGrow=\{1\} \/>/)
   assert.match(STATUSLINE_SOURCE, /contextUsage=\{usage\(\)\.context\}/)
   assert.match(STATUSLINE_SOURCE, /provider=\{provider\(\)\}/)
+  assert.ok(STATUSLINE_SOURCE.indexOf("visibility().provider && props.provider")
+    < STATUSLINE_SOURCE.indexOf("visibility().identity && identity()"))
 })
 
 test("Codex classifies quota windows by duration, including weekly-only primary windows", () => {

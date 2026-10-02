@@ -230,8 +230,11 @@ subscription limits. Available windows show labels such as
 by their reported duration, including accounts whose primary window is weekly.
 Providers without a quota source have no pill. There is no separate Gum
 component or quota configuration switch.
-Context, cost, and provider usage are separate left-aligned pills after the
-activity pills. Reset countdowns are omitted.
+Provider usage sits after Git and before identity and activity. When quota data
+is available, the footer reserves 50 columns for it and delays less essential
+pills. It appears from 125 columns with Git or 95 without Git, so a 151-column
+iPad terminal can show the quota and context together. Context and cost remain
+separate left-aligned pills. Reset countdowns are omitted.
 
 Gateways can publish sanitized quota figures in
 `~/.cache/opencode/provider-usage/usage.json`, or override the path with
@@ -257,7 +260,7 @@ switches clear the previous account's cache.
 | Subagents | Running child sessions and queued child prompts | Orange single-cell animation while children run; static icon for queued-only work; hidden without child work |
 | Context | Latest post-compaction context usage | Left-aligned pill; survives longest among usage pills |
 | Estimated cost | Aggregate session-family cost | Left-aligned pill; hidden before context at narrow widths |
-| Provider limit | Copilot monthly used percentage, OpenAI weekly remaining percentage, or available Claude/gateway subscription windows | Automatically follows the active provider; hidden first at narrow widths; no reset countdown |
+| Provider limit | Copilot monthly used percentage, OpenAI weekly remaining percentage, or available Claude/gateway subscription windows | Follows the active provider; visible from 125 columns with Git or 95 without; reserves space before identity, elapsed time and cost; no reset countdown |
 
 The plugin refreshes Git status after filesystem and branch events with a 250
 ms debounce, and refreshes provider limits every 60 seconds. During execution

@@ -371,7 +371,7 @@ function StatusPills(props: {
   })
 
   const visibility = createMemo(() =>
-    statusVisibility(terminal().width, Boolean(git()), Boolean(props.home)),
+    statusVisibility(terminal().width, Boolean(git()), Boolean(props.home), Boolean(props.provider)),
   )
   const foreground = createMemo(() => {
     const id = props.sessionID
@@ -403,6 +403,9 @@ function StatusPills(props: {
           />
         )}
       </Show>
+      <Show when={visibility().provider && props.provider}>
+        {(value) => <Pill icon={value().icon ?? PROVIDER_ICON} value={value().text} accent={value().color} />}
+      </Show>
       <Show when={visibility().identity && identity()}>
         {(value) => (
           <box flexDirection="row" flexShrink={0} gap={1}>
@@ -432,9 +435,6 @@ function StatusPills(props: {
       </Show>
       <Show when={visibility().cost && props.cost}>
         {(value) => <Pill icon={COST_ICON} value={value()} accent={COLOR.cost} />}
-      </Show>
-      <Show when={visibility().provider && props.provider}>
-        {(value) => <Pill icon={value().icon ?? PROVIDER_ICON} value={value().text} accent={value().color} />}
       </Show>
       <Show when={visibility().identity && props.tier}>
         {(tier) => <TierPill value={tier()} />}
