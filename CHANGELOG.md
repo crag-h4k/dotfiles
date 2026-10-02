@@ -1,5 +1,13 @@
 # Changelog
 
+## [1.2.0](https://github.com/crag-h4k/dotfiles/compare/v1.1.0...v1.2.0) (2026-10-02)
+
+
+### Features
+
+* **packaging:** modernize oc2 and package tooling and plan ([#78](https://github.com/crag-h4k/dotfiles/issues/78)) ([25c77f9](https://github.com/crag-h4k/dotfiles/commit/25c77f972716ca6c8d8cc913bff1b94625de8cfb))
+* **tooling:** add resolved package plans and OpenCode terminal tooling ([#82](https://github.com/crag-h4k/dotfiles/issues/82)) ([58da11f](https://github.com/crag-h4k/dotfiles/commit/58da11fcbcdcf6e599680909a2bcfb780503d9ce))
+
 ## [1.1.0](https://github.com/crag-h4k/dotfiles/compare/v1.0.3...v1.1.0) (2026-09-30)
 
 
