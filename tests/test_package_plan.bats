@@ -260,10 +260,9 @@ STUB
       _display
     ' _ "$PLANNER" "$tree"
   [ "$status" -eq 0 ]
-  [[ "$output" == *"Install plan"* ]]
-  [[ "$output" != *"Installed (1)"* ]]
+  [[ "$output" == *"Everything is up to date."* ]]
+  [[ "$output" != *"Install plan"* ]]
   [[ "$output" != *"To update"* ]]
-  [[ "$output" != *"Up to date"* ]]
 }
 
 @test "npm reports multiple detected updates from one prefix" {

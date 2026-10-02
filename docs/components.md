@@ -354,10 +354,11 @@ Matching installed versions are skipped. Failed metadata lookups are reported
 as blocked instead of prompting blind reinstalls. Missing executable or runtime
 files still trigger repair. The saved approval is scoped to the source tree,
 component selection, and relevant installer content.
-The single `[y/N]` after the plan authorizes all package work. On
-macOS, dotfiles passes Homebrew's `--no-ask` after that approval so Homebrew
-does not ask again. On Debian, a new selected third-party repository triggers
-one extra metadata refresh after it is added.
+Pending package work uses one `[y/N]` confirmation. A fully current plan prints
+`Everything is up to date.` in green and continues without a prompt. On macOS,
+dotfiles passes Homebrew's `--no-ask` after approval so Homebrew does not ask
+again. On Debian, a new selected third-party repository triggers one extra
+metadata refresh after it is added.
 
 Package mode installs missing tools and updates the managed set. Config-only
 mode still clones missing selected chezmoi externals and runs safe finalizers,

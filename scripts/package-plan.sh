@@ -500,17 +500,25 @@ _build() {
     fi
 }
 
-# Status-first plan: new items to install at the top, outdated ones next, and
-# installed ones at the bottom. Colored by status when the output lands on
-# a terminal (or DOTFILES_PLAN_COLOR is set); honors NO_COLOR.
+# Status-first plan: pending installs and updates appear first, while current
+# records stay in the saved plan but out of the display. Colored by status when
+# the output lands on a terminal (or DOTFILES_PLAN_COLOR is set); honors NO_COLOR.
 _display() {
-    local tier wanted source name status policy origin probe record n label tcolor current candidate reason
+    local tier wanted source name status policy origin probe record n label tcolor current candidate reason all_current=true
     local c_new c_upd c_old c_hdr c_rst
     if [[ ( -t 1 || -n "${DOTFILES_PLAN_COLOR:-}" ) && -z "${NO_COLOR:-}" ]]; then
         c_new=$'\033[32m'; c_upd=$'\033[33m'; c_old=$'\033[2m'
         c_hdr=$'\033[1m'; c_rst=$'\033[0m'
     else
         c_new=""; c_upd=""; c_old=""; c_hdr=""; c_rst=""
+    fi
+    for record in "${_records[@]}"; do
+        IFS=$'\t' read -r source name status policy origin probe current candidate reason <<< "$record"
+        [[ "$status" == installed || "$status" == absent ]] || all_current=false
+    done
+    if [[ "$all_current" == true ]]; then
+        printf '%sEverything is up to date.%s\n' "$c_new" "$c_rst"
+        return 0
     fi
     printf '%sInstall plan%s\n' "$c_hdr" "$c_rst"
         for tier in remove planned update check blocked; do

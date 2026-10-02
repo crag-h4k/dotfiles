@@ -43,6 +43,25 @@ drive() {
   [ -f "$SENTINEL" ]
 }
 
+@test "confirm-install: current plan proceeds without an answer" {
+  cat >"$STUBS/brew" <<'STUB'
+#!/bin/sh
+case "$*" in
+  update) ;;
+  "list --formula") printf 'git\ncurl\ngum\nchezmoi\nprek\n' ;;
+  "list --cask"|"outdated --formula --quiet"|"outdated --cask --quiet") ;;
+  *) exit 91 ;;
+esac
+STUB
+  chmod +x "$STUBS/brew"
+  run env PATH="${STUBS}:/usr/bin:/bin" DOTFILES_PLAN_OS=macos \
+    DOTFILES_PKG_CONFIRM_SENTINEL="${SENTINEL}" \
+    "$PYTHON3" "$PTY" "" bash "$CONFIRM"
+  [ "$status" -eq 0 ]
+  [ "$output" = "packages" ]
+  [ -f "$SENTINEL" ]
+}
+
 @test "confirm-install: empty (Enter) -> configs, no sentinel" {
   drive ""
   [ "$status" -eq 0 ]

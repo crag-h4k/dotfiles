@@ -116,10 +116,18 @@ package_plan_create() {
     export DOTFILES_PACKAGE_PLAN="$plan"
 }
 
+package_plan_is_current() {
+    awk -F '\t' 'BEGIN { current = 1 } { rows++ } $3 != "installed" && $3 != "absent" { current = 0 } END { exit !(rows && current) }' "$1"
+}
+
+package_plan_needs_confirmation() {
+    awk -F '\t' '$3 ~ /^(planned|update|check|remove)$/ { action = 1 } END { exit !action }' "$1"
+}
+
 package_plan_confirm() {
     local plan="$1" label="$2" dev="${DOTFILES_TTY:-/dev/tty}" response
     "$_COMMON_SH_DIR/package-plan.sh" --display-file "$plan" || return 1
-    if ! awk -F '\t' '$3 ~ /^(planned|update|check|remove)$/ { action=1 } END { exit !action }' "$plan"; then
+    if ! package_plan_needs_confirmation "$plan"; then
         return 0
     fi
     if _is_truthy "${DOTFILES_ASSUME_YES:-}"; then return 0; fi
@@ -1487,10 +1495,16 @@ pkg_confirm() {
             return 1
         fi
         package_plan_create || { warn "could not resolve package plan"; return 1; }
-        plan="$("$_COMMON_SH_DIR/package-plan.sh" --display-file "$DOTFILES_PACKAGE_PLAN")"
+        plan="$(DOTFILES_PLAN_COLOR=1 "$_COMMON_SH_DIR/package-plan.sh" --display-file "$DOTFILES_PACKAGE_PLAN")"
         {
             if [[ -n "$plan" ]]; then
                 printf '%s\n\n' "$plan"
+            fi
+            if package_plan_is_current "$DOTFILES_PACKAGE_PLAN"; then
+                return 0
+            fi
+            if ! package_plan_needs_confirmation "$DOTFILES_PACKAGE_PLAN"; then
+                return 0
             fi
             printf 'dotfiles: %s. Install/update packages now? [y/N] ' "$label"
         } >>"$dev"

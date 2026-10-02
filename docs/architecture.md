@@ -54,10 +54,11 @@ Homebrew and APT use that fresh metadata and batch selected package-manager
 operations. Independent operations report their own failure and the run ends
 with an aggregate result summary.
 
-Each package run has one `[y/N]` confirmation after the refreshed plan. Set
-`DOTFILES_ASSUME_YES=1` for an unattended deployment. Declining, or running
-headlessly without that opt-in, applies configuration only and does not change
-the stored `installMode`.
+Each package run with pending work has one `[y/N]` confirmation after the
+refreshed plan. A fully current plan displays a green `Everything is up to
+date.` message and continues without prompting. Set `DOTFILES_ASSUME_YES=1`
+for an unattended deployment. Declining, or running headlessly without that
+opt-in, applies configuration only and does not change the stored `installMode`.
 
 On Debian, NodeSource and Aqua Security use explicit signed APT sources.
 NodeSource is selected for Neovim or any Node-dependent AI feature. tenv,

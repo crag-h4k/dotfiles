@@ -29,7 +29,8 @@ chezmoi apply
 chezmoi apply --refresh-externals
 
 # Re-run package provisioning without deleting chezmoi script state. This
-# refreshes package metadata, shows the package plan, and asks once for approval.
+# refreshes package metadata, shows pending work, and asks once for approval.
+# If nothing needs work, it prints “Everything is up to date.” and continues.
 # Approving advances the persisted packageRun trigger and reruns only the
 # content-hashed installer:
 cup

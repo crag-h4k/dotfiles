@@ -35,6 +35,12 @@ printf 'dotfiles: package metadata refresh and inspection complete (%ss).\n\n' "
 # are the first thing read.
 printf '%s\n\n' "$plan" >"$TTY_DEVICE"
 
+if package_plan_is_current "$DOTFILES_PACKAGE_PLAN"; then
+    package_plan_save_approval
+    printf 'packages\n'
+    exit 0
+fi
+
 printf 'dotfiles: apply this package plan? [y/N] ' >"$TTY_DEVICE"
 IFS= read -r choice <"$TTY_DEVICE" || choice=""
 
