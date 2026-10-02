@@ -175,6 +175,10 @@ plugin SDK at the active CLI version. The wrapper runs it before OpenCode starts
 when the versions differ, including after a native `/update`, so the runtime is
 not version-pinned in dotfiles and cannot remain stale.
 
+The installer migrates `bin/opencode2` links into an older `releases/` layout
+before npm takes ownership. It retains the old release and restores its link
+if CLI verification or the matching runtime installation fails.
+
 `~/.config/opencode/opencode.jsonc` is merge-managed. Chezmoi reasserts the
 schema, built-in agent colors, and exact-pinned V2 plugin list while preserving
 unknown top-level keys and comments. A fresh host receives native ordered

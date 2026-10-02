@@ -68,6 +68,8 @@ settings in these files, and `chezmoi update` keeps working:
 - Zsh: `~/.zsh_override`
 - Neovim: `~/.config/nvim/lua/override.lua`
 - Git: `~/.gitconfig.override`
+- OpenCode CLI settings: `~/.config/opencode/cli.override.json`
+- OpenCode launch behavior: `~/.config/opencode/override.zsh`
 
 None are chezmoi-managed. Each is listed
 unconditionally in `home/.chezmoiignore`, so chezmoi never applies or removes
@@ -83,6 +85,19 @@ missing include, Zsh uses an `[[ -r ]]` guard, and Neovim uses a guarded
 Each override loads after its managed base. Most load at the absolute end. tmux
 loads its override before the managed plugin list and the final TPM command so
 local plugin declarations and options exist before plugin startup.
+
+The OpenCode wrapper passes `cli.override.json` to the native
+`OPENCODE_CLI_CONFIG_CONTENT` loader. An explicitly exported value takes
+precedence over the file. Use this local JSON file for terminal preferences
+and extra CLI plugins. Keep private plugins under
+`~/.config/opencode/v2-plugins/local/`, which is also ignored by chezmoi.
+
+The wrapper sources `override.zsh` after resolving its isolated `binary` and
+classifying `interactive` and `explicit_server`, before choosing standalone
+mode. The override can export environment variables or execute `"$binary"`
+with local server arguments. Credentials can be sourced from the ignored
+`~/.config/opencode/remote.env`; keep them out of the public source tree.
+A failed override stops the launch.
 
 ```text
 # ~/.config/ghostty/override.conf

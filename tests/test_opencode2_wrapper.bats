@@ -20,6 +20,9 @@ setup() {
   cat >"$PREFIX/bin/opencode2" <<'STUB'
 #!/usr/bin/env zsh
 print -r -- "prefix=$NPM_CONFIG_PREFIX"
+if [[ -n "${OPENCODE_CLI_CONFIG_CONTENT:-}" ]]; then
+  print -r -- "cli=$OPENCODE_CLI_CONFIG_CONTENT"
+fi
 for arg in "$@"; do
   print -r -- "arg=$arg"
 done
@@ -57,6 +60,9 @@ fi
     fi
     shift
     done
+    if [ "${NPM_REQUIRE_FREE_BIN:-0}" = 1 ] && { [ -e "$prefix/bin/opencode2" ] || [ -L "$prefix/bin/opencode2" ]; }; then
+      exit 1
+    fi
     [ "${NPM_CLI_FAIL:-0}" = 1 ] && exit 1
     mkdir -p "$prefix/bin"
   cat >"$prefix/bin/opencode2" <<'BIN'
@@ -72,7 +78,7 @@ exit 0
 STUB
   cat >"$stub_dir/sync-runtime" <<'STUB'
 #!/bin/sh
-exit 0
+exit "${NPM_RUNTIME_FAIL:-0}"
 STUB
   chmod +x "$stub_dir/npm" "$stub_dir/node" "$stub_dir/sync-runtime"
   before=$(cksum "$WRAPPER")
@@ -83,8 +89,9 @@ STUB
     OPENCODE2_RUNTIME_SYNC="$stub_dir/sync-runtime" \
     OPENCODE2_CONFIG_DIR="$HOME/.config/opencode" bash "$INSTALLER"
 
-  [ "$status" -eq 0 ]
+  [ "$status" -eq "${2:-0}" ]
   [ "$(cksum "$WRAPPER")" = "$before" ]
+  [ "${2:-0}" -eq 0 ] || return 0
   grep -Eq "^install -g --prefix $PREFIX( --allow-scripts=@opencode/cli)? @opencode/cli@latest$" "$npm_log"
   [[ "$output" == *"installed @opencode/cli@2.0.8"* ]]
 }
@@ -248,4 +255,86 @@ arg=status" ]
 
 @test "npm 12 installer permits the CLI postinstall without enabling runtime scripts" {
   install_with_npm 12.0.2
+}
+
+@test "CLI overrides are passed to the native configuration loader" {
+  mkdir -p "$HOME/.config/opencode"
+  printf '%s\n' '{"session":{"sidebar":"show"}}' >"$HOME/.config/opencode/cli.override.json"
+  run "$WRAPPER" --version
+  [ "$status" -eq 0 ]
+  [[ "$output" == *'cli={"session":{"sidebar":"show"}}'* ]]
+}
+
+@test "an explicit CLI overlay takes precedence over the local file" {
+  mkdir -p "$HOME/.config/opencode"
+  printf '%s\n' '{"session":{"sidebar":"hide"}}' >"$HOME/.config/opencode/cli.override.json"
+  run env OPENCODE_CLI_CONFIG_CONTENT='{"session":{"sidebar":"show"}}' "$WRAPPER" --version
+  [ "$status" -eq 0 ]
+  [[ "$output" == *'cli={"session":{"sidebar":"show"}}'* ]]
+}
+
+@test "local launch overrides can select a server before standalone routing" {
+  mkdir -p "$HOME/.config/opencode"
+  cat >"$HOME/.config/opencode/override.zsh" <<'OVERRIDE'
+if [[ "$interactive" == true && "$explicit_server" == false ]]; then
+  exec "$binary" --server https://example.invalid "$@"
+fi
+OVERRIDE
+  run "$WRAPPER" "two words"
+  [ "$status" -eq 0 ]
+  [ "$output" = "prefix=$PREFIX
+arg=--server
+arg=https://example.invalid
+arg=two words" ]
+  run "$WRAPPER" --standalone
+  [ "$status" -eq 0 ]
+  [ "$output" = "prefix=$PREFIX
+arg=--standalone" ]
+}
+
+@test "a failed local override prevents launching with partial settings" {
+  mkdir -p "$HOME/.config/opencode"
+  printf 'return 7\n' >"$HOME/.config/opencode/override.zsh"
+  run "$WRAPPER"
+  [ "$status" -eq 7 ]
+  [ -z "$output" ]
+}
+
+legacy_release_link() {
+  local release="$PREFIX/releases/2.0.7/bin"
+  mkdir -p "$release"
+  mv "$PREFIX/bin/opencode2" "$release/opencode2"
+  ln -s "$release/opencode2" "$PREFIX/bin/opencode2"
+}
+
+@test "installer migrates legacy release links without forcing npm" {
+  legacy_release_link
+  local old_target
+  old_target="$(readlink "$PREFIX/bin/opencode2")"
+  export NPM_REQUIRE_FREE_BIN=1
+  install_with_npm 11.11.0
+  [ -x "$old_target" ]
+  [ ! -L "$PREFIX/bin/opencode2" ]
+}
+
+@test "failed npm migration restores the previous executable link" {
+  legacy_release_link
+  local old_target
+  old_target="$(readlink "$PREFIX/bin/opencode2")"
+  export NPM_CLI_FAIL=1
+  install_with_npm 11.11.0 1
+  [ "$(readlink "$PREFIX/bin/opencode2")" = "$old_target" ]
+  [ -x "$PREFIX/bin/opencode2" ]
+  [[ "$output" == *"restored the previous release link"* ]]
+}
+
+@test "failed runtime migration restores the link after npm creates a new binary" {
+  legacy_release_link
+  local old_target
+  old_target="$(readlink "$PREFIX/bin/opencode2")"
+  export NPM_RUNTIME_FAIL=1
+  install_with_npm 11.11.0 1
+  [ "$(readlink "$PREFIX/bin/opencode2")" = "$old_target" ]
+  [ -x "$PREFIX/bin/opencode2" ]
+  [[ "$output" == *"restored the previous release link"* ]]
 }

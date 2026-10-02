@@ -35,6 +35,10 @@
 .config/opencode/node_modules
 .config/opencode/package.json
 .config/opencode/package-lock.json
+.config/opencode/cli.override.json
+.config/opencode/override.zsh
+.config/opencode/remote.env
+.config/opencode/v2-plugins/local
 .tmux/conf.d/override.conf
 .tmux/plugins
 .local/share/opencode2
