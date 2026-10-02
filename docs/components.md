@@ -230,7 +230,7 @@ subscription limits. Available windows show labels such as
 by their reported duration, including accounts whose primary window is weekly.
 Providers without a quota source have no pill. There is no separate Gum
 component or quota configuration switch.
-Provider usage sits after Git and before identity and activity. When quota data
+Provider usage sits at the far right, after the model tier. When quota data
 is available, the footer reserves 50 columns for it and delays less essential
 pills. It appears from 125 columns with Git or 95 without Git, so a 151-column
 iPad terminal can show the quota and context together. Context and cost remain
@@ -273,6 +273,18 @@ The spinner clock exists only while a visible foreground spinner or running
 child needs it. Both animations can appear together. Foreground and subagent
 frames update only their single-cell glyphs, leaving Git, context, cost, and
 quota calculations off the animation path.
+
+Selecting `ai.opencode` includes this footer. The separate `ai.statusline`
+selection controls Claude's statusline and Codex's theme.
+
+`/demo` opens a fresh session using the selected provider and model, with the
+lowest supported reasoning variant. Its dedicated agent reads one small bundled
+file and answers in at most 60 words, with a two-step limit. It cannot edit files,
+run shell commands, or launch subagents. The completion toast reports actual
+usage; normal system and tool instructions still consume input tokens.
+`/demo diagnostics` opens a local glyph comparison and renderer-capability view
+without making a model request. Compare it inside and outside tmux when icons
+fail in a terminal client.
 
 The same palette overrides the built-in prompt metadata colors through
 `agents.build.color` and `agents.plan.color`. Build renders in palette green;
@@ -328,12 +340,17 @@ Set `DOTFILES_PALETTE=<id>` for a non-interactive selection. See
 [Palette catalog](palettes.md) for generation and mapping details.
 
 The final screen groups the deduplicated package plan by status: install,
-update, then current. Colors honor `NO_COLOR`, and every line names its package
-source and whether it floats or is pinned.
+detected update, check, blocked, and installed. Colors honor `NO_COLOR`, and every
+line names its package source and whether it floats or is pinned.
 
 The plan refreshes Homebrew or APT metadata before it is shown, then uses the
-fresh package-manager inventory to classify selected items as install, update,
-or current. The single `[y/N]` after the plan authorizes all package work. On
+fresh inventory and upstream versions to resolve one plan. The installer and
+its child scripts consume those same decisions and exact target versions.
+Matching installed versions are skipped. Failed metadata lookups are reported
+as blocked instead of prompting blind reinstalls. Missing executable or runtime
+files still trigger repair. The saved approval is scoped to the source tree,
+component selection, and relevant installer content.
+The single `[y/N]` after the plan authorizes all package work. On
 macOS, dotfiles passes Homebrew's `--no-ask` after that approval so Homebrew
 does not ask again. On Debian, a new selected third-party repository triggers
 one extra metadata refresh after it is added.
@@ -352,16 +369,33 @@ then fetches only the matching tracking remote and fast-forwards clean branches.
 On macOS, package mode batches selected formula and cask installs and upgrades.
 An existing Ghostty app that is not managed by Homebrew is reported as a manual
 exception. On Debian, one `apt-get install` command selects the current
-candidate version for the managed package set without running a distribution
+candidate versions for missing or outdated managed packages without running a distribution
 upgrade. Ghostty remains a manual install there too.
 
-Floating npm CLIs, Neovim Python providers, LuaRocks tools,
-checksum-verified GitHub release binaries, Lazy plugins,
-Treesitter parsers, and installed Mason packages update on every approved
-package run. Selected chezmoi Git externals and installer-owned TPM repositories
-advance only when their checkout is clean and the remote change is a
-fast-forward. Dirty, detached, ahead, or diverged checkouts are skipped with a
-warning.
+Floating npm CLIs, Neovim Python providers, LuaRocks tools, and
+checksum-verified GitHub release binaries install only when their resolved
+version differs or their installation needs repair. The plan also lists each
+Lazy plugin, Treesitter parser, Mason package, and selected Zsh or tmux Git
+checkout with its installed and candidate version or revision. Current items
+are skipped; metadata failures appear under `Could not check`.
+
+Native discovery refreshes registry metadata and Git objects without installing
+packages or changing checked-out files. Parser candidates come from the planned
+Treesitter plugin revision. Execution uses the selected versions and commits
+instead of resolving a different update set after approval. Dirty, detached,
+ahead, or diverged managed Git checkouts are reported before installation.
+
+On a fresh host, missing Git or Neovim managers appear as bootstrap
+prerequisites. Missing chezmoi externals are resolved after configuration
+materializes them. The installer then displays the concrete package details
+and confirms any new actions before continuing; a current set needs no second
+approval. Unattended mode retains its explicit assume-yes behavior.
+
+Every installer run saves output, its plan, and final exit status under
+`${XDG_STATE_HOME:-~/.local/state}/dotfiles/install/`, with private permissions.
+`scripts/install.sh --log` displays the latest log and `--log-path` prints its
+path; neither option starts installation. Independent steps continue after a
+failure, but the final installer result is nonzero so chezmoi can retry it.
 
 Exact versions remain source-controlled. Package mode reasserts the pinned
 tree-sitter CLI instead of advancing it. The pinned OpenCode statusline plugin

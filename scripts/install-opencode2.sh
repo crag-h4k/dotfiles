@@ -29,9 +29,9 @@ PY
 }
 
 install_cli() {
-    local native_link="$1"
-    shift
-    if ! npm "$@" "@opencode/cli@$OPENCODE2_VERSION"; then
+    local native_link="$1" install_needed="$2"
+    shift 2
+    if [[ "$install_needed" == true ]] && ! npm "$@" "@opencode/cli@$OPENCODE2_VERSION"; then
         warn "opencode2: npm install failed"
         return 1
     fi
@@ -73,7 +73,7 @@ install_cli() {
         return 1
     fi
 
-    info "opencode2: installed @opencode/cli@${have:-$OPENCODE2_VERSION} and matching plugin runtime"
+    info "opencode2: @opencode/cli@$have and matching plugin runtime are current"
 }
 
 main() {
@@ -108,19 +108,44 @@ main() {
     [[ -x "$WRAPPER" ]] \
         || { warn "opencode2: managed wrapper missing at $WRAPPER"; return 1; }
 
-    local npm_version
+    if [[ ! "$OPENCODE2_VERSION" =~ ^[0-9]+\.[0-9]+\.[0-9]+([+-].*)?$ ]]; then
+        local requested="$OPENCODE2_VERSION"
+        OPENCODE2_VERSION=$(npm view "@opencode/cli@$requested" version 2>/dev/null) \
+            || { warn "opencode2: could not resolve $requested; keeping the installed CLI"; return 1; }
+        [[ "$OPENCODE2_VERSION" =~ ^[0-9]+\.[0-9]+\.[0-9]+([+-].*)?$ ]] \
+            || { warn "opencode2: npm returned an invalid CLI version"; return 1; }
+    fi
+
+    local npm_version npm_major npm_minor
     local -a cli_install_args=(install -g --prefix "$NPM_PREFIX")
     npm_version=$(npm --version)
-    # npm 12 blocks the postinstall that replaces the CLI's launcher placeholder.
-    if [[ "${npm_version%%.*}" -ge 12 ]]; then
+    [[ "$npm_version" =~ ^([0-9]+)\.([0-9]+)\. ]] \
+        || { warn "opencode2: could not determine npm version"; return 1; }
+    npm_major="${BASH_REMATCH[1]}"
+    npm_minor="${BASH_REMATCH[2]}"
+    # npm 11.16 introduced lifecycle approvals; npm 12 enforces them.
+    if (( npm_major > 11 || (npm_major == 11 && npm_minor >= 16) )); then
         cli_install_args+=(--allow-scripts=@opencode/cli)
+    fi
+
+    local installed="" package_version="" install_needed=true
+    if [[ -x "$native_link" ]]; then
+        installed=$("$native_link" --version 2>/dev/null | awk '{print $NF}' | tr -d '[:space:]' || true)
+        installed="${installed#v}"
+        package_version=$(node -p 'JSON.parse(require("node:fs").readFileSync(process.argv[1], "utf8")).version' \
+            "$NPM_PREFIX/lib/node_modules/@opencode/cli/package.json" 2>/dev/null || true)
+        if [[ "$installed" == "$OPENCODE2_VERSION" && "$package_version" == "$installed" \
+            && "$resolved_native" == "$NPM_PREFIX/lib/node_modules/@opencode/cli/"* ]]; then
+            install_needed=false
+            info "opencode2: CLI $installed is current; checking plugin runtime"
+        fi
     fi
     local legacy_backup=""
     if [[ -L "$native_link" && "$resolved_native" == "$NPM_PREFIX/releases/"* ]]; then
         legacy_backup="$(mktemp -d "$NPM_PREFIX/.npm-migration.XXXXXX")"
         mv "$native_link" "$legacy_backup/opencode2"
     fi
-    if ! install_cli "$native_link" "${cli_install_args[@]}"; then
+    if ! install_cli "$native_link" "$install_needed" "${cli_install_args[@]}"; then
         if [[ -n "$legacy_backup" ]]; then
             mv -f "$legacy_backup/opencode2" "$native_link"
             rmdir "$legacy_backup"

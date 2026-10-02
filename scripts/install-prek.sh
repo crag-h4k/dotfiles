@@ -15,6 +15,12 @@ if [[ "$(os_detect)" != debian ]]; then
     exit 0
 fi
 
+if [[ -x "$HOME/.local/bin/prek" ]] && \
+    [[ "$("$HOME/.local/bin/prek" --version 2>/dev/null | awk '{print $2}')" == "$PREK_VERSION" ]]; then
+    info "prek $PREK_VERSION is current"
+    exit 0
+fi
+
 install_uv_debian
 uv_bin="$(command -v uv)"
 "$uv_bin" tool install --force "prek==$PREK_VERSION"

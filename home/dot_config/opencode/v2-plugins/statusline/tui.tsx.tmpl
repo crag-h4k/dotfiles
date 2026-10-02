@@ -7,6 +7,8 @@ import { useTerminalDimensions } from "@opentui/solid"
 import { createEffect, createMemo, createSignal, onCleanup, Show } from "solid-js"
 import { LIMIT_ICON, LIMITS_RPC_SCHEMA, limitSummary } from "./limits.mjs"
 import { quotaLabel } from "./openai-quota.mjs"
+import { registerDemo } from "./demo.mjs"
+import { showDiagnostics } from "./diagnostics"
 import {
   SPINNER_INTERVAL_MS,
   CONTEXT_ICON,
@@ -225,14 +227,12 @@ function duration(ms: number) {
 function Pill(props: { icon: string; value: string; accent: string }) {
   return (
     <box flexDirection="row" flexShrink={0}>
-      <text fg={COLOR.surface}></text>
-      <text fg={props.accent} bg={COLOR.surface} wrapMode="none">
-        {` ${props.icon}`}
+      <text fg={COLOR.surface} wrapMode="none" flexShrink={0}>
+        {""}
+        <span style={ { fg: props.accent, bg: COLOR.surface } }>{` ${props.icon} `}</span>
+        <span style={ { fg: COLOR.foreground, bg: COLOR.surface } }>{`${props.value} `}</span>
+        {""}
       </text>
-      <text fg={COLOR.foreground} bg={COLOR.surface} wrapMode="none">
-        {` ${props.value} `}
-      </text>
-      <text fg={COLOR.surface}></text>
     </box>
   )
 }
@@ -240,31 +240,23 @@ function Pill(props: { icon: string; value: string; accent: string }) {
 function IdentityPill(props: { value: Identity }) {
   return (
     <box flexDirection="row" flexShrink={0}>
-      <text fg={COLOR.surface}></text>
-      <text fg={COLOR.identity} bg={COLOR.surface} wrapMode="none">
-        {" 󰚩 "}
+      <text fg={COLOR.surface} wrapMode="none" flexShrink={0}>
+        {""}
+        <span style={ { fg: COLOR.identity, bg: COLOR.surface } }>{" 󰚩 "}</span>
+        <span style={ { fg: props.value.color, bg: COLOR.surface } }>{props.value.agent}</span>
+        <Show when={props.value.model}>
+          {(model) => (
+            <span style={ { fg: COLOR.foreground, bg: COLOR.surface } }>{` · ${model()}`}</span>
+          )}
+        </Show>
+        <Show when={props.value.effort}>
+          {(effort) => (
+            <span style={ { fg: COLOR.dirty, bg: COLOR.surface } }>{` · ${effort()}`}</span>
+          )}
+        </Show>
+        <span style={ { fg: COLOR.foreground, bg: COLOR.surface } }>{" "}</span>
+        {""}
       </text>
-      <text fg={props.value.color} bg={COLOR.surface} wrapMode="none">
-        {props.value.agent}
-      </text>
-      <Show when={props.value.model}>
-        {(model) => (
-          <text fg={COLOR.foreground} bg={COLOR.surface} wrapMode="none">
-            {` · ${model()}`}
-          </text>
-        )}
-      </Show>
-      <Show when={props.value.effort}>
-        {(effort) => (
-          <text fg={COLOR.dirty} bg={COLOR.surface} wrapMode="none">
-            {` · ${effort()}`}
-          </text>
-        )}
-      </Show>
-      <text fg={COLOR.foreground} bg={COLOR.surface}>
-        {" "}
-      </text>
-      <text fg={COLOR.surface}></text>
     </box>
   )
 }
@@ -272,14 +264,10 @@ function IdentityPill(props: { value: Identity }) {
 function TierPill(props: { value: ModelTier }) {
   return (
     <box flexDirection="row" flexShrink={0}>
-      <text fg={COLOR.surface}></text>
-      <text fg={props.value.color} bg={COLOR.surface} wrapMode="none">
-        {` ${props.value.icon}`}
+      <text bg={COLOR.surface} wrapMode="none" flexShrink={0}>
+        <span style={ { fg: props.value.color } }>{` ${props.value.icon} `}</span>
+        <span style={ { fg: COLOR.foreground } }>{`${props.value.text} `}</span>
       </text>
-      <text fg={COLOR.foreground} bg={COLOR.surface} wrapMode="none">
-        {` ${props.value.text} `}
-      </text>
-      <text fg={COLOR.surface}></text>
     </box>
   )
 }
@@ -392,52 +380,59 @@ function StatusPills(props: {
   const subagentStatus = createMemo(() => subagentLabel(subagents()) || undefined)
 
   return (
-    <box flexDirection="row" flexShrink={1} minWidth={0} gap={1}>
-      <Pill icon="󰉋" value={project()} accent={COLOR.project} />
-      <Show when={git()}>
-        {(value) => (
-          <Pill
-            icon=""
-            value={value()}
-            accent={props.git().files > 0 ? COLOR.dirty : COLOR.git}
-          />
-        )}
-      </Show>
+    <box flexDirection="row" flexGrow={props.home ? 0 : 1} flexShrink={1} minWidth={0} gap={1}>
+      <box flexDirection="row" flexShrink={1} minWidth={0} overflow="hidden" gap={1}>
+        <Pill icon="󰉋" value={project()} accent={COLOR.project} />
+        <Show when={git()}>
+          {(value) => (
+            <Pill
+              icon=""
+              value={value()}
+              accent={props.git().files > 0 ? COLOR.dirty : COLOR.git}
+            />
+          )}
+        </Show>
+        <Show when={visibility().identity && identity()}>
+          {(value) => (
+            <box flexDirection="row" flexShrink={0} gap={1}>
+              <Show when={foreground()}>
+                <text fg={COLOR.foregroundSpinner} width={1} wrapMode="none" flexShrink={0}>
+                  {foregroundSpinnerFrame(tick())}
+                </text>
+              </Show>
+              <IdentityPill value={value()} />
+            </box>
+          )}
+        </Show>
+        <Show when={visibility().elapsed && age()}>
+          {(value) => <Pill icon="󰥔" value={value()} accent={COLOR.elapsed} />}
+        </Show>
+        <Show when={!props.home && subagentStatus()}>
+          {(value) => (
+            <Pill
+              icon={subagentIcon(subagents().running, tick())}
+              value={value()}
+              accent={COLOR.subagents}
+            />
+          )}
+        </Show>
+        <Show when={visibility().context && props.contextUsage}>
+          {(value) => <Pill icon={CONTEXT_ICON} value={value()} accent={COLOR.context} />}
+        </Show>
+        <Show when={visibility().cost && props.cost}>
+          {(value) => <Pill icon={COST_ICON} value={value()} accent={COLOR.cost} />}
+        </Show>
+        <Show when={visibility().identity && props.tier}>
+          {(tier) => <TierPill value={tier()} />}
+        </Show>
+      </box>
       <Show when={visibility().provider && props.provider}>
-        {(value) => <Pill icon={value().icon ?? PROVIDER_ICON} value={value().text} accent={value().color} />}
-      </Show>
-      <Show when={visibility().identity && identity()}>
         {(value) => (
-          <box flexDirection="row" flexShrink={0} gap={1}>
-            <Show when={foreground()}>
-              <text fg={COLOR.foregroundSpinner} width={1} wrapMode="none" flexShrink={0}>
-                {foregroundSpinnerFrame(tick())}
-              </text>
-            </Show>
-            <IdentityPill value={value()} />
-          </box>
+          <>
+            <box flexGrow={1} />
+            <Pill icon={value().icon ?? PROVIDER_ICON} value={value().text} accent={value().color} />
+          </>
         )}
-      </Show>
-      <Show when={visibility().elapsed && age()}>
-        {(value) => <Pill icon="󰥔" value={value()} accent={COLOR.elapsed} />}
-      </Show>
-      <Show when={!props.home && subagentStatus()}>
-        {(value) => (
-          <Pill
-            icon={subagentIcon(subagents().running, tick())}
-            value={value()}
-            accent={COLOR.subagents}
-          />
-        )}
-      </Show>
-      <Show when={visibility().context && props.contextUsage}>
-        {(value) => <Pill icon={CONTEXT_ICON} value={value()} accent={COLOR.context} />}
-      </Show>
-      <Show when={visibility().cost && props.cost}>
-        {(value) => <Pill icon={COST_ICON} value={value()} accent={COLOR.cost} />}
-      </Show>
-      <Show when={visibility().identity && props.tier}>
-        {(tier) => <TierPill value={tier()} />}
       </Show>
     </box>
   )
@@ -602,6 +597,13 @@ export default Plugin.define({
   id: "dotfiles.statusline",
   setup(context) {
     const location = context.location ?? context.data.location.default()
+    const demo = context.ui.slot({
+      append: "app",
+      render: () => {
+        registerDemo(context, showDiagnostics)
+        return <></>
+      },
+    })
     const [git, setGit] = createSignal<GitStats>({ files: 0, additions: 0, deletions: 0 })
     const [now, setNow] = createSignal(Date.now())
     const [copilot, setCopilot] = createSignal<CopilotUsage>()
@@ -731,6 +733,7 @@ export default Plugin.define({
       clearInterval(tierClock)
       stopFiles()
       stopBranch()
+      demo()
       sessionFooter()
       homeFooter()
     }

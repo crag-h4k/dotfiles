@@ -90,6 +90,12 @@ echo "\$*" >> "${log}"
 exit 0
 STUB
   chmod +x "${stubdir}/brew"
+  cat > "${stubdir}/npm" <<'STUB'
+#!/bin/sh
+[ "$1" != outdated ] || printf '{}\n'
+exit 0
+STUB
+  chmod +x "${stubdir}/npm"
   # No DOTFILES_PLAN_ASSUME_MISSING, so status probing loads the brew inventory.
   # Multiple formula packages must still collapse to a single brew list of each kind.
   run env PATH="${stubdir}:${PATH}" DOTFILES_PLAN_OS=macos DOTFILES_PLAN_APPROVED=1 \
@@ -204,6 +210,53 @@ STUB
     INSTALL_TERMINAL_GHOSTTY=true bash "$PLANNER" --records
   [ "$status" -eq 0 ]
   [[ "$output" == *$'brew-cask\tghostty\tupdate\tfloating\t'* ]]
+}
+
+@test "an installed floating package is not a detected update" {
+  local stubs="$BATS_TEST_TMPDIR/floating-stubs" tree="$BATS_TEST_TMPDIR/installed-tree"
+  mkdir -p "$stubs" "$tree"
+  printf '#!/bin/sh\nexit 0\n' >"$stubs/installed-tool"
+  chmod +x "$stubs/installed-tool"
+  # Assertions expand inside the child shell.
+  # shellcheck disable=SC2016
+  run env PATH="$stubs:$PATH" DOTFILES_PLAN_OS=debian DOTFILES_PLAN_ASSUME_MISSING=1 \
+    bash -c '
+      source "$1" --records >/dev/null
+      unset DOTFILES_PLAN_ASSUME_MISSING
+      for approved in 0 1; do
+        export DOTFILES_PLAN_APPROVED=$approved
+        _status github-release yq installed-tool floating
+        [[ "$_status_result" == installed ]] || exit 1
+        for source in git-external git-runtime neovim-plugin treesitter-parsers mason-packages; do
+          _status "$source" installed-tree "$2" floating
+          [[ "$_status_result" == installed ]] || exit 1
+        done
+      done
+      _records=($'"'"'github-release\tyq\tinstalled\tfloating\thttps://github.com/mikefarah/yq/releases\tinstalled-tool'"'"')
+      _display
+    ' _ "$PLANNER" "$tree"
+  [ "$status" -eq 0 ]
+  [[ "$output" == *"Installed (1)"* ]]
+  [[ "$output" != *"To update"* ]]
+  [[ "$output" != *"Up to date"* ]]
+}
+
+@test "npm reports multiple detected updates from one prefix" {
+  local stubs="$BATS_TEST_TMPDIR/npm-outdated-stubs"
+  mkdir -p "$stubs"
+  cat >"$stubs/npm" <<'STUB'
+#!/bin/sh
+case "$1" in
+  list) printf '%s\n' "$HOME/.local/lib/node_modules/markdownlint-cli2" "$HOME/.local/lib/node_modules/@fsouza/prettierd" ;;
+  outdated) printf '%s' '{"markdownlint-cli2":{},"@fsouza/prettierd":{}}'; exit 1 ;;
+esac
+STUB
+  chmod +x "$stubs/npm"
+  run env PATH="$stubs:$PATH" DOTFILES_PLAN_OS=debian DOTFILES_PLAN_APPROVED=1 \
+    INSTALL_NEOVIM=true bash "$PLANNER" --records
+  [ "$status" -eq 0 ]
+  [[ "$output" == *$'npm\tmarkdownlint-cli2\tupdate\t'* ]]
+  [[ "$output" == *$'npm\t@fsouza/prettierd\tupdate\t'* ]]
 }
 
 @test "OpenCode V2 alone plans @opencode/cli AND the Node runtime (macOS)" {

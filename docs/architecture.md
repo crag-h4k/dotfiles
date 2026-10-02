@@ -97,10 +97,10 @@ The package installer owns shell-visible markdownlint-cli2, ShellCheck,
 yamllint, TFLint, and Luacheck. Mason owns the configured language
 servers and editor-only Gitleaks.
 
-Startup installs missing Mason packages. Approved package mode also updates
-installed Mason packages, Lazy plugins, and Treesitter parsers. Their revision
-state remains local and does not dirty the dotfiles repository. See [Neovim
-tooling](neovim.md) for the full split.
+Startup installs missing Mason packages. Package mode previews individual Mason
+packages, Lazy plugins, and Treesitter parsers, then applies only approved
+version or revision changes. Their revision state remains local and does not
+dirty the dotfiles repository. See [Neovim tooling](neovim.md) for the full split.
 
 ## What lives where
 

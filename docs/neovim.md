@@ -26,6 +26,11 @@ Mason does not install a duplicate.
 npm under `~/.local` on both platforms. `conform.nvim` shells out to that
 binary; Mason does not install a duplicate.
 
+Luacheck is installed and inventoried in the explicit LuaRocks tree
+`$HOME/.luarocks`, with its executable linked into `~/.local/bin`. This also
+works for root, where LuaRocks rejects `--local`. macOS uses Lua 5.4 for
+Luacheck compatibility.
+
 The Python provider is transactional. A sibling venv receives the floating
 `pynvim` package and must import it before the stable
 `~/.local/share/nvim-venv` symlink changes. A working previous venv remains in
@@ -59,12 +64,27 @@ before debugging further.
 
 Parser install is diffed against what is already present: `init.lua` installs
 only the parsers missing from the install dir, rather than the whole set on every
-launch. Approved package mode refreshes installed parsers. Run `:TSUpdate` for
-the same operation inside Neovim.
+launch. Package mode previews each configured or installed parser against the
+manifest in the candidate Treesitter plugin revision, then installs only the
+approved changes. `:TSUpdate` performs a manual refresh inside Neovim.
 
 Mason owns editor-only Gitleaks and the language servers. Startup installs only
-missing packages. Approved package mode refreshes the registry and updates
-installed packages without imposing one exact version across hosts.
+missing packages. The package plan refreshes registry metadata and shows the
+installed and candidate version of each configured or installed package.
+Approval selects those versions for that run without imposing one exact
+version across hosts.
+
+## Terminal display
+
+The shared palette defines RGB highlight colors. The configuration explicitly
+enables `termguicolors`, so terminals advertised as `xterm-256color` still render
+those syntax colors.
+
+On Linux, `termfeatures.osc52 = false` disables automatic OSC52 capability
+detection. This suppresses the clipboard query that can appear as `+q4D73` in
+Termius. Tmux, X11, Wayland, and explicitly configured clipboard providers remain
+available. See the [upstream terminal report](https://github.com/neovim/neovim/issues/39661)
+and [Neovim's clipboard detection setting](https://neovim.io/doc/user/provider/#g:termfeatures).
 
 ## LSP activation
 
@@ -99,9 +119,12 @@ Useful checks:
 
 ## Plugins and local revision state
 
-Lazy bootstraps itself under Neovim's data directory and syncs plugins during
-every approved package run. The declarative plugin list stays in the repo,
-while downloaded plugin state stays on the host.
+Lazy bootstraps itself under Neovim's data directory. The package plan lists each
+plugin's installed and candidate commit; unchanged plugins are skipped, and
+installation uses the approved commits. Discovery reads the shared plugin
+specifications without running startup callbacks or installing plugins. The
+declarative plugin list stays in the repo, while downloaded state stays on the
+host.
 
 `lazy-lock.json` is ignored intentionally. Normal Lazy or Mason updates should
 not dirty the dotfiles checkout, and this repo does not promise exact

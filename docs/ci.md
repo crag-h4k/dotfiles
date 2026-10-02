@@ -48,7 +48,9 @@ version documented in [Contributing](../CONTRIBUTING.md) and runs
 - Python and Bats suites.
 
 The workflow checks out the palette submodule and installs the system
-dependencies needed by hooks. It caches `~/.cache/prek` by operating system,
+dependencies needed by hooks. Bats is pinned in the hooks' isolated Node
+environment, so local runs and CI use the same runner without a global Bats
+installation. The workflow caches `~/.cache/prek` by operating system,
 architecture, prek version, and hook configuration. The shared CI summary
 comment includes the prek result. The workflow and job names are both `prek`.
 
@@ -111,8 +113,8 @@ afternoon. Copy them from the completed workflow when configuring the ruleset.
 Use focused tests while iterating:
 
 ```sh
-bats tests/test_pr_metadata.bats
-bats tests/test_ci_summary.bats
+prek run bats-pr-metadata --all-files
+prek run bats-ci-summary --all-files
 prek run actionlint --all-files
 ```
 

@@ -41,6 +41,12 @@ DOTFILES_PACKAGE_UPDATE=1 DOTFILES_INSTALL_MODE=packages \
 # Inspect what chezmoi thinks should change:
 chezmoi diff
 
+# Read the latest installer log without running package work:
+bash ~/dotfiles/scripts/install.sh --log
+
+# Print the log filename for copying or searching:
+bash ~/dotfiles/scripts/install.sh --log-path
+
 # Sync chezmoi source with this repo's origin:
 chezmoi update                     # git pull in source + apply
 ```
@@ -56,6 +62,14 @@ chezmoi --source "$PWD" apply
 The repository-level `.chezmoiroot` still directs chezmoi into `home/`. It is
 safe to review a worktree this way without replacing your normal source
 directory.
+
+When applying from another account's checkout, the installer can reuse the
+palette submodule if its checkout matches the pinned commit and its tracked
+files are present. Only the checkout owner can initialize or repair that
+submodule. The verification uses command-scoped Git trust for the exact paths;
+it does not add a global `safe.directory` exception or change source ownership.
+Packages installed under `$HOME`, including Luacheck, belong to the account
+running chezmoi.
 
 ## Local overrides
 

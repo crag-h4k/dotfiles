@@ -39,12 +39,21 @@ vim.cmd("filetype plugin indent on")
 -- Neovim always uses UTF-8 internally; keep this for parity with vimrc.
 vim.opt.encoding = "utf-8"
 
+-- The shared base16 palette defines RGB highlight colors.
+vim.opt.termguicolors = true
+
 vim.opt.wrap = true
 vim.opt.number = true
 vim.opt.relativenumber = true
 vim.opt.ruler = true
 vim.opt.mouse = "a"
 vim.opt.clipboard = "unnamed"
+-- Some SSH terminals print the OSC 52 capability query as +q4D73.
+if vim.fn.has("linux") == 1 then
+  local termfeatures = vim.g.termfeatures or {}
+  termfeatures.osc52 = false
+  vim.g.termfeatures = termfeatures
+end
 vim.opt.updatetime = 500
 
 vim.opt.ignorecase = true
@@ -228,20 +237,7 @@ vim.diagnostic.config({
 -- Statusline (lualine) is configured by the lualine plugin spec below, which
 -- calls require("statusline").setup() once the plugin and palette are loaded.
 
--- Bootstrap lazy.nvim (plugin manager for Neovim-only plugins)
-local lazypath = vim.fn.stdpath("data") .. "/lazy/lazy.nvim"
 local dotfiles_palette = require("dotfiles_palette")
-if not vim.loop.fs_stat(lazypath) then
-  vim.fn.system({
-    "git",
-    "clone",
-    "--filter=blob:none",
-    "https://github.com/folke/lazy.nvim.git",
-    "--branch=stable",
-    lazypath,
-  })
-end
-vim.opt.rtp:prepend(lazypath)
 
 -- Per-host opt-in for the AI assistant. CodeCompanion ships your buffer contents
 -- to Claude, so it stays OFF by default and only loads on hosts that explicitly
@@ -249,6 +245,9 @@ vim.opt.rtp:prepend(lazypath)
 --   touch ~/.config/nvim/.codecompanion-enabled
 -- A fresh clone on an unknown/sensitive host never loads it until you opt in.
 local codecompanion_enabled = (vim.uv or vim.loop).fs_stat(vim.fn.stdpath("config") .. "/.codecompanion-enabled") ~= nil
+if vim.env.DOTFILES_NVIM_PACKAGE_SPEC == "1" and vim.env.INSTALL_AI_CODECOMPANION then
+  codecompanion_enabled = vim.env.INSTALL_AI_CODECOMPANION == "true"
+end
 
 local lsp_servers = {
   -- Modern nvim-lspconfig IDs. mason-lspconfig translates these to Mason
@@ -266,7 +265,22 @@ local lsp_servers = {
   "gh_actions_ls",
 }
 
-require("lazy").setup({
+local treesitter_parsers = {
+  "bash",
+  "dockerfile",
+  "go",
+  "hcl",
+  "json",
+  "lua",
+  "markdown",
+  "markdown_inline",
+  "python",
+  "rust",
+  "terraform",
+  "yaml",
+}
+
+local plugins = {
   -- Shared palette selected by chezmoi and rendered into dotfiles_palette.lua.
   { dotfiles_palette.plugin, name = dotfiles_palette.lazy_name, lazy = false, priority = 1000 },
 
@@ -436,20 +450,6 @@ require("lazy").setup({
     lazy = false,
     build = ":TSUpdate",
     config = function()
-      local parsers = {
-        "bash",
-        "dockerfile",
-        "go",
-        "hcl",
-        "json",
-        "lua",
-        "markdown",
-        "markdown_inline",
-        "python",
-        "rust",
-        "terraform",
-        "yaml",
-      }
       local treesitter = require("nvim-treesitter")
       treesitter.setup()
 
@@ -465,7 +465,7 @@ require("lazy").setup({
         installed[name] = true
       end
       local missing = {}
-      for _, name in ipairs(parsers) do
+      for _, name in ipairs(treesitter_parsers) do
         if not installed[name] then
           missing[#missing + 1] = name
         end
@@ -658,7 +658,28 @@ require("lazy").setup({
       },
     },
   },
-})
+}
+
+-- Package discovery reads the same specs without bootstrapping or loading plugins.
+if vim.env.DOTFILES_NVIM_PACKAGE_SPEC == "1" then
+  return { plugins = plugins, parsers = treesitter_parsers, lsp_servers = lsp_servers }
+end
+
+-- Bootstrap lazy.nvim (plugin manager for Neovim-only plugins)
+local lazypath = vim.fn.stdpath("data") .. "/lazy/lazy.nvim"
+if not vim.loop.fs_stat(lazypath) then
+  vim.fn.system({
+    "git",
+    "clone",
+    "--filter=blob:none",
+    "https://github.com/folke/lazy.nvim.git",
+    "--branch=stable",
+    lazypath,
+  })
+end
+vim.opt.rtp:prepend(lazypath)
+
+require("lazy").setup(plugins)
 
 -- base16-nvim's setup() applies the scheme directly from the 16 colors, so
 -- there is no separate :colorscheme to run.

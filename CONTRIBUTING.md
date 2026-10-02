@@ -86,10 +86,14 @@ repository's hook directory.
 Run the smallest relevant test while iterating:
 
 ```sh
-bats tests/test_pr_metadata.bats
-bats tests/test_tmux_startup.bats
+prek run bats-pr-metadata --all-files
+prek run bats-tmux-startup --all-files
 shellcheck scripts/validate-pr-metadata.sh
 ```
+
+The Bats hooks install their pinned runner in prek's isolated Node environment.
+They do not require a global `bats` executable. Test subjects such as Zsh, tmux,
+and chezmoi still need to be installed for the corresponding suites.
 
 Before review, run the same complete gate as CI:
 

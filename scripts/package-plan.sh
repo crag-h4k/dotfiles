@@ -26,6 +26,8 @@ PREK_VERSION="${PREK_VERSION:-0.5.4}"
 _plan_mode="${1:---records}"
 _status_result=planned
 _brew_inventory_loaded=0
+_brew_inventory_failed=0
+_brew_outdated_failed=0
 _brew_formulae=$'\n'
 _brew_casks=$'\n'
 _brew_outdated_loaded=0
@@ -93,9 +95,9 @@ _load_brew_inventory() {
     _plan_approved || return 0
     command -v brew >/dev/null 2>&1 || return 0
 
-    output=$(brew list --formula 2>/dev/null || true)
+    output=$(brew list --formula 2>/dev/null) || _brew_inventory_failed=1
     _brew_formulae=$'\n'"$output"$'\n'
-    output=$(brew list --cask 2>/dev/null || true)
+    output=$(brew list --cask 2>/dev/null) || _brew_inventory_failed=1
     _brew_casks=$'\n'"$output"$'\n'
 }
 
@@ -108,9 +110,9 @@ _load_brew_outdated() {
     _brew_outdated_loaded=1
     _plan_approved || return 0
     command -v brew >/dev/null 2>&1 || return 0
-    output=$(brew outdated --formula --quiet 2>/dev/null || true)
+    output=$(brew outdated --formula --quiet 2>/dev/null) || _brew_outdated_failed=1
     _brew_outdated_formulae=$'\n'"$output"$'\n'
-    output=$(brew outdated --cask --quiet 2>/dev/null || true)
+    output=$(brew outdated --cask --quiet 2>/dev/null) || _brew_outdated_failed=1
     _brew_outdated_casks=$'\n'"$output"$'\n'
 }
 
@@ -154,7 +156,7 @@ let input = ""
 process.stdin.setEncoding("utf8")
 process.stdin.on("data", (chunk) => { input += chunk })
 process.stdin.on("end", () => {
-  try { console.log(Object.keys(JSON.parse(input)).join("\\n")) } catch {}
+  try { console.log(Object.keys(JSON.parse(input)).join("\n")) } catch {}
 })
 ' 2>/dev/null || true)
     printf -v "$outdated_var" '%s' $'\n'"$names"$'\n'
@@ -187,6 +189,11 @@ _status() {
         return 0
     fi
     [[ "$_plan_mode" == --names ]] && return 0
+    if [[ "$_plan_mode" == --resolved ]]; then
+        case "$source" in
+            apt|npm|github-release|pip|luarocks|uv-tool) return 0 ;;
+        esac
+    fi
     case "$source" in
         brew-formula)
             if _plan_approved; then
@@ -247,7 +254,13 @@ _status() {
             fi
             ;;
         luarocks)
-            if _plan_approved && command -v luarocks >/dev/null 2>&1 && luarocks show "$name" >/dev/null 2>&1; then
+            local -a rock_args=(--tree "$HOME/.luarocks")
+            [[ "$(_plan_os)" != macos ]] || rock_args+=(--lua-version=5.4)
+            if _plan_approved; then
+                if command -v luarocks >/dev/null 2>&1 && luarocks "${rock_args[@]}" show "$name" >/dev/null 2>&1; then
+                    _status_result=installed
+                fi
+            elif [[ -x "$HOME/.luarocks/bin/$probe" ]]; then
                 _status_result=installed
             fi
             ;;
@@ -276,13 +289,14 @@ _status() {
     esac
     # Fallback: a tool is often installed by a method the source-specific probe
     # above cannot see - system python3, a brew formula whose name differs from
-    # its binary, luacheck under a different luarocks tree, tflint via tfswitch.
+    # its binary, or tflint via tfswitch. LuaRocks uses the account tree above.
     # If its command is on PATH, it is installed. $probe is the binary for CLI
     # tools; for the path/library probes (git externals, pip modules) command -v
     # simply returns false, so this adds no false positives.
     if [[ "$_status_result" == planned ]]; then
         case "$source" in
-            brew-formula|brew-cask|apt|npm|pip|luarocks)
+            luarocks) ;;
+            brew-formula|brew-cask|apt|npm|pip)
                 _plan_approved || { command -v "$probe" >/dev/null 2>&1 && _status_result=installed; }
                 ;;
             *) command -v "$probe" >/dev/null 2>&1 && _status_result=installed ;;
@@ -293,14 +307,6 @@ _status() {
             installed|update) _status_result=remove ;;
             *) _status_result=absent ;;
         esac
-    fi
-    # Floating non-system sources are intentionally refreshed on every approved
-    # package run. Before approval this also makes the plan honest without
-    # invoking npm, pip, LuaRocks, Homebrew, or APT for inventory.
-    if [[ "$_status_result" == installed && "$policy" == floating ]]; then
-        if ! _plan_approved || [[ "$source" != brew-formula && "$source" != brew-cask && "$source" != apt && "$source" != npm ]]; then
-            _status_result=update
-        fi
     fi
     # _status communicates only through $_status_result; its exit code is
     # meaningless. Return 0 explicitly: otherwise a not-installed probe leaves the
@@ -487,10 +493,10 @@ _build() {
 }
 
 # Status-first plan: new items to install at the top, outdated ones next, and
-# already-current ones at the bottom. Colored by status when the output lands on
+# installed ones at the bottom. Colored by status when the output lands on
 # a terminal (or DOTFILES_PLAN_COLOR is set); honors NO_COLOR.
 _display() {
-    local tier wanted source name status policy origin probe record n label tcolor
+    local tier wanted source name status policy origin probe record n label tcolor current candidate reason
     local c_new c_upd c_old c_hdr c_rst
     if [[ ( -t 1 || -n "${DOTFILES_PLAN_COLOR:-}" ) && -z "${NO_COLOR:-}" ]]; then
         c_new=$'\033[32m'; c_upd=$'\033[33m'; c_old=$'\033[2m'
@@ -499,10 +505,10 @@ _display() {
         c_new=""; c_upd=""; c_old=""; c_hdr=""; c_rst=""
     fi
     printf '%sInstall plan%s\n' "$c_hdr" "$c_rst"
-        for tier in remove planned update installed; do
+        for tier in remove planned update check blocked installed; do
         n=0
         for record in "${_records[@]}"; do
-            IFS=$'\t' read -r source name status policy origin probe <<< "$record"
+            IFS=$'\t' read -r source name status policy origin probe current candidate reason <<< "$record"
             [[ "$status" == "$tier" ]] && n=$((n + 1))
         done
         [[ "$n" -eq 0 ]] && continue
@@ -510,24 +516,29 @@ _display() {
             remove)    label="To remove"  ; tcolor="$c_upd" ;;
             planned)   label="To install" ; tcolor="$c_new" ;;
             update)    label="To update"  ; tcolor="$c_upd" ;;
-            installed) label="Up to date" ; tcolor="$c_old" ;;
+            installed) label="Installed"  ; tcolor="$c_old" ;;
+            check)     label="To check"   ; tcolor="$c_upd" ;;
+            blocked)   label="Could not check" ; tcolor="$c_upd" ;;
         esac
         printf '\n%s%s (%d)%s\n' "$c_hdr" "$label" "$n" "$c_rst"
         # Cluster by source within the tier, following the install order.
         for wanted in brew-formula brew-cask apt github-release astral-uv uv-tool npm npm-runtime pip luarocks neovim-plugin treesitter-parsers mason-packages git-runtime git-external; do
             for record in "${_records[@]}"; do
-                IFS=$'\t' read -r source name status policy origin probe <<< "$record"
+                IFS=$'\t' read -r source name status policy origin probe current candidate reason <<< "$record"
                 [[ "$source" == "$wanted" && "$status" == "$tier" ]] || continue
                 printf '  %s%s [%s] - %s%s\n' "$tcolor" "$name" "$policy" "$origin" "$c_rst"
+                if [[ -n "${reason:-}" && "$reason" != - ]]; then
+                    printf '    %s -> %s (%s)\n' "${current:--}" "${candidate:--}" "$reason"
+                fi
             done
         done
     done
 }
 
 _names() {
-    local wanted="$1" source name status policy origin probe record
+    local wanted="$1" source name status policy origin probe record current candidate reason
     for record in "${_records[@]}"; do
-        IFS=$'\t' read -r source name status policy origin probe <<< "$record"
+        IFS=$'\t' read -r source name status policy origin probe current candidate reason <<< "$record"
         [[ "$source" == "$wanted" ]] && printf '%s\n' "$name"
     done
     # Return 0 explicitly: the final loop iteration's `[[ ... ]] && printf` leaves
@@ -536,8 +547,21 @@ _names() {
     return 0
 }
 
+if [[ "$_plan_mode" == --display-file ]]; then
+    [[ -r "${2:-}" ]] || { printf 'package-plan: unreadable plan\n' >&2; exit 2; }
+    while IFS= read -r record; do _records+=("$record"); done <"$2"
+    _display
+    exit
+fi
 _build
 case "$_plan_mode" in
+    --resolved)
+        # shellcheck source-path=SCRIPTDIR
+        # shellcheck source=package-resolve.sh
+        source "$SCRIPT_DIR/package-resolve.sh"
+        _resolve_records
+        printf '%s\n' "${_records[@]}"
+        ;;
     # `|| true`: _display's status is whatever its final loop / `[[ ... ]]`
     # membership test happened to return (a no-match returns 1), which is
     # accidental, not an error. Normalize it so a caller capturing the plan under
@@ -550,5 +574,5 @@ case "$_plan_mode" in
         [[ -n "${2:-}" ]] || { printf 'package-plan: --names requires a source\n' >&2; exit 2; }
         _names "$2"
         ;;
-    *) printf 'usage: package-plan.sh --refresh | --display | --records | --names SOURCE\n' >&2; exit 2 ;;
+    *) printf 'usage: package-plan.sh --refresh | --display | --records | --resolved | --display-file FILE | --names SOURCE\n' >&2; exit 2 ;;
 esac

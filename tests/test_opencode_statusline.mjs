@@ -170,16 +170,16 @@ test("quota keeps its space at the iPad terminal width", () => {
   })
 })
 
-test("usage and provider values render as left-side pills", () => {
+test("provider quota stays rightmost after the other status pills", () => {
   assert.match(STATUSLINE_SOURCE, /icon=\{CONTEXT_ICON\}/)
   assert.match(STATUSLINE_SOURCE, /icon=\{COST_ICON\}/)
   assert.match(STATUSLINE_SOURCE, /icon=\{value\(\)\.icon \?\? PROVIDER_ICON\}/)
   assert.doesNotMatch(STATUSLINE_SOURCE, /metrics\(\)\.join/)
-  assert.doesNotMatch(STATUSLINE_SOURCE, /<box flexGrow=\{1\} \/>/)
+  assert.match(STATUSLINE_SOURCE, /<box flexGrow=\{1\} \/>/)
   assert.match(STATUSLINE_SOURCE, /contextUsage=\{usage\(\)\.context\}/)
   assert.match(STATUSLINE_SOURCE, /provider=\{provider\(\)\}/)
   assert.ok(STATUSLINE_SOURCE.indexOf("visibility().provider && props.provider")
-    < STATUSLINE_SOURCE.indexOf("visibility().identity && identity()"))
+    > STATUSLINE_SOURCE.indexOf("visibility().identity && props.tier"))
 })
 
 test("Codex classifies quota windows by duration, including weekly-only primary windows", () => {

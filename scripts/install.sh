@@ -16,6 +16,53 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 # shellcheck source=common.sh
 source "$SCRIPT_DIR/common.sh"
 
+# Handle log access before component defaults or package work.
+log_dir="${XDG_STATE_HOME:-$HOME/.local/state}/dotfiles/install"
+case "${1:-}" in
+    --log|--log-path)
+        [[ $# -eq 1 ]] || die "usage: install.sh [--log | --log-path]"
+        [[ -f "$log_dir/latest.log" ]] || die "no install log available at $log_dir"
+        if [[ "$1" == --log-path ]]; then
+            printf '%s/%s\n' "$log_dir" "$(readlink "$log_dir/latest.log")"
+        else
+            cat "$log_dir/latest.log"
+        fi
+        exit
+        ;;
+    --help|-h)
+        printf 'usage: install.sh [--log | --log-path]\nRuns are logged automatically; --log displays the latest run without installing.\n'
+        exit
+        ;;
+    '') ;;
+    *) die "unknown argument: $1" ;;
+esac
+if [[ "${DOTFILES_INSTALL_LOG_ACTIVE:-}" != 1 ]]; then
+    mkdir -p "$log_dir"
+    chmod 700 "$log_dir"
+    log_file="$log_dir/$(date -u +%Y%m%dT%H%M%SZ)-$$.log"
+    (umask 077; : >"$log_file")
+    ln -sfn "${log_file##*/}" "$log_dir/latest.log"
+    printf 'dotfiles: install log: %s\n' "$log_file"
+    # Called through EXIT for both normal completion and interrupted pipelines.
+    # shellcheck disable=SC2317
+    _install_log_finish() {
+        local result="$1"
+        trap - EXIT
+        printf 'dotfiles: finished at %s; exit=%s\n' "$(date -u +%FT%TZ)" "$result" | tee -a "$log_file"
+        exit "$result"
+    }
+    trap '_install_log_finish "$?"' EXIT
+    trap 'exit 130' INT
+    trap 'exit 143' TERM
+    # Run a fresh shell so recording PIPESTATUS does not disable its errexit.
+    set +e
+    DOTFILES_INSTALL_LOG_ACTIVE=1 DOTFILES_INSTALL_LOG="$log_file" bash "$0" "$@" 2>&1 | tee -a "$log_file"
+    log_status=("${PIPESTATUS[@]}")
+    result="${log_status[0]}"
+    [[ "${log_status[1]}" -eq 0 ]] || result=1
+    exit "$result"
+fi
+
 # Component flags, read from the environment (set by chezmoi via
 # home/.chezmoiscripts/run_once_after_00-install.sh.tmpl). Defaults apply only
 # for standalone runs.
@@ -58,7 +105,7 @@ DOTFILES_INSTALL_MODE="${DOTFILES_INSTALL_MODE:-packages}"
     die "DOTFILES_INSTALL_MODE must be configs or packages"
 
 main() {
-    local os node_required=false node_ready=true
+    local os node_required=false node_ready=true package_failed=0
     os=$(os_detect)
     if node_runtime_selected; then
         node_required=true
@@ -82,10 +129,14 @@ main() {
     fi
 
     if [[ "$do_packages" == true ]]; then
+        if [[ -z "${DOTFILES_PACKAGE_PLAN:-}" ]]; then
+            package_plan_create || die "could not resolve package plan"
+        fi
+        info "executing resolved package plan"
+        "$SCRIPT_DIR/package-plan.sh" --display-file "$DOTFILES_PACKAGE_PLAN"
         local pkg_started=$SECONDS
-        local planner="$SCRIPT_DIR/package-plan.sh"
         local source_root
-        local src name status _policy origin probe
+        local src name status _policy origin probe _current target reason
         local -a brew_formula_install=() brew_formula_update=() brew_formula_remove=()
         local -a brew_cask_install=() brew_cask_update=()
         local -a apt_packages=()
@@ -94,7 +145,7 @@ main() {
         package_results_reset
         if [[ -f "$source_root/.gitmodules" ]]; then
             package_try "pinned palette submodule" \
-                git -C "$source_root" submodule update --init --depth 1 vendor/tinted-schemes || true
+                ensure_pinned_palette "$source_root" || true
         fi
         case "$os" in
             macos)
@@ -112,7 +163,7 @@ main() {
                 # Rebuild its status inventory from that metadata, then batch every
                 # requested formula and cask by action. Homebrew would otherwise ask
                 # once for every install or upgrade command.
-                while IFS=$'\t' read -r src name status _policy origin probe <&3; do
+                while IFS=$'\t' read -r src name status _policy origin probe _current target reason <&3; do
                     case "$src:$status" in
                         brew-formula:planned) brew_formula_install+=("$name") ;;
                         brew-formula:update) brew_formula_update+=("$name") ;;
@@ -121,8 +172,12 @@ main() {
                         brew-cask:planned) brew_cask_install+=("$name") ;;
                         brew-cask:update) brew_cask_update+=("$name") ;;
                         brew-cask:installed) package_skip "Homebrew cask $name is current" ;;
+                        brew-formula:blocked|brew-cask:blocked)
+                            warn "Homebrew $name: $reason; skipped"
+                            _package_results_failed=$((_package_results_failed + 1))
+                            ;;
                     esac
-                done 3< <(DOTFILES_PLAN_APPROVED=1 "$planner" --records)
+                done 3< "$DOTFILES_PACKAGE_PLAN"
                 ((${#brew_formula_install[@]} == 0)) ||
                     package_try "Homebrew formula install" brew install --no-ask "${brew_formula_install[@]}" || true
                 ((${#brew_formula_update[@]} == 0)) ||
@@ -154,9 +209,20 @@ main() {
                 if [[ "$DOTFILES_APT_REPO_CHANGED" == true ]]; then
                     package_try "APT metadata refresh after repository setup" sudo apt-get update || true
                 fi
-                while IFS= read -r name <&3; do
-                    [[ -n "$name" ]] && apt_packages+=("$name")
-                done 3< <(DOTFILES_PLAN_APPROVED=1 "$planner" --names apt)
+                while IFS=$'\t' read -r src name status _policy origin probe _current target reason <&3; do
+                    [[ "$src" == apt ]] || continue
+                    case "$status" in
+                        planned|update|check)
+                            if [[ "$target" != - ]]; then apt_packages+=("$name=$target")
+                            else apt_packages+=("$name"); fi
+                            ;;
+                        blocked)
+                            warn "APT $name: $reason; skipped"
+                            _package_results_failed=$((_package_results_failed + 1))
+                            ;;
+                        *) package_skip "APT $name is current" ;;
+                    esac
+                done 3< "$DOTFILES_PACKAGE_PLAN"
                 # apt-get install with several names installs missing dependencies
                 # and advances only this selected set. It never performs a
                 # distribution-wide upgrade.
@@ -164,18 +230,18 @@ main() {
                     package_try "APT selected package install/update" sudo apt-get install -y "${apt_packages[@]}" || true
                 # Neovim is one checksum-verified upstream tree so its binary,
                 # runtime, and libraries activate or roll back together.
-                [[ "$INSTALL_NEOVIM" == true ]] && { package_try "Neovim versioned release" install_neovim_debian || true; }
+                [[ "$INSTALL_NEOVIM" == true ]] && { package_action_try github-release neovim "Neovim versioned release" install_neovim_debian || true; }
                 if [[ "$INSTALL_NEOVIM" == true ]]; then
-                    package_try "tree-sitter CLI pinned v0.26.11" install_tree_sitter_cli_debian || true
-                    package_try "TFLint latest release" install_tflint_debian || true
-                    package_try "tenv latest release" install_tenv_debian || true
+                    package_action_try github-release tree-sitter-cli "tree-sitter CLI pinned v0.26.11" install_tree_sitter_cli_debian || true
+                    package_action_try github-release tflint "TFLint latest release" install_tflint_debian || true
+                    package_action_try github-release tenv "tenv latest release" install_tenv_debian || true
                 fi
                 if [[ "$node_required" == true ]]; then
                     if package_try "Node.js 24+ verification" verify_node_min_major 24; then
                         node_ready=true
                     fi
                 fi
-                [[ "$INSTALL_NOTIFY" == true ]] && { package_try "yq latest release" install_yq_debian update || true; }
+                [[ "$INSTALL_NOTIFY" == true ]] && { package_action_try github-release yq "yq latest release" install_yq_debian update || true; }
                 [[ "$INSTALL_TERMINAL_GHOSTTY" == true ]] &&
                     package_skip "Ghostty has no managed Debian package; update the app manually"
                 ;;
@@ -183,7 +249,7 @@ main() {
         esac
 
         [[ "$INSTALL_NEOVIM" == true ]] \
-            && { package_try "Terraform latest stable through tenv" bootstrap_tenv_terraform || true; }
+            && { package_action_try github-release terraform "Terraform latest stable through tenv" bootstrap_tenv_terraform || true; }
 
         package_try "chezmoi availability" ensure_chezmoi || true
         [[ "$INSTALL_ZSH" == true ]] && { package_try "Zsh post-install" bash "$SCRIPT_DIR/install-zsh.sh" || true; }
@@ -193,8 +259,10 @@ main() {
         }
         if [[ "$INSTALL_AI_OPENCODE" == true ]]; then
             if [[ "$node_ready" == true ]]; then
-                package_try "OpenCode V2 CLI and matching runtime" \
-                    env INSTALL_AI_OPENCODE=true DOTFILES_NODE_READY=true \
+                local opencode_target
+                opencode_target=$(package_target npm @opencode/cli)
+                package_action_try npm @opencode/cli "OpenCode V2 CLI and matching runtime" \
+                    env OPENCODE2_VERSION="${opencode_target:-${OPENCODE2_VERSION:-latest}}" INSTALL_AI_OPENCODE=true DOTFILES_NODE_READY=true \
                     bash "$SCRIPT_DIR/install-opencode2.sh" || true
             else
                 package_skip "OpenCode V2 CLI and matching runtime; Node.js 24+ unavailable"
@@ -202,41 +270,31 @@ main() {
         fi
         if [[ "$INSTALL_AI_COPILOT" == true ]]; then
             if [[ "$node_ready" == true ]]; then
-                package_try "GitHub Copilot CLI" env INSTALL_AI_COPILOT=true DOTFILES_NODE_READY=true bash "$SCRIPT_DIR/install-copilot.sh" || true
+                local copilot_target
+                copilot_target=$(package_target npm @github/copilot)
+                package_action_try npm @github/copilot "GitHub Copilot CLI" env COPILOT_VERSION="${copilot_target:-${COPILOT_VERSION:-prerelease}}" INSTALL_AI_COPILOT=true DOTFILES_NODE_READY=true bash "$SCRIPT_DIR/install-copilot.sh" || true
             else
                 package_skip "GitHub Copilot CLI; Node.js 24+ unavailable"
             fi
         fi
         if [[ "$os" == debian ]]; then
-            package_try "prek pinned hook runner" \
+            package_action_try uv-tool prek "prek pinned hook runner" \
                 env PREK_VERSION="${PREK_VERSION:-0.5.4}" bash "$SCRIPT_DIR/install-prek.sh" || true
         fi
 
-        # Chezmoi clones missing externals while applying. Package mode also
-        # refreshes every selected checkout, but only by a clean fast-forward.
-        # Missing checkouts remain chezmoi's responsibility.
-        # Read records on FD 3 (as the brew/cask/apt loops above) so a mutating
-        # git command in the body cannot consume the record stream.
-        while IFS=$'\t' read -r src name status _policy origin probe <&3; do
-            local git_rc=0
+        package_plan_resolve_deferred_git || warn "could not resolve deferred Git packages"
+        # Apply the saved commits; do not discover newer Git updates here.
+        while IFS=$'\t' read -r src name status _policy origin probe _current target reason <&3; do
             [[ "$src" == git-external || "$src" == git-runtime ]] || continue
-            if [[ "$src" == git-runtime ]]; then
-                install_or_update_git_runtime "$name" "$origin" "$probe" || git_rc=$?
-            else
-                update_git_external "$name" "$origin" "$probe" || git_rc=$?
-            fi
-            if [[ "$git_rc" -eq 0 ]]; then
-                _package_results_ok=$((_package_results_ok + 1))
-            else
-                case "$git_rc" in
-                    2) _package_results_skipped=$((_package_results_skipped + 1)) ;;
-                    *) _package_results_failed=$((_package_results_failed + 1)) ;;
-                esac
-            fi
-        done 3< <(DOTFILES_PLAN_APPROVED=1 "$planner" --records)
+            package_action_try "$src" "$name" "$name" apply_git_package \
+                "$src" "$name" "$origin" "$probe" "$_current" "$target" "$_policy" || true
+        done 3< "$DOTFILES_PACKAGE_PLAN"
         local pkg_elapsed=$(( SECONDS - pkg_started ))
         package_results_summary "package run"
-        info "packages: installed/updated in ${pkg_elapsed}s"
+        package_failed=$_package_results_failed
+        info "packages: checked in ${pkg_elapsed}s"
+        rm -f "$DOTFILES_PACKAGE_PLAN"
+        unset DOTFILES_PACKAGE_PLAN
     else
         info "configs-only mode: skipped packages, login-shell changes, language packages, and Neovim plugin sync"
     fi
@@ -271,7 +329,13 @@ main() {
         info "CodeCompanion enabled (sentinel: ~/.config/nvim/.codecompanion-enabled)"
     fi
 
+    if (( package_failed > 0 )); then
+        warn "$package_failed package step(s) failed; see the install log and rerun after fixing them"
+        return 1
+    fi
     info "all done. Open a new shell (zsh) and tmux/nvim to verify."
 }
 
+export INSTALL_ZSH INSTALL_TMUX INSTALL_NEOVIM INSTALL_NOTIFY INSTALL_AI_CODECOMPANION
+export INSTALL_AI_STATUSLINE INSTALL_AI_OPENCODE INSTALL_AI_COPILOT INSTALL_TERMINAL_GHOSTTY INSTALL_TERMINAL_ITERM2
 main "$@"

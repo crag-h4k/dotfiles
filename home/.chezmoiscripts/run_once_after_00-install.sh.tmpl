@@ -3,6 +3,8 @@
 # content changes (e.g. you flip a component or update a script). Exports the
 # selected components as INSTALL_* env vars, then delegates to install.sh.
 set -euo pipefail
+{{ range $file := list "scripts/common.sh" "scripts/package-plan.sh" "scripts/package-resolve.sh" "scripts/confirm-install.sh" "scripts/install.sh" "scripts/install-zsh.sh" "scripts/install-neovim.sh" "scripts/update-neovim-packages.lua" "scripts/neovim-update-lib.lua" "scripts/plan-neovim-packages.lua" "scripts/neovim-package-lib.lua" "home/dot_config/nvim/init.lua" "scripts/install-opencode2.sh" "scripts/install-copilot.sh" "scripts/install-prek.sh" "home/dot_config/opencode/executable_sync-runtime.sh" }}
+# {{ $file }}: {{ include (joinPath $.chezmoi.sourceDir ".." $file) | sha256sum }}{{ end }}
 
 export INSTALL_ZSH={{ dig "components" "zsh" true . }}
 export INSTALL_TMUX={{ dig "components" "tmux" true . }}

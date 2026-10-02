@@ -42,6 +42,7 @@ if [ "$1" = --version ]; then
 fi
 if [ "$1" = view ]; then
   case "$2" in
+    @opencode/cli@latest) printf '2.0.8\n' ;;
     @opentui/solid@latest) printf '0.5.11\n' ;;
     @opentui/solid@0.5.11) printf '1.9.12\n' ;;
     *) exit 1 ;;
@@ -92,8 +93,8 @@ STUB
   [ "$status" -eq "${2:-0}" ]
   [ "$(cksum "$WRAPPER")" = "$before" ]
   [ "${2:-0}" -eq 0 ] || return 0
-  grep -Eq "^install -g --prefix $PREFIX( --allow-scripts=@opencode/cli)? @opencode/cli@latest$" "$npm_log"
-  [[ "$output" == *"installed @opencode/cli@2.0.8"* ]]
+  grep -Eq "^install -g --prefix $PREFIX( --allow-scripts=@opencode/cli)? @opencode/cli@2.0.8$" "$npm_log"
+  [[ "$output" == *"@opencode/cli@2.0.8 and matching plugin runtime are current"* ]]
 }
 
 @test "update defaults to the isolated npm method" {

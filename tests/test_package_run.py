@@ -167,6 +167,26 @@ class PackageRunTest(unittest.TestCase):
             check=False,
         )
 
+    def test_package_resolver_change_updates_run_once_content(self):
+        config = self.seed_config(install_mode="configs")
+        template = (
+            self.repo / "home" / ".chezmoiscripts" / "run_once_after_00-install.sh.tmpl"
+        ).read_text(encoding="utf-8")
+
+        def render():
+            result = subprocess.run(
+                ["chezmoi", "--source", str(self.repo), "--config", str(config), "execute-template"],
+                input=template, text=True, stdout=subprocess.PIPE,
+                stderr=subprocess.PIPE, timeout=30, check=True,
+            )
+            return result.stdout
+
+        before = render()
+        self.assertEqual(render(), before)
+        resolver = self.repo / "scripts" / "package-resolve.sh"
+        resolver.write_text(resolver.read_text(encoding="utf-8") + "\n# changed input\n", encoding="utf-8")
+        self.assertNotEqual(render(), before)
+
     def test_scoped_packages_increments(self):
         data = self.run_init(
             self.seed_config(package_run=7),
