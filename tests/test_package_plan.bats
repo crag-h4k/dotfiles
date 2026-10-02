@@ -212,7 +212,7 @@ STUB
   [[ "$output" == *$'brew-cask\tghostty\tupdate\tfloating\t'* ]]
 }
 
-@test "an installed floating package is not a detected update" {
+@test "an installed floating package is omitted from the pending-action display" {
   local stubs="$BATS_TEST_TMPDIR/floating-stubs" tree="$BATS_TEST_TMPDIR/installed-tree"
   mkdir -p "$stubs" "$tree"
   printf '#!/bin/sh\nexit 0\n' >"$stubs/installed-tool"
@@ -236,7 +236,8 @@ STUB
       _display
     ' _ "$PLANNER" "$tree"
   [ "$status" -eq 0 ]
-  [[ "$output" == *"Installed (1)"* ]]
+  [[ "$output" == *"Install plan"* ]]
+  [[ "$output" != *"Installed (1)"* ]]
   [[ "$output" != *"To update"* ]]
   [[ "$output" != *"Up to date"* ]]
 }

@@ -172,6 +172,19 @@ LUA
   [ "$(sha256sum "$TEST_PLUGIN/.git/index" "$TEST_PLUGIN/lua/nvim-treesitter/parsers.lua" "$TEST_PLUGIN/user-note")" = "$before" ]
 }
 
+@test "planner accepts Treesitter parser artifacts but blocks other untracked files" {
+  mkdir -p "$TEST_PLUGIN/parser" "$TEST_PLUGIN/parser-info"
+  : >"$TEST_PLUGIN/parser/lua.so"
+  printf 'old-parser\n' >"$TEST_PLUGIN/parser-info/lua.revision"
+  run nvim --headless -u NONE -i NONE -n -l "$REPO_ROOT/scripts/plan-neovim-packages.lua"
+  [ "$status" -eq 0 ]
+  [[ "$output" == *$'neovim-plugin\tnvim-treesitter\tupdate'* ]]
+  printf 'local note\n' >"$TEST_PLUGIN/parser/local-note"
+  run nvim --headless -u NONE -i NONE -n -l "$REPO_ROOT/scripts/plan-neovim-packages.lua"
+  [ "$status" -eq 0 ]
+  [[ "$output" == *$'neovim-plugin\tnvim-treesitter\tblocked'* ]]
+}
+
 @test "Lazy refuses origin drift after approval without removing user files" {
   local plan="$BATS_TEST_TMPDIR/origin.tsv"
   printf 'neovim-plugin\tnvim-treesitter\tupdate\tfloating\t%s\t%s\t%s\t%s\tapproved\n' \

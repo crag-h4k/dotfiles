@@ -112,6 +112,26 @@ STUB
   [[ "$output" == *"failed=0"* ]]
 }
 
+@test "archive source skips palette repair without Git metadata" {
+  local source="$BATS_TEST_TMPDIR/archive-source"
+  mkdir -p "$source"
+  : >"$source/.gitmodules"
+  export DOTFILES_PACKAGE_PLAN="$BATS_TEST_TMPDIR/current-plan"
+  printf 'brew-formula\tgit\tinstalled\tfloating\torigin\tgit\t1.2.3\t1.2.3\tcurrent\n' >"$DOTFILES_PACKAGE_PLAN"
+  cat >"$BATS_TEST_TMPDIR/bin/brew" <<'STUB'
+#!/bin/sh
+exit 92
+STUB
+  chmod +x "$BATS_TEST_TMPDIR/bin/brew"
+  run env DOTFILES_PLAN_OS=macos DOTFILES_ASSUME_YES=1 DOTFILES_INSTALL_MODE=packages \
+    INSTALL_ZSH=false INSTALL_TMUX=false INSTALL_NEOVIM=false INSTALL_GIT_CONFIG=false \
+    INSTALL_AI_OPENCODE=false INSTALL_AI_COPILOT=false INSTALL_AI_CODECOMPANION=false \
+    INSTALL_TERMINAL_ITERM2=false DOTFILES_SOURCE_ROOT="$source" bash "$ROOT/scripts/install.sh"
+  [ "$status" -eq 0 ]
+  [[ "$output" != *"pinned palette submodule"* ]]
+  [[ "$output" == *"failed=0"* ]]
+}
+
 @test "approval restores the same resolved plan without rechecking versions" {
   export DOTFILES_PACKAGE_PLAN="$BATS_TEST_TMPDIR/approved-plan"
   export DOTFILES_PKG_CONFIRM_SENTINEL="$BATS_TEST_TMPDIR/approval"
@@ -187,6 +207,24 @@ STUB
   run bash -c 'source "$1/scripts/common.sh"; github_latest_release_tag example/tool' _ "$ROOT"
   [ "$status" -ne 0 ]
   [ -z "$output" ]
+}
+
+@test "GitHub release tag falls back to the public latest redirect" {
+  cat >"$BATS_TEST_TMPDIR/bin/curl" <<'STUB'
+#!/bin/sh
+for argument; do url="$argument"; done
+case "$url" in
+  https://api.github.com/repos/example/tool/releases/latest) exit 22 ;;
+  https://github.com/example/tool/releases/latest)
+    printf 'https://github.com/example/tool/releases/tag/v1.2.3\n'
+    ;;
+  *) exit 90 ;;
+esac
+STUB
+  chmod +x "$BATS_TEST_TMPDIR/bin/curl"
+  run bash -c 'source "$1/scripts/common.sh"; github_latest_release_tag example/tool' _ "$ROOT"
+  [ "$status" -eq 0 ]
+  [ "$output" = "v1.2.3" ]
 }
 
 @test "Terraform fallback comparison ignores an older project-selected binary" {
@@ -272,12 +310,19 @@ STUB
   mkdir -p "$HOME/.luarocks/bin"
   printf '#!/bin/sh\nexit 0\n' >"$HOME/.luarocks/bin/luacheck"
   chmod +x "$HOME/.luarocks/bin/luacheck"
+  export TEST_LUA_DIR="$BATS_TEST_TMPDIR/lua-5.4"
+  cat >"$BATS_TEST_TMPDIR/bin/brew" <<'STUB'
+#!/bin/sh
+[ "$1" = --prefix ] && [ "$2" = lua@5.4 ] || exit 44
+printf '%s\n' "$TEST_LUA_DIR"
+STUB
   cat >"$BATS_TEST_TMPDIR/bin/luarocks" <<'STUB'
 #!/bin/sh
-[ "$1" = --lua-version=5.4 ] && [ "$2" = --tree ] && [ "$3" = "$HOME/.luarocks" ] || exit 43
+[ "$1" = --lua-version=5.4 ] && [ "$2" = --lua-dir ] && [ "$3" = "$TEST_LUA_DIR" ] \
+  && [ "$4" = --tree ] && [ "$5" = "$HOME/.luarocks" ] || exit 43
 printf 'luacheck\t1.2.0-1\tinstalled\t%s\n' "$HOME/.luarocks"
 STUB
-  chmod +x "$BATS_TEST_TMPDIR/bin/luarocks"
+  chmod +x "$BATS_TEST_TMPDIR/bin/brew" "$BATS_TEST_TMPDIR/bin/luarocks"
   # Variable expansion belongs to the isolated child shell.
   # shellcheck disable=SC2016
   run bash -c 'source "$1/scripts/common.sh"; source "$1/scripts/package-resolve.sh"; _plan_os() { echo macos; }; name=luacheck; probe=luacheck; current=-; candidate=-; _resolve_luarocks; printf "%s\n" "$status"' _ "$ROOT"

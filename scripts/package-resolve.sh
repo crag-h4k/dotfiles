@@ -145,13 +145,20 @@ _resolve_python() {
 }
 
 _resolve_luarocks() {
-    local output lua_args=()
+    local output lua_args=() lua_dir
     if ! command -v luarocks >/dev/null 2>&1; then
         status=check
         reason="resolve after LuaRocks installation"
         return
     fi
-    if [[ "$(_plan_os)" == macos ]]; then lua_args=(--lua-version=5.4); fi
+    if [[ "$(_plan_os)" == macos ]]; then
+        lua_dir=$(brew --prefix lua@5.4 2>/dev/null) || {
+            status=check
+            reason="resolve after Lua 5.4 installation"
+            return
+        }
+        lua_args=(--lua-version=5.4 --lua-dir "$lua_dir")
+    fi
     if output=$(luarocks "${lua_args[@]}" --tree "$HOME/.luarocks" list --porcelain "$name" 2>/dev/null); then
         current=$(printf '%s\n' "$output" | awk -v name="$name" '$1 == name { print $2; exit }')
     fi

@@ -505,7 +505,7 @@ _display() {
         c_new=""; c_upd=""; c_old=""; c_hdr=""; c_rst=""
     fi
     printf '%sInstall plan%s\n' "$c_hdr" "$c_rst"
-        for tier in remove planned update check blocked installed; do
+        for tier in remove planned update check blocked; do
         n=0
         for record in "${_records[@]}"; do
             IFS=$'\t' read -r source name status policy origin probe current candidate reason <<< "$record"
