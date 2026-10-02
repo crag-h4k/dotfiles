@@ -14,10 +14,13 @@
   Preferred over "plugins": ["*", "-opencode.notifications"], which disables the
   whole plugin and would also take out context.attention.notify.
 
-  plugins: disable the stock prompt footer and Copilot quota renderer, then let
-  the local V2-only statusline own their presentation. The external package's
-  server-side quota RPC stays active. The local plugin lives outside plugins/
-  discovery because it is loaded explicitly as a CLI plugin.
+   plugins: disable the stock prompt footer and Copilot quota renderer, then let
+   the local V2-only statusline own their presentation. The external package's
+   server-side quota RPC stays active. The local plugin lives outside plugins/
+   discovery because it is loaded explicitly as a CLI plugin.
+
+   diff-highlight: routes fenced Git patches through OpenTUI's native diff
+   renderer. The renderer needs a valid unified diff, not a generic code block.
 
   Not set here on purpose:
     prompt.paste - a rendering setting for how large pastes display, unrelated to
@@ -49,6 +52,7 @@
   "plugins": [
     "-opencode.prompt.footer",
     "-opencode-copilot-statusline.tui",
+    "./v2-plugins/diff-highlight",
     "./v2-plugins/statusline"
   ],
   "session": {

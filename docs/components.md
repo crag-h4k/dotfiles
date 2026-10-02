@@ -202,6 +202,11 @@ denied.
 session list. `Home` moves to the first message, freeing `Ctrl+G` for the leader,
 and the old `<leader>t` theme switch is disabled.
 
+`cli.json` also loads the local `diff-highlight` CLI plugin. Fenced `diff`
+blocks containing valid unified Git patches render through OpenTUI's native diff
+component, with the selected palette's added and removed colors and backgrounds.
+This applies to interactive decision prompts as well as transcript Markdown.
+
 ### OpenCode V2 footer
 
 OpenCode V2 loads a local CLI plugin from

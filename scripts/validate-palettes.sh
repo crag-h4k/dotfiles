@@ -44,6 +44,12 @@ for palette in $(yq '.paletteOrder[]' "$SOURCE_DIR/.chezmoidata/palettes.yaml");
     [[ -n "$foreground_spinner" && -n "$background_spinner" ]]
     [[ "$foreground_spinner" != "$background_spinner" ]]
 
+    render dot_config/opencode/v2-plugins/diff-highlight/tui.tsx.tmpl > "$TMP_DIR/opencode-diff-highlight.tsx"
+    grep -q '^  added: "#[0-9a-fA-F]\{6\}",$' "$TMP_DIR/opencode-diff-highlight.tsx"
+    grep -q '^  removed: "#[0-9a-fA-F]\{6\}",$' "$TMP_DIR/opencode-diff-highlight.tsx"
+    grep -q '^  addedBackground: "#[0-9a-fA-F]\{6\}",$' "$TMP_DIR/opencode-diff-highlight.tsx"
+    grep -q '^  removedBackground: "#[0-9a-fA-F]\{6\}",$' "$TMP_DIR/opencode-diff-highlight.tsx"
+
     render dot_config/opencode/private_cli.json.tmpl > "$TMP_DIR/opencode-cli.json"
     jq -e '.theme.name == "gud-lucent"
       and .tabs.enabled
@@ -55,7 +61,7 @@ for palette in $(yq '.paletteOrder[]' "$SOURCE_DIR/.chezmoidata/palettes.yaml");
       and .keybinds["theme.switch"] == "none"
        and .leader.timeout == 1500
        and .session.sidebar == "hide"
-       and (.plugins == ["-opencode.prompt.footer", "-opencode-copilot-statusline.tui", "./v2-plugins/statusline"])' "$TMP_DIR/opencode-cli.json" >/dev/null
+        and (.plugins == ["-opencode.prompt.footer", "-opencode-copilot-statusline.tui", "./v2-plugins/diff-highlight", "./v2-plugins/statusline"])' "$TMP_DIR/opencode-cli.json" >/dev/null
 
     render dot_config/iterm2/dotfiles.json.tmpl > "$TMP_DIR/iterm2.json"
     jq -e '.Profiles | length == 2' "$TMP_DIR/iterm2.json" >/dev/null

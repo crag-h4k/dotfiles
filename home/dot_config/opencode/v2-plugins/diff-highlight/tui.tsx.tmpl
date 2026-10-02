@@ -1,0 +1,51 @@
+{{- /* ~/.config/opencode/v2-plugins/diff-highlight/tui.tsx
+      Render fenced unified diffs through OpenTUI's native DiffRenderable. The
+      color constants come from the selected shared palette, not a second theme
+      definition. */ -}}
+{{- $p := get .palettes (dig "palette" "dracula" .) -}}
+// ~/.config/opencode/v2-plugins/diff-highlight/tui.tsx
+/** @jsxImportSource @opentui/solid */
+import { Plugin } from "@opencode/plugin/tui"
+
+const COLORS = {
+  foreground: {{ $p.colors.foreground | quote }},
+  surface: {{ $p.colors.surface | quote }},
+  added: {{ $p.colors.green | quote }},
+  removed: {{ $p.colors.red | quote }},
+  addedBackground: {{ $p.notify.dark_green | quote }},
+  removedBackground: {{ $p.notify.dark_red | quote }},
+}
+
+function asPatch(source: string) {
+  if (source.startsWith("diff --git ")) return source
+
+  return [
+    "diff --git a/decision b/decision",
+    "--- a/current",
+    "+++ b/proposed",
+    source,
+  ].join("\n")
+}
+
+export default Plugin.define({
+  id: "dotfiles.diff-highlight",
+  setup(context) {
+    return context.markdown.registerCodeBlockRenderer("diff", (token, render) => (
+      <diff
+        diff={asPatch(token.text)}
+        view="unified"
+        wrapMode="word"
+        showLineNumbers={false}
+        fg={COLORS.foreground}
+        contextBg={COLORS.surface}
+        addedBg={COLORS.addedBackground}
+        removedBg={COLORS.removedBackground}
+        addedContentBg={COLORS.addedBackground}
+        removedContentBg={COLORS.removedBackground}
+        addedSignColor={COLORS.added}
+        removedSignColor={COLORS.removed}
+        syntaxStyle={render.syntaxStyle}
+      />
+    ))
+  },
+})
