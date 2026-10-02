@@ -180,6 +180,15 @@ _brew_member() {
     return 1
 }
 
+_brew_outdated_member() {
+    local lookup="$1" inv="$2" formula
+    [[ "$inv" == *$'\n'"$lookup"$'\n'* ]] && return 0
+    [[ "$lookup" == *[0-9] ]] || return 1
+    formula=$(brew --prefix "$lookup" 2>/dev/null) || return 1
+    formula=${formula##*/}
+    [[ "$inv" == *$'\n'"$formula"$'\n'* ]]
+}
+
 _status() {
     local source="$1" name="$2" probe="${3:-}" policy="${4:-floating}"
     local lookup="${name##*/}"
@@ -201,7 +210,7 @@ _status() {
                 if _brew_member "$lookup" "$_brew_formulae"; then
                     _status_result=installed
                     _load_brew_outdated
-                    _brew_member "$lookup" "$_brew_outdated_formulae" && _status_result=update
+                    _brew_outdated_member "$lookup" "$_brew_outdated_formulae" && _status_result=update
                 fi
             fi
             ;;
@@ -288,8 +297,8 @@ _status() {
             ;;
     esac
     # Fallback: a tool is often installed by a method the source-specific probe
-    # above cannot see - system python3, a brew formula whose name differs from
-    # its binary, or tflint via tfswitch. LuaRocks uses the account tree above.
+    # above cannot see - system python3 or a brew formula whose name differs from
+    # its binary. LuaRocks uses the account tree above.
     # If its command is on PATH, it is installed. $probe is the binary for CLI
     # tools; for the path/library probes (git externals, pip modules) command -v
     # simply returns false, so this adds no false positives.
@@ -369,7 +378,7 @@ _build() {
                 for pkg in go lua@5.4 luarocks markdownlint-cli2 neovim node python3 shellcheck tenv tree-sitter tree-sitter-cli yamllint; do
                     _add brew-formula "$pkg" "Homebrew core"
                 done
-                _add brew-formula terraform-linters/tap/tflint "Homebrew tap terraform-linters/tap" tflint
+                _add brew-formula terraform-linters/tap/tflint "Legacy standalone TFLint removal" tflint remove
                 # prettierd has no Homebrew formula; install-neovim.sh installs it
                 # via npm on both platforms (conform.nvim formatter for json/yaml).
                 _add npm @fsouza/prettierd "https://www.npmjs.com/package/@fsouza/prettierd" prettierd
@@ -417,7 +426,6 @@ _build() {
                 # Neovim ships as one checksum-verified upstream tree so its
                 # binary, runtime, and libraries switch as a unit.
                 _add github-release neovim "https://github.com/neovim/neovim/releases" nvim
-                _add github-release tflint "https://github.com/terraform-linters/tflint/releases" tflint
                 _add github-release tenv "https://github.com/tofuutils/tenv/releases" tenv
                 _add github-release terraform "https://releases.hashicorp.com/terraform/" terraform
                 _add github-release tree-sitter-cli "https://github.com/tree-sitter/tree-sitter/releases" tree-sitter pinned:v0.26.11

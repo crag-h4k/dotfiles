@@ -60,8 +60,8 @@ headlessly without that opt-in, applies configuration only and does not change
 the stored `installMode`.
 
 On Debian, NodeSource and Aqua Security use explicit signed APT sources.
-NodeSource is selected for Neovim or any Node-dependent AI feature. TFLint,
-tenv, Neovim, tree-sitter CLI, and yq release downloads are
+NodeSource is selected for Neovim or any Node-dependent AI feature. tenv,
+Neovim, tree-sitter CLI, and yq release downloads are
 checksum-verified; user-local executables use atomic replacement. tenv also
 verifies HashiCorp signatures when its `terraform` proxy installs a project
 version.
@@ -94,8 +94,8 @@ It sums every interface, so VPN and VM-bridge traffic is included.
 | Lazy | Neovim plugins |
 
 The package installer owns shell-visible markdownlint-cli2, ShellCheck,
-yamllint, TFLint, and Luacheck. Mason owns the configured language
-servers and editor-only Gitleaks.
+yamllint, and Luacheck. Mason owns TFLint, the configured language servers,
+and editor-only Gitleaks.
 
 Startup installs missing Mason packages. Package mode previews individual Mason
 packages, Lazy plugins, and Treesitter parsers, then applies only approved

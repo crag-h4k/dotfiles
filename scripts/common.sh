@@ -572,14 +572,6 @@ github_latest_release_asset_sha256() {
     printf '%s\n' "${digest#sha256:}"
 }
 
-tflint_release_arch() {
-    case "$1" in
-        x86_64|amd64)  echo "amd64" ;;
-        aarch64|arm64) echo "arm64" ;;
-        *) return 1 ;;
-    esac
-}
-
 tenv_release_arch() {
     case "$1" in
         x86_64|amd64)  echo "x86_64" ;;
@@ -706,38 +698,6 @@ install_tree_sitter_cli_debian() {
     fi
     rm -rf "$tmp_dir"
     info "tree-sitter CLI installed: $("$HOME/.local/bin/tree-sitter" --version 2>/dev/null)"
-}
-
-install_tflint_debian() {
-    require_cmd curl
-    require_cmd unzip
-    local arch tag asset tmp_dir
-    arch=$(tflint_release_arch "$(uname -m)") \
-        || { warn "unsupported arch $(uname -m) for tflint"; return 1; }
-    tag=$(package_target github-release tflint)
-    [[ -n "$tag" ]] || tag=$(github_latest_release_tag terraform-linters/tflint) \
-        || { warn "could not determine the latest tflint release"; return 1; }
-    asset="tflint_linux_${arch}.zip"
-    tmp_dir=$(mktemp -d)
-    info "fetching tflint ${tag} (${arch})"
-    if ! curl -fsSL -o "$tmp_dir/$asset" \
-        "https://github.com/terraform-linters/tflint/releases/download/${tag}/${asset}" \
-        || ! curl -fsSL -o "$tmp_dir/checksums.txt" \
-        "https://github.com/terraform-linters/tflint/releases/download/${tag}/checksums.txt" \
-        || ! verify_release_checksum "$tmp_dir" checksums.txt "$asset"; then
-        warn "tflint download or checksum verification failed"
-        rm -rf "$tmp_dir"
-        return 1
-    fi
-    unzip -oq "$tmp_dir/$asset" -d "$tmp_dir/unpack"
-    mkdir -p "$HOME/.local/bin"
-    if ! atomic_install_binary "$tmp_dir/unpack/tflint" "$HOME/.local/bin/tflint"; then
-        warn "tflint atomic replacement failed"
-        rm -rf "$tmp_dir"
-        return 1
-    fi
-    rm -rf "$tmp_dir"
-    info "tflint installed: $("$HOME/.local/bin/tflint" --version 2>/dev/null | head -1)"
 }
 
 install_tenv_debian() {

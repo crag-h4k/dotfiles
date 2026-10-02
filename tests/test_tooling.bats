@@ -308,15 +308,12 @@ STUB
 }
 
 @test "release architecture mappings cover Debian amd64 and arm64" {
-  [ "$(tflint_release_arch x86_64)" = "amd64" ]
-  [ "$(tflint_release_arch aarch64)" = "arm64" ]
   [ "$(tenv_release_arch x86_64)" = "x86_64" ]
   [ "$(tenv_release_arch aarch64)" = "arm64" ]
   [ "$(tree_sitter_cli_release_asset x86_64)" = "tree-sitter-cli-linux-x64.zip" ]
   [ "$(tree_sitter_cli_release_asset aarch64)" = "tree-sitter-cli-linux-arm64.zip" ]
   [ "$(tree_sitter_cli_release_sha256 x86_64)" = "ff1b7f9863f2faafd78dc0e66d902ee85b37f709b314b22c009f51caf233eebd" ]
   [ "$(tree_sitter_cli_release_sha256 aarch64)" = "db28509fe6db8902f9d14c43c486858c7486b42c3a96b30e811e73f105762336" ]
-  run ! tflint_release_arch riscv64
   run ! tenv_release_arch riscv64
   run ! tree_sitter_cli_release_asset riscv64
   run ! tree_sitter_cli_release_sha256 riscv64
@@ -457,14 +454,13 @@ STUB
   [ ! -e "$tenv_log" ]
 }
 
-@test "development package plan owns cross-platform CLIs without Gitleaks or Hadolint" {
+@test "development package plan excludes editor-owned tools" {
   local planner="$REPO_ROOT/scripts/package-plan.sh"
 
   run env DOTFILES_PLAN_OS=debian DOTFILES_PLAN_ASSUME_MISSING=1 \
     INSTALL_NEOVIM=true bash "$planner" --records
   [ "$status" -eq 0 ]
   [[ "$output" == *$'apt\tnodejs\tplanned\tfloating\tNodeSource Node.js 24 apt repository'* ]]
-  [[ "$output" == *$'github-release\ttflint\tplanned\t'* ]]
   [[ "$output" == *$'github-release\ttenv\tplanned\t'* ]]
   [[ "$output" == *$'github-release\ttree-sitter-cli\tplanned\t'* ]]
   [[ "$output" == *$'npm\tmarkdownlint-cli2\tplanned\t'* ]]
@@ -475,6 +471,7 @@ STUB
   [[ "$output" != *$'apt\tnpm\t'* ]]
   [[ "$output" != *$'\tgitleaks\t'* ]]
   [[ "$output" != *$'\thadolint\t'* ]]
+  [[ "$output" != *$'\ttflint\t'* ]]
 
   run env DOTFILES_PLAN_OS=macos DOTFILES_PLAN_ASSUME_MISSING=1 \
     INSTALL_NEOVIM=true bash "$planner" --records
@@ -483,13 +480,13 @@ STUB
   [[ "$output" == *$'brew-formula\tshellcheck\tplanned\t'* ]]
   [[ "$output" == *$'brew-formula\ttenv\tplanned\t'* ]]
   [[ "$output" == *$'brew-formula\tyamllint\tplanned\t'* ]]
-  [[ "$output" == *$'brew-formula\tterraform-linters/tap/tflint\tplanned\t'* ]]
   [[ "$output" == *$'brew-formula\ttree-sitter\tplanned\t'* ]]
   [[ "$output" == *$'brew-formula\ttree-sitter-cli\tplanned\t'* ]]
   [[ "$output" == *$'npm\t@fsouza/prettierd\tplanned\t'* ]]
   [[ "$output" == *$'luarocks\tluacheck\tplanned\t'* ]]
   [[ "$output" != *$'\tgitleaks\t'* ]]
   [[ "$output" != *$'\thadolint\t'* ]]
+  [[ "$output" == *$'brew-formula\tterraform-linters/tap/tflint\tabsent\tremove\tLegacy standalone TFLint removal'* ]]
 }
 
 @test "Neovim uses modern LSP activation and reserves Mason tooling for Gitleaks" {

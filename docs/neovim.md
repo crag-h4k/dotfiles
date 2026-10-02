@@ -15,8 +15,8 @@ build the local runtime.
 | Lazy | Neovim plugins installed on this machine |
 
 The package installer owns `markdownlint-cli2`, `prettierd`, ShellCheck,
-yamllint, TFLint, and Luacheck. They remain available in a shell and can
-be reused by CI or other editors.
+yamllint, and Luacheck. They remain available in a shell and can be reused by
+CI or other editors. Mason owns TFLint for Neovim.
 
 On macOS, Homebrew installs `markdownlint-cli2`. On Debian, it is installed
 user-globally through npm under `~/.local`. `nvim-lint` uses that same binary;

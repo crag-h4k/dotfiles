@@ -83,7 +83,6 @@ _resolve_release() {
     fi
     case "$name" in
         neovim) repository=neovim/neovim ;;
-        tflint) repository=terraform-linters/tflint ;;
         tenv) repository=tofuutils/tenv ;;
         yq) repository=mikefarah/yq ;;
         tree-sitter-cli) repository=tree-sitter/tree-sitter ;;

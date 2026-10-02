@@ -421,12 +421,12 @@ tenv tf use -w 1.15.7        # write .terraform-version in this project
 terraform fmt -check -recursive
 terraform init -backend=false
 terraform validate
-tflint --init && tflint
 ```
 
-The managed `~/.tflint.hcl` enables only TFLint's portable recommended rules.
-Cloud-provider rulesets belong in each project; an AWS plugin has no business
-loading in every Terraform repository.
+Mason installs TFLint for Neovim. Terminal and CI workflows should use the
+project's own TFLint provisioning. The managed `~/.tflint.hcl` enables only
+TFLint's portable recommended rules. Cloud-provider rulesets belong in each
+project; an AWS plugin has no business loading in every Terraform repository.
 
 ## Supported platforms
 
@@ -446,7 +446,7 @@ chezmoi purge          # removes chezmoi source and state
 rm -rf ~/.zsh ~/.tmux ~/.config/nvim ~/.config/yamllint ~/.local/share/nvim-venv
 rm -f ~/.zshrc ~/.zshenv ~/.tmux.conf
 rm -f ~/.darglint ~/.flake8 ~/.tflint.hcl ~/.markdownlint.yaml
-rm -f ~/.gitignore_global ~/.local/bin/tenv ~/.local/bin/terraform ~/.local/bin/tflint
+rm -f ~/.gitignore_global ~/.local/bin/tenv ~/.local/bin/terraform
 rm -rf ~/.tenv
 rm -f ~/dotfiles    # convenience symlink created by install.sh
 ```

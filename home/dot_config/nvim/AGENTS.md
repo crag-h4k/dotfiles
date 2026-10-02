@@ -16,8 +16,8 @@ changing the configuration. Preserve the tool ownership split:
 - Keep lazy-lock.json and package/revision state local. Preserve the optional
   unmanaged `lua/override.lua` and its documented load order.
 - Avoid duplicate tool ownership. Shell-visible markdownlint-cli2, prettierd,
-  ShellCheck, yamllint, TFLint, and Luacheck belong to the package installer.
-  Gitleaks/LSP ownership and executable lookup follow the current configuration.
+  ShellCheck, yamllint, and Luacheck belong to the package installer. Mason owns
+  TFLint and Gitleaks with the configured language servers.
 - Verify the installed Treesitter branch/API, parser manifest, compiler, and CLI.
   The tree-sitter C library alone does not supply the CLI. Check actual plugin
   names and activation before diagnosing a headless loader failure.

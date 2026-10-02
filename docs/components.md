@@ -308,7 +308,7 @@ Neovim.
 
 The Neovim component also installs the command-line tools behind its
 integrations. The cross-platform package plan owns shell-visible
-markdownlint-cli2, ShellCheck, yamllint, TFLint, and Luacheck.
+markdownlint-cli2, ShellCheck, yamllint, and Luacheck. Mason owns TFLint.
 
 Mason owns language servers and editor-only Gitleaks. It installs missing
 packages at startup but does not update or reconcile existing versions. See
@@ -342,9 +342,10 @@ not need Python, the submodule, or network access.
 Set `DOTFILES_PALETTE=<id>` for a non-interactive selection. See
 [Palette catalog](palettes.md) for generation and mapping details.
 
-The final screen groups the deduplicated package plan by status: install,
-detected update, check, blocked, and installed. Colors honor `NO_COLOR`, and every
-line names its package source and whether it floats or is pinned.
+The final screen shows pending install, update, removal, check, and blocked
+actions. Current packages remain in the resolved plan but stay out of the
+display. Colors honor `NO_COLOR`, and every line names its package source and
+whether it floats or is pinned.
 
 The plan refreshes Homebrew or APT metadata before it is shown, then uses the
 fresh inventory and upstream versions to resolve one plan. The installer and

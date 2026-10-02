@@ -239,7 +239,6 @@ main() {
                 [[ "$INSTALL_NEOVIM" == true ]] && { package_action_try github-release neovim "Neovim versioned release" install_neovim_debian || true; }
                 if [[ "$INSTALL_NEOVIM" == true ]]; then
                     package_action_try github-release tree-sitter-cli "tree-sitter CLI pinned v0.26.11" install_tree_sitter_cli_debian || true
-                    package_action_try github-release tflint "TFLint latest release" install_tflint_debian || true
                     package_action_try github-release tenv "tenv latest release" install_tenv_debian || true
                 fi
                 if [[ "$node_required" == true ]]; then

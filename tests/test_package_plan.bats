@@ -106,6 +106,30 @@ STUB
   [ "$(grep -c 'list --cask' "$log")" -eq 1 ]
 }
 
+@test "Homebrew Python alias ignores outdated inactive versioned formulae" {
+  local stubdir="${BATS_TEST_TMPDIR}/python-alias-stub"
+  mkdir -p "$stubdir"
+  cat >"${stubdir}/brew" <<'STUB'
+#!/bin/sh
+case "$*" in
+  "list --formula") printf 'python@3.10\npython@3.11\npython@3.14\n' ;;
+  "list --cask") ;;
+  "outdated --formula --quiet") printf 'python@3.10\npython@3.11\n' ;;
+  "outdated --cask --quiet") ;;
+  "--prefix python3") printf '/opt/homebrew/opt/python@3.14\n' ;;
+  *) exit 91 ;;
+esac
+STUB
+  chmod +x "${stubdir}/brew"
+
+  run env PATH="${stubdir}:${PATH}" DOTFILES_PLAN_OS=macos DOTFILES_PLAN_APPROVED=1 \
+    INSTALL_AI_STATUSLINE=true bash "$PLANNER" --records
+
+  [ "$status" -eq 0 ]
+  [[ "$output" == *$'brew-formula\tpython3\tinstalled\t'* ]]
+  [[ "$output" != *$'brew-formula\tpython3\tupdate\t'* ]]
+}
+
 @test "package metadata refresh is one manager call before the plan" {
   local stubdir="${BATS_TEST_TMPDIR}/refresh-stub" log="${BATS_TEST_TMPDIR}/refresh.log"
   mkdir -p "$stubdir"
