@@ -23,7 +23,7 @@ GUIDANCE_FILES = (
     "tests/AGENTS.md",
     ".github/AGENTS.md",
     "docs/AGENTS.md",
-    "home/dot_config/opencode/AGENTS.md",
+    "docs/opencode-maintenance.md",
     "home/dot_config/nvim/AGENTS.md",
     "home/dot_config/notify/AGENTS.md",
 )

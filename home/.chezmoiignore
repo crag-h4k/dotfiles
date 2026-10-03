@@ -2,6 +2,10 @@
 # Agent contracts describe repository work; never deploy them into a home.
 AGENTS.md
 **/AGENTS.md
+{{ if dig "components" "ai" "opencode" false . -}}
+# Only the global OpenCode instruction is managed; repository contracts stay excluded.
+!.config/opencode/AGENTS.md
+{{ end -}}
 *.example
 *.ig
 # Python bytecode (e.g. from validating modify_*.json scripts). A cached

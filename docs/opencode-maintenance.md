@@ -1,4 +1,4 @@
-# OpenCode2 integration
+# OpenCode2 integration maintenance
 
 Read the repo's `docs/operation.md`, `docs/notifications.md`, and
 `docs/agent-skills.md`. This integration targets OpenCode V2. Check the actual

@@ -158,7 +158,8 @@ class SkillDeploymentTests(unittest.TestCase):
             with self.subTest(features=features):
                 self.config.write_text(VALIDATOR.component_config(features))
                 managed = self.run_chezmoi("managed", "--path-style=relative").decode().splitlines()
-                self.assertFalse(any(Path(path).name == "AGENTS.md" for path in managed))
+                instructions = [path for path in managed if Path(path).name == "AGENTS.md"]
+                self.assertEqual(instructions, [".config/opencode/AGENTS.md"] if features == {"opencode"} else [])
                 for target in (
                     ".local/share/agent-skills/chezmoi-dotfiles/SKILL.md",
                     ".local/share/agent-skills/chezmoi-dotfiles/references/workflows.md",
@@ -173,7 +174,37 @@ class SkillDeploymentTests(unittest.TestCase):
         self.config.write_text(VALIDATOR.component_config(set(VALIDATOR.AI_FEATURES)))
         archive = self.run_chezmoi("archive", "--format=tar")
         with tarfile.open(fileobj=io.BytesIO(archive)) as rendered:
-            self.assertFalse(any(Path(entry.name).name == "AGENTS.md" for entry in rendered))
+            instructions = [entry.name for entry in rendered if Path(entry.name).name == "AGENTS.md"]
+            self.assertEqual(instructions, [".config/opencode/AGENTS.md"])
+
+    def test_global_opencode_instructions_preserve_local_content(self) -> None:
+        self.config.write_text(VALIDATOR.component_config({"opencode"}))
+        target = self.destination / ".config/opencode/AGENTS.md"
+        target.parent.mkdir(parents=True)
+        target.write_text("# Local rules\n\nKeep my custom rule.\n")
+        target.chmod(0o600)
+        self.run_chezmoi("apply", "--", str(target))
+        first = target.read_text()
+        self.assertEqual(target.stat().st_mode & 0o777, 0o600)
+        self.assertIn("Keep my custom rule.", first)
+        self.assertIn("`question` tool", first)
+        self.assertIn("Before any mutating Git operation", first)
+        self.assertIn("at least two candidate commit messages", first)
+        self.assertIn("Release Please Conventional Commit", first)
+        self.run_chezmoi("apply", "--", str(target))
+        self.assertEqual(target.read_text(), first)
+        old = first.replace(
+            "Before any mutating Git operation (including add, commit, push, rm, reset,\n"
+            "clean, checkout, restore, and worktree changes), use `question` to get my\n"
+            "explicit authorization for that operation. Read-only Git operations are fine.\n"
+            "Before a commit, present at least two candidate commit messages that follow\n"
+            "this repo's Release Please Conventional Commit conventions, then ask me to\n"
+            "choose one with `question`. Permission prompts do not replace this decision.\n",
+            "",
+        )
+        target.write_text(old)
+        self.run_chezmoi("apply", "--", str(target))
+        self.assertEqual(target.read_text(), first)
 
     def test_apply_preserves_local_skills_and_resolves_one_canonical_copy(self) -> None:
         self.config.write_text(VALIDATOR.component_config({"opencode"}))

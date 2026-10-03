@@ -214,15 +214,15 @@ notify_fire() {
   [ -n "$bg" ] || bg='#5b1a1a'
   [ -n "$accent" ] || accent='#ff5555'
   [ -n "$vol" ] || vol=75
-  # @notify drives the status-bar flag (pane + window scope); window-style
-  # recolors the pane (visible on shell panes; hidden behind full-screen TUIs).
+  # Keep pane and window flags separate: pane options inherit window values, so
+  # writing @notify at window scope would mark every pane in a split layout.
   _notify_tmux \
     set-option -p -t "$pane" @notify 1 \; \
-    set-option -w -t "$pane" @notify 1 \; \
     set-option -p -t "$pane" @notify_accent "$accent" \; \
-    set-option -w -t "$pane" @notify_accent "$accent" \; \
     set-option -p -t "$pane" window-style "bg=$bg" \; \
-    set-option -p -t "$pane" window-active-style "bg=$bg" 2>/dev/null
+    set-option -p -t "$pane" window-active-style "bg=$bg" \; \
+    set-option -w -t "$pane" @notify_window 1 \; \
+    set-option -w -t "$pane" @notify_window_accent "$accent" 2>/dev/null
   notify_log "fire pane=$pane group=$grp bg=$bg accent=$accent sound=${snd:-none} vol=$vol"
   notify_play "$snd" "$vol"
 }
@@ -231,15 +231,23 @@ notify_fire() {
 # no-op). The optional reason is only logged (debug), so we can tell which path
 # cleared a pane - key, mouse, zle-keypress, preexec, claude-prompt, ...
 notify_clear() {
-  local pane="$1" reason="${2:-}"
+  local pane="$1" reason="${2:-}" accent PATH="$PATH:$_NOTIFY_SYSPATH"
   [ -n "$pane" ] || return 0
   _notify_tmux \
     set-option -pu -t "$pane" window-style \; \
     set-option -pu -t "$pane" window-active-style \; \
     set-option -p  -t "$pane" @notify '' \; \
-    set-option -w  -t "$pane" @notify '' \; \
-    set-option -p  -t "$pane" @notify_accent '' \; \
-    set-option -w  -t "$pane" @notify_accent '' 2>/dev/null
+    set-option -p  -t "$pane" @notify_accent '' 2>/dev/null
+  # Another pane in this window may still need attention. Choose the first
+  # remaining pane's accent rather than dropping the window-tab indicator.
+  accent=$(_notify_tmux list-panes -t "$pane" -F '#{?@notify,#{@notify_accent},}' 2>/dev/null | grep -m 1 . || :)
+  if [ -n "$accent" ]; then
+    _notify_tmux set-option -w -t "$pane" @notify_window 1 \; \
+      set-option -w -t "$pane" @notify_window_accent "$accent" 2>/dev/null
+  else
+    _notify_tmux set-option -w -t "$pane" @notify_window '' \; \
+      set-option -w -t "$pane" @notify_window_accent '' 2>/dev/null
+  fi
   notify_log "clear pane=$pane${reason:+ via $reason}"
   return 0
 }
