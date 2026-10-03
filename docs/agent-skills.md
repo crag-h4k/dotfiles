@@ -88,12 +88,18 @@ See [Agent guidance](agent-guidance.md) for the scoped contracts and evidence.
 ```text
 /handoff
 /handoff resume <project>
+/handoff integrate <project>
 /handoff list
 /handoff close <project>
 ```
 
 Save writes a new file only on an explicit save. Resume reads the newest open
 file, re-checks live state, reports drift, and stops. It does not start work.
+Integrate does the same verification, incorporates the validated context into
+the current session, and leaves the handoff open. It does not execute Next steps
+unless the current request authorizes them. In Plan mode the skill and read-only
+snapshot script remain available; only files under the configured handoff root
+can be edited for save or close, not project files.
 The handoff root comes from the user or from harness instructions. The skill
 does not invent one. The snapshot script prints git state only. It does not
 print the environment or file contents. A draft that contains a private-key

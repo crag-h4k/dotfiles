@@ -1,8 +1,8 @@
 ---
 name: handoff
-description: Save, resume, list, or close a session handoff so a later session can continue. Use when the user asks to hand off, save a handoff, resume a handoff, pick up where the last session left off, list handoffs, or close one. An incidental use of the word is not a save.
+description: Save, resume, integrate, list, or close a session handoff. Use when the user asks to hand off, pick up or incorporate a handoff into the current session, list handoffs, or close one. An incidental use of the word is not a save.
 user-invocable: true
-argument-hint: "[save|resume|list|close] [project-or-slug]"
+argument-hint: "[save|resume|integrate|list|close] [project-or-slug]"
 ---
 
 <!-- $HOME/.local/share/agent-skills/handoff/SKILL.md -->
@@ -28,6 +28,8 @@ date. Do not overwrite an older file.
   invoked the handoff command with no other verb. A passing mention does not
   write a file.
 - `resume`: read, verify, report, stop.
+- `integrate`: read and verify a handoff, then use its validated context in this
+  session. Do not close or modify the handoff.
 - `list`: print open handoffs and stop.
 - `close`: set `status: closed` and a `closed` date. Do not delete the file.
 
@@ -65,6 +67,21 @@ date. Do not overwrite an older file.
    step, and blockers.
 6. Stop. Do not relitigate Decided. Do not start work until the user says to
    continue.
+
+## Integrate
+
+Use Resume steps 1-5 to select and verify the handoff, including live repository
+and tracker state. Report the path, summary, drift, first unfinished step, and
+blockers. Incorporate verified decisions, constraints, and pointers into the
+current session; identify stale or conflicting details instead of treating them
+as current facts. Unlike `resume`, do not stop the session after reporting. An
+integration request alone does not authorize executing the handoff's Next steps
+or broadening the current task. Leave the handoff open.
+
+In Plan mode, read and integrate normally; use the read-only snapshot script.
+Save and close may edit only the authorized handoff root, never project files.
+If the selected root is not writable under the active agent's permissions,
+report the limitation rather than using a shell command to bypass it.
 
 ## List and close
 
