@@ -95,6 +95,7 @@ _notify_log_init() {
     stripped=${_NOTIFY_LOGFILE#"~/"}
     [ "$stripped" != "$_NOTIFY_LOGFILE" ] && _NOTIFY_LOGFILE="$HOME/$stripped"
   fi
+  return 0
 }
 
 # notify_debug_on - true when debug logging is enabled. Lets callers gate
