@@ -120,3 +120,9 @@ STUB
   [ "$status" -eq 0 ]
   [ ! -f "$logfile" ]
 }
+
+@test "notify_log succeeds under errexit with an ordinary log path" {
+  run bash -ec 'export NOTIFY_CONFIG="$1" NOTIFY_LOG="$2" NOTIFY_DEBUG=0; . "$3"; notify_log "quiet"' \
+    _ "${FIXTURES}/notify.yaml" "${BATS_TEST_TMPDIR}/notify.log" "$NOTIFY_LIB"
+  [ "$status" -eq 0 ]
+}

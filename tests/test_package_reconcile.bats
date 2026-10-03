@@ -116,6 +116,9 @@ STUB
   local source="$BATS_TEST_TMPDIR/archive-source"
   mkdir -p "$source/.git"
   : >"$source/.gitmodules"
+  # Git exports the parent checkout context to commit hooks; this fixture is
+  # deliberately an independent archive source.
+  unset GIT_DIR GIT_WORK_TREE GIT_INDEX_FILE GIT_COMMON_DIR
   export DOTFILES_PACKAGE_PLAN="$BATS_TEST_TMPDIR/current-plan"
   printf 'brew-formula\tgit\tinstalled\tfloating\torigin\tgit\t1.2.3\t1.2.3\tcurrent\n' >"$DOTFILES_PACKAGE_PLAN"
   cat >"$BATS_TEST_TMPDIR/bin/brew" <<'STUB'

@@ -33,8 +33,9 @@ authoring inputs live outside it. Read `docs/architecture.md` and
 - Keep Lazy's lockfile, downloaded plugins, OpenCode runtime links and npm state,
   caches, transcripts, and authentication unmanaged. Chezmoi declares desired
   configuration; application/package managers own their local runtime state.
-- `AGENTS.md` files in this tree are repository guidance. Keep both the root and
-  recursive ignore patterns so no such file becomes target-home instructions.
+- `AGENTS.md` files in this tree are repository guidance. The one exception is
+  `modify_private_AGENTS.md` for OpenCode's global instructions; preserve local content
+  and gate it on `ai > opencode`. Keep other guidance excluded from target homes.
 
 ## Rendering
 

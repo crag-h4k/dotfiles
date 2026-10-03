@@ -7,8 +7,9 @@ when the harness starts at the repository root.
 
 Guidance is based on explicit user decisions, recurring corrections, and current
 code. Supported inferences are defaults. Keep entrypoints concise and update
-affected guidance with behavior changes. Source instructions under `home/` are
-excluded from deployment; they must not become instructions in a target home.
+affected guidance with behavior changes. Repository contracts under `home/` are
+excluded from deployment. The managed OpenCode global `AGENTS.md` is separate
+and contains only portable user preferences.
 
 ## Maintenance skill
 
@@ -55,5 +56,6 @@ prek run --all-files
 
 Tests render the maintenance skill into a disposable destination, verify its
 references and link targets, and preserve an unrelated local skill. They also
-check that root and nested guidance are absent from managed targets and archives.
+check that repository contracts are absent from managed targets and archives;
+only the OpenCode global instructions are deployed when selected.
 The complete deployment gate remains unchanged; see [CI](ci.md).

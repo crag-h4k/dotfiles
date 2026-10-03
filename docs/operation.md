@@ -86,6 +86,10 @@ settings in these files, and `chezmoi update` keeps working:
 - OpenCode CLI settings: `~/.config/opencode/cli.override.json`
 - OpenCode launch behavior: `~/.config/opencode/override.zsh`
 
+With `ai > opencode` selected, chezmoi also merges a portable preference into
+`~/.config/opencode/AGENTS.md`: use the `question` tool when asking how to
+proceed or how to evaluate options. Existing local instructions stay intact.
+
 None are chezmoi-managed. Each is listed
 unconditionally in `home/.chezmoiignore`, so chezmoi never applies or removes
 them, and `chezmoi add` and `chezmoi re-add` refuse them. Your settings stay

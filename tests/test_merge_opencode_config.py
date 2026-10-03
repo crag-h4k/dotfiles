@@ -7,7 +7,8 @@ surgery and never round-trips
 the file through json.loads/json.dumps. These tests pin that contract:
 
   OWNED   schema, built-in agent colors, and V2 plugins are re-asserted.
-  SEEDED  native "permissions" are written only when no policy exists.
+  SEEDED  native "permissions" are written only when no policy exists; generic
+          native Git rules migrate from deny to ask without touching private keys.
   KEPT    every other top-level key survives byte-for-byte, comments included.
 
 The work layer this exists for (a real `instructions` path and internal `mcp`
@@ -222,7 +223,7 @@ def test_owned_comments_survive_because_nothing_is_reserialized(script):
         "// OpenCode V2 plugins, EXACT-pinned.",
         "// Prompt metadata uses each agent's configured color.",
         "// Permission model: ask by default",
-        "// Final denials override saved approvals",
+        "// Git mutations ask for approval",
     ):
         assert comment in out, f"lost load-bearing comment: {comment}"
 
@@ -338,6 +339,55 @@ def test_existing_native_permissions_migrate_the_hook_driver(script):
     assert "// Keep this local policy comment." in out
 
 
+def test_existing_native_worktree_rule_narrows_without_replacing_local_policy(script):
+    src = """\
+{
+  // Keep other local choices in their original order.
+  "permissions": [
+    { "action": "shell", "resource": "git worktree *", "effect": "allow" },
+    { "action": "shell", "resource": "git push *", "effect": "deny" },
+    { "action": "shell", "resource": "rm -rf *", "effect": "deny" }
+  ]
+}
+"""
+    out, _ = merge(script, src)
+    assert '"resource": "git worktree *"' in out
+    assert '"resource": "git worktree list *"' in out
+    assert '// Keep other local choices in their original order.' in out
+    assert permission_effect(parse(out)["permissions"], "shell", "git worktree remove old") == "ask"
+    assert permission_effect(parse(out)["permissions"], "shell", "git worktree list") == "allow"
+    assert parse(out)["permissions"][-2:] == [
+        {"action": "shell", "resource": "git push *", "effect": "ask"},
+        {"action": "shell", "resource": "rm -rf *", "effect": "deny"},
+    ]
+    again, _ = merge(script, out)
+    assert again == out
+
+
+def test_existing_native_git_denials_migrate_without_touching_private_agents(script):
+    src = '''{
+  "permissions": [
+    { "action": "shell", "resource": "*git * commit *", "effect": "deny" },
+    { "action": "shell", "resource": "git * --output=*", "effect": "deny" },
+    { "action": "shell", "resource": "git clean *", "effect": "deny" },
+    { "action": "shell", "resource": "rm -rf *", "effect": "deny" }
+  ],
+  "agents": {
+    "local": { "permissions": [
+      { "action": "shell", "resource": "git clean *", "effect": "deny" }
+    ] }
+  }
+}
+'''
+    out, _ = merge(script, src)
+    rules = parse(out)["permissions"]
+    for command in ("git -C repo commit -m test", "git log --output=notes", "git clean -fd"):
+        assert permission_effect(rules, "shell", command) == "ask"
+    assert permission_effect(rules, "shell", "rm -rf dir") == "deny"
+    assert parse(out)["agents"]["local"]["permissions"][0]["effect"] == "deny"
+    assert merge(script, out)[0] == out
+
+
 def test_native_seed_has_narrow_allows_and_final_denials(script):
     out, _ = merge(script, "")
     rules = parse(out)["permissions"]
@@ -364,13 +414,15 @@ def test_native_seed_has_narrow_allows_and_final_denials(script):
         ("opencode_models", "*", "allow"),
         ("shell", "pdftotext * -", "allow"),
         ("shell", "prek *", "allow"),
+        ("shell", "git worktree list *", "allow"),
         ("shell", "gh pr view *", "allow"),
     ):
         assert rule in triples
 
-    for resource in ("git add *", "git commit *", "git rm *", "rm -rf *"):
-        assert ("shell", resource, "deny") in triples
-    assert triples.index(("shell", "git add *", "deny")) > triples.index(
+    for resource in ("git add *", "git commit *", "git rm *", "git push *", "git worktree *"):
+        assert ("shell", resource, "ask") in triples
+    assert ("shell", "rm -rf *", "deny") in triples
+    assert triples.index(("shell", "git add *", "ask")) > triples.index(
         ("shell", "git status *", "allow")
     )
     assert triples.index(("read", "*.env", "deny")) > triples.index(
@@ -465,7 +517,7 @@ def test_github_auth_status_never_allows_token_output(script):
     assert allowed_auth_status == ["gh auth status"]
 
 
-def test_hard_denials_cover_git_global_options_and_recursive_rm(script):
+def test_git_mutations_ask_and_recursive_rm_stays_denied(script):
     out, _ = merge(script, "")
     rules = parse(out)["permissions"]
     for command in (
@@ -493,16 +545,21 @@ def test_hard_denials_cover_git_global_options_and_recursive_rm(script):
         "command rm -f -R target",
         "/bin/rm target -r",
     ):
-        assert permission_effect(rules, "shell", command) == "deny", command
+        expected = "deny" if "rm " in command and "git" not in command else "ask"
+        assert permission_effect(rules, "shell", command) == expected, command
+
+    assert permission_effect(rules, "shell", "git worktree list --porcelain") == "allow"
+    for command in ("git worktree add ../new", "git worktree remove old", "git worktree prune"):
+        assert permission_effect(rules, "shell", command) == "ask"
 
     shell_rules = [rule for rule in rules if rule["action"] == "shell"]
     last_allow = max(i for i, rule in enumerate(shell_rules) if rule["effect"] == "allow")
-    first_destructive_deny = min(
+    first_destructive_rule = min(
         i
         for i, rule in enumerate(shell_rules)
-        if rule["effect"] == "deny" and rule["resource"] in {"git add *", "rm -r *"}
+        if rule["resource"] in {"git add *", "rm -r *"}
     )
-    assert first_destructive_deny > last_allow
+    assert first_destructive_rule > last_allow
 
 
 def test_seeded_block_matches_the_generic_base(script):

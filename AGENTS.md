@@ -24,7 +24,7 @@ palette, AI tooling, and verified deployments are central to the project.
 | Tests and deployment fixtures | [tests/AGENTS.md](tests/AGENTS.md) |
 | CI and releases | [.github/AGENTS.md](.github/AGENTS.md) |
 | Documentation | [docs/AGENTS.md](docs/AGENTS.md) |
-| OpenCode2 | [OpenCode guidance](home/dot_config/opencode/AGENTS.md) |
+| OpenCode2 | [OpenCode guidance](docs/opencode-maintenance.md) |
 | Neovim | [Neovim guidance](home/dot_config/nvim/AGENTS.md) |
 | Notifications | [Notifier guidance](home/dot_config/notify/AGENTS.md) |
 

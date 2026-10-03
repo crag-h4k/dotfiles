@@ -186,7 +186,10 @@ if CLI verification or the matching runtime installation fails.
 schema, built-in agent colors, and exact-pinned V2 plugin list while preserving
 unknown top-level keys and comments. A fresh host receives native ordered
 `permissions`; only the exact old generated `permission` block is migrated.
-Customized V1 or V2 policies remain untouched. Within `agents`, only
+Customized V1 policies remain untouched. Existing native V2 policies retain
+their local choices except generic `pre-commit *` becomes `prek *`, the generic
+`git worktree *` allow narrows to read-only `git worktree list *`, and the
+generic mutating Git deny rules become ask. Within `agents`, only
 `build.color` and `plan.color` are managed; custom agents and every other
 built-in field or comment survive unchanged.
 
@@ -194,8 +197,11 @@ The seeded policy allows native reads, searches, questions, skills, subagents,
 Code Mode, external document access, read-only MCP methods, browser inspection,
 and common shell-based file inspection without prompting. Mutating MCP calls,
 browser interaction, edits, arbitrary shell commands, and publishing still ask.
-Credential files and destructive Git or recursive removal commands remain
-denied.
+Read-only Git commands are allowed; mutating Git operations, including worktree
+changes, ask. The managed global OpenCode instructions also require an explicit
+`question` decision before Git mutations. Before a commit they require at least
+two Release Please Conventional Commit message candidates and a user selection.
+Credential files and recursive removal commands remain denied.
 
 `cli.json` enables session tabs and uses `Ctrl+G` as a 1500 ms leader.
 `<leader>h` and `<leader>l` move between tabs, while `<leader>t` opens the

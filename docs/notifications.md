@@ -47,9 +47,12 @@ and ignoring the incompatible kislyuk `yq`.
 The lookup prefers `~/.local/bin/yq`, where the Debian installer puts the
 mikefarah binary.
 
-`~/.tmux/conf.d/notify.conf` renders the status flag and pane tint. A flagged
-pane clears when it receives focus, keyboard input, a primary click, a drag, or
-a scroll event. Right-click menus keep their normal tmux behavior.
+`~/.tmux/conf.d/notify.conf` renders the status flag and pane tint. Pane flags
+never inherit the window-tab flag, so notifying one pane in a split window does
+not mark its neighbors. The window tab stays flagged until every flagged pane
+in that window has cleared. Keyboard input or a mouse-button press clears the
+targeted pane; focus changes and scrolling do not. Alt+right-click retains the
+tmux pane menu.
 
 New shells re-read the YAML. Reload tmux rendering with:
 

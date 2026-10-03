@@ -19,7 +19,8 @@ the available hooks. Use the existing test style and fixtures for each subsystem
   private implementation details just because they are easy to match.
 - Component coverage includes selected and unselected files/externals, each AI
   sub-feature, OS-specific output, and old/local state when relevant. Guidance
-  under `home/` must be absent from all managed target lists and archives.
+   under `home/` must be absent from all managed target lists and archives,
+   except the explicitly managed OpenCode global instruction file.
 - Skill tests preserve unrelated local skills, resolve compatibility links to
   one canonical copy, and validate the deployed manifest and references offline.
 

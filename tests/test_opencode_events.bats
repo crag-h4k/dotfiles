@@ -41,6 +41,9 @@ STUB
 }
 
 teardown() {
+  if [ -n "${TMUX_TEST_SOCKET:-}" ]; then
+    tmux -L "$TMUX_TEST_SOCKET" kill-server
+  fi
   rm -rf "${FAKE_HOME}" "${STUB_DIR}"
 }
 
@@ -134,6 +137,36 @@ run_shim() {
 @test "clear accepts a group too" {
   run_shim clear opencode_question
   [ "$status" -eq 0 ]
+}
+
+@test "notification stays in its pane and clearing one keeps the other flagged" {
+  command -v tmux >/dev/null 2>&1 || skip "tmux not installed"
+  TMUX_TEST_SOCKET="notify-panes-$$-${BATS_TEST_NUMBER}"
+  tmux -L "$TMUX_TEST_SOCKET" -f /dev/null new-session -d -s notify -x 90 -y 24 sleep 60
+  tmux -L "$TMUX_TEST_SOCKET" split-window -d -t notify:0 sleep 60
+  local socket_path
+  socket_path=$(tmux -L "$TMUX_TEST_SOCKET" display-message -p -t notify:0 '#{socket_path}')
+  export TMUX="$socket_path,0,0"
+  # shellcheck disable=SC1090
+  . "$LIB_SRC"
+  _notify_fire_attrs() { printf '%s' '#112233|#445566||75'; }
+  notify_play() { :; }
+
+  local first second
+  first=$(tmux -L "$TMUX_TEST_SOCKET" list-panes -t notify:0 -F '#{pane_id}' | head -n 1)
+  second=$(tmux -L "$TMUX_TEST_SOCKET" list-panes -t notify:0 -F '#{pane_id}' | tail -n 1)
+  notify_fire "$first" opencode
+  [ "$(tmux -L "$TMUX_TEST_SOCKET" display-message -p -t "$first" '#{@notify}')" = 1 ]
+  [ -z "$(tmux -L "$TMUX_TEST_SOCKET" display-message -p -t "$second" '#{@notify}')" ]
+  [ "$(tmux -L "$TMUX_TEST_SOCKET" display-message -p -t "$first" '#{@notify_window}')" = 1 ]
+
+  notify_fire "$second" opencode
+  notify_clear "$first" key
+  [ -z "$(tmux -L "$TMUX_TEST_SOCKET" display-message -p -t "$first" '#{@notify}')" ]
+  [ "$(tmux -L "$TMUX_TEST_SOCKET" display-message -p -t "$second" '#{@notify}')" = 1 ]
+  [ "$(tmux -L "$TMUX_TEST_SOCKET" display-message -p -t "$first" '#{@notify_window}')" = 1 ]
+  notify_clear "$second" key
+  [ -z "$(tmux -L "$TMUX_TEST_SOCKET" display-message -p -t "$first" '#{@notify_window}')" ]
 }
 
 @test "an unknown verb is a usage error" {
