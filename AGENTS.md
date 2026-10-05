@@ -45,7 +45,8 @@ palette, AI tooling, and verified deployments are central to the project.
   the exact command and a commented executable handoff script using the active
   host's `handoff-scripts` convention. Do not run it yourself.
 - The repo is public. Keep credentials, identities, private endpoints, employer
-  material, permissions, session records, and host-specific routing outside it.
+  material, private permissions, session records, and host-specific routing
+  outside it. Plan's narrow portable handoff-root rules are managed source.
   Use existing unmanaged overrides. Inspect approved private state when needed
   without printing secrets or importing that state into public files.
 

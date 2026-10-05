@@ -29,7 +29,8 @@ authoring inputs live outside it. Read `docs/architecture.md` and
   and the host's model, project, and plugin settings. Validate the rendered merge.
 - `docs/operation.md` defines optional local override paths and load order.
   Preserve those files and their ignore entries. Personal Git identities,
-  credentials, and OpenCode permissions or routing belong in those private files.
+  credentials, host-specific OpenCode permissions, and routing belong in those
+  private files. Plan's portable handoff-root permissions are managed source.
 - Keep Lazy's lockfile, downloaded plugins, OpenCode runtime links and npm state,
   caches, transcripts, and authentication unmanaged. Chezmoi declares desired
   configuration; application/package managers own their local runtime state.

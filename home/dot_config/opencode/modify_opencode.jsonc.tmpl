@@ -13,7 +13,7 @@
 #
 # Ownership boundary:
 #   OWNED  - re-asserted on every apply: the file header comment, "$schema", V2
-#            "plugins", and only agents.build.color / agents.plan.color. Every
+#            "plugins", agent colors, and narrow Plan handoff permissions. Every
 #            other agent field, nested comment, and custom agent is preserved.
 #            The retired singular "plugin" key is removed when present.
 #   SEEDED - native "permissions" are written only when the incoming file has no
@@ -49,8 +49,8 @@ HEADER = """\
 //
 // MERGED, NOT OVERWRITTEN. chezmoi maintains this file through the modify_
 // script home/dot_config/opencode/modify_opencode.jsonc.tmpl. It owns only the
-// header above, "$schema", V2 "plugins", agents.build.color, and
-// agents.plan.color, which it re-asserts on every apply;
+// header above, "$schema", V2 "plugins", agent colors, and Plan handoff
+// permissions, which it re-asserts on every apply;
 // every other top-level key is copied through verbatim, comments included.
 // Machine-local keys ("instructions", "mcp", host-specific subagents) belong
 // here in the target file and never reach the dotfiles repo.
@@ -62,21 +62,42 @@ HEADER = """\
 // Terminal settings and the selected theme live in cli.json."""
 
 # Owned top-level entries stay literal so audit comments survive without a JSON
-# round trip. The agents entry is merged separately because only two nested color
-# fields belong to chezmoi.
+# round trip. The agents entry is merged separately to preserve local fields.
 OWNED_SCHEMA = '''\
   "$schema": "https://opencode.ai/config.json"'''
 
 BUILD_COLOR = "{{ $p.colors.green }}"
 PLAN_COLOR = "{{ $p.colors.blue }}"
+PLAN_HANDOFF_RULES = (
+    '{ "action": "external_directory", "resource": "$HOME/.local/share/agent-handoffs/*", "effect": "allow" }',
+    '{ "action": "edit", "resource": "$HOME/.local/share/agent-handoffs/*", "effect": "allow" }',
+    '{ "action": "external_directory", "resource": "/opt/ai/handoffs/*", "effect": "allow" }',
+    '{ "action": "edit", "resource": "/opt/ai/handoffs/*", "effect": "allow" }',
+    '{ "action": "external_directory", "resource": "$HOME/.local/share/agent-skills/handoff/scripts/*", "effect": "allow" }',
+)
+PLAN_HANDOFF_START = "// dotfiles:plan-handoff:start"
+PLAN_HANDOFF_END = "// dotfiles:plan-handoff:end"
+
+
+def plan_handoff_rules(indent, followed=False):
+    lines = [indent + PLAN_HANDOFF_START]
+    for i, rule in enumerate(PLAN_HANDOFF_RULES):
+        lines.append(indent + rule + ("," if i < len(PLAN_HANDOFF_RULES) - 1 or followed else ""))
+    lines.append(indent + PLAN_HANDOFF_END)
+    return "\n".join(lines)
 
 NEW_AGENTS = """\
   // Prompt metadata uses each agent's configured color. Render from the shared
   // palette so Build stays green and Plan stays light blue across theme changes.
   "agents": {
     "build": { "color": "%s" },
-    "plan": { "color": "%s" }
-  }""" % (BUILD_COLOR, PLAN_COLOR)
+    "plan": {
+      "color": "%s",
+      "permissions": [
+%s
+      ]
+    }
+  }""" % (BUILD_COLOR, PLAN_COLOR, plan_handoff_rules("        "))
 
 OWNED_PLUGINS = """\
   // OpenCode V2 plugins, EXACT-pinned. Each runs arbitrary code at startup, so
@@ -590,6 +611,60 @@ def insert_object_member(source, root_open, root_close, entries, member):
     return source[:root_open + 1] + insertion + source[root_open + 1:]
 
 
+def array_close(source, start):
+    depth = 0
+    i = start
+    while i < len(source):
+        if source[i] == '"':
+            i = string_token_end(source, i)
+            continue
+        if source[i] == "/" and i + 1 < len(source) and source[i + 1] in "/*":
+            i = skip_ws_comments(source, i)
+            continue
+        if source[i] == "[":
+            depth += 1
+        elif source[i] == "]":
+            depth -= 1
+            if depth == 0:
+                return i
+        i += 1
+    raise ValueError("plan permissions array is incomplete")
+
+
+def merge_plan_permissions(agents_block):
+    root_open, root_close, agents = scan(agents_block)
+    plan = next(entry for entry in agents if entry["name"] == "plan")
+    value_start = entry_value_start(agents_block, plan)
+    agent_source = agents_block[value_start:plan["end"]]
+    obj_open, obj_close, fields = scan(agent_source)
+    permissions = next((entry for entry in fields if entry["name"] == "permissions"), None)
+    if permissions is None:
+        member = '"permissions": [\n%s\n    ]' % plan_handoff_rules("      ")
+        updated = insert_object_member(agent_source, obj_open, obj_close, fields, member)
+    else:
+        start = entry_value_start(agent_source, permissions)
+        if agent_source[start] != "[":
+            raise ValueError("plan permissions is not an array")
+        end = array_close(agent_source, start)
+        body = agent_source[start + 1:end]
+        starts, ends = body.count(PLAN_HANDOFF_START), body.count(PLAN_HANDOFF_END)
+        if starts != ends or starts > 1:
+            raise ValueError("ambiguous managed Plan handoff rules")
+        if starts:
+            first = body.index(PLAN_HANDOFF_START)
+            last = body.index(PLAN_HANDOFF_END) + len(PLAN_HANDOFF_END)
+            followed = skip_ws_comments(body, last) < len(body)
+            indent = line_indent(body, first)
+            line_start = body.rfind("\n", 0, first) + 1
+            body = body[:line_start] + plan_handoff_rules(indent, followed) + body[last:]
+        else:
+            followed = skip_ws_comments(body, 0) < len(body)
+            indent = line_indent(agent_source, permissions["start"]) + "  "
+            body = "\n" + plan_handoff_rules(indent, followed) + body
+        updated = agent_source[:start + 1] + body + agent_source[end:]
+    return agents_block[:value_start] + updated + agents_block[plan["end"]:]
+
+
 def merge_agent_color(agents_block, agent_id, color):
     """Set one built-in color while preserving every other agents byte."""
     root_open, root_close, agents = scan(agents_block)
@@ -625,10 +700,11 @@ def merge_agent_color(agents_block, agent_id, color):
 
 
 def merge_agents(agents_block):
-    """Apply the two managed colors and leave custom agent configuration alone."""
+    """Apply managed agent fields and leave custom configuration alone."""
     # Insert Plan first so a completely missing pair renders Build before Plan.
     agents_block = merge_agent_color(agents_block, "plan", PLAN_COLOR)
-    return merge_agent_color(agents_block, "build", BUILD_COLOR)
+    agents_block = merge_agent_color(agents_block, "build", BUILD_COLOR)
+    return merge_plan_permissions(agents_block)
 
 
 def build_owned(agents_block):
@@ -767,7 +843,7 @@ for entry in entries:
     try:
         agents_block = merge_agents("\n".join(agent_lines))
     except ValueError as exc:
-        passthrough("cannot merge agent colors: %s" % exc)
+        passthrough("cannot merge agent settings: %s" % exc)
     break
 
 
