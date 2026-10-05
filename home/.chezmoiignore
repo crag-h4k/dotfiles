@@ -162,6 +162,7 @@ AGENTS.md
 .config/opencode/sync-runtime.sh
 .config/opencode/v2-plugins
 .config/opencode/agents/dotfiles-demo.md
+.config/opencode/agents/ricer.md
 .config/opencode/demo
 .config/opencode/commands/iac-scan.md
 .local/bin/opencode2
