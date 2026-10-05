@@ -6,7 +6,7 @@ supply-chain audit and permission rationale), so the merge script does line-leve
 surgery and never round-trips
 the file through json.loads/json.dumps. These tests pin that contract:
 
-  OWNED   schema, built-in agent colors, and V2 plugins are re-asserted.
+  OWNED   schema, built-in agent colors, Plan handoff rules, and V2 plugins are re-asserted.
   SEEDED  native "permissions" are written only when no policy exists; generic
           native Git rules migrate from deny to ask without touching private keys.
   KEPT    every other top-level key survives byte-for-byte, comments included.
@@ -210,6 +210,13 @@ def test_empty_stdin_seeds_a_complete_generic_file(script):
     assert re.fullmatch(r"#[0-9a-fA-F]{6}", d["agents"]["build"]["color"])
     assert re.fullmatch(r"#[0-9a-fA-F]{6}", d["agents"]["plan"]["color"])
     assert d["agents"]["build"]["color"] != d["agents"]["plan"]["color"]
+    assert "permissions" not in d["agents"]["build"]
+    plan_rules = d["agents"]["plan"]["permissions"]
+    for root in ("$HOME/.local/share/agent-handoffs/*", "/opt/ai/handoffs/*"):
+        assert permission_effect(plan_rules, "edit", root.replace("*", "Dotfiles/test.md")) == "allow"
+        assert permission_effect(plan_rules, "external_directory", root) == "allow"
+    assert permission_effect(plan_rules, "edit", "/opt/other/project.md") == "ask"
+    assert permission_effect(plan_rules, "external_directory", "$HOME/.local/share/agent-skills/handoff/scripts/*") == "allow"
     assert d["plugins"] == ["opencode-copilot-statusline@1.0.0"]
     # A fresh host must not come up unguarded.
     assert d["permissions"][0] == {
@@ -268,6 +275,36 @@ def test_extra_builtin_agent_fields_and_comments_survive(script):
     assert "// Keep the color rationale while replacing only its value." in out
     assert "// Keep this inline note." in out
     assert "// Plan intentionally omitted color before the merge." in out
+
+
+def test_plan_handoff_rules_preserve_local_permissions_and_comments(script):
+    src = '''\
+{
+  "agents": {
+    "plan": {
+      "description": "Plan with local limits",
+      "permissions": [
+        // This unrelated local rule stays in place.
+        { "action": "edit", "resource": "/private/notes/*", "effect": "allow" }
+      ]
+    }
+  }
+}
+'''
+    out, _ = merge(script, src)
+    rules = parse(out)["agents"]["plan"]["permissions"]
+    assert rules[-1] == {"action": "edit", "resource": "/private/notes/*", "effect": "allow"}
+    assert permission_effect(rules, "edit", "/opt/ai/handoffs/Dotfiles/test.md") == "allow"
+    assert "// This unrelated local rule stays in place." in out
+    assert parse(out)["agents"]["plan"]["description"] == "Plan with local limits"
+    assert merge(script, out)[0] == out
+
+
+def test_malformed_plan_permissions_are_not_overwritten(script):
+    src = '{\n  "agents": { "plan": { "permissions": "local" } }\n}\n'
+    out, err = merge(script, src)
+    assert out == src
+    assert "plan permissions is not an array" in err
 
 
 # --- seeded -----------------------------------------------------------------

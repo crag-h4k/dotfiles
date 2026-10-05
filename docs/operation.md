@@ -89,6 +89,9 @@ settings in these files, and `chezmoi update` keeps working:
 With `ai > opencode` selected, chezmoi also merges a portable preference into
 `~/.config/opencode/AGENTS.md`: use the `question` tool when asking how to
 proceed or how to evaluate options. Existing local instructions stay intact.
+Its OpenCode config merge adds Plan handoff access for the two documented roots
+without replacing unrelated local Plan rules. Host-specific roots still need a
+private permission overlay.
 
 None are chezmoi-managed. Each is listed
 unconditionally in `home/.chezmoiignore`, so chezmoi never applies or removes
