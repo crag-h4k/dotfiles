@@ -100,8 +100,11 @@ the current session, and leaves the handoff open. It does not execute Next steps
 unless the current request authorizes them. In Plan mode the skill and read-only
 snapshot script remain available; only files under the configured handoff root
 can be edited for save or close, not project files.
-With `ai > opencode` selected, the managed Plan permissions allow handoff edits
-under `~/.local/share/agent-handoffs/` and `/opt/ai/handoffs/`. They also allow
+With `ai > opencode` selected, the managed Plan permissions allow edits to
+`<Project>/<slug>-handoff-<YYYY-MM-DD>.md` under
+`~/.local/share/agent-handoffs/` and `/opt/ai/handoffs/`. Sensitive file
+suffixes and other filenames are denied inside those roots. Review any
+later private Plan rules before relying on that boundary. The rules also allow
 external access to the installed handoff snapshot script. Use the home path as
 the handoff root on a new machine, or configure a narrow private rule for a
 different root. The skill still requires the root in the request or harness
