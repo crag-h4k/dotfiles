@@ -15,6 +15,8 @@ CLI, server, plugin SDK, and terminal versions when diagnosing compatibility.
 - Preserve merge-managed JSONC and unknown user settings. Inspect the renderer
   for the active V2 schema; older OpenCode flags and plugin APIs are not a basis
   for a fix. Do not silently alter account, model, or permission selection.
+  The managed shell policy allows both `prek *` and `pre-commit *` for local
+  checks; it does not replace host-specific permissions.
 - Stage and check CLI/plugin runtime compatibility and required imports before
   switching the stable binary or runtime links. Preserve old releases on failure.
   Chezmoi must not manage runtime node_modules, npm lockfiles, or authentication.

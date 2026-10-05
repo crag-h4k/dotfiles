@@ -1,6 +1,6 @@
 #!/bin/sh
 # $HOME/.local/share/agent-skills/handoff/scripts/snapshot.sh
-# Print git state for the current directory. Do not print the environment or file contents.
+# Print git state for the current directory without printing the environment or file contents.
 
 set -eu
 

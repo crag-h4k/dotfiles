@@ -112,7 +112,8 @@ instructions; the permission rule does not choose or create it. A higher-priorit
 harness policy can still block edits.
 The handoff root comes from the user or from harness instructions. The skill
 does not invent one. The snapshot script prints git state only. It does not
-print the environment or file contents. A draft that contains a private-key
+print the environment or file contents. Chezmoi installs it read-only and
+executable so the skill can invoke it directly. A draft that contains a private-key
 block, a cloud access key, a service token, or a password assignment is not
 written.
 
