@@ -212,9 +212,14 @@ def test_empty_stdin_seeds_a_complete_generic_file(script):
     assert d["agents"]["build"]["color"] != d["agents"]["plan"]["color"]
     assert "permissions" not in d["agents"]["build"]
     plan_rules = d["agents"]["plan"]["permissions"]
-    for root in ("$HOME/.local/share/agent-handoffs/*", "/opt/ai/handoffs/*"):
-        assert permission_effect(plan_rules, "edit", root.replace("*", "Dotfiles/test.md")) == "allow"
-        assert permission_effect(plan_rules, "external_directory", root) == "allow"
+    effective_rules = d["permissions"] + plan_rules
+    for root in ("$HOME/.local/share/agent-handoffs/", "/opt/ai/handoffs/"):
+        assert permission_effect(effective_rules, "external_directory", root + "*") == "allow"
+        assert permission_effect(effective_rules, "edit", root + "Dotfiles/test-handoff-2026-10-05.md") == "allow"
+        assert permission_effect(effective_rules, "edit", root + "Dotfiles/write-probe.md") == "deny"
+        for name in ("secret.key", "secret.pem", "secret.env", "secret.env.local",
+                     "secret.env.backup-handoff-2026-10-05.md"):
+            assert permission_effect(effective_rules, "edit", root + "Dotfiles/" + name) == "deny"
     assert permission_effect(plan_rules, "edit", "/opt/other/project.md") == "ask"
     assert permission_effect(plan_rules, "external_directory", "$HOME/.local/share/agent-skills/handoff/scripts/*") == "allow"
     assert d["plugins"] == ["opencode-copilot-statusline@1.0.0"]
@@ -294,7 +299,7 @@ def test_plan_handoff_rules_preserve_local_permissions_and_comments(script):
     out, _ = merge(script, src)
     rules = parse(out)["agents"]["plan"]["permissions"]
     assert rules[-1] == {"action": "edit", "resource": "/private/notes/*", "effect": "allow"}
-    assert permission_effect(rules, "edit", "/opt/ai/handoffs/Dotfiles/test.md") == "allow"
+    assert permission_effect(rules, "edit", "/opt/ai/handoffs/Dotfiles/test-handoff-2026-10-05.md") == "allow"
     assert "// This unrelated local rule stays in place." in out
     assert parse(out)["agents"]["plan"]["description"] == "Plan with local limits"
     assert merge(script, out)[0] == out

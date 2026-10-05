@@ -70,10 +70,16 @@ BUILD_COLOR = "{{ $p.colors.green }}"
 PLAN_COLOR = "{{ $p.colors.blue }}"
 PLAN_HANDOFF_RULES = (
     '{ "action": "external_directory", "resource": "$HOME/.local/share/agent-handoffs/*", "effect": "allow" }',
-    '{ "action": "edit", "resource": "$HOME/.local/share/agent-handoffs/*", "effect": "allow" }',
+    '{ "action": "edit", "resource": "$HOME/.local/share/agent-handoffs/*", "effect": "deny" }',
+    '{ "action": "edit", "resource": "$HOME/.local/share/agent-handoffs/*/*-handoff-????-??-??.md", "effect": "allow" }',
     '{ "action": "external_directory", "resource": "/opt/ai/handoffs/*", "effect": "allow" }',
-    '{ "action": "edit", "resource": "/opt/ai/handoffs/*", "effect": "allow" }',
+    '{ "action": "edit", "resource": "/opt/ai/handoffs/*", "effect": "deny" }',
+    '{ "action": "edit", "resource": "/opt/ai/handoffs/*/*-handoff-????-??-??.md", "effect": "allow" }',
     '{ "action": "external_directory", "resource": "$HOME/.local/share/agent-skills/handoff/scripts/*", "effect": "allow" }',
+    '{ "action": "edit", "resource": "*.env", "effect": "deny" }',
+    '{ "action": "edit", "resource": "*.env.*", "effect": "deny" }',
+    '{ "action": "edit", "resource": "*.pem", "effect": "deny" }',
+    '{ "action": "edit", "resource": "*.key", "effect": "deny" }',
 )
 PLAN_HANDOFF_START = "// dotfiles:plan-handoff:start"
 PLAN_HANDOFF_END = "// dotfiles:plan-handoff:end"
