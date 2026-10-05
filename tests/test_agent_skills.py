@@ -169,6 +169,12 @@ class SkillDeploymentTests(unittest.TestCase):
                     ".config/opencode/commands/dotfiles.md",
                 ):
                     self.assertEqual(target in managed, bool(features), target)
+                for target in (
+                    ".config/opencode/plugins/session-workflow/index.ts",
+                    ".config/opencode/plugins/session-workflow/tui.tsx",
+                    ".config/opencode/plugins/session-workflow/workflow.mjs",
+                ):
+                    self.assertEqual(target in managed, features == {"opencode"}, target)
 
     def test_archive_omits_repository_guidance(self) -> None:
         self.config.write_text(VALIDATOR.component_config(set(VALIDATOR.AI_FEATURES)))

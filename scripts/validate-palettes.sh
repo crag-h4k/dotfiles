@@ -50,11 +50,13 @@ for palette in $(yq '.paletteOrder[]' "$SOURCE_DIR/.chezmoidata/palettes.yaml");
       and .keybinds.leader == "ctrl+g"
       and .keybinds["session.tab.previous"] == "<leader>h"
       and .keybinds["session.tab.next"] == "<leader>l"
-      and .keybinds["session.list"] == "<leader>t"
+      and .keybinds["session.list"] == "none"
+      and .keybinds["agent.cycle"] == "none"
       and .keybinds["session.first"] == "home"
       and .keybinds["theme.switch"] == "none"
        and .leader.timeout == 1500
-       and .session.sidebar == "hide"
+        and .session.sidebar == "hide"
+        and .session.permissions == "prompt"
        and (.plugins == ["-opencode.prompt.footer", "-opencode-copilot-statusline.tui", "./v2-plugins/statusline"])' "$TMP_DIR/opencode-cli.json" >/dev/null
 
     render dot_config/iterm2/dotfiles.json.tmpl > "$TMP_DIR/iterm2.json"
