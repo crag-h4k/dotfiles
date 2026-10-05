@@ -371,9 +371,29 @@ def test_existing_native_permissions_migrate_the_hook_driver(script):
 """
     out, _ = merge(script, src)
     assert '"resource": "prek *"' in out
-    assert '"resource": "pre-commit *"' not in out
+    assert '"resource": "pre-commit *"' in out
+    rules = parse(out)["permissions"]
+    assert permission_effect(rules, "shell", "prek run --all-files") == "allow"
+    assert permission_effect(rules, "shell", "pre-commit run --all-files") == "allow"
     assert '"resource": "terraform plan *"' in out
     assert "// Keep this local policy comment." in out
+    assert merge(script, out)[0] == out
+
+
+def test_existing_prek_allow_adds_pre_commit_without_changing_other_rules(script):
+    src = '''{
+  "permissions": [
+    { "action": "shell", "resource": "prek *", "effect": "allow" },
+    { "action": "shell", "resource": "terraform plan *", "effect": "ask" }
+  ]
+}
+'''
+    out, _ = merge(script, src)
+    rules = parse(out)["permissions"]
+    assert [rule["resource"] for rule in rules] == [
+        "prek *", "pre-commit *", "terraform plan *"
+    ]
+    assert merge(script, out)[0] == out
 
 
 def test_existing_native_worktree_rule_narrows_without_replacing_local_policy(script):
@@ -451,6 +471,7 @@ def test_native_seed_has_narrow_allows_and_final_denials(script):
         ("opencode_models", "*", "allow"),
         ("shell", "pdftotext * -", "allow"),
         ("shell", "prek *", "allow"),
+        ("shell", "pre-commit *", "allow"),
         ("shell", "git worktree list *", "allow"),
         ("shell", "gh pr view *", "allow"),
     ):

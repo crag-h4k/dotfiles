@@ -249,6 +249,7 @@ SEED_PERMISSIONS = """\
 
     // Project test, lint, format, and validation commands.
     { "action": "shell", "resource": "prek *", "effect": "allow" },
+    { "action": "shell", "resource": "pre-commit *", "effect": "allow" },
     { "action": "shell", "resource": "shellcheck *", "effect": "allow" },
     { "action": "shell", "resource": "markdownlint *", "effect": "allow" },
     { "action": "shell", "resource": "markdownlint-cli2 *", "effect": "allow" },
@@ -872,9 +873,25 @@ if has_native_permissions:
     first, last = entry_span(native)
     native_lines = lines[first:last + 1]
     mutation = re.compile(r'"resource": "(?:\*?git (?:\* )?(?:add|commit|rm|push|reset|clean|checkout|restore) \*|git \* --output(?:=)?\*)"')
+    hook_allows = {
+        resource: any('"action": "shell"' in line and
+                      '"resource": "%s"' % resource in line and
+                      '"effect": "allow"' in line for line in native_lines)
+        for resource in ("prek *", "pre-commit *")
+    }
     migrated = []
     for line in native_lines:
-        line = line.replace('"resource": "pre-commit *"', '"resource": "prek *"')
+        if '"action": "shell"' in line and '"effect": "allow"' in line:
+            if '"resource": "prek *"' in line and not hook_allows["pre-commit *"]:
+                migrated.append(line)
+                migrated.append(line.replace('"resource": "prek *"',
+                                             '"resource": "pre-commit *"'))
+                continue
+            if '"resource": "pre-commit *"' in line and not hook_allows["prek *"]:
+                migrated.append(line)
+                migrated.append(line.replace('"resource": "pre-commit *"',
+                                             '"resource": "prek *"'))
+                continue
         if ('"action": "shell"' in line and
                 '"resource": "git worktree *"' in line and
                 ('"effect": "allow"' in line or '"effect": "deny"' in line)):

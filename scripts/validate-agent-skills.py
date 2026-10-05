@@ -64,7 +64,7 @@ PUBLIC_TEXT_FILES = (
     "home/dot_config/opencode/commands/humanize.md",
     "home/dot_config/opencode/commands/unslop.md",
     "home/dot_local/share/agent-skills/handoff/readonly_SKILL.md",
-    "home/dot_local/share/agent-skills/handoff/scripts/readonly_snapshot.sh",
+    "home/dot_local/share/agent-skills/handoff/scripts/readonly_executable_snapshot.sh",
 )
 EXPECTED_EXTERNALS = {
     ".local/share/agent-skills/unslop-code/SKILL.md": (
@@ -416,7 +416,7 @@ def validate_layout(root: Path) -> list[str]:
     expected_managed = {
         canonical_root / "readonly_PROVENANCE.md",
         canonical_root / "handoff/readonly_SKILL.md",
-        canonical_root / "handoff/scripts/readonly_snapshot.sh",
+        canonical_root / "handoff/scripts/readonly_executable_snapshot.sh",
         canonical_root / "humanizer/readonly_SKILL.md",
         canonical_root / "humanizer/agents/readonly_openai.yaml",
         *(canonical_root / "chezmoi-dotfiles" / path for path in DOTFILES_SKILL_FILES),

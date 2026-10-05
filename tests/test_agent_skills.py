@@ -86,7 +86,7 @@ class LayoutRejectionTests(unittest.TestCase):
         (canonical / "handoff/scripts").mkdir(parents=True)
         (canonical / "readonly_PROVENANCE.md").touch()
         (canonical / "handoff/readonly_SKILL.md").touch()
-        (canonical / "handoff/scripts/readonly_snapshot.sh").touch()
+        (canonical / "handoff/scripts/readonly_executable_snapshot.sh").touch()
         (canonical / "humanizer/readonly_SKILL.md").touch()
         (canonical / "humanizer/agents/readonly_openai.yaml").touch()
         for relative in VALIDATOR.DOTFILES_SKILL_FILES:
@@ -205,6 +205,22 @@ class SkillDeploymentTests(unittest.TestCase):
         target.write_text(old)
         self.run_chezmoi("apply", "--", str(target))
         self.assertEqual(target.read_text(), first)
+
+    def test_handoff_snapshot_is_readonly_and_directly_executable(self) -> None:
+        self.config.write_text(VALIDATOR.component_config({"opencode"}))
+        target = self.destination / ".local/share/agent-skills/handoff/scripts/snapshot.sh"
+        target.parent.mkdir(parents=True)
+        self.run_chezmoi("apply", "--", str(target))
+        self.assertEqual(target.stat().st_mode & 0o777, 0o555)
+        env = self.env.copy()
+        for key in ("GIT_DIR", "GIT_WORK_TREE", "GIT_INDEX_FILE", "GIT_COMMON_DIR"):
+            env.pop(key, None)
+        result = subprocess.run(
+            [str(target)], cwd=self.destination, env=env,
+            capture_output=True, text=True, check=False,
+        )
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertIn("git: no", result.stdout)
 
     def test_apply_preserves_local_skills_and_resolves_one_canonical_copy(self) -> None:
         self.config.write_text(VALIDATOR.component_config({"opencode"}))
