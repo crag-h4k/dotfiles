@@ -216,7 +216,7 @@ def test_empty_stdin_seeds_a_complete_generic_file(script):
     for root in ("$HOME/.local/share/agent-handoffs/", "/opt/ai/handoffs/"):
         assert permission_effect(effective_rules, "external_directory", root + "*") == "allow"
         assert permission_effect(effective_rules, "edit", root + "Dotfiles/test-handoff-2026-10-05.md") == "allow"
-        assert permission_effect(effective_rules, "edit", root + "Dotfiles/write-probe.md") != "allow"
+        assert permission_effect(effective_rules, "edit", root + "Dotfiles/write-probe.md") == "deny"
         for name in ("secret.key", "secret.pem", "secret.env", "secret.env.local",
                      "secret.env.backup-handoff-2026-10-05.md"):
             assert permission_effect(effective_rules, "edit", root + "Dotfiles/" + name) == "deny"

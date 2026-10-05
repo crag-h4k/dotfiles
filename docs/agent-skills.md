@@ -103,7 +103,7 @@ can be edited for save or close, not project files.
 With `ai > opencode` selected, the managed Plan permissions allow edits to
 `<Project>/<slug>-handoff-<YYYY-MM-DD>.md` under
 `~/.local/share/agent-handoffs/` and `/opt/ai/handoffs/`. Sensitive file
-suffixes remain denied by the managed rules even inside those roots. Review any
+suffixes and other filenames are denied inside those roots. Review any
 later private Plan rules before relying on that boundary. The rules also allow
 external access to the installed handoff snapshot script. Use the home path as
 the handoff root on a new machine, or configure a narrow private rule for a
