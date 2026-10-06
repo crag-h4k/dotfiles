@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+# home/dot_config/opencode/modify_opencode.jsonc.tmpl
 {{ $p := get .palettes (dig "palette" "dracula" .) -}}
 # chezmoi modify_ template for ~/.config/opencode/opencode.jsonc.
 # Rendered by chezmoi (Go template) into a Python merge script, then run with the
@@ -8,13 +9,13 @@
 # opencode.jsonc is JSONC and its comments are load-bearing (the per-plugin
 # supply-chain audit and permission rationale), so this follows
 # dot_codex/modify_private_config.toml.tmpl and does
-# LINE-LEVEL surgery. It never json.loads/json.dumps the target: a round trip
-# through the json module would silently delete every comment in the file.
+# LINE-LEVEL surgery. JSON decoding validates input and identifies plugin entries;
+# the output is assembled from source slices, never serialized back to JSON.
 #
 # Ownership boundary:
 #   OWNED  - re-asserted on every apply: the file header comment, "$schema", V2
-#            "plugins", agent colors, Ricer's subagent mode, and narrow Plan
-#            handoff permissions. Every
+#            managed plugin registrations, agent colors, Ricer's subagent mode,
+#            and narrow Plan handoff permissions. Every
 #            other agent field, nested comment, and custom agent is preserved.
 #            The retired singular "plugin" key is removed when present.
 #   SEEDED - native "permissions" are written only when the incoming file has no
@@ -39,6 +40,7 @@
 # home/.chezmoiignore under ai > opencode. It stays a .tmpl for parity with the
 # other modify_ scripts and to render agent colors from the shared palette.
 import bisect
+import json
 import re
 import sys
 
@@ -50,9 +52,11 @@ HEADER = """\
 //
 // MERGED, NOT OVERWRITTEN. chezmoi maintains this file through the modify_
 // script home/dot_config/opencode/modify_opencode.jsonc.tmpl. It owns only the
-// header above, "$schema", V2 "plugins", agent colors, Ricer's subagent mode,
-// and Plan handoff permissions, which it re-asserts on every apply;
+// header above, "$schema", marked V2 plugin registrations, agent colors,
+// Ricer's subagent mode, and Plan handoff permissions on every apply;
 // every other top-level key is copied through verbatim, comments included.
+// Add local plugins after dotfiles:plugins:end. Their order, options, and
+// comments survive applies; later -plugin-id controls can disable managed plugins.
 // Machine-local keys ("instructions", "mcp", host-specific subagents) belong
 // here in the target file and never reach the dotfiles repo.
 //
@@ -107,19 +111,18 @@ NEW_AGENTS = """\
     "ricer": { "mode": "subagent" }
   }""" % (BUILD_COLOR, PLAN_COLOR, plan_handoff_rules("        "))
 
-OWNED_PLUGINS = """\
-  // OpenCode V2 plugins, EXACT-pinned. Each runs arbitrary code at startup, so
-  // treat every entry as a code-reviewed dependency and re-review every bump.
-  //   opencode-copilot-statusline - supplies monthly Copilot quota to the local
-  //   V2 footer over RPC. Audited @1.0.0: its server half resolves OpenCode's existing
-  //   github-copilot credential and sends it only to GitHub's Copilot quota API;
-  //   cli.json disables its stock TUI half so the local renderer can put the
-  //   percentage after session cost without its reset countdown. No telemetry or
-  //   install-time scripts. The GitHub endpoint is undocumented, so
-  //   a future GitHub API change can make the display show an unavailable value.
-  "plugins": [
-    "opencode-copilot-statusline@1.0.0"
-  ]"""
+MANAGED_PLUGINS = ("opencode-copilot-statusline@1.0.0",)
+PLUGINS_START = "// dotfiles:plugins:start"
+PLUGINS_END = "// dotfiles:plugins:end"
+PLUGIN_AUDIT = """\
+    // Managed OpenCode V2 plugins, EXACT-pinned. Review every version bump:
+    // each plugin runs arbitrary code at startup.
+    // opencode-copilot-statusline supplies monthly Copilot quota over RPC.
+    // Audited @1.0.0: resolves the existing github-copilot credential and sends
+    // it only to GitHub's undocumented Copilot quota API. No telemetry or
+    // install-time scripts. cli.json disables its stock TUI half; the local
+    // footer displays the quota after session cost, without a reset countdown.
+    // A GitHub API change can make the quota unavailable."""
 
 # Retained byte-for-byte only to recognize and migrate the old generated seed.
 LEGACY_SEED_PERMISSION = """\
@@ -640,6 +643,177 @@ def array_close(source, start):
     raise ValueError("plan permissions array is incomplete")
 
 
+JSONC_TOKEN = re.compile(r'"(?:\\.|[^"\\])*"|//[^\n]*|/\*.*?\*/|\s+|.', re.S)
+
+
+def jsonc_read(source):
+    """Decode for validation, retaining token offsets for source-slice edits."""
+    tokens = []
+    cleaned = list(source)
+    for token in JSONC_TOKEN.finditer(source):
+        value = token.group()
+        if value.startswith(("//", "/*")):
+            cleaned[token.start():token.end()] = ["\n" if c == "\n" else " " for c in value]
+        elif not value.isspace():
+            tokens.append(token)
+    for previous, token, following in zip(tokens, tokens[1:], tokens[2:]):
+        if (token.group() == "," and following.group() in ("]", "}") and
+                previous.group() not in ("[", "{", ",", ":")):
+            cleaned[token.start()] = " "
+
+    def unique_keys(pairs):
+        result = {}
+        for key, value in pairs:
+            if key in result:
+                raise ValueError("duplicate object key")
+            result[key] = value
+        return result
+
+    def invalid_constant(value):
+        raise ValueError("non-JSON numeric constant")
+
+    return json.loads("".join(cleaned), object_pairs_hook=unique_keys,
+                      parse_constant=invalid_constant), tokens
+
+
+def plugin_entries(source):
+    values, tokens = jsonc_read(source)
+    if not isinstance(values, list):
+        raise ValueError("plugins is not an array")
+    entries = []
+    depth, start, end = 0, None, None
+    for token in tokens:
+        value = token.group()
+        if depth == 1 and value in (",", "]"):
+            if start is not None:
+                entries.append({"start": start, "end": end,
+                                "sep": token.start() if value == "," else None})
+            start = end = None
+        elif depth == 1 and start is None:
+            start = token.start()
+        if value in ("[", "{"):
+            depth += 1
+        elif value in ("]", "}"):
+            depth -= 1
+        if start is not None:
+            end = token.end()
+    for entry, value in zip(entries, values):
+        reference = value.get("package") if isinstance(value, dict) else value
+        if not isinstance(reference, str):
+            raise ValueError("plugin entries must be strings or objects with a package string")
+        entry["reference"] = reference
+        entry["object"] = isinstance(value, dict)
+    return entries
+
+
+def npm_plugin_name(reference):
+    match = re.fullmatch(r"(@[a-z0-9._-]+/[a-z0-9._-]+|[a-z0-9._-]+)(?:@[^/\s]+)?", reference)
+    return match.group(1) if match else None
+
+
+def plugin_control(entry, entries, marked):
+    """A bare ID can re-enable a managed plugin after a local disable control."""
+    reference = entry["reference"]
+    if entry["object"] or npm_plugin_name(reference) != reference:
+        return False
+    return marked or any(not previous["object"] and
+                         previous["reference"] in ("-" + reference, "-*", "*")
+                         for previous in entries if previous["start"] < entry["start"])
+
+
+def managed_plugin_value(source, entry, reference):
+    """Replace the package pin without rewriting options or their comments."""
+    raw = source[entry["start"]:entry["end"]]
+    if raw.startswith('"'):
+        return '"%s"' % reference
+    _, _, fields = scan(raw)
+    package = next((field for field in fields if field["name"] == "package"), None)
+    if package is None:
+        raise ValueError("cannot locate the managed plugin's package field")
+    start = entry_value_start(raw, package)
+    end = string_token_end(raw, start)
+    return raw[:start] + '"%s"' % reference + raw[end:]
+
+
+def merge_plugins(block):
+    """Own the marked registrations, leaving local entries in their native order."""
+    wrapped = "{\n" + block + "\n}"
+    _, _, fields = scan(wrapped)
+    start = entry_value_start(wrapped, fields[0]) - 2
+    if block[start] != "[":
+        raise ValueError("plugins is not an array")
+    end = array_close(block, start)
+    source = block[start:end + 1]
+    entries = plugin_entries(source)
+    markers = [token for token in JSONC_TOKEN.finditer(source)
+               if token.group().strip() in (PLUGINS_START, PLUGINS_END)]
+    owned = []
+    comments = []
+    desired = {npm_plugin_name(reference): reference for reference in MANAGED_PLUGINS}
+    if markers:
+        if (len(markers) != 2 or markers[0].group().strip() != PLUGINS_START or
+                markers[1].group().strip() != PLUGINS_END):
+            raise ValueError("ambiguous managed plugin markers")
+        first, last = markers
+        for marker in markers:
+            if source[source.rfind("\n", 0, marker.start()) + 1:marker.start()].strip():
+                raise ValueError("managed plugin markers must start their own lines")
+        if any(entry["start"] < first.end() for entry in entries):
+            raise ValueError("managed plugin section must precede local entries")
+        for entry in entries:
+            if entry["start"] < last.start():
+                if entry["end"] > last.start() or (entry["sep"] is not None and entry["sep"] > last.start()):
+                    raise ValueError("managed plugin marker splits an entry")
+                owned.append(entry)
+        head = source[1:source.rfind("\n", 0, first.start()) + 1]
+        tail = source[last.end():-1]
+        local = [entry for entry in entries if entry not in owned]
+        audit = {line.strip() for line in PLUGIN_AUDIT.split("\n")}
+        for token in JSONC_TOKEN.finditer(source, first.end(), last.start()):
+            if (token.group().startswith(("//", "/*")) and token.group().strip() not in audit and
+                    not any(entry["start"] <= token.start() < entry["end"] for entry in owned)):
+                comments.append("    " + token.group())
+    else:
+        head, tail = "\n", source[1:-1]
+        local = list(entries)
+        cuts = []
+        for entry in entries:
+            name = npm_plugin_name(entry["reference"])
+            if name not in desired or plugin_control(entry, entries, False):
+                continue
+            if entry["reference"] != desired[name]:
+                raise ValueError("local registration conflicts with managed package %s" % name)
+            owned.append(entry)
+            local.remove(entry)
+            cuts.append((entry["start"] - 1, (entry["sep"] + 1 if entry["sep"] is not None else entry["end"]) - 1))
+        for first, last in reversed(cuts):
+            tail = tail[:first] + tail[last:]
+
+    for name in desired:
+        if any(npm_plugin_name(entry["reference"]) == name and
+               not plugin_control(entry, local, bool(markers)) for entry in local):
+            raise ValueError("local registration conflicts with managed package %s" % name)
+        if sum(npm_plugin_name(entry["reference"]) == name for entry in owned) > 1:
+            raise ValueError("duplicate managed plugin registration for %s" % name)
+
+    rendered = ["    " + PLUGINS_START]
+    if desired:
+        rendered.extend(PLUGIN_AUDIT.split("\n"))
+    rendered.extend(comments)
+    for i, (name, reference) in enumerate(desired.items()):
+        entry = next((entry for entry in owned if npm_plugin_name(entry["reference"]) == name), None)
+        raw = managed_plugin_value(source, entry, reference) if entry else '"%s"' % reference
+        rendered.append("    " + raw + ("," if i < len(desired) - 1 or local else ""))
+    rendered.append("    " + PLUGINS_END)
+    if not head:
+        head = "\n"
+    if not tail:
+        tail = "\n  "
+    elif not tail.startswith("\n"):
+        tail = "\n" + tail
+    return block[:start + 1] + head + "\n".join(rendered) + tail + block[end:]
+
+
 def merge_plan_permissions(agents_block):
     root_open, root_close, agents = scan(agents_block)
     plan = next(entry for entry in agents if entry["name"] == "plan")
@@ -717,12 +891,12 @@ def merge_agents(agents_block):
     return merge_plan_permissions(agents_block)
 
 
-def build_owned(agents_block):
-    """Build the managed top-level entries around a preserved agents block."""
+def build_owned(agents_block, plugins_block):
+    """Build managed fields around the preserved agent and plugin settings."""
     blocks = [
         OWNED_SCHEMA.split("\n"),
         agents_block.split("\n"),
-        OWNED_PLUGINS.split("\n"),
+        plugins_block.split("\n"),
     ]
     for block in blocks[:-1]:
         set_trailing_comma(block, True)
@@ -769,7 +943,8 @@ def emit(s):
 # Empty stdin means the target does not exist yet: emit the full generic file,
 # native permissions included.
 if not text.strip():
-    emit(render(build_owned(NEW_AGENTS), SEED_PERMISSIONS.split("\n"), []))
+    emit(render(build_owned(NEW_AGENTS, merge_plugins('  "plugins": []')),
+                SEED_PERMISSIONS.split("\n"), []))
     raise SystemExit(0)
 
 root_open, root_close, entries = scan(text)
@@ -797,6 +972,12 @@ def passthrough(reason):
 
 if root_open is None or root_close is None:
     passthrough("no complete top-level JSON object found")
+try:
+    document, _ = jsonc_read(text)
+    if not isinstance(document, dict):
+        raise ValueError("root is not an object")
+except ValueError:
+    passthrough("invalid JSONC or duplicate object keys")
 
 open_line = line_of(root_open)
 close_line = line_of(root_close)
@@ -855,6 +1036,20 @@ for entry in entries:
     except ValueError as exc:
         passthrough("cannot merge agent settings: %s" % exc)
     break
+
+
+plugins_block = '  "plugins": []'
+for entry in entries:
+    if entry["name"] == "plugins":
+        first, last = entry_span(entry)
+        plugin_lines = lines[first:last + 1]
+        set_trailing_comma(plugin_lines, False)
+        plugins_block = "\n".join(plugin_lines)
+        break
+try:
+    plugins_block = merge_plugins(plugins_block)
+except ValueError as exc:
+    passthrough("cannot merge plugin registrations: %s" % exc)
 
 
 # Line span of every owned entry: its attached leading comment block, its own
@@ -919,4 +1114,9 @@ if has_native_permissions:
 seed = None
 if not has_native_permissions and not has_custom_legacy_permission:
     seed = SEED_PERMISSIONS.split("\n")
-emit(render(build_owned(agents_block), seed, kept))
+merged = render(build_owned(agents_block, plugins_block), seed, kept)
+try:
+    jsonc_read(merged)
+except ValueError:
+    passthrough("merged config would be invalid JSONC")
+emit(merged)

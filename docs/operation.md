@@ -5,6 +5,7 @@
 
 - [Daily operation](#daily-operation)
 - [Local overrides](#local-overrides)
+  - [OpenCode server plugins](#opencode-server-plugins)
 - [Terminal (tmux) behavior](#terminal-tmux-behavior)
 - [Statusline (Claude / Codex)](#statusline-claude--codex)
 - [Secret scanning](#secret-scanning)
@@ -221,6 +222,67 @@ Disabling a plugin prevents it from starting in a fresh tmux server. Reloading
 `~/.tmux.conf` in an existing server does not undo options, hooks, or bindings
 that the plugin already installed. End the existing server and start a new one
 for a disable to take full effect.
+
+### OpenCode server plugins
+
+Add server plugins with OpenCode's native CLI, or edit the `plugins` array in
+`~/.config/opencode/opencode.jsonc`:
+
+```sh
+opencode2 plugin add <package>@<version>
+opencode2 plugin list
+```
+
+Chezmoi owns the registrations between `// dotfiles:plugins:start` and
+`// dotfiles:plugins:end`, including their package pins and audit comments.
+Keep local entries after the end marker. Packages, local paths, Git references,
+object options, and comments survive repeated applies in their original local
+order. There is no dotfiles allowlist; review additions yourself because plugins
+execute code in OpenCode's process.
+
+This example omits the generated audit comments:
+
+```jsonc
+{
+  "$schema": "https://opencode.ai/config.json",
+  "plugins": [
+    // dotfiles:plugins:start
+    "opencode-copilot-statusline@1.0.0",
+    // dotfiles:plugins:end
+    {
+      "package": "@example/reviewer@1.2.3",
+      "options": { "strict": true }
+    },
+    "./v2-plugins/local/reviewer",
+    "-opencode-copilot-statusline"
+  ]
+}
+```
+
+OpenCode processes controls in order. A local `-opencode-copilot-statusline`
+after the managed section disables the quota plugin. Wildcard controls are also
+preserved, without sorting or deduplication. See the
+[V2 plugin guide](https://opencode.ai/v2/docs/plugins/#control).
+CLI-only plugins still belong in `cli.override.json`; this merge does not change
+their ownership.
+
+You can change a managed string registration to an object with `package` and
+`options` inside the marked section. Dotfiles owns its package version; local
+options and their comments survive pin updates. When a later dotfiles revision
+retires a managed registration, it removes that registration only. It does not
+delete independently added entries, plugin installations, or runtime data.
+
+The first apply adopts a single exact existing
+`opencode-copilot-statusline@1.0.0` registration, including the object form.
+Other unmarked V2 entries remain local. A competing version, duplicate
+registration, malformed JSONC, or ambiguous marker pair produces a warning and
+leaves the entire target unchanged. The rest of the apply can continue.
+
+Resolve a conflict by keeping one registration in the managed section at the
+dotfiles pin, moving any local options into that object, and removing the
+competing entry. A different managed version requires a reviewed source change;
+a disable control does not transfer version ownership. The existing retirement
+of the singular V1 `plugin` key is unchanged.
 
 ### Ordering
 

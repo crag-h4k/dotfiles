@@ -1,4 +1,11 @@
+<!-- docs/opencode-maintenance.md -->
 # OpenCode2 integration maintenance
+
+## Table of Contents
+
+- [Maintenance rules](#maintenance-rules)
+
+## Maintenance rules
 
 Read the repo's `docs/operation.md`, `docs/notifications.md`, and
 `docs/agent-skills.md`. This integration targets OpenCode V2. Check the actual
@@ -17,6 +24,11 @@ CLI, server, plugin SDK, and terminal versions when diagnosing compatibility.
   for a fix. Do not silently alter account, model, or permission selection.
   The managed shell policy allows both `prek *` and `pre-commit *` for local
   checks; it does not replace host-specific permissions.
+- The server plugin merge owns marked registrations, not the whole array.
+  Preserve local entries and ordered controls after `dotfiles:plugins:end`, and
+  preserve managed object options when changing a pin. Keep conflicts and
+  malformed input on the warning-and-passthrough path; do not silently choose
+  between competing versions. CLI-only plugin overrides remain separate.
 - Stage and check CLI/plugin runtime compatibility and required imports before
   switching the stable binary or runtime links. Preserve old releases on failure.
   Chezmoi must not manage runtime node_modules, npm lockfiles, or authentication.
