@@ -35,6 +35,11 @@ const STATUSLINE_SOURCE = readFileSync(
   "utf8",
 )
 
+test("Auto uses the red agent identity pill", () => {
+  assert.match(STATUSLINE_SOURCE, /auto: \{\{ \$p\.colors\.red \| quote \}\}/)
+  assert.match(STATUSLINE_SOURCE, /agent === "auto" \? COLOR\.auto/)
+})
+
 test("spinner frames are distinct single-cell glyphs", () => {
   for (const frame of [...FOREGROUND_SPINNER_FRAMES, ...BACKGROUND_SPINNER_FRAMES]) {
     assert.equal([...frame].length, 1)

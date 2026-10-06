@@ -148,7 +148,7 @@ repos:
         # The OpenCode notifier plugin is TypeScript and had no gate whatsoever:
         # a parse error would install cleanly and only fail at runtime, inside a
         # plugin host that swallows plugin errors. Syntax only; see the script.
-        files: ^(home/dot_config/opencode/(plugin/.*\.ts|v2-plugins/.*\.(ts|tsx)(\.tmpl)?)|scripts/ts-syntax\.js|tests/test_opencode_notify_plugin\.js)$
+        files: ^(home/dot_config/opencode/(plugins/session-workflow/.*\.(ts|tsx)|plugin/.*\.ts|v2-plugins/.*\.(ts|tsx)(\.tmpl)?)|scripts/ts-syntax\.js|tests/test_opencode_notify_plugin\.js)$
 
       - id: validate-palettes
         name: validate shared palettes render
@@ -170,6 +170,14 @@ repos:
         language: system
         pass_filenames: false
         files: ^(home/dot_config/opencode/(v2-plugins/statusline/demo\.mjs|agents/dotfiles-demo\.md|demo/.*)|tests/test_opencode_demo\.mjs)$
+
+      - id: test-opencode-session-workflow
+        name: node test (opencode session workflow)
+        entry: node --test tests/test_opencode_session_workflow.mjs
+        language: node
+        additional_dependencies: ['typescript@5.7.2']
+        pass_filenames: false
+        files: ^(home/dot_config/opencode/plugins/session-workflow/.*|tests/test_opencode_session_workflow(_plugin\.js|\.mjs))$
 
       - id: build-palettes-check
         name: palette catalog matches base16 schemes

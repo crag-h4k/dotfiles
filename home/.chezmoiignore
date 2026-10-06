@@ -161,7 +161,9 @@ AGENTS.md
 .config/opencode/plugin/provider-usage.ts
 .config/opencode/sync-runtime.sh
 .config/opencode/v2-plugins
+.config/opencode/plugins/session-workflow
 .config/opencode/agents/dotfiles-demo.md
+.config/opencode/agents/auto.md
 .config/opencode/agents/ricer.md
 .config/opencode/demo
 .config/opencode/commands/iac-scan.md
