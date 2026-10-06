@@ -184,8 +184,13 @@ if CLI verification or the matching runtime installation fails.
 
 `~/.config/opencode/opencode.jsonc` is merge-managed. Chezmoi reasserts the
 schema, agent colors, Ricer's subagent mode, Plan handoff permissions, and the
-exact-pinned V2 plugin list while preserving
-unknown top-level keys and comments. A fresh host receives native ordered
+exact-pinned V2 registrations in a marked managed section. Local plugin entries
+remain after that section, with their order, options, and comments preserved.
+Managed object options also survive package-pin updates; competing registrations
+warn and leave the target unchanged. See
+[OpenCode server plugins](operation.md#opencode-server-plugins) for additions and
+disable controls. Unknown top-level keys and comments remain intact.
+A fresh host receives native ordered
 `permissions`; only the exact old generated `permission` block is migrated.
 Customized V1 policies remain untouched. Existing native V2 policies retain
 their local choices except generic `pre-commit *` and `prek *` hook allows are
