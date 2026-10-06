@@ -115,6 +115,18 @@ class RepositoryContractTests(unittest.TestCase):
     def test_repository_contract(self) -> None:
         self.assertEqual(VALIDATOR.validate_repository(REPO_ROOT), [])
 
+    def test_public_scan_covers_the_ricer_definition(self) -> None:
+        relative = "home/dot_config/opencode/agents/ricer.md"
+        self.assertIn(relative, VALIDATOR.PUBLIC_TEXT_FILES)
+        temp_dir = tempfile.TemporaryDirectory()
+        self.addCleanup(temp_dir.cleanup)
+        root = Path(temp_dir.name)
+        target = root / relative
+        target.parent.mkdir(parents=True)
+        target.write_text("/Users/" + "sample-person/private-agent\n")
+        findings = VALIDATOR.validate_public_text(root)
+        self.assertIn(f"{relative}: contains real home path", findings)
+
 
 class SkillDeploymentTests(unittest.TestCase):
     def setUp(self) -> None:
@@ -180,6 +192,21 @@ class SkillDeploymentTests(unittest.TestCase):
         with tarfile.open(fileobj=io.BytesIO(archive)) as rendered:
             instructions = [entry.name for entry in rendered if Path(entry.name).name == "AGENTS.md"]
             self.assertEqual(instructions, [".config/opencode/AGENTS.md"])
+
+    def test_ricer_apply_preserves_independent_local_agents(self) -> None:
+        self.config.write_text(VALIDATOR.component_config({"opencode"}))
+        agents = self.destination / ".config/opencode/agents"
+        agents.mkdir(parents=True)
+        independent = agents / "local-example.md"
+        independent.write_text("Independent local agent\n")
+        self.run_chezmoi("apply", "--", str(agents))
+        source = REPO_ROOT / "home/dot_config/opencode/agents/ricer.md"
+        deployed = agents / "ricer.md"
+        self.assertEqual(deployed.read_bytes(), source.read_bytes())
+        header = deployed.read_text().split("---\n", maxsplit=2)[1]
+        self.assertIn("\nmode: subagent\n", header)
+        self.assertNotIn("\nmodel:", header)
+        self.assertEqual(independent.read_text(), "Independent local agent\n")
 
     def test_global_opencode_instructions_preserve_local_content(self) -> None:
         self.config.write_text(VALIDATOR.component_config({"opencode"}))

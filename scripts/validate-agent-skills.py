@@ -63,6 +63,7 @@ PUBLIC_TEXT_FILES = (
     "home/dot_config/opencode/commands/dotfiles.md",
     "home/dot_config/opencode/commands/humanize.md",
     "home/dot_config/opencode/commands/unslop.md",
+    "home/dot_config/opencode/agents/ricer.md",
     "home/dot_local/share/agent-skills/handoff/readonly_SKILL.md",
     "home/dot_local/share/agent-skills/handoff/scripts/readonly_executable_snapshot.sh",
 )

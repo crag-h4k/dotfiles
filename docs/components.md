@@ -196,6 +196,15 @@ colors, Ricer's mode, and Plan handoff rules are managed; other fields and
 comments survive unchanged. Ricer's public definition is a subagent under
 `~/.config/opencode/agents/ricer.md`, so it does not enter the Shift+Tab cycle.
 
+Ricer configures Zsh, tmux, Neovim, terminal emulators, and CLI tools through
+chezmoi. Its prompt covers shared palette and font checks, measured startup
+tuning, component-picker pitfalls, terminal-chain diagnostics, and private
+override boundaries. It follows the selected palette and prompt, with Dracula
+and Gud as the repository defaults. It inherits the session model unless a
+local agent configuration selects another one. Repository work does not
+authorize a live apply or reload. The public-text validator scans its managed
+definition; local prompts and memory remain outside source.
+
 The seeded policy allows native reads, searches, questions, skills, subagents,
 Code Mode, external document access, read-only MCP methods, browser inspection,
 and common shell-based file inspection without prompting. Mutating MCP calls,
