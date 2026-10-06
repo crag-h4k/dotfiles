@@ -191,6 +191,11 @@ AGENTS_WITH_BUILTIN_FIELDS = """\
       "description": "Plan without edits",
       "steps": 23
     },
+    "ricer": {
+      "description": "Keep this local description",
+      "mode": "all",
+      "system": "Keep this local system prompt"
+    },
     "local-helper": {
       "description": "Preserve every custom agent"
     }
@@ -206,7 +211,8 @@ def test_empty_stdin_seeds_a_complete_generic_file(script):
     assert strict_json_keys(out) == ["$schema", "agents", "permissions", "plugins"]
     d = parse(out)
     assert d["$schema"] == "https://opencode.ai/config.json"
-    assert set(d["agents"]) == {"build", "plan"}
+    assert set(d["agents"]) == {"build", "plan", "ricer"}
+    assert d["agents"]["ricer"]["mode"] == "subagent"
     assert re.fullmatch(r"#[0-9a-fA-F]{6}", d["agents"]["build"]["color"])
     assert re.fullmatch(r"#[0-9a-fA-F]{6}", d["agents"]["plan"]["color"])
     assert d["agents"]["build"]["color"] != d["agents"]["plan"]["color"]
@@ -272,6 +278,11 @@ def test_extra_builtin_agent_fields_and_comments_survive(script):
     assert agents["plan"]["description"] == "Plan without edits"
     assert agents["plan"]["steps"] == 23
     assert re.fullmatch(r"#[0-9a-fA-F]{6}", agents["plan"]["color"])
+    assert agents["ricer"] == {
+        "description": "Keep this local description",
+        "mode": "subagent",
+        "system": "Keep this local system prompt",
+    }
     assert agents["local-helper"] == {
         "description": "Preserve every custom agent"
     }
