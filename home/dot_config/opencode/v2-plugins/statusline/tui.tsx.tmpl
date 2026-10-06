@@ -33,6 +33,7 @@ const COLOR = {
   identity: {{ $p.colors.purple | quote }},
   build: {{ $p.colors.green | quote }},
   plan: {{ $p.colors.blue | quote }},
+  auto: {{ $p.colors.red | quote }},
   foregroundSpinner: {{ $p.colors.cyan | quote }},
   elapsed: {{ $p.colors.cyan | quote }},
   subagents: {{ $p.colors.orange | quote }},
@@ -337,7 +338,7 @@ function StatusPills(props: {
     const agent = shorten(active.agent || "build", 12)
     const model = active.model?.id ? shorten(active.model.id, 20) : undefined
     const effort = active.model?.variant ? shorten(active.model.variant, 10) : undefined
-    const color = agent === "build" ? COLOR.build : agent === "plan" ? COLOR.plan : COLOR.identity
+    const color = agent === "build" ? COLOR.build : agent === "plan" ? COLOR.plan : agent === "auto" ? COLOR.auto : COLOR.identity
     return { agent, model, effort, color }
   })
 

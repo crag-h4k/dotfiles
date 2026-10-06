@@ -205,12 +205,14 @@ Credential files and recursive removal commands remain denied.
 
 `cli.json` enables session tabs and uses `Ctrl+G` as a 1500 ms leader.
 `<leader>h` and `<leader>l` move between tabs. The session-workflow CLI plugin
-uses Shift+Tab to cycle Build → Plan → Auto-approve → Build for the current
-session. Auto-approve uses OpenCode's native autoaccept semantics for pending
-permission asks, never configured denials or question forms. The explicit
-`question` decision before Git writes remains required. Auto state is local to
-the current terminal and clears on exit; do not launch that terminal with the
-global `--auto` flag when using the per-session cycle.
+uses Shift+Tab to cycle Build → Plan → Auto → Build for the current session.
+Auto is a primary agent with a red identity pill, replacing Ricer in the
+cycle once Ricer is installed as a subagent. While a terminal client is open,
+Auto mirrors native `--auto`: it replies once to pending permission asks,
+never to configured denials or question forms. The explicit `question` decision
+before Git writes remains required. Auto is stored as the session's agent,
+but its permission handler needs an attached terminal client. Do not launch
+that client with the global `--auto` flag when using the per-session cycle.
 
 `<leader>t` toggles a vertical priority inbox of open tabs: pending attention,
 then unread activity, then most recently viewed. Up/Down selects, Enter opens,

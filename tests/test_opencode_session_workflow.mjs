@@ -7,17 +7,17 @@ import { nextMode, rankInbox, shouldAutoApprove } from "../home/dot_config/openc
 const require = createRequire(import.meta.url)
 
 test("Build, Plan, and Auto cycle without a third agent", () => {
-  assert.deepEqual(nextMode("build", false), { agent: "plan", auto: false })
-  assert.deepEqual(nextMode("plan", false), { agent: "build", auto: true })
-  assert.deepEqual(nextMode("build", true), { agent: "build", auto: false })
-  assert.deepEqual(nextMode("ricer", false), { agent: "plan", auto: false })
+  assert.equal(nextMode("build"), "plan")
+  assert.equal(nextMode("plan"), "auto")
+  assert.equal(nextMode("auto"), "build")
+  assert.equal(nextMode("ricer"), "build")
 })
 
-test("Auto replies only for a Build session's permission requests", () => {
-  assert.equal(shouldAutoApprove({ enabled: true, agent: "build", action: "edit" }), true)
-  assert.equal(shouldAutoApprove({ enabled: false, agent: "build", action: "edit" }), false)
-  assert.equal(shouldAutoApprove({ enabled: true, agent: "plan", action: "edit" }), false)
-  assert.equal(shouldAutoApprove({ enabled: true, agent: "build", action: "question" }), false)
+test("Auto replies only for an Auto session's permission requests", () => {
+  assert.equal(shouldAutoApprove({ agent: "auto", action: "edit" }), true)
+  assert.equal(shouldAutoApprove({ agent: "build", action: "edit" }), false)
+  assert.equal(shouldAutoApprove({ agent: "plan", action: "edit" }), false)
+  assert.equal(shouldAutoApprove({ agent: "auto", action: "question" }), false)
 })
 
 test("pending attention outranks unread activity, then most recently viewed", () => {
@@ -41,5 +41,14 @@ test("terminal plugin cycles agents and answers asks for only the Auto session",
     ts,
     fileURLToPath(new URL("../home/dot_config/opencode/plugins/session-workflow/tui.tsx", import.meta.url)),
     { nextMode, rankInbox, shouldAutoApprove },
+  )
+})
+
+test("server plugin gives the Auto agent a visible name", async () => {
+  const ts = require("typescript")
+  const { verifyAutoAgentName } = require("./test_opencode_session_workflow_plugin.js")
+  await verifyAutoAgentName(
+    ts,
+    fileURLToPath(new URL("../home/dot_config/opencode/plugins/session-workflow/index.ts", import.meta.url)),
   )
 })

@@ -1,0 +1,6 @@
+{{ $p := get .palettes (dig "palette" "dracula" .) -}}
+---
+description: Build sessions with per-session automatic permission approvals
+mode: primary
+color: {{ $p.colors.red | quote }}
+---

@@ -1,7 +1,7 @@
 /** @jsxImportSource @opentui/solid */
 import { Plugin, usePlugin } from "@opencode/plugin/tui"
 import { useTerminalDimensions } from "@opentui/solid"
-import { createMemo, createSignal, For, Show } from "solid-js"
+import { createMemo, createSignal, For } from "solid-js"
 import { nextMode, rankInbox, shouldAutoApprove } from "./workflow.mjs"
 
 const INBOX = "dotfiles.session-inbox"
@@ -9,7 +9,6 @@ const INBOX = "dotfiles.session-inbox"
 export default Plugin.define({
   id: "dotfiles.session-workflow.tui",
   setup(context) {
-    const [automatic, setAutomatic] = createSignal<Record<string, boolean>>({})
     const [selected, setSelected] = createSignal(0)
     let previous: { type: "home" } | { type: "session"; sessionID: string } = { type: "home" }
 
@@ -52,22 +51,19 @@ export default Plugin.define({
       const route = context.ui.router.current()
       if (route.type !== "session") return
       const id = route.sessionID
-      const session = context.data.session.get(id) ?? await context.client.session.get({ sessionID: id })
-      const mode = nextMode(session.agent ?? "build", automatic()[id] === true)
-      if (mode.agent !== session.agent) {
-        await context.client.session.switchAgent({ sessionID: id, agent: mode.agent })
-        context.data.session.invalidate(id)
-      }
-      setAutomatic((current) => ({ ...current, [id]: mode.auto }))
-      context.ui.toast.show({ message: mode.auto ? "Auto-approve" : mode.agent === "plan" ? "Plan" : "Build" })
+      const session = await context.client.session.get({ sessionID: id })
+      const agent = nextMode(session.agent ?? "build")
+      await context.client.session.switchAgent({ sessionID: id, agent })
+      context.data.session.invalidate(id)
+      context.ui.toast.show({ message: agent === "auto" ? "Auto" : agent === "plan" ? "Plan" : "Build" })
     }
 
     const stopPermission = context.data.on("permission.asked", (event) => {
       const id = event.data.sessionID
-      if (!automatic()[id]) return
+      if (event.data.action === "question") return
       void (async () => {
-        const session = context.data.session.get(id) ?? await context.client.session.get({ sessionID: id })
-        if (!shouldAutoApprove({ enabled: automatic()[id], agent: session.agent ?? "build", action: event.data.action })) return
+        const session = await context.client.session.get({ sessionID: id })
+        if (!shouldAutoApprove({ agent: session.agent ?? "build", action: event.data.action })) return
         await context.client.permission.reply({ sessionID: id, requestID: event.data.id, decision: "once" })
       })().catch(() => {
         context.ui.toast.show({ message: "Auto-approval failed; answer the permission prompt manually", variant: "warning" })
@@ -101,21 +97,13 @@ export default Plugin.define({
 
     const unregister = context.ui.router.register({
       name: INBOX,
-      render: () => <Inbox entries={entries} selected={selected} automatic={automatic} />,
-    })
-
-    const removeStatus = context.ui.slot({
-      append: "session.composer.top",
-      render: ({ sessionID }) => <Show when={automatic()[sessionID] && context.data.session.get(sessionID)?.agent === "build"}>
-        <text>Auto-approve · permission asks only</text>
-      </Show>,
+      render: () => <Inbox entries={entries} selected={selected} />,
     })
 
     return () => {
       stopPermission()
       removeKeymap()
       unregister()
-      removeStatus()
     }
   },
 })
@@ -123,7 +111,6 @@ export default Plugin.define({
 function Inbox(props: {
   entries: () => ReturnType<typeof rankInbox>
   selected: () => number
-  automatic: () => Record<string, boolean>
 }) {
   const context = usePlugin()
   const terminal = useTerminalDimensions()
@@ -140,7 +127,7 @@ function Inbox(props: {
       <For each={visible()}>{({ row, index }) => {
         const session = context.data.session.get(row.sessionID)
         const label = row.pending || row.attention ? "NEEDS INPUT" : row.unread ? "UNREAD" : "RECENT"
-        const mode = props.automatic()[row.sessionID] && session?.agent === "build" ? " · AUTO" : ""
+        const mode = session?.agent === "auto" ? " · AUTO" : ""
         return <text fg={context.theme.text.base}>
           {index === props.selected() ? ">" : " "} {label} · {row.title}{mode}
         </text>

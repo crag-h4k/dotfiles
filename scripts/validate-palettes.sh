@@ -39,6 +39,11 @@ for palette in $(yq '.paletteOrder[]' "$SOURCE_DIR/.chezmoidata/palettes.yaml");
 
     render dot_config/opencode/v2-plugins/statusline/tui.tsx.tmpl > "$TMP_DIR/opencode-statusline.tsx"
     grep -q '^  surface: "#[0-9a-fA-F]\{6\}",$' "$TMP_DIR/opencode-statusline.tsx"
+    red=$(PALETTE="$palette" yq -r '.palettes[strenv(PALETTE)].colors.red' "$SOURCE_DIR/.chezmoidata/palettes.yaml")
+    grep -Fq "  auto: \"$red\"," "$TMP_DIR/opencode-statusline.tsx"
+    render dot_config/opencode/agents/auto.md.tmpl > "$TMP_DIR/opencode-auto-agent.md"
+    grep -q '^mode: primary$' "$TMP_DIR/opencode-auto-agent.md"
+    grep -Fq "color: \"$red\"" "$TMP_DIR/opencode-auto-agent.md"
     foreground_spinner=$(sed -n 's/^  foregroundSpinner: "\(#[0-9a-fA-F]\{6\}\)",$/\1/p' "$TMP_DIR/opencode-statusline.tsx")
     background_spinner=$(sed -n 's/^  subagents: "\(#[0-9a-fA-F]\{6\}\)",$/\1/p' "$TMP_DIR/opencode-statusline.tsx")
     [[ -n "$foreground_spinner" && -n "$background_spinner" ]]

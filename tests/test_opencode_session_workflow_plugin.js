@@ -29,6 +29,32 @@ function loadPlugin(ts, sourcePath, workflow) {
   return module.exports.default
 }
 
+async function verifyAutoAgentName(ts, sourcePath) {
+  const compiled = ts.transpileModule(fs.readFileSync(sourcePath, "utf8"), {
+    compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2022 },
+  })
+  const module = { exports: {} }
+  vm.runInNewContext(compiled.outputText, {
+    module,
+    exports: module.exports,
+    require: (id) => {
+      if (id === "@opencode/plugin") return {
+        Plugin: { define: (definition) => definition },
+        Agent: { Name: { make: (name) => name } },
+      }
+      throw new Error(`unexpected import: ${id}`)
+    },
+  })
+  const auto = { name: "auto" }
+  await module.exports.default.setup({ agent: {
+    transform: async (callback) => callback({ update: (id, change) => {
+      assert.equal(id, "auto")
+      change(auto)
+    } }),
+  } })
+  assert.equal(auto.name, "Auto")
+}
+
 async function verifySessionWorkflowPlugin(ts, sourcePath, workflow) {
   const plugin = loadPlugin(ts, sourcePath, workflow)
   assert.equal(plugin.id, "dotfiles.session-workflow.tui")
@@ -78,7 +104,7 @@ async function verifySessionWorkflowPlugin(ts, sourcePath, workflow) {
   await run("dotfiles.mode.cycle")
   assert.equal(sessions.get("recent").agent, "plan")
   await run("dotfiles.mode.cycle")
-  assert.equal(sessions.get("recent").agent, "build")
+  assert.equal(sessions.get("recent").agent, "auto")
   asked({ data: { sessionID: "recent", id: "request", action: "edit" } })
   for (let n = 0; n < 20 && !replies.length; n++) await new Promise((resolve) => setImmediate(resolve))
   assert.deepEqual(replies.map((reply) => ({ ...reply })), [{ sessionID: "recent", requestID: "request", decision: "once" }])
@@ -88,8 +114,9 @@ async function verifySessionWorkflowPlugin(ts, sourcePath, workflow) {
   asked({ data: { sessionID: "recent", id: "plan", action: "edit" } })
   await new Promise((resolve) => setImmediate(resolve))
   assert.equal(replies.length, 1)
-  sessions.get("recent").agent = "build"
+  sessions.get("recent").agent = "auto"
   await run("dotfiles.mode.cycle")
+  assert.equal(sessions.get("recent").agent, "build")
   asked({ data: { sessionID: "recent", id: "manual", action: "edit" } })
   await new Promise((resolve) => setImmediate(resolve))
   assert.equal(replies.length, 1)
@@ -102,4 +129,4 @@ async function verifySessionWorkflowPlugin(ts, sourcePath, workflow) {
   dispose()
 }
 
-module.exports = { verifySessionWorkflowPlugin }
+module.exports = { verifyAutoAgentName, verifySessionWorkflowPlugin }

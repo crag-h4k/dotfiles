@@ -1,11 +1,11 @@
-export function nextMode(agent, auto) {
-  if (agent === "plan") return { agent: "build", auto: true }
-  if (agent === "build" && auto) return { agent: "build", auto: false }
-  return { agent: "plan", auto: false }
+export function nextMode(agent) {
+  if (agent === "build") return "plan"
+  if (agent === "plan") return "auto"
+  return "build"
 }
 
-export function shouldAutoApprove({ enabled, agent, action }) {
-  return enabled && agent === "build" && action !== "question"
+export function shouldAutoApprove({ agent, action }) {
+  return agent === "auto" && action !== "question"
 }
 
 export function rankInbox(entries) {

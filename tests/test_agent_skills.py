@@ -170,6 +170,7 @@ class SkillDeploymentTests(unittest.TestCase):
                 ):
                     self.assertEqual(target in managed, bool(features), target)
                 for target in (
+                    ".config/opencode/agents/auto.md",
                     ".config/opencode/plugins/session-workflow/index.ts",
                     ".config/opencode/plugins/session-workflow/tui.tsx",
                     ".config/opencode/plugins/session-workflow/workflow.mjs",

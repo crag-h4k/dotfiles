@@ -163,6 +163,7 @@ AGENTS.md
 .config/opencode/v2-plugins
 .config/opencode/plugins/session-workflow
 .config/opencode/agents/dotfiles-demo.md
+.config/opencode/agents/auto.md
 .config/opencode/demo
 .config/opencode/commands/iac-scan.md
 .local/bin/opencode2
