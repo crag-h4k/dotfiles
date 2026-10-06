@@ -1,50 +1,46 @@
 /** @jsxImportSource @opentui/solid */
-import { Plugin, usePlugin } from "@opencode/plugin/tui"
-import { useTerminalDimensions } from "@opentui/solid"
-import { createMemo, createSignal, For } from "solid-js"
-import { nextMode, rankInbox, shouldAutoApprove } from "./workflow.mjs"
-
-const INBOX = "dotfiles.session-inbox"
+import { Plugin } from "@opencode/plugin/tui"
+import { createEffect } from "solid-js"
+import { nextMode, reorderTabs, shouldAutoApprove } from "./workflow.mjs"
 
 export default Plugin.define({
   id: "dotfiles.session-workflow.tui",
   setup(context) {
-    const [selected, setSelected] = createSignal(0)
-    let previous: { type: "home" } | { type: "session"; sessionID: string } = { type: "home" }
+    let timer: ReturnType<typeof setTimeout> | undefined
+    const synced = new Set<string>()
 
-    const active = () => {
-      const route = context.ui.router.current()
-      return route.type === "plugin" && route.name === INBOX
+    const reorder = () => {
+      const tabs = context.ui.tabs.list()
+      const entries = tabs.map((tab) => {
+        const session = context.data.session.get(tab.sessionID)
+        return {
+          ...tab,
+          viewed: session?.time.viewed ?? session?.time.updated ?? 0,
+          pending: (context.data.session.permission.list(tab.sessionID)?.length ?? 0) +
+            (context.data.session.form.list(tab.sessionID, session?.location)?.length ?? 0),
+        }
+      })
+      reorderTabs(entries, (id, index) => context.ui.tabs.move(id, index))
     }
 
-    const entries = () => rankInbox(context.ui.tabs.list().map((tab) => {
-      const session = context.data.session.get(tab.sessionID)
-      const location = session?.location
-      return {
-        ...tab,
-        title: tab.title || session?.title || tab.sessionID.slice(0, 12),
-        viewed: session?.time.viewed ?? session?.time.updated ?? 0,
-        pending: (context.data.session.permission.list(tab.sessionID)?.length ?? 0) +
-          (context.data.session.form.list(tab.sessionID, location)?.length ?? 0),
-      }
-    }))
-
-    const close = () => context.ui.router.navigate(previous)
-    const refresh = () => {
-      for (const tab of context.ui.tabs.list()) {
-        const location = context.data.session.get(tab.sessionID)?.location
-        void context.data.session.permission.sync(tab.sessionID)
-        void context.data.session.form.sync(tab.sessionID, location)
-      }
+    const schedule = () => {
+      if (timer) return
+      timer = setTimeout(() => {
+        timer = undefined
+        reorder()
+      }, 0)
     }
 
-    const toggleInbox = () => {
-      if (active()) return close()
-      const route = context.ui.router.current()
-      previous = route.type === "session" ? { type: "session", sessionID: route.sessionID } : { type: "home" }
-      setSelected(0)
-      refresh()
-      context.ui.router.navigate({ type: "plugin", name: INBOX })
+    const syncAttention = (id: string) => {
+      if (!context.ui.tabs.list().some((tab) => tab.sessionID === id)) return
+      const location = context.data.session.get(id)?.location
+      void Promise.all([
+        context.data.session.permission.sync(id),
+        context.data.session.form.sync(id, location),
+      ]).then(schedule, () => {
+        console.warn("session-workflow: tab attention refresh failed")
+        schedule()
+      })
     }
 
     const cycle = async () => {
@@ -60,6 +56,7 @@ export default Plugin.define({
 
     const stopPermission = context.data.on("permission.asked", (event) => {
       const id = event.data.sessionID
+      syncAttention(id)
       if (event.data.action === "question") return
       void (async () => {
         const session = await context.client.session.get({ sessionID: id })
@@ -70,69 +67,43 @@ export default Plugin.define({
       })
     })
 
+    const stopEvents = [
+      context.data.on("permission.replied", (event) => syncAttention(event.data.sessionID)),
+      context.data.on("form.created", (event) => syncAttention(event.data.form.sessionID)),
+      context.data.on("form.replied", (event) => syncAttention(event.data.sessionID)),
+      context.data.on("form.cancelled", (event) => syncAttention(event.data.sessionID)),
+      context.data.on("session.execution.succeeded", schedule),
+      context.data.on("session.viewed", schedule),
+    ]
+
     const removeKeymap = context.ui.slot({
       append: "app",
       render: () => {
+        createEffect(() => {
+          for (const tab of context.ui.tabs.list()) {
+            if (!synced.has(tab.sessionID)) {
+              synced.add(tab.sessionID)
+              syncAttention(tab.sessionID)
+            }
+          }
+          schedule()
+        })
         context.keymap.layer(() => ({
           mode: "global",
           priority: 10,
           commands: [
             { id: "dotfiles.mode.cycle", title: "Cycle Build / Plan / Auto", bind: "shift+tab", run: cycle },
-            { id: "dotfiles.inbox.toggle", title: "Toggle session inbox", bind: "<leader>t", palette: true, run: toggleInbox },
-            { id: "dotfiles.inbox.down", bind: "down", enabled: active, run: () => setSelected((index) => Math.max(0, Math.min(index + 1, entries().length - 1))) },
-            { id: "dotfiles.inbox.up", bind: "up", enabled: active, run: () => setSelected((index) => Math.max(index - 1, 0)) },
-            { id: "dotfiles.inbox.open", bind: "return", enabled: active, run: () => {
-              const rows = entries()
-              const row = rows[Math.min(selected(), rows.length - 1)]
-              if (row && context.ui.tabs.focus(row.sessionID)) {
-                context.ui.router.navigate({ type: "session", sessionID: row.sessionID })
-              }
-            } },
-            { id: "dotfiles.inbox.close", bind: "escape", enabled: active, run: close },
           ],
         }))
         return <></>
       },
     })
 
-    const unregister = context.ui.router.register({
-      name: INBOX,
-      render: () => <Inbox entries={entries} selected={selected} />,
-    })
-
     return () => {
       stopPermission()
+      stopEvents.forEach((stop) => stop())
+      if (timer) clearTimeout(timer)
       removeKeymap()
-      unregister()
     }
   },
 })
-
-function Inbox(props: {
-  entries: () => ReturnType<typeof rankInbox>
-  selected: () => number
-}) {
-  const context = usePlugin()
-  const terminal = useTerminalDimensions()
-  const visible = createMemo(() => {
-    const rows = props.entries()
-    const count = Math.max(1, terminal().height - 5)
-    const start = Math.max(0, Math.min(props.selected() - Math.floor(count / 2), rows.length - count))
-    return rows.slice(start, start + count).map((row, index) => ({ row, index: start + index }))
-  })
-
-  return (
-    <box flexDirection="column" padding={1}>
-      <text fg={context.theme.text.base}>Session inbox · ↑/↓ select · Enter open · Esc or Ctrl+G T hide</text>
-      <For each={visible()}>{({ row, index }) => {
-        const session = context.data.session.get(row.sessionID)
-        const label = row.pending || row.attention ? "NEEDS INPUT" : row.unread ? "UNREAD" : "RECENT"
-        const mode = session?.agent === "auto" ? " · AUTO" : ""
-        return <text fg={context.theme.text.base}>
-          {index === props.selected() ? ">" : " "} {label} · {row.title}{mode}
-        </text>
-      }}</For>
-      <text fg={context.theme.text.base}>{props.entries().length} open tabs</text>
-    </box>
-  )
-}

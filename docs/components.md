@@ -216,22 +216,25 @@ two Release Please Conventional Commit message candidates and a user selection.
 Credential files and recursive removal commands remain denied.
 
 `cli.json` enables session tabs and uses `Ctrl+G` as a 1500 ms leader.
-`<leader>h` and `<leader>l` move between tabs. The session-workflow CLI plugin
-uses Shift+Tab to cycle Build → Plan → Auto → Build for the current session.
+`<leader>h` / `<leader>l` and Alt+Up / Alt+Down move between tabs. The
+session-workflow CLI plugin uses Shift+Tab to cycle Build → Plan → Auto → Build
+for the current session.
 Auto is a primary agent with a red identity pill; Ricer remains available as
-a subagent rather than occupying a slot in this cycle. While a terminal
-client is open,
-Auto mirrors native `--auto`: it replies once to pending permission asks,
+a subagent rather than occupying a slot in this cycle. While a terminal client
+is open, Auto mirrors native `--auto`: it replies once to pending permission asks,
 never to configured denials or question forms. The explicit `question` decision
 before Git writes remains required. Auto is stored as the session's agent,
 but its permission handler needs an attached terminal client. Do not launch
 that client with the global `--auto` flag when using the per-session cycle.
 
-`<leader>t` toggles a vertical priority inbox of open tabs: pending attention,
-then unread activity, then most recently viewed. Up/Down selects, Enter opens,
-and Escape closes it. The built-in session list remains in the command palette.
-OpenCode's native `tabs.layout` setting can place the tab strip vertically;
-set `tabs.layout` to `vertical` in the unmanaged `cli.override.json` if desired.
+The plugin reorders the native open-session tab strip itself: pending permission
+or question attention first, unread activity next, then most recently viewed.
+It never switches the active session. `<leader>t` still opens the built-in
+session list. Set `tabs.layout` to `vertical` in the unmanaged
+`cli.override.json` to place the same ordered tabs in a sidebar. The current
+CLI plugin API does not expose a tab-strip show/hide action; use OpenCode's
+normal tab settings for visibility.
+
 `Home` moves to the first message, freeing `Ctrl+G` for the leader.
 
 ### OpenCode V2 footer

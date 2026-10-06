@@ -32,8 +32,8 @@ CLI, server, plugin SDK, and terminal versions when diagnosing compatibility.
 - Preserve the inexpensive `/demo` path. A showcase should not require extra
   model calls or filesystem changes. Maintenance command routers are prompt-only,
   treat arguments as task data, and grant no additional tool permissions.
-- The terminal session-workflow plugin controls this TUI's open tabs and
-  switches the current session among Build, Plan, and Auto. Auto is a primary
+- The terminal session-workflow plugin reorders native tabs without changing
+  focus and switches the current session among Build, Plan, and Auto. Auto is a primary
   agent; the terminal plugin replies once to its permission asks while
   connected, never to question forms. Configured denials create no request.
   Keep the native agent picker available if the plugin fails to load.

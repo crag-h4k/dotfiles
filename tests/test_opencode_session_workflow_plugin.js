@@ -15,17 +15,13 @@ function loadPlugin(ts, sourcePath, workflow) {
     if (id === "@opencode/plugin/tui") return { Plugin: { define: (definition) => definition }, usePlugin: () => ({}) }
     if (id === "@opentui/solid") return { useTerminalDimensions: () => () => ({ height: 24 }) }
     if (id === "@opentui/solid/jsx-runtime") return { jsx: () => null, jsxs: () => null }
-    if (id === "solid-js") return {
-      createSignal(value) {
-        return [() => value, (next) => { value = typeof next === "function" ? next(value) : next; return value }]
-      },
-      createMemo: (compute) => compute,
-      For: () => null,
-    }
+    if (id === "solid-js") return { createEffect: (effect) => effect() }
     if (id === "./workflow.mjs") return workflow
     throw new Error(`unexpected import: ${id}`)
   }
-  vm.runInNewContext(compiled.outputText, { module, exports: module.exports, require: requirePlugin }, { filename: sourcePath })
+  vm.runInNewContext(compiled.outputText, {
+    module, exports: module.exports, require: requirePlugin, setTimeout, clearTimeout, console,
+  }, { filename: sourcePath })
   return module.exports.default
 }
 
@@ -71,16 +67,18 @@ async function verifySessionWorkflowPlugin(ts, sourcePath, workflow) {
   ]
   let route = { type: "session", sessionID: "recent" }
   let commands
-  let asked
-  let focused
+  const handlers = {}
+  const moves = []
   const replies = []
+  const pending = new Set(["pending"])
+  const questions = new Set()
   const context = {
     data: {
-      on: (type, handler) => { if (type === "permission.asked") asked = handler; return () => {} },
+      on: (type, handler) => { handlers[type] = handler; return () => {} },
       session: {
         get: (id) => sessions.get(id), invalidate: () => {},
-        permission: { list: (id) => id === "pending" ? [{ id: "ask" }] : [], sync: async () => {} },
-        form: { list: () => [], sync: async () => {} },
+        permission: { list: (id) => pending.has(id) ? [{ id: "ask" }] : [], sync: async () => {} },
+        form: { list: (id) => questions.has(id) ? [{ id: "form" }] : [], sync: async () => {} },
       },
     },
     client: {
@@ -93,39 +91,53 @@ async function verifySessionWorkflowPlugin(ts, sourcePath, workflow) {
     keymap: { layer: (factory) => { commands = factory().commands } },
     ui: {
       toast: { show: () => {} },
-      router: { current: () => route, navigate: (next) => { route = next }, register: () => () => {} },
-      tabs: { list: () => tabs, focus: (id) => { focused = id; return true } },
+      router: { current: () => route },
+      tabs: { list: () => tabs, move: (id, index) => {
+        moves.push([id, index])
+        const current = tabs.findIndex((tab) => tab.sessionID === id)
+        tabs.splice(index, 0, ...tabs.splice(current, 1))
+        return true
+      } },
       slot: (claim) => { if (claim.append === "app") claim.render({}); return () => {} },
     },
   }
   const dispose = plugin.setup(context)
   const run = (id) => commands.find((command) => command.id === id).run()
 
+  await new Promise((resolve) => setTimeout(resolve, 10))
+  assert.deepEqual(tabs.map((tab) => tab.sessionID), ["pending", "unread", "recent"])
+  assert.deepEqual(moves.map((move) => Array.from(move)), [["pending", 0], ["unread", 1]])
+  assert.equal(tabs.find((tab) => tab.active).sessionID, "recent")
+
+  questions.add("unread")
+  handlers["form.created"]({ data: { form: { sessionID: "unread" } } })
+  await new Promise((resolve) => setTimeout(resolve, 10))
+  assert.deepEqual(tabs.map((tab) => tab.sessionID), ["unread", "pending", "recent"])
+  questions.delete("unread")
+  handlers["form.replied"]({ data: { sessionID: "unread" } })
+  await new Promise((resolve) => setTimeout(resolve, 10))
+  assert.deepEqual(tabs.map((tab) => tab.sessionID), ["pending", "unread", "recent"])
+
   await run("dotfiles.mode.cycle")
   assert.equal(sessions.get("recent").agent, "plan")
   await run("dotfiles.mode.cycle")
   assert.equal(sessions.get("recent").agent, "auto")
-  asked({ data: { sessionID: "recent", id: "request", action: "edit" } })
+  handlers["permission.asked"]({ data: { sessionID: "recent", id: "request", action: "edit" } })
   for (let n = 0; n < 20 && !replies.length; n++) await new Promise((resolve) => setImmediate(resolve))
   assert.deepEqual(replies.map((reply) => ({ ...reply })), [{ sessionID: "recent", requestID: "request", decision: "once" }])
-  asked({ data: { sessionID: "recent", id: "form", action: "question" } })
-  asked({ data: { sessionID: "unread", id: "other", action: "edit" } })
+  handlers["permission.asked"]({ data: { sessionID: "recent", id: "form", action: "question" } })
+  handlers["permission.asked"]({ data: { sessionID: "unread", id: "other", action: "edit" } })
   sessions.get("recent").agent = "plan"
-  asked({ data: { sessionID: "recent", id: "plan", action: "edit" } })
+  handlers["permission.asked"]({ data: { sessionID: "recent", id: "plan", action: "edit" } })
   await new Promise((resolve) => setImmediate(resolve))
   assert.equal(replies.length, 1)
   sessions.get("recent").agent = "auto"
   await run("dotfiles.mode.cycle")
   assert.equal(sessions.get("recent").agent, "build")
-  asked({ data: { sessionID: "recent", id: "manual", action: "edit" } })
+  handlers["permission.asked"]({ data: { sessionID: "recent", id: "manual", action: "edit" } })
   await new Promise((resolve) => setImmediate(resolve))
   assert.equal(replies.length, 1)
 
-  run("dotfiles.inbox.toggle")
-  assert.equal(route.name, "dotfiles.session-inbox")
-  run("dotfiles.inbox.open")
-  assert.equal(focused, "pending")
-  assert.equal(route.sessionID, "pending")
   dispose()
 }
 
