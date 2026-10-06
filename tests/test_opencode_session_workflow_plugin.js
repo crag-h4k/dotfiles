@@ -12,15 +12,13 @@ function loadPlugin(ts, sourcePath, workflow) {
 
   const module = { exports: {} }
   const requirePlugin = (id) => {
-    if (id === "@opencode/plugin/tui") return { Plugin: { define: (definition) => definition }, usePlugin: () => ({}) }
-    if (id === "@opentui/solid") return { useTerminalDimensions: () => () => ({ height: 24 }) }
+    if (id === "@opencode/plugin/tui") return { Plugin: { define: (definition) => definition } }
     if (id === "@opentui/solid/jsx-runtime") return { jsx: () => null, jsxs: () => null }
-    if (id === "solid-js") return { createEffect: (effect) => effect() }
     if (id === "./workflow.mjs") return workflow
     throw new Error(`unexpected import: ${id}`)
   }
   vm.runInNewContext(compiled.outputText, {
-    module, exports: module.exports, require: requirePlugin, setTimeout, clearTimeout, console,
+    module, exports: module.exports, require: requirePlugin,
   }, { filename: sourcePath })
   return module.exports.default
 }
@@ -56,30 +54,17 @@ async function verifySessionWorkflowPlugin(ts, sourcePath, workflow) {
   assert.equal(plugin.id, "dotfiles.session-workflow.tui")
 
   const sessions = new Map([
-    ["recent", { id: "recent", agent: "build", time: { viewed: 30 }, location: { directory: "/project" } }],
-    ["unread", { id: "unread", agent: "build", time: { viewed: 20 }, location: { directory: "/project" } }],
-    ["pending", { id: "pending", agent: "build", time: { viewed: 10 }, location: { directory: "/project" } }],
+    ["recent", { id: "recent", agent: "build" }],
+    ["unread", { id: "unread", agent: "build" }],
   ])
-  const tabs = [
-    { sessionID: "recent", title: "Recent", active: true },
-    { sessionID: "unread", title: "Unread", unread: "activity" },
-    { sessionID: "pending", title: "Needs input" },
-  ]
   let route = { type: "session", sessionID: "recent" }
   let commands
   const handlers = {}
-  const moves = []
   const replies = []
-  const pending = new Set(["pending"])
-  const questions = new Set()
   const context = {
     data: {
       on: (type, handler) => { handlers[type] = handler; return () => {} },
-      session: {
-        get: (id) => sessions.get(id), invalidate: () => {},
-        permission: { list: (id) => pending.has(id) ? [{ id: "ask" }] : [], sync: async () => {} },
-        form: { list: (id) => questions.has(id) ? [{ id: "form" }] : [], sync: async () => {} },
-      },
+      session: { invalidate: () => {} },
     },
     client: {
       session: {
@@ -92,31 +77,11 @@ async function verifySessionWorkflowPlugin(ts, sourcePath, workflow) {
     ui: {
       toast: { show: () => {} },
       router: { current: () => route },
-      tabs: { list: () => tabs, move: (id, index) => {
-        moves.push([id, index])
-        const current = tabs.findIndex((tab) => tab.sessionID === id)
-        tabs.splice(index, 0, ...tabs.splice(current, 1))
-        return true
-      } },
       slot: (claim) => { if (claim.append === "app") claim.render({}); return () => {} },
     },
   }
   const dispose = plugin.setup(context)
   const run = (id) => commands.find((command) => command.id === id).run()
-
-  await new Promise((resolve) => setTimeout(resolve, 10))
-  assert.deepEqual(tabs.map((tab) => tab.sessionID), ["pending", "unread", "recent"])
-  assert.deepEqual(moves.map((move) => Array.from(move)), [["pending", 0], ["unread", 1]])
-  assert.equal(tabs.find((tab) => tab.active).sessionID, "recent")
-
-  questions.add("unread")
-  handlers["form.created"]({ data: { form: { sessionID: "unread" } } })
-  await new Promise((resolve) => setTimeout(resolve, 10))
-  assert.deepEqual(tabs.map((tab) => tab.sessionID), ["unread", "pending", "recent"])
-  questions.delete("unread")
-  handlers["form.replied"]({ data: { sessionID: "unread" } })
-  await new Promise((resolve) => setTimeout(resolve, 10))
-  assert.deepEqual(tabs.map((tab) => tab.sessionID), ["pending", "unread", "recent"])
 
   await run("dotfiles.mode.cycle")
   assert.equal(sessions.get("recent").agent, "plan")

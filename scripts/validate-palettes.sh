@@ -53,8 +53,8 @@ for palette in $(yq '.paletteOrder[]' "$SOURCE_DIR/.chezmoidata/palettes.yaml");
     jq -e '.theme.name == "gud-lucent"
       and .tabs.enabled
       and .keybinds.leader == "ctrl+g"
-      and .keybinds["session.tab.previous"] == "<leader>h,alt+up"
-      and .keybinds["session.tab.next"] == "<leader>l,alt+down"
+      and .keybinds["session.tab.previous"] == "<leader>h"
+      and .keybinds["session.tab.next"] == "<leader>l"
       and .keybinds["session.list"] == "<leader>t"
       and .keybinds["agent.cycle"] == "none"
       and .keybinds["session.first"] == "home"

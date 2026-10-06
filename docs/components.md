@@ -216,7 +216,7 @@ two Release Please Conventional Commit message candidates and a user selection.
 Credential files and recursive removal commands remain denied.
 
 `cli.json` enables session tabs and uses `Ctrl+G` as a 1500 ms leader.
-`<leader>h` / `<leader>l` and Alt+Up / Alt+Down move between tabs. The
+`<leader>h` / `<leader>l` move between tabs. The
 session-workflow CLI plugin uses Shift+Tab to cycle Build → Plan → Auto → Build
 for the current session.
 Auto is a primary agent with a red identity pill; Ricer remains available as
@@ -227,13 +227,8 @@ before Git writes remains required. Auto is stored as the session's agent,
 but its permission handler needs an attached terminal client. Do not launch
 that client with the global `--auto` flag when using the per-session cycle.
 
-The plugin reorders the native open-session tab strip itself: pending permission
-or question attention first, unread activity next, then most recently viewed.
-It never switches the active session. `<leader>t` still opens the built-in
-session list. Set `tabs.layout` to `vertical` in the unmanaged
-`cli.override.json` to place the same ordered tabs in a sidebar. The current
-CLI plugin API does not expose a tab-strip show/hide action; use OpenCode's
-normal tab settings for visibility.
+`<leader>t` opens the built-in session list. Native session tabs keep OpenCode's
+default ordering; automatic priority sorting is being developed separately.
 
 `Home` moves to the first message, freeing `Ctrl+G` for the leader.
 
