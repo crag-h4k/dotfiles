@@ -46,6 +46,8 @@ AGENTS.md
 .config/opencode/override.zsh
 .config/opencode/remote.env
 .config/opencode/v2-plugins/local
+# Work-in-progress tab sorter: do not deploy or discover until the Mac focus bug is fixed.
+.config/opencode/plugins/priority-tabs
 .tmux/conf.d/override.conf
 .tmux/plugins
 .local/share/opencode2
