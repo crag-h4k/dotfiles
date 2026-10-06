@@ -183,15 +183,27 @@ before npm takes ownership. It retains the old release and restores its link
 if CLI verification or the matching runtime installation fails.
 
 `~/.config/opencode/opencode.jsonc` is merge-managed. Chezmoi reasserts the
-schema, built-in agent colors, and exact-pinned V2 plugin list while preserving
+schema, agent colors, Ricer's subagent mode, Plan handoff permissions, and the
+exact-pinned V2 plugin list while preserving
 unknown top-level keys and comments. A fresh host receives native ordered
 `permissions`; only the exact old generated `permission` block is migrated.
 Customized V1 policies remain untouched. Existing native V2 policies retain
-their local choices except generic `pre-commit *` becomes `prek *`, the generic
+their local choices except generic `pre-commit *` and `prek *` hook allows are
+kept together, the generic
 `git worktree *` allow narrows to read-only `git worktree list *`, and the
-generic mutating Git deny rules become ask. Within `agents`, only
-`build.color` and `plan.color` are managed; custom agents and every other
-built-in field or comment survive unchanged.
+generic mutating Git deny rules become ask. Within `agents`, Build and Plan
+colors, Ricer's mode, and Plan handoff rules are managed; other fields and
+comments survive unchanged. Ricer's public definition is a subagent under
+`~/.config/opencode/agents/ricer.md`, so it does not enter the Shift+Tab cycle.
+
+Ricer configures Zsh, tmux, Neovim, terminal emulators, and CLI tools through
+chezmoi. Its prompt covers shared palette and font checks, measured startup
+tuning, component-picker pitfalls, terminal-chain diagnostics, and private
+override boundaries. It follows the selected palette and prompt, with Dracula
+and Gud as the repository defaults. It inherits the session model unless a
+local agent configuration selects another one. Repository work does not
+authorize a live apply or reload. The public-text validator scans its managed
+definition; local prompts and memory remain outside source.
 
 The seeded policy allows native reads, searches, questions, skills, subagents,
 Code Mode, external document access, read-only MCP methods, browser inspection,

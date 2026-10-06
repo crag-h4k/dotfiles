@@ -13,7 +13,8 @@
 #
 # Ownership boundary:
 #   OWNED  - re-asserted on every apply: the file header comment, "$schema", V2
-#            "plugins", agent colors, and narrow Plan handoff permissions. Every
+#            "plugins", agent colors, Ricer's subagent mode, and narrow Plan
+#            handoff permissions. Every
 #            other agent field, nested comment, and custom agent is preserved.
 #            The retired singular "plugin" key is removed when present.
 #   SEEDED - native "permissions" are written only when the incoming file has no
@@ -49,8 +50,8 @@ HEADER = """\
 //
 // MERGED, NOT OVERWRITTEN. chezmoi maintains this file through the modify_
 // script home/dot_config/opencode/modify_opencode.jsonc.tmpl. It owns only the
-// header above, "$schema", V2 "plugins", agent colors, and Plan handoff
-// permissions, which it re-asserts on every apply;
+// header above, "$schema", V2 "plugins", agent colors, Ricer's subagent mode,
+// and Plan handoff permissions, which it re-asserts on every apply;
 // every other top-level key is copied through verbatim, comments included.
 // Machine-local keys ("instructions", "mcp", host-specific subagents) belong
 // here in the target file and never reach the dotfiles repo.
@@ -102,7 +103,8 @@ NEW_AGENTS = """\
       "permissions": [
 %s
       ]
-    }
+    },
+    "ricer": { "mode": "subagent" }
   }""" % (BUILD_COLOR, PLAN_COLOR, plan_handoff_rules("        "))
 
 OWNED_PLUGINS = """\
@@ -672,14 +674,14 @@ def merge_plan_permissions(agents_block):
     return agents_block[:value_start] + updated + agents_block[plan["end"]:]
 
 
-def merge_agent_color(agents_block, agent_id, color):
-    """Set one built-in color while preserving every other agents byte."""
+def merge_agent_field(agents_block, agent_id, field, value):
+    """Set one managed agent field while preserving every other agents byte."""
     root_open, root_close, agents = scan(agents_block)
     if root_open is None or root_close is None:
         raise ValueError("agents is not a complete object")
     agent = next((entry for entry in agents if entry["name"] == agent_id), None)
     if agent is None:
-        member = '"%s": { "color": "%s" }' % (agent_id, color)
+        member = '"%s": { "%s": "%s" }' % (agent_id, field, value)
         return insert_object_member(agents_block, root_open, root_close, agents, member)
 
     value_start = entry_value_start(agents_block, agent)
@@ -689,28 +691,29 @@ def merge_agent_color(agents_block, agent_id, color):
     obj_open, obj_close, fields = scan(agent_source)
     if obj_open is None or obj_close is None:
         raise ValueError("agent %r object is incomplete" % agent_id)
-    color_entry = next((entry for entry in fields if entry["name"] == "color"), None)
-    if color_entry is None:
+    managed_entry = next((entry for entry in fields if entry["name"] == field), None)
+    if managed_entry is None:
         updated = insert_object_member(
             agent_source,
             obj_open,
             obj_close,
             fields,
-            '"color": "%s"' % color,
+            '"%s": "%s"' % (field, value),
         )
         return agents_block[:value_start] + updated + agents_block[agent["end"]:]
 
-    color_start = entry_value_start(agent_source, color_entry)
-    color_end = string_token_end(agent_source, color_start)
-    updated = agent_source[:color_start] + '"%s"' % color + agent_source[color_end:]
+    field_start = entry_value_start(agent_source, managed_entry)
+    field_end = string_token_end(agent_source, field_start)
+    updated = agent_source[:field_start] + '"%s"' % value + agent_source[field_end:]
     return agents_block[:value_start] + updated + agents_block[agent["end"]:]
 
 
 def merge_agents(agents_block):
     """Apply managed agent fields and leave custom configuration alone."""
     # Insert Plan first so a completely missing pair renders Build before Plan.
-    agents_block = merge_agent_color(agents_block, "plan", PLAN_COLOR)
-    agents_block = merge_agent_color(agents_block, "build", BUILD_COLOR)
+    agents_block = merge_agent_field(agents_block, "plan", "color", PLAN_COLOR)
+    agents_block = merge_agent_field(agents_block, "build", "color", BUILD_COLOR)
+    agents_block = merge_agent_field(agents_block, "ricer", "mode", "subagent")
     return merge_plan_permissions(agents_block)
 
 
