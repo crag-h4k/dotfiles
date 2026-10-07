@@ -16,8 +16,10 @@
 
   plugins: disable the stock prompt footer and Copilot quota renderer, then let
   the local V2-only statusline own their presentation. The external package's
-  server-side quota RPC stays active. The local plugin lives outside plugins/
-  discovery because it is loaded explicitly as a CLI plugin.
+  server-side quota RPC stays active. The agent catalog opens OC2's current
+  registry through the command palette, /subagents, or /subagents-catalog.
+  Both local plugins live outside plugins/ discovery because they are loaded
+  explicitly as CLI plugins.
 
   Not set here on purpose:
     prompt.paste - a rendering setting for how large pastes display, unrelated to
@@ -50,7 +52,8 @@
   "plugins": [
     "-opencode.prompt.footer",
     "-opencode-copilot-statusline.tui",
-    "./v2-plugins/statusline"
+    "./v2-plugins/statusline",
+    "./v2-plugins/agent-catalog"
   ],
   "session": {
     "sidebar": "hide",

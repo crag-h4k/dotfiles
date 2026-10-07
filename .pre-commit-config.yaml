@@ -164,6 +164,13 @@ repos:
         pass_filenames: false
         files: ^(home/dot_config/opencode/v2-plugins/statusline/.*|tests/test_opencode_statusline\.mjs)$
 
+      - id: test-opencode-agent-catalog
+        name: node test (opencode agent catalog)
+        entry: node --test tests/test_opencode_agent_catalog.mjs
+        language: system
+        pass_filenames: false
+        files: ^(home/dot_config/opencode/v2-plugins/agent-catalog/.*|tests/test_opencode_agent_catalog\.mjs)$
+
       - id: test-opencode-demo
         name: node test (opencode demo)
         entry: node --test tests/test_opencode_demo.mjs
