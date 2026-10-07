@@ -49,6 +49,12 @@ CLI, server, plugin SDK, and terminal versions when diagnosing compatibility.
   agent; the terminal plugin replies once to its permission asks while
   connected, never to question forms. Configured denials create no request.
   Keep the native agent picker available if the plugin fails to load.
+- The agent-catalog CLI plugin reads OpenCode's agent registry for the current
+  location. Open it through the command palette as **Browse configured agents**
+  or run `/subagents` or `/subagents-catalog`. It is read-only: browsing an agent
+  never switches the session agent or launches a child session. Keep it on the
+  registry API rather than parsing `agents/` files so project overrides, hidden
+  profiles, and configuration merges stay accurate.
 
 OpenCode's footer ships with its OpenCode selection; inspect the active gates
 before assuming the separate Claude/Codex statusline feature enables it.
