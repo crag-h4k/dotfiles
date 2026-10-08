@@ -24,6 +24,10 @@ done
 [[ ! -e "$HOME/.config/nvim/init.lua" ]] ||
     fail "Neovim config was deployed despite the focused component selection"
 
+script_dir=$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)
+python3 "$script_dir/openviking-deployment-smoke.py" ||
+    fail "OpenViking native runtime smoke failed"
+
 [[ "$(git config --global --get init.defaultBranch)" == main ]] ||
     fail "Git default branch is not main"
 [[ "$(git config --global --type=bool --get user.useConfigOnly)" == true ]] ||

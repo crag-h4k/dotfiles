@@ -40,9 +40,9 @@ mkdir -p "$render_home"
 
 printf '%s\n' \
     '[data]' \
-    'componentSelection = "1 2 4"' \
+    'componentSelection = "1 2 4 5"' \
     'gitSelection = "1 3"' \
-    'aiSelection = ""' \
+    'aiSelection = "openviking"' \
     'terminalSelection = ""' \
     'palette = "dracula"' \
     'zshTheme = "gud"' \
@@ -79,7 +79,7 @@ GIT_TERMINAL_PROMPT=0 \
     --output "$archive_file"
 
 archive_listing=$(tar -tf "$archive_file")
-for rendered_file in .zshrc .tmux.conf .gitconfig .gitignore_global; do
+for rendered_file in .zshrc .tmux.conf .gitconfig .gitignore_global .local/bin/openvikingctl .local/share/dotfiles/openviking/runtime.py; do
     printf '%s\n' "$archive_listing" | grep -Eq "(^|/)${rendered_file}$" ||
         fail "rendered archive is missing $rendered_file"
 done

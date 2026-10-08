@@ -1,0 +1,19 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- home/Library/LaunchAgents/io.github.crag-h4k.dotfiles.openviking.plist.tmpl -->
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+  <key>Label</key><string>io.github.crag-h4k.dotfiles.openviking</string>
+  <key>ProgramArguments</key>
+  <array><string>{{ .chezmoi.homeDir }}/.local/bin/openvikingctl</string><string>run</string></array>
+  <key>EnvironmentVariables</key>
+  <dict><key>PATH</key><string>{{ .chezmoi.homeDir }}/.local/bin:/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin</string></dict>
+  <key>RunAtLoad</key><true/>
+  <key>Disabled</key><true/>
+  <key>KeepAlive</key><dict><key>SuccessfulExit</key><false/></dict>
+  <key>ThrottleInterval</key><integer>30</integer>
+  <key>Umask</key><integer>63</integer>
+  <key>StandardOutPath</key><string>{{ .chezmoi.homeDir }}/.openviking/server.log</string>
+  <key>StandardErrorPath</key><string>{{ .chezmoi.homeDir }}/.openviking/server.log</string>
+</dict>
+</plist>

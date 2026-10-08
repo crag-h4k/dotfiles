@@ -105,6 +105,20 @@ repos:
   # the CI workflow installs it via apt luarocks.
   - repo: local
     hooks:
+      - id: test-openviking
+        name: python (OpenViking private config and user services)
+        entry: python3 -m unittest tests/test_openviking.py
+        language: system
+        pass_filenames: false
+        files: ^(home/(\.chezmoi(ignore|\.toml\.tmpl)|dot_local/(bin/executable_openvikingctl|share/dotfiles/openviking/.*)|Library/LaunchAgents/.*openviking.*|dot_config/systemd/user/dotfiles-openviking\.service)|scripts/(install-openviking\.sh|benchmark-openviking\.py)|tests/(test_openviking\.py|openviking-deployment-smoke\.py|fixtures/openviking/.*))$
+
+      - id: test-openviking-permissions
+        name: node test (OpenViking permissions across agent modes)
+        entry: node --test tests/test_openviking_permissions.mjs
+        language: system
+        pass_filenames: false
+        files: ^(home/dot_config/opencode/plugins/openviking-permissions\.js|tests/test_openviking_permissions\.mjs)$
+
       - id: validate-agent-skills
         name: validate public cross-harness agent skills
         entry: python3 -m unittest tests/test_agent_skills.py

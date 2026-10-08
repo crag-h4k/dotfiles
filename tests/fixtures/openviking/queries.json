@@ -1,0 +1,4 @@
+[
+  { "query": "Which synthetic experiment marker did we choose?", "expected": "drake-913" },
+  { "query": "Why did we disable automatic repository indexing in the trial?", "expected": "isolate memory performance" }
+]

@@ -28,9 +28,9 @@ config_dir="$HOME/.config/chezmoi"
 mkdir -p "$config_dir"
 printf '%s\n' \
     '[data]' \
-    'componentSelection = "1 2 4"' \
+    'componentSelection = "1 2 4 5"' \
     'gitSelection = "1 3"' \
-    'aiSelection = ""' \
+    'aiSelection = "openviking"' \
     'terminalSelection = ""' \
     'palette = "dracula"' \
     'zshTheme = "gud"' \

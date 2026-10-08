@@ -1,0 +1,28 @@
+{
+  "server": {
+    "host": "127.0.0.1",
+    "port": 1933,
+    "auth_mode": "api_key",
+    "root_api_key": "${OPENVIKING_ROOT_API_KEY}"
+  },
+  "storage": {
+    "workspace": "./data",
+    "agfs": { "backend": "local" },
+    "vectordb": { "backend": "local" }
+  },
+  "embedding": {
+    "dense": {
+      "provider": "openai",
+      "model": "text-embedding-3-small",
+      "api_key": "${OPENAI_API_KEY}",
+      "dimension": 1536
+    }
+  },
+  "vlm": {
+    "provider": "openai",
+    "model": "gpt-4.1-mini",
+    "api_key": "${OPENAI_API_KEY}",
+    "max_concurrent": 2,
+    "timeout": 120
+  }
+}

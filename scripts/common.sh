@@ -90,14 +90,14 @@ package_plan_signature() {
         printf '%s\n' "$_COMMON_SH_DIR" "$(os_detect)"
         for flag in INSTALL_ZSH INSTALL_TMUX INSTALL_NEOVIM INSTALL_NOTIFY \
             INSTALL_AI_CODECOMPANION INSTALL_AI_STATUSLINE INSTALL_AI_OPENCODE \
-            INSTALL_AI_COPILOT INSTALL_TERMINAL_GHOSTTY INSTALL_TERMINAL_ITERM2; do
+            INSTALL_AI_COPILOT INSTALL_AI_OPENVIKING INSTALL_TERMINAL_GHOSTTY INSTALL_TERMINAL_ITERM2; do
             printf '%s=%s\n' "$flag" "${!flag:-false}"
         done
-        printf '%s\n' "${OPENCODE2_VERSION:-latest}" "${COPILOT_VERSION:-prerelease}" "${PREK_VERSION:-0.5.4}"
+        printf '%s\n' "${OPENCODE2_VERSION:-latest}" "${COPILOT_VERSION:-prerelease}" "${PREK_VERSION:-0.5.4}" "${OPENVIKING_VERSION:-0.4.23}"
         cksum "$_COMMON_SH_DIR/package-plan.sh" "$_COMMON_SH_DIR/package-resolve.sh" "$_COMMON_SH_DIR/common.sh"
         for flag in "$_COMMON_SH_DIR/plan-neovim-packages.lua" "$_COMMON_SH_DIR/neovim-package-lib.lua" \
             "$_COMMON_SH_DIR/neovim-update-lib.lua" \
-            "$_COMMON_SH_DIR/install-neovim.sh" "$_COMMON_SH_DIR/update-neovim-packages.lua" \
+            "$_COMMON_SH_DIR/install-neovim.sh" "$_COMMON_SH_DIR/install-openviking.sh" "$_COMMON_SH_DIR/update-neovim-packages.lua" \
             "$_COMMON_SH_DIR/../home/dot_config/nvim/init.lua"; do
             [[ ! -f "$flag" ]] || cksum "$flag"
         done
@@ -469,6 +469,7 @@ ensure_chezmoi() {
 # Astral's documented standalone installer puts uv in ~/.local/bin. Keep shell
 # profile edits disabled: dot_zshenv already adds that directory to PATH.
 install_uv_debian() {
+    export PATH="$HOME/.local/bin:$PATH"
     command -v uv >/dev/null 2>&1 && return 0
     require_cmd curl
     local installer
@@ -790,6 +791,32 @@ node_runtime_selected() {
         || "${INSTALL_AI_CODECOMPANION:-false}" == true \
         || "${INSTALL_AI_OPENCODE:-false}" == true \
         || "${INSTALL_AI_COPILOT:-false}" == true ]]
+}
+
+openviking_install_root() {
+    if [[ -n "${OPENVIKING_INSTALL_ROOT:-}" ]]; then
+        printf '%s\n' "$OPENVIKING_INSTALL_ROOT"
+        return
+    fi
+    if [[ ! -f "$HOME/.openviking/runtime.json" ]]; then
+        printf '%s\n' "$HOME/.local/share/openviking"
+        return
+    fi
+    python3 - "$HOME/.openviking/runtime.json" <<'PY'
+import json
+import os
+from pathlib import Path
+import sys
+
+path = Path(sys.argv[1])
+stat = path.stat()
+if stat.st_uid != os.getuid() or stat.st_mode & 0o077:
+    raise SystemExit("OpenViking runtime.json must be private and owned by this account")
+root = json.loads(path.read_text())["install_root"]
+if not isinstance(root, str) or not Path(root).is_absolute() or any(c in root for c in "\n\r\t"):
+    raise SystemExit("Invalid OpenViking install_root")
+print(root)
+PY
 }
 
 _tenv_terraform_lock_file() {

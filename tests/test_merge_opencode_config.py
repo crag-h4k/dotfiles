@@ -257,8 +257,8 @@ def test_existing_v1_retirement_is_unchanged_but_local_v2_plugins_survive(script
 
 def managed_script(script, tmp_path, references):
     """Simulate a later dotfiles version or a deselected managed registration."""
-    updated = re.sub(r"^MANAGED_PLUGINS = .*$", "MANAGED_PLUGINS = " + repr(tuple(references)),
-                     Path(script).read_text(), flags=re.M)
+    updated = re.sub(r"^MANAGED_PLUGINS = \(.*?^\)", "MANAGED_PLUGINS = " + repr(tuple(references)),
+                     Path(script).read_text(), flags=re.M | re.S)
     path = tmp_path / "merge.py"
     path.write_text(updated)
     return str(path)
@@ -591,7 +591,7 @@ def test_existing_native_permissions_and_comments_are_preserved(script):
 }
 """
     out, _ = merge(script, src)
-    assert parse(out)["permissions"] == [
+    assert parse(out)["permissions"][:-3] == [
         {"action": "shell", "resource": "custom *", "effect": "allow"}
     ]
     assert "// Local policy stays private and unchanged." in out
@@ -628,7 +628,7 @@ def test_existing_prek_allow_adds_pre_commit_without_changing_other_rules(script
 '''
     out, _ = merge(script, src)
     rules = parse(out)["permissions"]
-    assert [rule["resource"] for rule in rules] == [
+    assert [rule["resource"] for rule in rules[:-3]] == [
         "prek *", "pre-commit *", "terraform plan *"
     ]
     assert merge(script, out)[0] == out
@@ -651,10 +651,34 @@ def test_existing_native_worktree_rule_narrows_without_replacing_local_policy(sc
     assert '// Keep other local choices in their original order.' in out
     assert permission_effect(parse(out)["permissions"], "shell", "git worktree remove old") == "ask"
     assert permission_effect(parse(out)["permissions"], "shell", "git worktree list") == "allow"
-    assert parse(out)["permissions"][-2:] == [
+    assert parse(out)["permissions"][:-3][-2:] == [
         {"action": "shell", "resource": "git push *", "effect": "ask"},
         {"action": "shell", "resource": "rm -rf *", "effect": "deny"},
     ]
+
+
+def test_openviking_global_rules_override_catchall_without_relaxing_other_actions(script):
+    src = '''{
+  "permissions": [
+    { "action": "*", "resource": "*", "effect": "ask" },
+    { "action": "edit", "resource": "*.env", "effect": "deny" }
+  ]
+}
+'''
+    out, _ = merge(script, src)
+    rules = parse(out)["permissions"]
+    assert rules[-3:] == [
+        {"action": "openviking_*", "resource": "*", "effect": "allow"},
+        {"action": "skill", "resource": "openviking-*", "effect": "allow"},
+        {"action": "skill", "resource": "ov-experience-memory", "effect": "allow"},
+    ]
+    assert permission_effect(rules, "openviking_write", "*") == "allow"
+    assert permission_effect(rules, "skill", "openviking-memory") == "allow"
+    assert permission_effect(rules, "skill", "ov-experience-memory") == "allow"
+    assert permission_effect(rules, "edit", "secret.env") == "deny"
+    assert permission_effect(rules, "shell", "git push origin main") == "ask"
+    again, _ = merge(script, out)
+    assert again == out
     again, _ = merge(script, out)
     assert again == out
 

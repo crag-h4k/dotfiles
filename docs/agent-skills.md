@@ -39,6 +39,13 @@ Chezmoi creates one relative symlink per skill under both `~/.claude/skills/`
 and `~/.agents/skills/`. It never replaces either skills directory. Existing
 and future skills beside these six remain untouched.
 
+Selecting `ai > openviking` adds three unmodified upstream instruction skills:
+`openviking-memory`, `openviking-skills`, and `ov-experience-memory`. They follow
+the same canonical-store and per-entry-link pattern, but their downloads and
+links are gated on OpenViking only. Native discovery avoids the plugin's
+unsupported skill-directory API. See [OpenViking local memory](openviking.md)
+for the separate hook and authenticated MCP connections.
+
 ## Harness support
 
 | Harness | Discovery root | Notes |

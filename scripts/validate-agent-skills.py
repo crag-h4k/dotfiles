@@ -13,9 +13,11 @@ from urllib.parse import urlsplit
 
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
-SKILL_IDS = (
+CORE_SKILL_IDS = (
     "chezmoi-dotfiles", "handoff", "humanizer", "unslop-code", "unslop-text", "unslop-ui"
 )
+OPENVIKING_SKILL_IDS = ("openviking-memory", "openviking-skills", "ov-experience-memory")
+SKILL_IDS = CORE_SKILL_IDS + OPENVIKING_SKILL_IDS
 GUIDANCE_FILES = (
     "AGENTS.md",
     "home/AGENTS.md",
@@ -38,6 +40,7 @@ AI_FEATURES = (
     "statusline",
     "opencode",
     "copilot",
+    "openviking",
     "codecompanion",
 )
 ALLOWED_URL_HOSTS = {
@@ -143,13 +146,32 @@ EXPECTED_EXTERNALS = {
 }
 EXPECTED_GATED_TARGETS = {
     ".local/share/agent-skills/PROVENANCE.md",
-    *(f".local/share/agent-skills/{skill_id}" for skill_id in SKILL_IDS),
-    *(f".claude/skills/{skill_id}" for skill_id in SKILL_IDS),
-    *(f".agents/skills/{skill_id}" for skill_id in SKILL_IDS),
+    *(f".local/share/agent-skills/{skill_id}" for skill_id in CORE_SKILL_IDS),
+    *(f".claude/skills/{skill_id}" for skill_id in CORE_SKILL_IDS),
+    *(f".agents/skills/{skill_id}" for skill_id in CORE_SKILL_IDS),
     ".config/opencode/commands/handoff.md",
     ".config/opencode/commands/dotfiles.md",
     ".config/opencode/commands/humanize.md",
     ".config/opencode/commands/unslop.md",
+}
+OPENVIKING_EXTERNALS = {
+    ".local/share/agent-skills/openviking-memory/SKILL.md": (
+        "https://raw.githubusercontent.com/volcengine/OpenViking/9b9ac101f1c47a62c050a7d7bb372c6f36266302/examples/opencode-plugin/skills/openviking-memory/SKILL.md",
+        "7acc32358ba98c8bde8ae8a711feb32b68adc50baeaca205702d9c45565067bd",
+    ),
+    ".local/share/agent-skills/openviking-skills/SKILL.md": (
+        "https://raw.githubusercontent.com/volcengine/OpenViking/9b9ac101f1c47a62c050a7d7bb372c6f36266302/examples/opencode-plugin/skills/openviking-skills/SKILL.md",
+        "e48e9776960ebb9aeca5a78df3d0661e4c4fb03f722cbf0b09b832f5df9e4207",
+    ),
+    ".local/share/agent-skills/ov-experience-memory/SKILL.md": (
+        "https://raw.githubusercontent.com/volcengine/OpenViking/9b9ac101f1c47a62c050a7d7bb372c6f36266302/examples/opencode-plugin/skills/ov-experience-memory/SKILL.md",
+        "9490d86db2fcfa572e49bc0105f5916c1c4344f3691f74a0bc245a53045de7d8",
+    ),
+}
+OPENVIKING_GATED_TARGETS = {
+    f"{prefix}/{skill_id}"
+    for prefix in (".local/share/agent-skills", ".agents/skills", ".claude/skills")
+    for skill_id in OPENVIKING_SKILL_IDS
 }
 
 
@@ -317,10 +339,13 @@ def validate_external_contract(root: Path) -> list[str]:
             for key, value in rendered.items()
             if key.startswith(".local/share/agent-skills/")
         }
-        if set(actual) != set(EXPECTED_EXTERNALS):
+        expected = dict(EXPECTED_EXTERNALS)
+        if feature == "openviking":
+            expected.update(OPENVIKING_EXTERNALS)
+        if set(actual) != set(expected):
             errors.append(f"AI feature {feature} rendered an unexpected external file set")
             continue
-        for target, (expected_url, expected_sha256) in EXPECTED_EXTERNALS.items():
+        for target, (expected_url, expected_sha256) in expected.items():
             spec = actual[target]
             checksum = spec.get("checksum", {}).get("sha256")
             if spec.get("type") != "file":
@@ -342,7 +367,7 @@ def validate_ignore_contract(root: Path) -> list[str]:
     """Check that every AI sub-feature controls the same per-path asset set."""
     errors: list[str] = []
     disabled = set(render_template(root, "home/.chezmoiignore", set()).splitlines())
-    missing = EXPECTED_GATED_TARGETS - disabled
+    missing = (EXPECTED_GATED_TARGETS | OPENVIKING_GATED_TARGETS) - disabled
     if missing:
         errors.append(f"disabled AI fails to ignore: {', '.join(sorted(missing))}")
 
@@ -359,6 +384,9 @@ def validate_ignore_contract(root: Path) -> list[str]:
             errors.append(
                 f"AI feature {feature} still ignores: {', '.join(sorted(still_ignored))}"
             )
+        for target in OPENVIKING_GATED_TARGETS:
+            if (target in enabled) != (feature != "openviking"):
+                errors.append(f"AI feature {feature} incorrectly gates {target}")
     return errors
 
 

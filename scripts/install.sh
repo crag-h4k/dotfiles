@@ -89,6 +89,7 @@ INSTALL_AI_OPENCODE="${INSTALL_AI_OPENCODE:-false}"
 # ~/.local prefix (scripts/install-copilot.sh). No config to file-gate; this var
 # gates only the binary install.
 INSTALL_AI_COPILOT="${INSTALL_AI_COPILOT:-false}"
+INSTALL_AI_OPENVIKING="${INSTALL_AI_OPENVIKING:-false}"
 # Shared notify runtime. AI-hook-only hosts still need notify.yaml, lib.sh, and
 # mikefarah yq even when neither Zsh nor tmux is selected as a component.
 INSTALL_NOTIFY="${INSTALL_NOTIFY:-false}"
@@ -113,7 +114,7 @@ main() {
         node_ready=false
     fi
     info "dotfiles installer: platform=$os"
-    info "components: zsh=$INSTALL_ZSH tmux=$INSTALL_TMUX neovim=$INSTALL_NEOVIM git.config=$INSTALL_GIT_CONFIG ai.codecompanion=$INSTALL_AI_CODECOMPANION ai.opencode=$INSTALL_AI_OPENCODE ai.copilot=$INSTALL_AI_COPILOT notify=$INSTALL_NOTIFY terminal.ghostty=$INSTALL_TERMINAL_GHOSTTY terminal.iterm2=$INSTALL_TERMINAL_ITERM2"
+    info "components: zsh=$INSTALL_ZSH tmux=$INSTALL_TMUX neovim=$INSTALL_NEOVIM git.config=$INSTALL_GIT_CONFIG ai.codecompanion=$INSTALL_AI_CODECOMPANION ai.opencode=$INSTALL_AI_OPENCODE ai.copilot=$INSTALL_AI_COPILOT ai.openviking=$INSTALL_AI_OPENVIKING notify=$INSTALL_NOTIFY terminal.ghostty=$INSTALL_TERMINAL_GHOSTTY terminal.iterm2=$INSTALL_TERMINAL_ITERM2"
 
     # Confirm before any package-manager mutation. Decline degrades to the same
     # configs-only tail this function already runs for `configs` mode, for THIS
@@ -288,8 +289,16 @@ main() {
             fi
         fi
         if [[ "$os" == debian ]]; then
+            package_action_try astral-uv uv "uv runtime availability" install_uv_debian || true
             package_action_try uv-tool prek "prek pinned hook runner" \
                 env PREK_VERSION="${PREK_VERSION:-0.5.4}" bash "$SCRIPT_DIR/install-prek.sh" || true
+        fi
+        if [[ "$INSTALL_AI_OPENVIKING" == true ]]; then
+            local openviking_target
+            openviking_target=$(package_target uv-tool openviking)
+            package_action_try uv-tool openviking "OpenViking isolated Python environment" \
+                env OPENVIKING_VERSION="${openviking_target:-${OPENVIKING_VERSION:-0.4.23}}" \
+                INSTALL_AI_OPENVIKING=true bash "$SCRIPT_DIR/install-openviking.sh" || true
         fi
 
         package_plan_resolve_deferred_git || warn "could not resolve deferred Git packages"
@@ -347,5 +356,5 @@ main() {
 }
 
 export INSTALL_ZSH INSTALL_TMUX INSTALL_NEOVIM INSTALL_NOTIFY INSTALL_AI_CODECOMPANION
-export INSTALL_AI_STATUSLINE INSTALL_AI_OPENCODE INSTALL_AI_COPILOT INSTALL_TERMINAL_GHOSTTY INSTALL_TERMINAL_ITERM2
+export INSTALL_AI_STATUSLINE INSTALL_AI_OPENCODE INSTALL_AI_COPILOT INSTALL_AI_OPENVIKING INSTALL_TERMINAL_GHOSTTY INSTALL_TERMINAL_ITERM2
 main "$@"

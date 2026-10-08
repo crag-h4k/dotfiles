@@ -2,6 +2,8 @@
 # tests/test_package_updates.bats
 # Cover package-mode floating, pinned, selected-only, and pre-approval behavior.
 # shellcheck source-path=SCRIPTDIR
+# shellcheck disable=SC2031
+# Bats isolates tests; sourced helpers' PATH changes do not cross test boundaries.
 
 REPO_ROOT="$(cd "${BATS_TEST_DIRNAME}/.." && pwd)"
 PLANNER="$REPO_ROOT/scripts/package-plan.sh"

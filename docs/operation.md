@@ -10,6 +10,7 @@
 - [Terminal (tmux) behavior](#terminal-tmux-behavior)
   - [Status bar](#status-bar)
 - [Statusline (Claude / Codex)](#statusline-claude--codex)
+- [OpenViking memory](#openviking-memory)
 - [Secret scanning](#secret-scanning)
 - [Docker and Terraform checks](#docker-and-terraform-checks)
 - [Supported platforms](#supported-platforms)
@@ -485,6 +486,14 @@ This is Codex's built-in `tui.status_line`, configured by the chezmoi merge
 template. Codex does not currently support a command-backed footer, so it
 cannot use Claude's custom glyphs, subagent token total, session duration, or
 adaptive width tiers.
+
+## OpenViking memory
+
+`ai > openviking` provides starter profiles and native user-service wiring.
+The live `~/.openviking/ov.conf` and `ovcli.conf` remain private and unmanaged.
+Use `openvikingctl stop` before deselecting the component; configuration and
+memory are retained. See [OpenViking local memory](openviking.md) for setup,
+provider selection, and performance measurements.
 
 ## Secret scanning
 

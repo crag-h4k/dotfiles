@@ -1,0 +1,16 @@
+{
+  "$schema": "https://opencode.ai/config.json",
+  "mcp": {
+    "servers": {
+      "openviking": {
+        "type": "remote",
+        "url": "http://127.0.0.1:1933/mcp",
+        "oauth": false,
+        "codemode": false,
+        "headers": {
+          "Authorization": "Bearer {file:~/.openviking/mcp-user-key}"
+        }
+      }
+    }
+  }
+}

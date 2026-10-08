@@ -3,7 +3,7 @@
 # Every apply checks the selected package set in package mode. The installer
 # resolves a fresh plan, asks before changes, and skips current packages.
 set -euo pipefail
-{{ range $file := list "scripts/common.sh" "scripts/package-plan.sh" "scripts/package-resolve.sh" "scripts/confirm-install.sh" "scripts/install.sh" "scripts/install-zsh.sh" "scripts/install-neovim.sh" "scripts/update-neovim-packages.lua" "scripts/neovim-update-lib.lua" "scripts/plan-neovim-packages.lua" "scripts/neovim-package-lib.lua" "home/dot_config/nvim/init.lua" "scripts/install-opencode2.sh" "scripts/install-copilot.sh" "scripts/install-prek.sh" "home/dot_config/opencode/executable_sync-runtime.sh" }}
+{{ range $file := list "scripts/common.sh" "scripts/package-plan.sh" "scripts/package-resolve.sh" "scripts/confirm-install.sh" "scripts/install.sh" "scripts/install-zsh.sh" "scripts/install-neovim.sh" "scripts/update-neovim-packages.lua" "scripts/neovim-update-lib.lua" "scripts/plan-neovim-packages.lua" "scripts/neovim-package-lib.lua" "home/dot_config/nvim/init.lua" "scripts/install-opencode2.sh" "scripts/install-copilot.sh" "scripts/install-prek.sh" "scripts/install-openviking.sh" "home/dot_config/opencode/executable_sync-runtime.sh" }}
 # {{ $file }}: {{ include (joinPath $.chezmoi.sourceDir ".." $file) | sha256sum }}{{ end }}
 
 export INSTALL_ZSH={{ dig "components" "zsh" true . }}
@@ -22,6 +22,7 @@ export INSTALL_AI_CODECOMPANION={{ dig "components" "ai" "codecompanion" false .
 export INSTALL_AI_STATUSLINE={{ dig "components" "ai" "statusline" false . }}
 export INSTALL_AI_OPENCODE={{ dig "components" "ai" "opencode" false . }}
 export INSTALL_AI_COPILOT={{ dig "components" "ai" "copilot" false . }}
+export INSTALL_AI_OPENVIKING={{ dig "components" "ai" "openviking" false . }}
 export INSTALL_NOTIFY={{ or (dig "components" "zsh" true .) (dig "components" "tmux" true .) (dig "components" "ai" "claude_hooks" false .) (dig "components" "ai" "codex_hooks" false .) (dig "components" "ai" "opencode" false .) }}
 export DOTFILES_INSTALL_MODE={{ dig "installMode" "packages" . | quote }}
 export DOTFILES_PACKAGE_RUN={{ dig "packageRun" 0 . }}

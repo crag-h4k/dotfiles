@@ -321,7 +321,11 @@ _resolve_records() {
                 pip) _resolve_python ;;
                 luarocks) _resolve_luarocks ;;
                 uv-tool)
-                    current=$(_resolve_version "$probe") || current=-
+                    if [[ "$name" == openviking ]]; then
+                        current=$("$probe" -c 'import importlib.metadata, openviking, openviking_sdk, litellm; print(importlib.metadata.version("openviking"))' 2>/dev/null) || current=-
+                    else
+                        current=$(_resolve_version "$probe") || current=-
+                    fi
                     candidate="${policy#pinned:}"
                     _resolve_compare
                     ;;
