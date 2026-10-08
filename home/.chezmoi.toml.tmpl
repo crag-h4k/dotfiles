@@ -402,8 +402,8 @@
 {{- /* (DOTFILES_INSTALL_MODE / DOTFILES_NO_TUI / no tty) never re-prompts.              */ -}}
 {{- /* DOTFILES_PACKAGE_UPDATE is the scoped `cup` re-init path. It keeps the     */ -}}
 {{- /* persisted component/sub-feature selections, then opens only this mode      */ -}}
-{{- /* confirmation. Choosing packages increments packageRun, which changes the    */ -}}
-{{- /* rendered run_once content without deleting unrelated chezmoi script state.  */ -}}
+{{- /* confirmation. packageRun remains a compatible count of explicit requests;   */ -}}
+{{- /* the run_after installer checks packages on every apply independently.       */ -}}
 {{- $wantMode := or (eq $installMode "") (and (or (get $resolved "install_mode") $packageUpdate) (eq (env "DOTFILES_INSTALL_MODE") "") (not (env "DOTFILES_NO_TUI")) (stdinIsATTY)) -}}
 {{- if $wantMode -}}
 {{-   $hasTTY := trim (output "sh" "-c" "test -e /dev/tty && (: </dev/tty) 2>/dev/null && printf tty || true") -}}

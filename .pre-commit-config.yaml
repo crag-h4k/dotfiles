@@ -128,7 +128,7 @@ repos:
         entry: scripts/validate-templates.sh
         language: script
         pass_filenames: false
-        files: ^(home/(\.chezmoiexternal\.toml|\.chezmoi(ignore|\.toml\.tmpl)|\.chezmoiscripts/run_once_after_00-install\.sh\.tmpl|dot_gitconfig|dot_claude/modify_settings\.json\.tmpl|dot_codex/modify_private_config\.toml\.tmpl|dot_config/notify/(notify\.yaml\.tmpl|sounds/.*))|home/\.chezmoidata/palettes\.yaml|scripts/(confirm-install|package-plan|validate-templates)\.sh)$
+        files: ^(home/(\.chezmoiexternal\.toml|\.chezmoi(ignore|\.toml\.tmpl)|\.chezmoiscripts/run_after_00-install\.sh\.tmpl|dot_gitconfig|dot_claude/modify_settings\.json\.tmpl|dot_codex/modify_private_config\.toml\.tmpl|dot_config/notify/(notify\.yaml\.tmpl|sounds/.*))|home/\.chezmoidata/palettes\.yaml|scripts/(confirm-install|package-plan|validate-templates)\.sh)$
 
       - id: zsh-syntax
         name: zsh syntax (zsh -n)
@@ -209,7 +209,7 @@ repos:
         entry: python3 tests/test_package_run.py
         language: system
         pass_filenames: false
-        files: ^(home/(\.chezmoi\.toml\.tmpl|\.chezmoiexternal\.toml|\.chezmoiscripts/run_once_after_00-install\.sh\.tmpl|dot_zsh/aliases)|home/dot_config/nvim/init\.lua|scripts/(common|confirm-install|install[^/]*|package-resolve)\.sh|scripts/(plan-neovim-packages|neovim-package-lib)\.lua|tests/test_package_run\.py)$
+        files: ^(home/(\.chezmoi\.toml\.tmpl|\.chezmoiexternal\.toml|\.chezmoiscripts/run_after_00-install\.sh\.tmpl|dot_zsh/aliases)|home/dot_config/nvim/init\.lua|scripts/(common|confirm-install|install[^/]*|package-resolve)\.sh|scripts/(plan-neovim-packages|neovim-package-lib)\.lua|tests/test_package_run\.py)$
 
       - id: pytest-notify
         name: pytest notify (modify_settings.json.tmpl)
@@ -284,7 +284,7 @@ repos:
         language: node
         additional_dependencies: ['bats@1.13.0']
         pass_filenames: false
-        files: ^(\.github/(scripts/render-deployment-summary\.sh|workflows/ci\.yaml)|tests/test_ci_summary\.bats)$
+        files: ^(\.github/(scripts/(render-deployment-summary|prepare-macos-runner)\.sh|workflows/(ci|prek|trixie-deployment|pbvar-build)\.yaml)|tests/test_ci_summary\.bats)$
 
       - id: bats-pr-metadata
         name: bats (branch and PR title convention)

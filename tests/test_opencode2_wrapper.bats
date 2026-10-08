@@ -20,6 +20,10 @@ setup() {
   cat >"$PREFIX/bin/opencode2" <<'STUB'
 #!/usr/bin/env zsh
 print -r -- "prefix=$NPM_CONFIG_PREFIX"
+if [[ "${TEST_NPM_POLICY:-false}" == true ]]; then
+  print -r -- "age=${NPM_CONFIG_MIN_RELEASE_AGE:-unset}"
+  print -r -- "exclude=${NPM_CONFIG_MIN_RELEASE_AGE_EXCLUDE:-unset}"
+fi
 if [[ -n "${OPENCODE_CLI_CONFIG_CONTENT:-}" ]]; then
   print -r -- "cli=$OPENCODE_CLI_CONFIG_CONTENT"
 fi
@@ -105,6 +109,23 @@ arg=update
 arg=--method
 arg=npm
 arg=2.1.0" ]
+}
+
+@test "native interactive updater inherits an OpenCode-only release-age exception" {
+  run env TEST_NPM_POLICY=true NPM_CONFIG_MIN_RELEASE_AGE=3 "$WRAPPER"
+  [ "$status" -eq 0 ]
+  [[ "$output" == *$'age=3\nexclude=@opencode/*\n'* ]]
+  [[ "$output" == *'arg=--standalone'* ]]
+}
+
+@test "command-line updater inherits the same exception without changing npmrc" {
+  printf 'min-release-age=3\n' >"$HOME/.npmrc"
+  local before
+  before=$(cksum "$HOME/.npmrc")
+  run env TEST_NPM_POLICY=true NPM_CONFIG_MIN_RELEASE_AGE=3 "$WRAPPER" update
+  [ "$status" -eq 0 ]
+  [[ "$output" == *$'age=3\nexclude=@opencode/*\n'* ]]
+  [ "$(cksum "$HOME/.npmrc")" = "$before" ]
 }
 
 @test "upgrade preserves an explicit long method" {

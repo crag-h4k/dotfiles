@@ -52,13 +52,9 @@ alias "cdiff"="chezmoi diff"
 alias "cu"="chezmoi update"
 alias "cre"="chezmoi apply --refresh-externals"
 alias "cdd"="cd ~/dotfiles"
-# Re-open the component/palette picker. Changing the selection re-renders the
-# run_once installer (new content hash), so newly added components install on the
-# same run. An unchanged selection does NOT re-provision - use cup for that.
+# Re-open the component/palette picker, then check selected packages on apply.
 alias "ccomp"="chezmoi init --apply"
-# Update packages through a scoped re-init. The mode prompt increments the
-# persisted packageRun only when packages are explicitly selected, so chezmoi
-# reruns this installer without deleting any other run_once script state.
+# Open only the package plan and mode prompt, without changing component choices.
 alias "cup"="DOTFILES_PACKAGE_UPDATE=1 chezmoi init --apply"
 # Docker - only define if docker is available
 if command -v docker &>/dev/null; then

@@ -154,6 +154,7 @@ export_install_base() {
   [ "$status" -eq 0 ]
   [ -f "$BREW_LOG" ]
   grep -q 'install' "$BREW_LOG"
+  [ "$(grep -c '^update$' "$BREW_LOG")" -eq 1 ]
 }
 
 @test "install.sh packages, no tty/env, declines: no brew, degrades to configs" {

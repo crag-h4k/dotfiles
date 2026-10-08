@@ -402,15 +402,17 @@ packages, `chsh`, and Neovim synchronization.
 
 Missing selected Git externals are part of chezmoi's configuration payload.
 Chezmoi clones them while materializing selected configuration, before the
-`run_once` installer. Existing checkout refreshes are different: package mode
+post-apply installer. Existing checkout refreshes are different: package mode
 checks status, tracking configuration, and declared URL after package approval,
 then fetches only the matching tracking remote and fast-forwards clean branches.
 
 On macOS, package mode batches selected formula and cask installs and upgrades.
 An existing Ghostty app that is not managed by Homebrew is reported as a manual
-exception. On Debian, one `apt-get install` command selects the current
-candidate versions for missing or outdated managed packages without running a distribution
-upgrade. Ghostty remains a manual install there too.
+exception. On Debian, NodeSource's Node.js package bootstraps Node.js 24 and
+bundled npm first. The remaining APT packages use one batch install with the
+resolved candidates, without running a distribution upgrade. Debian's separate
+`npm` package is not selected because it conflicts with the bundled runtime.
+Ghostty remains a manual install there too.
 
 Floating npm CLIs, Neovim Python providers, LuaRocks tools, and
 checksum-verified GitHub release binaries install only when their resolved
@@ -418,6 +420,12 @@ version differs or their installation needs repair. The plan also lists each
 Lazy plugin, Treesitter parser, Mason package, and selected Zsh or tmux Git
 checkout with its installed and candidate version or revision. Current items
 are skipped; metadata failures appear under `Could not check`.
+
+Floating npm candidates use npm's age-aware resolution, so a preview does not
+pin a fresh release that the user's release-age window would reject. OpenCode
+uses the same `@opencode/*` exception as its native updater so its exact CLI,
+platform binary, and matching SDK can advance together. Other packages retain
+the configured release-age window.
 
 Native discovery refreshes registry metadata and Git objects without installing
 packages or changing checked-out files. Parser candidates come from the planned
@@ -446,8 +454,8 @@ happens only after package approval.
 The plan appears on first init or when the `package mode` setup action is
 selected. A normal later init reuses the saved mode.
 
-When a component change triggers the installer, its `[y/N]` prompt refreshes and
-shows the plan again. `cup` uses a scoped re-init that keeps the component
+Every package-mode apply refreshes and shows the plan, including unchanged
+component selections. `cup` uses a scoped re-init that keeps the component
 choices and opens the same plan and approval prompt.
 
 Non-interactive init requires `DOTFILES_INSTALL_MODE=configs` or
@@ -456,9 +464,9 @@ Non-interactive init requires `DOTFILES_INSTALL_MODE=configs` or
 An unattended package install also needs `DOTFILES_ASSUME_YES=1`. Without it, a
 headless apply declines package changes and writes configuration only.
 
-An unattended recurring update is deliberately stricter. It requires all
-three variables so a plain automation apply cannot accidentally advance
-`packageRun`:
+For unattended applies with package mode already saved, set
+`DOTFILES_ASSUME_YES=1`. To switch from configs to packages with the scoped
+headless re-init, all three opt-ins remain required:
 
 ```sh
 DOTFILES_PACKAGE_UPDATE=1 \
@@ -604,9 +612,8 @@ There are two ways to change the selection.
   With Gum installed, this reopens the picker with the current selection
   checked, then applies. Escape leaves the selection unchanged.
 
-  A changed selection gives the `run_once` installer a new content hash, so new
-  components install on the same run. An unchanged selection does not rerun
-  package provisioning; use `cup` for that.
+  Every apply checks the selected packages in package mode. Newly selected
+  components install in that run, and unchanged selections can receive updates.
 
   Without Gum, `promptStringOnce` does not ask again while
   `componentSelection` is set. Clear the value first:
@@ -663,14 +670,10 @@ global ignore remains independently selectable.
 
 The installer does not print, inspect, or overwrite an existing Git override.
 
-The `run_once` installer embeds component booleans, so a selection change
-reruns it. Packages are still limited to `installMode = "packages"` and require
-confirmation.
-
-Because the installer is content-hashed, applying an unchanged selection does
-not upgrade packages. Use `cup` to open only the package plan and mode
-confirmation. Selecting packages increments `data.packageRun`, which gives the
-installer a new content hash without clearing the `scriptState` bucket.
+The `run_after` installer runs on every apply using the saved component
+booleans. Packages remain limited to `installMode = "packages"` and require
+confirmation. Use `cup` to open only the package plan and mode prompt, without
+changing your component choices.
 
 To enable CodeCompanion later, set it to true under `[data.components.ai]` or
 select it in the AI submenu, then apply. The selection also sets
@@ -679,19 +682,22 @@ bridge.
 
 ### Updating packages
 
-`cup` installs anything missing and updates the selected floating set without
-reopening the component picker:
+With package mode saved, any of these commands checks missing packages and
+updates the selected floating set across package managers:
 
-```zsh
-cup     # DOTFILES_PACKAGE_UPDATE=1 chezmoi init --apply
+```sh
+chezmoi update
+chezmoi apply --refresh-externals
+chezmoi init --apply
 ```
 
-The package choice increments the persisted `packageRun` integer and applies.
-Choosing configs leaves the integer unchanged. Ordinary apply, normal re-init,
-and `DOTFILES_INSTALL_MODE` by itself never increment it. The three-variable
-headless update shown above increments it once per successful re-init.
+`cup` remains a shortcut for the package-only mode prompt. Its explicit
+requests still increment `packageRun` for compatibility, but the installer no
+longer depends on that integer changing.
 
-A plain apply deliberately skips this work so config-only syncs stay fast.
+A plain `chezmoi apply` also checks packages in package mode. Save
+`installMode = "configs"` to keep configuration-only applies fast and free of
+package-manager work. Source-controlled pins are reasserted, not advanced.
 
 ### Changing the palette
 

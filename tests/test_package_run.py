@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 # tests/test_package_run.py
-"""Exercise the persisted packageRun trigger through a real chezmoi init."""
+"""Exercise package checks and explicit update requests through real chezmoi."""
 
 import fcntl
 import os
@@ -167,10 +167,10 @@ class PackageRunTest(unittest.TestCase):
             check=False,
         )
 
-    def test_package_resolver_change_updates_run_once_content(self):
+    def test_package_resolver_change_updates_installer_content(self):
         config = self.seed_config(install_mode="configs")
         template = (
-            self.repo / "home" / ".chezmoiscripts" / "run_once_after_00-install.sh.tmpl"
+            self.repo / "home" / ".chezmoiscripts" / "run_after_00-install.sh.tmpl"
         ).read_text(encoding="utf-8")
 
         def render():
@@ -256,7 +256,7 @@ class PackageRunTest(unittest.TestCase):
                     result.stderr,
                 )
 
-    def test_headless_update_reruns_once_per_increment(self):
+    def test_every_apply_runs_installer_without_incrementing_package_run(self):
         counter = self.root / "install-count"
         (self.repo / "scripts" / "install.sh").write_text(
             "#!/usr/bin/env bash\n"
@@ -316,12 +316,40 @@ class PackageRunTest(unittest.TestCase):
             check=False,
         )
         self.assertEqual(plain.returncode, 0, plain.stderr)
-        self.assertEqual(counter.read_text(encoding="utf-8"), "run\n")
+        self.assertEqual(counter.read_text(encoding="utf-8"), "run\nrun\n")
+
+        refreshed = subprocess.run(
+            [*plain.args, "--refresh-externals"],
+            stdin=subprocess.DEVNULL, capture_output=True, env=plain_env,
+            text=True, timeout=30, check=False,
+        )
+        self.assertEqual(refreshed.returncode, 0, refreshed.stderr)
+        self.assertEqual(counter.read_text(encoding="utf-8"), "run\n" * 3)
+
+        stubs = self.root / "update-bin"
+        stubs.mkdir()
+        git_log = self.root / "update-git.log"
+        (stubs / "git").write_text(
+            "#!/bin/sh\n"
+            f"printf '%s\\n' \"$*\" >>{str(git_log)!r}\n",
+            encoding="utf-8",
+        )
+        (stubs / "git").chmod(0o755)
+        (self.repo / ".git").mkdir(exist_ok=True)
+        update_env = {**plain_env, "PATH": f"{stubs}:{plain_env['PATH']}"}
+        updated = subprocess.run(
+            [*plain.args[:-1], "update"],
+            stdin=subprocess.DEVNULL, capture_output=True, env=update_env,
+            text=True, timeout=30, check=False,
+        )
+        self.assertEqual(updated.returncode, 0, updated.stderr)
+        self.assertIn("pull", git_log.read_text(encoding="utf-8"))
+        self.assertEqual(counter.read_text(encoding="utf-8"), "run\n" * 4)
 
         second = self.root / "headless-second.toml"
         result = self.headless_init(first, second, extra_env=env, apply=True)
         self.assertEqual(result.returncode, 0, result.stderr)
-        self.assertEqual(counter.read_text(encoding="utf-8"), "run\nrun\n")
+        self.assertEqual(counter.read_text(encoding="utf-8"), "run\n" * 5)
         with second.open("rb") as handle:
             self.assertEqual(tomllib.load(handle)["data"]["packageRun"], 6)
 

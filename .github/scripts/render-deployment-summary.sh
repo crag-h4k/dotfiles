@@ -1,6 +1,7 @@
 #!/usr/bin/env bash
+# .github/scripts/render-deployment-summary.sh
 # Render one sticky PR comment summarizing every required CI gate: PR metadata,
-# prek, and the build/install/smoke phases for both deployment
+# prek, and the build/install/smoke phases for all three deployment
 # environments. One always-current table so a red gate (for example PR metadata)
 # shows up in the comment, not only in the checks list, and the body changes with
 # each run instead of sitting on an all-green deployment view.
@@ -41,19 +42,25 @@ output_file="$1"
     printf '| --- | --- |\n'
     printf '| PR metadata | %s |\n' "$(format_status "${PR_METADATA_RESULT:-}")"
     printf '| prek | %s |\n' "$(format_status "${PREK_RESULT:-}")"
-    printf '| Debian Trixie | %s |\n' \
+    printf '| Debian Trixie x86-64 | %s |\n' \
         "$(overall_status "${TRIXIE_BUILD:-}" "${TRIXIE_INSTALL:-}" "${TRIXIE_SMOKE:-}")"
-    printf '| macOS | %s |\n' \
+    printf '| Debian Trixie ARM64 | %s |\n' \
+        "$(overall_status "${TRIXIE_ARM64_BUILD:-}" "${TRIXIE_ARM64_INSTALL:-}" "${TRIXIE_ARM64_SMOKE:-}")"
+    printf '| macOS ARM64 | %s |\n' \
         "$(overall_status "${MACOS_BUILD:-}" "${MACOS_INSTALL:-}" "${MACOS_SMOKE:-}")"
 
     printf '\n#### Deployment phases\n\n'
     printf '| Environment | Build | Install | Smoke test |\n'
     printf '| --- | --- | --- | --- |\n'
-    printf '| Debian Trixie | %s | %s | %s |\n' \
+    printf '| Debian Trixie x86-64 | %s | %s | %s |\n' \
         "$(format_status "${TRIXIE_BUILD:-}")" \
         "$(format_status "${TRIXIE_INSTALL:-}")" \
         "$(format_status "${TRIXIE_SMOKE:-}")"
-    printf '| macOS | %s | %s | %s |\n' \
+    printf '| Debian Trixie ARM64 | %s | %s | %s |\n' \
+        "$(format_status "${TRIXIE_ARM64_BUILD:-}")" \
+        "$(format_status "${TRIXIE_ARM64_INSTALL:-}")" \
+        "$(format_status "${TRIXIE_ARM64_SMOKE:-}")"
+    printf '| macOS ARM64 | %s | %s | %s |\n' \
         "$(format_status "${MACOS_BUILD:-}")" \
         "$(format_status "${MACOS_INSTALL:-}")" \
         "$(format_status "${MACOS_SMOKE:-}")"

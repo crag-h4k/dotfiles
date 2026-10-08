@@ -13,7 +13,8 @@ workflows reference for changes to planning, installation, backup, or recovery.
   latest release after the user approves. Current packages should skip work.
 - Preserve configs-only behavior, a default-no confirmation, and the explicit
   unattended opt-in. Declining one run must not rewrite persisted installMode.
-  Package updates also require the existing update trigger.
+  Every package-mode apply checks selected packages through the post-apply hook;
+  it must not depend on changing a run-once hash or the explicit update counter.
 - Batch selected Homebrew/APT operations. Bootstrap dependencies may precede the
   batch when the remaining operations require them. Avoid repeated manager
   refreshes and one installation call per component.

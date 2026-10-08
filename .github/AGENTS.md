@@ -6,10 +6,13 @@ Read `CONTRIBUTING.md`, `docs/ci.md`, and `docs/releases.md` from the repo root.
   matrix. Changed-file filtering has produced gaps in local-hook coverage; do
   not make it the merge gate. Prefer caching, shared setup, and parallel jobs.
 - Build, install, and runtime smoke outcomes remain separately visible. Native
-  macOS and containerized Trixie jobs run unattended in parallel. Trixie uses
+  ARM64 macOS and native x86-64/ARM64 containerized Trixie jobs run unattended in
+  parallel. Full prek checks cover both Linux architectures. Trixie uses
   the distribution's tmux package and the alternate-keyring APT fixture.
 - Keep the aggregate CI result accurate for failures and expected skips. PR-only
   metadata skips on main pushes must not suppress successful release processing.
+  Retain separate deployment outputs for each architecture; one matrix entry
+  must not overwrite another entry's build/install/smoke results.
 - Update existing sticky result comments. Preserve their build/install/smoke
   detail and avoid accumulating a new comment on every run.
 - Keep Conventional Commit PR titles aligned with branch prefixes. Main uses
