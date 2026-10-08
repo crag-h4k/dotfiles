@@ -121,6 +121,57 @@ STUB
   [[ "$output" == *"is current"* ]]
 }
 
+@test "OpenViking resolution retains the exact pin and skips a healthy current runtime" {
+  local python="$BATS_TEST_TMPDIR/bin/openviking-python"
+  printf '#!/bin/sh\nprintf "0.4.23\\n"\n' >"$python"
+  chmod +x "$python"
+  run bash -c 'source "$1/scripts/common.sh"; source "$1/scripts/package-resolve.sh"; _records=($'"'"'uv-tool\topenviking\tplanned\tpinned:0.4.23\torigin\t'"'"'"$2"); _resolve_records; printf "%s\n" "${_records[@]}"' _ "$ROOT" "$python"
+  [ "$status" -eq 0 ]
+  [[ "$output" == $'uv-tool\topenviking\tinstalled\tpinned:0.4.23\t'* ]]
+  [[ "$output" == *$'\t0.4.23\t0.4.23\t'* ]]
+}
+
+@test "OpenViking runtime import failure schedules repair instead of claiming current" {
+  local python="$BATS_TEST_TMPDIR/bin/openviking-python"
+  printf '#!/bin/sh\nexit 1\n' >"$python"
+  chmod +x "$python"
+  run bash -c 'source "$1/scripts/common.sh"; source "$1/scripts/package-resolve.sh"; _records=($'"'"'uv-tool\topenviking\tinstalled\tpinned:0.4.23\torigin\t'"'"'"$2"); _resolve_records; printf "%s\n" "${_records[@]}"' _ "$ROOT" "$python"
+  [ "$status" -eq 0 ]
+  [[ "$output" == $'uv-tool\topenviking\tplanned\tpinned:0.4.23\t'* ]]
+  [[ "$output" == *$'\t-\t0.4.23\t'* ]]
+}
+
+@test "Debian installs approved uv even when the pinned prek tool is already current" {
+  local bin="$BATS_TEST_TMPDIR/bin"
+  mkdir -p "$HOME/.local/bin"
+  printf '#!/bin/sh\nprintf "prek 0.5.4\\n"\n' >"$HOME/.local/bin/prek"
+  printf '#!/bin/sh\nexit 0\n' >"$bin/chezmoi"
+  cat >"$bin/curl" <<'STUB'
+#!/bin/sh
+cat >"$3" <<'INSTALLER'
+mkdir -p "$HOME/.local/bin"
+printf '#!/bin/sh\nprintf "uv 0.1.0\\n"\n' >"$HOME/.local/bin/uv"
+chmod +x "$HOME/.local/bin/uv"
+INSTALLER
+STUB
+  chmod +x "$bin/curl" "$bin/chezmoi" "$HOME/.local/bin/prek"
+  export DOTFILES_PACKAGE_PLAN="$BATS_TEST_TMPDIR/uv-plan"
+  printf 'astral-uv\tuv\tplanned\tmanaged\torigin\tuv\t-\t-\t-\n' >"$DOTFILES_PACKAGE_PLAN"
+  run env PATH="$bin:/usr/bin:/bin" DOTFILES_PLAN_OS=debian DOTFILES_ASSUME_YES=1 \
+    DOTFILES_INSTALL_MODE=packages DOTFILES_SOURCE_ROOT="$HOME/no-source" \
+    INSTALL_ZSH=false INSTALL_TMUX=false INSTALL_NEOVIM=false INSTALL_GIT_CONFIG=false \
+    INSTALL_AI_OPENCODE=false INSTALL_AI_COPILOT=false INSTALL_AI_CODECOMPANION=false \
+    INSTALL_AI_OPENVIKING=false INSTALL_TERMINAL_ITERM2=false bash "$ROOT/scripts/install.sh"
+  [ "$status" -eq 0 ]
+  [ -x "$HOME/.local/bin/uv" ]
+  [[ "$output" == *"failed=0"* ]]
+}
+
+@test "changing OpenViking selection or its exact pin invalidates the package-plan signature" {
+  run bash -c 'source "$1/scripts/common.sh"; INSTALL_AI_OPENVIKING=false; first=$(package_plan_signature); INSTALL_AI_OPENVIKING=true; second=$(package_plan_signature); OPENVIKING_VERSION=0.4.24; third=$(package_plan_signature); [[ "$first" != "$second" && "$second" != "$third" ]]' _ "$ROOT"
+  [ "$status" -eq 0 ]
+}
+
 @test "automatic log records a configuration-only run and viewing it does no work" {
   run env DOTFILES_INSTALL_MODE=configs INSTALL_ZSH=false INSTALL_TMUX=false INSTALL_NEOVIM=false \
     INSTALL_GIT_CONFIG=false INSTALL_TERMINAL_ITERM2=false bash "$ROOT/scripts/install.sh"

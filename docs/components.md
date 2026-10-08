@@ -248,8 +248,8 @@ database remain unmanaged; service activation is explicit.
 
 Selecting it alongside OpenCode registers the official pinned plugin in the
 managed section without replacing local plugin additions. See
-[OpenViking local memory](openviking.md) for private initialization, provider
-authentication, loopback-only service activation, and trial measurements.
+[OpenViking local memory](openviking.md) for guided setup, private initialization,
+provider authentication, loopback-only service activation, and trial measurements.
 
 ### OpenCode V2 footer
 

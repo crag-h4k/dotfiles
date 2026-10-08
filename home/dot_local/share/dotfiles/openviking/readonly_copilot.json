@@ -15,17 +15,17 @@
     "max_input_tokens": 1536,
     "dense": {
       "provider": "litellm",
-      "model": "ollama/nomic-embed-text:v1.5",
-      "api_base": "http://127.0.0.1:11434",
-      "dimension": 768
+      "model": "github_copilot/text-embedding-3-small",
+      "dimension": 1536
     }
   },
   "vlm": {
     "provider": "litellm",
-    "model": "ollama_chat/qwen3.5:4b",
-    "api_base": "http://127.0.0.1:11434",
+    "model": "github_copilot/gpt-6-luna",
     "max_concurrent": 1,
+    "max_tokens": 4096,
+    "max_retries": 1,
     "timeout": 120,
-    "extra_request_body": { "think": false, "num_ctx": 16384 }
+    "extra_request_body": { "reasoning": { "effort": "none" } }
   }
 }

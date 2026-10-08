@@ -86,11 +86,17 @@ The deployment deliberately starts with an existing GitHub CLI APT source using
 an alternate valid keyring path. That catches duplicate-repository and
 conflicting `Signed-By` regressions before they reach a workstation.
 
-The focused component set installs Zsh, tmux, and shared Git configuration.
+The focused component set installs Zsh, tmux, shared Git configuration, and
+the isolated OpenViking runtime.
 Trixie's `tmux` comes from Debian APT: no source build, no mystery binary.
 
 After install, the shared smoke test checks the managed files, shell runtime,
 Git behavior, tmux options, dynamic scrollback, and wheel binding.
+OpenViking runs with disposable private configuration and no provider login.
+Its smoke test starts the native server, verifies loopback readiness, rejects
+unauthenticated data access, and provisions a separate USER credential. It does
+not start a persistent user service, download Ollama models, or validate remote
+provider quality.
 
 ## macOS deployment
 
@@ -108,7 +114,8 @@ run outside GitHub Actions and also removes the runner's unused, untrusted `aws/
 
 The build phase copies a clean source tree and verifies the rendered archive.
 The install phase performs a fully headless package-mode apply with Homebrew.
-The same runtime smoke script then checks Zsh, Git, and tmux.
+The same runtime smoke script then checks Zsh, Git, tmux, and the native
+OpenViking runtime with isolated private state.
 
 Build, install, and smoke outcomes are exported separately so a failure says
 which layer broke.

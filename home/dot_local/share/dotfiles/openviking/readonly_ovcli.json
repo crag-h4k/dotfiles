@@ -3,7 +3,7 @@
   "api_key": "",
   "plugin": {
     "autoRecall": true,
-    "autoCapture": true,
+    "autoCapture": false,
     "recallQueryExpansion": "off",
     "recallCompress": "off",
     "recallTokenBudget": 2000,

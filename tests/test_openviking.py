@@ -11,6 +11,7 @@ import plistlib
 import shutil
 import subprocess
 import tempfile
+import types
 import unittest
 import urllib.error
 from unittest.mock import patch
@@ -38,7 +39,9 @@ class OpenVikingTest(unittest.TestCase):
         self.ctl.PRIVATE = self.home / ".openviking"
         self.ctl.EXAMPLES = self.home / ".local/share/dotfiles/openviking"
         self.ctl.EXAMPLES.mkdir(parents=True)
-        for source in ASSETS.glob("readonly_*.json"):
+        for source in ASSETS.glob("readonly_*"):
+            if not source.is_file():
+                continue
             shutil.copyfile(source, self.ctl.EXAMPLES / source.name.removeprefix("readonly_"))
         self.environment = patch.dict(os.environ, {"HOME": str(self.home)}, clear=True)
         self.environment.start()
@@ -71,22 +74,31 @@ class OpenVikingTest(unittest.TestCase):
         self.assertEqual(before, (server.read_bytes(), client.read_bytes()))
 
     def test_starter_profiles_have_local_storage_and_explicit_auth(self):
-        for name in ("copilot-ollama", "ollama", "openai", "codex-ollama"):
+        for name in ("copilot", "copilot-ollama", "ollama", "openai", "codex-ollama"):
             with self.subTest(name=name):
                 config = json.loads((self.ctl.EXAMPLES / (name + ".json")).read_text())
                 self.assertEqual(config["server"]["host"], "127.0.0.1")
                 self.assertEqual(config["server"]["auth_mode"], "api_key")
                 self.assertEqual(config["storage"]["workspace"], "./data")
-                if name != "openai":
+                if name not in ("openai", "copilot"):
                     self.assertEqual(config["embedding"]["dense"]["dimension"], 768)
                     self.assertEqual(config["embedding"]["max_concurrent"], 1)
         client = json.loads((self.ctl.EXAMPLES / "ovcli.json").read_text())
         self.assertFalse(client["api_key"])
-        self.assertTrue(client["plugin"]["autoCapture"])
+        self.assertFalse(client["plugin"]["autoCapture"])
         self.assertEqual(client["plugin"]["recallCompress"], "off")
         self.assertEqual(client["plugin"]["recallQueryExpansion"], "off")
         self.assertFalse(client["plugin"]["opencode"]["mcpEnabled"])
         self.assertEqual(client["plugin"]["opencode"]["commitKeepRecentCount"], 0)
+
+    def test_copilot_profile_does_not_require_local_ollama_or_migrate_existing_vectors(self):
+        self.init("copilot")
+        config = self.ctl.private_json(self.ctl.PRIVATE / "ov.conf")
+        self.assertEqual(config["vlm"]["model"], "github_copilot/gpt-6-luna")
+        self.assertEqual(config["embedding"]["dense"]["model"], "github_copilot/text-embedding-3-small")
+        self.assertEqual(config["embedding"]["dense"]["dimension"], 1536)
+        self.init("copilot-ollama")
+        self.assertEqual(config, self.ctl.private_json(self.ctl.PRIVATE / "ov.conf"))
 
     def test_public_config_is_refused_by_the_service(self):
         self.init()
@@ -269,7 +281,233 @@ class OpenVikingTest(unittest.TestCase):
                     self.ctl.main()
         chdir.assert_called_once_with(self.ctl.PRIVATE)
         args = execute.call_args.args[1]
-        self.assertEqual(args[-4:], ["--host", "127.0.0.1", "--port", "1933"])
+        self.assertEqual(args[-2:], ["run", str(self.ctl.PRIVATE / "ov.conf")])
+        self.assertEqual(args[1], str(self.ctl.EXAMPLES / "runtime.py"))
+
+    def test_guided_setup_decline_has_no_private_or_service_changes(self):
+        with patch.object(self.ctl.sys.stdin, "isatty", return_value=True):
+            with patch("builtins.input", return_value="n"):
+                with patch.object(self.ctl, "command") as command:
+                    with contextlib.redirect_stdout(io.StringIO()):
+                        self.ctl.setup("copilot")
+        self.assertFalse(self.ctl.PRIVATE.exists())
+        command.assert_not_called()
+
+    def test_guided_setup_requires_foreground_consent(self):
+        with patch.object(self.ctl.sys.stdin, "isatty", return_value=False):
+            with self.assertRaisesRegex(ValueError, "needs a terminal"):
+                self.ctl.setup("copilot")
+        self.assertFalse(self.ctl.PRIVATE.exists())
+
+    def test_setup_finds_installed_wrapper_without_the_optional_zsh_path(self):
+        wrapper = self.home / ".local/bin/opencode2"
+        wrapper.parent.mkdir(parents=True)
+        wrapper.write_text("#!/bin/sh\nexit 0\n")
+        wrapper.chmod(0o755)
+        with patch.object(self.ctl.shutil, "which", return_value=None):
+            self.assertEqual(self.ctl.opencode_binary(), str(wrapper))
+
+    def test_failed_probe_leaves_fresh_capture_disabled_and_service_untouched(self):
+        binary = self.ctl.runtime() / "bin/python"
+        binary.parent.mkdir(parents=True)
+        binary.touch()
+
+        def command(argv, **kwargs):
+            if "probe" in argv:
+                raise subprocess.CalledProcessError(1, argv)
+            return subprocess.CompletedProcess(argv, 0)
+
+        with patch.object(self.ctl, "command", side_effect=command):
+            with patch.object(self.ctl, "service") as service:
+                with contextlib.redirect_stdout(io.StringIO()):
+                    with self.assertRaises(subprocess.CalledProcessError):
+                        self.ctl.setup("copilot", assume_yes=True)
+        self.assertFalse(self.ctl.private_json(self.ctl.PRIVATE / "ovcli.conf")["plugin"]["autoCapture"])
+        service.assert_not_called()
+
+    def test_guided_setup_verifies_registration_before_enabling_capture(self):
+        binary = self.ctl.runtime() / "bin/python"
+        binary.parent.mkdir(parents=True)
+        binary.touch()
+        events = []
+
+        def command(argv, **kwargs):
+            events.append("reload" if "/api/location/reload" in argv else "probe" if "probe" in argv else "auth")
+            return subprocess.CompletedProcess(argv, 0)
+
+        def check():
+            self.assertFalse(self.ctl.private_json(self.ctl.PRIVATE / "ovcli.conf")["plugin"]["autoCapture"])
+            events.append("check")
+
+        response = io.BytesIO(b"")
+        response.status = 200
+        with contextlib.ExitStack() as stack:
+            stack.enter_context(contextlib.redirect_stdout(io.StringIO()))
+            stack.enter_context(patch.object(self.ctl, "command", side_effect=command))
+            stack.enter_context(patch.object(self.ctl, "service", side_effect=lambda action: events.append(action)))
+            stack.enter_context(patch.object(self.ctl, "bootstrap_client", side_effect=lambda: events.append("bootstrap")))
+            stack.enter_context(patch.object(self.ctl, "verify_client", side_effect=lambda: events.append("verify")))
+            stack.enter_context(patch.object(self.ctl, "configure_opencode", side_effect=lambda: events.append("configure")))
+            stack.enter_context(patch.object(self.ctl, "check_opencode", side_effect=check))
+            stack.enter_context(patch.object(self.ctl.shutil, "which", return_value="opencode2"))
+            opener = stack.enter_context(patch.object(self.ctl.urllib.request, "build_opener"))
+            opener.return_value.open.return_value = response
+            self.ctl.setup("copilot", assume_yes=True)
+        self.assertEqual(events, ["auth", "probe", "enable", "bootstrap", "verify", "configure", "reload", "check", "reload"])
+        self.assertTrue(self.ctl.private_json(self.ctl.PRIVATE / "ovcli.conf")["plugin"]["autoCapture"])
+
+    def test_setup_provider_keys_are_available_to_native_services_not_only_the_shell(self):
+        self.init("openai")
+        config = self.ctl.server_config()
+        with patch.dict(os.environ, {"OPENAI_API_KEY": "synthetic-provider-key"}):
+            self.ctl.prepare_provider_keys(config, True)
+        stored = self.ctl.private_json(self.ctl.PRIVATE / "ov.conf")
+        self.assertEqual(stored["vlm"]["api_key"], "synthetic-provider-key")
+        self.assertEqual(stored["embedding"]["dense"]["api_key"], "synthetic-provider-key")
+
+    def test_authenticated_client_verification_rejects_root_and_redirects(self):
+        self.init()
+        path = self.ctl.PRIVATE / "ovcli.conf"
+        client = self.ctl.private_json(path)
+        client["api_key"] = self.ctl.server_config()["server"]["root_api_key"]
+        self.ctl.write_private(path, client, replace=True)
+        with patch.object(self.ctl.urllib.request, "build_opener") as builder:
+            with self.assertRaisesRegex(ValueError, "not the ROOT key"):
+                self.ctl.verify_client()
+        builder.assert_not_called()
+        client["api_key"] = "synthetic-user-key"
+        self.ctl.write_private(path, client, replace=True)
+        with patch.object(self.ctl.urllib.request, "build_opener") as builder:
+            builder.return_value.open.return_value = io.BytesIO(b'{"status":"ok","result":["private fixture"]}')
+            with contextlib.redirect_stdout(io.StringIO()) as out:
+                self.ctl.verify_client()
+        self.assertIsInstance(builder.call_args.args[0], self.ctl.NoRedirect)
+        self.assertNotIn("private fixture", out.getvalue())
+
+    def test_guided_ollama_skips_models_already_installed(self):
+        self.init()
+        config = self.ctl.server_config()
+        models = [config["vlm"]["model"], config["embedding"]["dense"]["model"]]
+        with patch.object(self.ctl.shutil, "which", return_value="ollama"):
+            with patch.object(self.ctl.urllib.request, "build_opener") as builder:
+                builder.return_value.open.return_value = io.BytesIO(b'{"models":[{"name":"nomic-embed-text:v1.5"}]}')
+                with patch.object(self.ctl, "command") as command:
+                    with contextlib.redirect_stdout(io.StringIO()):
+                        self.ctl.prepare_ollama(config, models, True)
+        command.assert_not_called()
+
+    def test_failed_setup_rerun_preserves_existing_models_and_active_capture(self):
+        self.init("copilot-ollama")
+        path = self.ctl.PRIVATE / "ovcli.conf"
+        client = self.ctl.private_json(path)
+        client["plugin"]["autoCapture"] = True
+        client["api_key"] = "synthetic-existing-key"
+        self.ctl.write_private(path, client, replace=True)
+        before = (path.read_bytes(), (self.ctl.PRIVATE / "ov.conf").read_bytes())
+        binary = self.ctl.runtime() / "bin/python"
+        binary.parent.mkdir(parents=True)
+        binary.touch()
+        with patch.object(self.ctl, "prepare_ollama"):
+            with patch.object(self.ctl, "command", side_effect=subprocess.CalledProcessError(1, "synthetic-failure")):
+                with contextlib.redirect_stdout(io.StringIO()):
+                    with self.assertRaises(subprocess.CalledProcessError):
+                        self.ctl.setup("copilot", assume_yes=True)
+        self.assertEqual(before, (path.read_bytes(), (self.ctl.PRIVATE / "ov.conf").read_bytes()))
+
+    def test_mcp_merge_preserves_comments_settings_and_private_backup(self):
+        self.init()
+        client = self.ctl.private_json(self.ctl.PRIVATE / "ovcli.conf")
+        client["api_key"] = "synthetic-user-key"
+        self.ctl.write_private(self.ctl.PRIVATE / "ovcli.conf", client, replace=True)
+        path = self.home / ".config/opencode/opencode.jsonc"
+        path.parent.mkdir(parents=True)
+        original = '// keep header\n{"model":"fixture/model", "mcp": {"servers": {"other": {"url":"https://example.invalid"},},}, "permissions": [/* keep */ {"effect":"deny"},],}\n'
+        path.write_text(original)
+        with contextlib.redirect_stdout(io.StringIO()) as out:
+            self.ctl.configure_opencode()
+            first = path.read_bytes()
+            self.ctl.configure_opencode()
+        self.assertEqual(first, path.read_bytes())
+        self.assertIn('"model":"fixture/model"', path.read_text())
+        self.assertIn('/* keep */', path.read_text())
+        self.assertIn('"other": {"url":"https://example.invalid"}', path.read_text())
+        self.assertNotIn("synthetic-user-key", path.read_text() + out.getvalue())
+        backups = list((self.ctl.PRIVATE / "backups").iterdir())
+        self.assertEqual(len(backups), 1)
+        self.assertEqual(backups[0].read_text(), original)
+        self.assertEqual(backups[0].stat().st_mode & 0o777, 0o600)
+
+
+class OpenVikingConfigMergeTest(unittest.TestCase):
+    def setUp(self):
+        self.helper = load_module("openviking_opencode_config", ASSETS / "readonly_opencode_config.py")
+        self.server = {"type": "remote", "url": "http://127.0.0.1:1933/mcp", "oauth": False, "codemode": False}
+
+    def test_jsonc_shapes_round_trip_without_rewriting_other_fields(self):
+        cases = ['{}', '{ /* root */ }', '{"mcp":{}}', '{"mcp":{"servers":{}}}',
+                 '{"mcp":{"timeout":{"startup":45000},"servers":{"example":{"url":"https://example.invalid"},},},}',
+                 '{"settings":{"quoted":"brace } and comma , and \\\" quote", "array":[1,true,null,]},// keep\n}',
+                 '{"model":"model" /* before trailing comma */, /* after */}']
+        for text in cases:
+            with self.subTest(text=text):
+                previous = self.helper.decode(text)
+                updated = self.helper.merge(text, self.server)
+                parsed = self.helper.decode(updated)
+                parsed["mcp"]["servers"].pop("openviking")
+                if "servers" not in previous.get("mcp", {}):
+                    parsed["mcp"].pop("servers")
+                if "mcp" not in previous:
+                    parsed.pop("mcp")
+                self.assertEqual(parsed, previous)
+                self.assertEqual(updated, self.helper.merge(updated, self.server))
+
+    def test_existing_different_mcp_and_ambiguous_or_invalid_jsonc_fail_closed(self):
+        for text in ['{"mcp":{"servers":{"openviking":{"url":"http://127.0.0.1:9/mcp"}}}}',
+                     '{"mcp":{}, "mcp":{}}', '{"mcp":null}', '{"mcp":{"servers":[]}}',
+                     '{"key":,}', '[]', '{"key":1,,}']:
+            with self.subTest(text=text):
+                with self.assertRaises(ValueError):
+                    self.helper.merge(text, self.server)
+
+
+class OpenVikingRuntimeTest(unittest.TestCase):
+    def setUp(self):
+        self.helper = load_module("openviking_runtime", ASSETS / "readonly_runtime.py")
+
+    def test_other_providers_need_no_copilot_authentication(self):
+        with patch.dict(os.sys.modules, {"litellm": None}):
+            self.helper.prepare_models({"vlm": {"model": "ollama_chat/fixture"}})
+
+    def test_authenticated_inventory_selects_responses_chat_and_embeddings(self):
+        with tempfile.TemporaryDirectory() as directory:
+            token = Path(directory) / "access-token"
+            token.write_text("synthetic-token")
+            auth = types.SimpleNamespace(access_token_file=token, get_api_key=lambda: "synthetic-provider-key",
+                                         get_api_base=lambda: "https://api.githubcopilot.com")
+            calls = []
+            fake_litellm = types.ModuleType("litellm")
+            fake_litellm.register_model = calls.append
+            modules = {"litellm": fake_litellm,
+                       "litellm.llms.github_copilot.authenticator": types.SimpleNamespace(Authenticator=lambda: auth),
+                       "litellm.llms.github_copilot.common_utils": types.SimpleNamespace(
+                           DEFAULT_GITHUB_COPILOT_API_BASE="https://api.githubcopilot.com",
+                           get_copilot_default_headers=lambda key: {"Authorization": "Bearer " + key})}
+            inventory = {"data": [{"id": "responses-model", "supported_endpoints": ["/responses"], "capabilities": {"type": "chat"}},
+                                  {"id": "chat-model", "supported_endpoints": ["/chat/completions"]},
+                                  {"id": "embed-model", "policy": None, "supported_endpoints": None, "capabilities": {"type": "embeddings"}}]}
+            with patch.dict(os.sys.modules, modules):
+                with patch.object(self.helper.urllib.request, "build_opener") as builder:
+                    for model, mode in (("responses-model", "responses"), ("chat-model", "chat"), ("embed-model", "embedding")):
+                        builder.return_value.open.return_value = io.BytesIO(json.dumps(inventory).encode())
+                        self.helper.prepare_models({"vlm": {"model": "github_copilot/" + model}})
+                        self.assertEqual(calls[-1]["github_copilot/" + model]["mode"], mode)
+                    self.assertIsInstance(builder.call_args.args[0], self.helper.NoRedirect)
+                    builder.return_value.open.return_value = io.BytesIO(json.dumps(inventory).encode())
+                    with self.assertRaisesRegex(ValueError, "unavailable"):
+                        self.helper.prepare_models({"vlm": {"model": "github_copilot/missing"}})
+                    token.write_text("")
+                    with self.assertRaisesRegex(ValueError, "login missing"):
+                        self.helper.prepare_models({"vlm": {"model": "github_copilot/responses-model"}})
 
 
 class OpenVikingRenderTest(unittest.TestCase):

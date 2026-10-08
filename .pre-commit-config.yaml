@@ -110,7 +110,7 @@ repos:
         entry: python3 -m unittest tests/test_openviking.py
         language: system
         pass_filenames: false
-        files: ^(home/(\.chezmoi(ignore|\.toml\.tmpl)|dot_local/(bin/executable_openvikingctl|share/dotfiles/openviking/.*)|Library/LaunchAgents/.*openviking.*|dot_config/systemd/user/dotfiles-openviking\.service)|scripts/(install-openviking\.sh|benchmark-openviking\.py)|tests/(test_openviking\.py|fixtures/openviking/.*))$
+        files: ^(home/(\.chezmoi(ignore|\.toml\.tmpl)|dot_local/(bin/executable_openvikingctl|share/dotfiles/openviking/.*)|Library/LaunchAgents/.*openviking.*|dot_config/systemd/user/dotfiles-openviking\.service)|scripts/(install-openviking\.sh|benchmark-openviking\.py)|tests/(test_openviking\.py|openviking-deployment-smoke\.py|fixtures/openviking/.*))$
 
       - id: test-openviking-permissions
         name: node test (OpenViking permissions across agent modes)

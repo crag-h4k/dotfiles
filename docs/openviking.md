@@ -4,6 +4,7 @@
 ## Table of Contents
 
 - [Select and install](#select-and-install)
+- [Guided setup](#guided-setup)
 - [Configuration ownership](#configuration-ownership)
 - [Choose providers](#choose-providers)
 - [Initialize and validate](#initialize-and-validate)
@@ -34,16 +35,65 @@ native on a Mac to use Apple GPU acceleration. Docker Desktop on macOS does not
 provide GPU acceleration for Ollama; containerizing OpenViking alone would still
 require a route back to the native Ollama service.
 
+## Guided setup
+
+For a new machine, select `ai > openviking` and `ai > opencode` during
+`chezmoi init --apply`, then approve package installation. Run this from your
+own foreground terminal:
+
+```sh
+~/.local/bin/openvikingctl setup
+```
+
+The default `copilot` starter uses GPT-6 Luna extraction and Copilot's
+`text-embedding-3-small` embeddings. It needs a Copilot account with access to
+both models, but no local model server or model downloads. Content sent for
+extraction and embeddings leaves the machine; storage and the authenticated
+OpenViking listener remain local.
+
+Setup creates private configs only when absent, walks through the separate
+Copilot device login, probes both models, starts the user service, and provisions
+a separate USER credential. It verifies authenticated data access, backs up the
+global OpenCode config, and inserts only its native MCP entry. Existing model,
+embedding, and capture settings survive reruns. A conflicting MCP entry is left
+untouched for review.
+
+The final prompts reload the current OpenCode location and verify the official
+hooks, native MCP, and three upstream skills. Reload cancels that location's
+pending permission/question forms. New clients keep capture disabled until
+registration passes and you approve automatic capture. Declining reload leaves
+setup pending; declining capture leaves recall and native MCP available. Test
+synthetic cross-session recall before capturing ordinary work.
+
+For Copilot extraction with local Nomic embeddings instead:
+
+```sh
+~/.local/bin/openvikingctl setup --profile copilot-ollama
+```
+
+Start native Ollama first. Setup checks its loopback model inventory and asks
+before downloading missing selected models. It does not pull models that are
+already present. Other starter profiles use the same `--profile` option.
+`--yes` approves setup, missing-model downloads, location reloads, and capture;
+it does not bypass provider login or replace existing model settings. Do not use
+it until you have reviewed the provider route and content-handling policy.
+
+An existing Nomic workspace stays 768-dimensional even when the default starter
+changes. Setup never converts it to Copilot's 1536-dimensional vector space.
+To change embeddings, use a separate workspace or an explicit reindex procedure.
+
 ## Configuration ownership
 
 Dotfiles installs `openvikingctl`, platform user-service definitions, and
-read-only starter profiles under `~/.local/share/dotfiles/openviking/`.
+read-only starter profiles and runtime helpers under
+`~/.local/share/dotfiles/openviking/`.
 It does not manage these private files:
 
 - `~/.openviking/ov.conf`: server, storage, and model configuration.
 - `~/.openviking/ovcli.conf`: client credential and plugin settings.
 - `~/.openviking/service.env`: optional `KEY=value` environment settings.
 - `~/.openviking/data/`: database, indexes, and captured transcripts.
+- `~/.openviking/backups/`: private copies made before OpenCode MCP insertion.
 - `~/.config/litellm/github_copilot/`: LiteLLM's provider credentials.
 
 The installer owns `~/.openviking/runtime.json` only to record its local runtime
@@ -61,6 +111,7 @@ files and memory database are not synchronized between machines.
 Extraction and embeddings are independent choices. Starter profiles include:
 
 - `copilot-ollama`: Copilot extraction through LiteLLM, local Nomic embeddings.
+- `copilot`: GPT-6 Luna extraction and Copilot embeddings; no Ollama dependency.
 - `ollama`: local Qwen extraction and local Nomic embeddings.
 - `openai`: OpenAI API-key extraction and embeddings.
 - `codex-ollama`: native Codex OAuth extraction and local Nomic embeddings.
@@ -81,6 +132,13 @@ Measure its working memory and energy use before keeping it active on battery.
 Changing an embedding model or its vector space requires a new workspace or a
 deliberate reindex. Keep embeddings fixed when comparing extraction providers.
 There is no configured cloud fallback in the local profile.
+
+The managed runtime reads authenticated Copilot model inventory at startup and
+registers the selected models with LiteLLM in memory. This selects the native
+Responses route for Responses-only models such as Luna, without patching
+installed packages or requiring a private Python startup hook. An unavailable
+model or failed inventory request stops startup; no alternate provider is
+selected. Foreground login must finish before the service starts.
 
 ## Initialize and validate
 
@@ -163,7 +221,17 @@ native discovery: `openviking-memory`, `openviking-skills`, and
 `ov-experience-memory`. They use the existing canonical store and per-entry
 compatibility links.
 
-Prepare the authenticated native MCP connection:
+Insert the authenticated native MCP connection, preserving unrelated JSONC
+settings and comments:
+
+```sh
+~/.local/bin/openvikingctl configure-opencode
+```
+
+This backs up an existing config privately before changing it. It refuses
+conflicting existing OpenViking entries, duplicate keys, ambiguous global
+config files, and symlinked config targets. Guided setup runs this step for you.
+For a manual review-only fragment instead:
 
 ```sh
 ~/.local/bin/openvikingctl mcp-config
@@ -207,6 +275,9 @@ The upstream plugin provides automatic recall and turn capture, including
 capture before compaction. The starter disables automatic repository indexing,
 query expansion, and recall compression to keep the initial trial focused on
 memory and avoid extra model calls. Normal capture includes tool output.
+The starter also disables capture until guided setup verifies registration and
+you approve enabling it. For manual setup, set `plugin.autoCapture=true` in your
+private `ovcli.conf` only after validation, then reload the OpenCode location.
 
 The OpenCode starter sets `commitKeepRecentCount=0`. At commit boundaries,
 OpenViking archives the captured messages instead of retaining a raw tail that

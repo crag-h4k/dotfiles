@@ -289,6 +289,7 @@ main() {
             fi
         fi
         if [[ "$os" == debian ]]; then
+            package_action_try astral-uv uv "uv runtime availability" install_uv_debian || true
             package_action_try uv-tool prek "prek pinned hook runner" \
                 env PREK_VERSION="${PREK_VERSION:-0.5.4}" bash "$SCRIPT_DIR/install-prek.sh" || true
         fi

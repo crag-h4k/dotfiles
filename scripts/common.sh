@@ -90,14 +90,14 @@ package_plan_signature() {
         printf '%s\n' "$_COMMON_SH_DIR" "$(os_detect)"
         for flag in INSTALL_ZSH INSTALL_TMUX INSTALL_NEOVIM INSTALL_NOTIFY \
             INSTALL_AI_CODECOMPANION INSTALL_AI_STATUSLINE INSTALL_AI_OPENCODE \
-            INSTALL_AI_COPILOT INSTALL_TERMINAL_GHOSTTY INSTALL_TERMINAL_ITERM2; do
+            INSTALL_AI_COPILOT INSTALL_AI_OPENVIKING INSTALL_TERMINAL_GHOSTTY INSTALL_TERMINAL_ITERM2; do
             printf '%s=%s\n' "$flag" "${!flag:-false}"
         done
-        printf '%s\n' "${OPENCODE2_VERSION:-latest}" "${COPILOT_VERSION:-prerelease}" "${PREK_VERSION:-0.5.4}"
+        printf '%s\n' "${OPENCODE2_VERSION:-latest}" "${COPILOT_VERSION:-prerelease}" "${PREK_VERSION:-0.5.4}" "${OPENVIKING_VERSION:-0.4.23}"
         cksum "$_COMMON_SH_DIR/package-plan.sh" "$_COMMON_SH_DIR/package-resolve.sh" "$_COMMON_SH_DIR/common.sh"
         for flag in "$_COMMON_SH_DIR/plan-neovim-packages.lua" "$_COMMON_SH_DIR/neovim-package-lib.lua" \
             "$_COMMON_SH_DIR/neovim-update-lib.lua" \
-            "$_COMMON_SH_DIR/install-neovim.sh" "$_COMMON_SH_DIR/update-neovim-packages.lua" \
+            "$_COMMON_SH_DIR/install-neovim.sh" "$_COMMON_SH_DIR/install-openviking.sh" "$_COMMON_SH_DIR/update-neovim-packages.lua" \
             "$_COMMON_SH_DIR/../home/dot_config/nvim/init.lua"; do
             [[ ! -f "$flag" ]] || cksum "$flag"
         done
@@ -469,6 +469,7 @@ ensure_chezmoi() {
 # Astral's documented standalone installer puts uv in ~/.local/bin. Keep shell
 # profile edits disabled: dot_zshenv already adds that directory to PATH.
 install_uv_debian() {
+    export PATH="$HOME/.local/bin:$PATH"
     command -v uv >/dev/null 2>&1 && return 0
     require_cmd curl
     local installer

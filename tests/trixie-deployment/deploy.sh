@@ -17,16 +17,16 @@ if [[ -t 0 ]]; then
 fi
 sudo -n true
 
-# promptStringOnce reads existing data during init. Seed Zsh, tmux, and shared
-# Git configuration so CI is fully headless and runs the real package/repository
+# promptStringOnce reads existing data during init. Seed Zsh, tmux, shared Git,
+# and OpenViking so CI is headless and runs the real package/repository
 # path without paying to install a complete Neovim workstation on every pull
 # request. Personal Git identity remains deliberately disabled.
 mkdir -p "$CONFIG_DIR"
 printf '%s\n' \
     '[data]' \
-    'componentSelection = "1 2 4"' \
+    'componentSelection = "1 2 4 5"' \
     'gitSelection = "1 3"' \
-    'aiSelection = ""' \
+    'aiSelection = "openviking"' \
     'terminalSelection = ""' \
     'palette = "dracula"' \
     'zshTheme = "gud"' \

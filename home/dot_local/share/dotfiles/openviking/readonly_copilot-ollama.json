@@ -22,8 +22,11 @@
   },
   "vlm": {
     "provider": "litellm",
-    "model": "github_copilot/gpt-5.2",
-    "max_concurrent": 2,
-    "timeout": 120
+    "model": "github_copilot/gpt-6-luna",
+    "max_concurrent": 1,
+    "max_tokens": 4096,
+    "max_retries": 1,
+    "timeout": 120,
+    "extra_request_body": { "reasoning": { "effort": "none" } }
   }
 }

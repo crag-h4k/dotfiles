@@ -2,15 +2,19 @@
 # home/dot_local/bin/executable_openvikingctl
 """Workstation lifecycle commands for the upstream OpenViking server."""
 import argparse
+import getpass
+import importlib.util
 import json
 import os
 from pathlib import Path
 import platform
 import secrets
 import shlex
+import shutil
 import subprocess
 import sys
 import tempfile
+import time
 import urllib.error
 import urllib.request
 import urllib.parse
@@ -115,6 +119,160 @@ def init(profile):
     print("Edit your private model settings, authenticate, then run openvikingctl doctor")
 
 
+def runtime_command(action):
+    helper = EXAMPLES / "runtime.py"
+    if not helper.is_file():
+        raise ValueError("managed OpenViking runtime helper is missing; reapply the component")
+    return [str(runtime() / "bin/python"), str(helper), action, str(config_path())]
+
+
+def configure_opencode():
+    path = Path(os.environ.get("XDG_CONFIG_HOME", HOME / ".config")) / "opencode/opencode.jsonc"
+    alternate = path.with_suffix(".json")
+    if path.exists() and alternate.exists():
+        raise ValueError("both global OpenCode config files exist; consolidate them before configuring MCP")
+    if alternate.exists() and not path.exists():
+        path = alternate
+    if path.is_symlink():
+        raise ValueError("review the symlinked global OpenCode config before adding MCP")
+    spec = importlib.util.spec_from_file_location("openviking_opencode_config", EXAMPLES / "opencode_config.py")
+    helper = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(helper)
+    original = path.read_text() if path.exists() else ""
+    updated = helper.merge(original, mcp_config()["mcp"]["servers"]["openviking"])
+    if updated == original:
+        print("Preserved the existing authenticated OpenViking MCP entry")
+        return
+    if path.exists():
+        backup = PRIVATE / "backups" / ("opencode-" + str(time.time_ns()) + path.suffix)
+        backup.parent.mkdir(mode=0o700, parents=True, exist_ok=True)
+        backup.write_bytes(path.read_bytes())
+        backup.chmod(0o600)
+    path.parent.mkdir(parents=True, exist_ok=True)
+    fd, temporary = tempfile.mkstemp(prefix=".openviking-", dir=path.parent)
+    with os.fdopen(fd, "w") as stream:
+        stream.write(updated)
+    os.replace(temporary, path)
+    print("Added the private native MCP entry; unrelated settings and comments preserved")
+
+
+def confirm(message, assume_yes=False):
+    return assume_yes or input(message + " [y/N] ").strip().lower() in ("y", "yes")
+
+
+def opencode_binary():
+    found = shutil.which("opencode2")
+    if found:
+        return found
+    wrapper = HOME / ".local/bin/opencode2"
+    return str(wrapper) if os.access(wrapper, os.X_OK) else None
+
+
+def prepare_provider_keys(config, assume_yes):
+    changed = False
+    for settings in (config.get("vlm", {}), config.get("embedding", {}).get("dense", {})):
+        key = settings.get("api_key") or ""
+        if not key.startswith("${") or not key.endswith("}"):
+            continue
+        name = key[2:-1]
+        value = os.environ.get(name)
+        if not value:
+            if assume_yes:
+                raise ValueError("missing " + name + "; set it or configure a private model key first")
+            value = getpass.getpass(name + " (stored in private ov.conf, never printed): ").strip()
+        if not value:
+            raise ValueError("model API key was not supplied")
+        settings["api_key"] = value
+        changed = True
+    if changed:
+        write_private(config_path(), config, replace=True)
+
+
+def prepare_ollama(config, models, assume_yes):
+    selected = [model.split("/", 1)[1] for model in dict.fromkeys(models)
+                if model.startswith(("ollama/", "ollama_chat/"))]
+    if not selected:
+        return
+    if not shutil.which("ollama"):
+        raise ValueError("this profile requires native Ollama; install/start it, or use copilot on a fresh workspace")
+    settings = config.get("embedding", {}).get("dense", {})
+    base = settings.get("api_base", "http://127.0.0.1:11434").rstrip("/")
+    parsed = urllib.parse.urlparse(base)
+    if parsed.scheme != "http" or parsed.hostname not in ("127.0.0.1", "localhost", "::1") or parsed.username or parsed.password or parsed.query or parsed.fragment:
+        raise ValueError("guided Ollama downloads require a loopback HTTP endpoint; provision remote models separately")
+    os.environ["OLLAMA_HOST"] = base
+    with urllib.request.build_opener(NoRedirect()).open(base + "/api/tags", timeout=10) as response:
+        installed = {item["name"] for item in json.load(response)["models"]}
+    for name in selected:
+        if name in installed or name + ":latest" in installed:
+            print("Ollama model already present:", name)
+        elif confirm("Download selected Ollama model " + name + "?", assume_yes):
+            command(["ollama", "pull", name])
+        else:
+            raise ValueError("selected Ollama model is missing; setup stopped before starting the service")
+
+
+def setup(profile, assume_yes=False):
+    if not assume_yes and not sys.stdin.isatty():
+        raise ValueError("setup needs a terminal; use --yes only after reviewing the profile and provider access")
+    print("OpenViking setup: private configuration, model probe, loopback user service, and native MCP.")
+    print("Remote providers receive extraction/embedding content. New clients start with capture disabled.")
+    print("Existing model, embedding, and capture choices are preserved unless you approve a change.")
+    if not confirm("Continue with starter profile " + profile + "?", assume_yes):
+        print("Setup declined; no configuration or service changes")
+        return
+    if not (runtime() / "bin/python").is_file():
+        raise ValueError("select ai > openviking and approve its package installation first")
+    init(profile)
+    config = server_config()
+    prepare_provider_keys(config, assume_yes)
+    client_path = PRIVATE / "ovcli.conf"
+    models = [config.get("vlm", {}).get("model", ""), config.get("embedding", {}).get("dense", {}).get("model", "")]
+    print("Extraction model:", models[0])
+    print("Embedding model:", models[1])
+    if any(model.startswith("github_copilot/") for model in models):
+        print("Complete Copilot's separate device login in this terminal.")
+        command([str(runtime() / "bin/python"), "-c", "from litellm.llms.github_copilot.authenticator import Authenticator; Authenticator().get_access_token()"])
+    prepare_ollama(config, models, assume_yes)
+    print("Probe: verifying the selected embedding dimension and extraction response")
+    command(runtime_command("probe"))
+    service("enable")
+    deadline = time.monotonic() + 45
+    url = "http://127.0.0.1:" + str(config["server"].get("port", 1933))
+    while time.monotonic() < deadline:
+        try:
+            with urllib.request.build_opener(NoRedirect()).open(url + "/ready", timeout=2) as response:
+                if response.status == 200:
+                    break
+        except OSError:
+            pass
+        time.sleep(0.5)
+    else:
+        raise ValueError("user service did not become ready; capture setting was not changed")
+    bootstrap_client()
+    verify_client()
+    opencode = opencode_binary()
+    if not opencode:
+        print("OpenViking service verified. Select ai > opencode to add this workstation's OpenCode integration.")
+        return
+    configure_opencode()
+    print("Reloading this OpenCode location cancels its pending permission/question forms.")
+    if not confirm("Reload this location and verify hooks, native MCP, and skills now?", assume_yes):
+        print("Reload/reopen OpenCode, then run openvikingctl check-opencode. Capture setting was not changed.")
+        return
+    command([opencode, "api", "post", "/api/location/reload"])
+    check_opencode()
+    client = private_json(client_path)
+    if not client.setdefault("plugin", {}).get("autoCapture", True):
+        if confirm("Enable automatic capture (including tool output) and reload this location?", assume_yes):
+            client["plugin"]["autoCapture"] = True
+            write_private(client_path, client, replace=True)
+            command([opencode, "api", "post", "/api/location/reload"])
+        else:
+            print("Capture remains disabled; recall and native MCP are available.")
+    print("Registration verified. Test synthetic cross-session recall before capturing ordinary work.")
+
+
 def service(action):
     if action in ("enable", "restart"):
         server_config()
@@ -216,11 +374,30 @@ def mcp_config():
     }}}}
 
 
+def verify_client():
+    client = private_json(PRIVATE / "ovcli.conf")
+    if not client.get("api_key") or client["api_key"] == server_config()["server"]["root_api_key"]:
+        raise ValueError("agent access requires a separate USER credential, not the ROOT key")
+    url = client["url"].rstrip("/")
+    port = server_config()["server"].get("port", 1933)
+    if url != "http://127.0.0.1:" + str(port):
+        raise ValueError("guided setup client URL must match this host's loopback service")
+    request = urllib.request.Request(url + "/api/v1/fs/ls?uri=viking%3A%2F%2F", headers={
+        "Authorization": "Bearer " + client["api_key"],
+    })
+    with urllib.request.build_opener(NoRedirect()).open(request, timeout=30) as response:
+        if json.load(response).get("status") != "ok":
+            raise ValueError("authenticated client verification failed")
+    print("Authenticated client access verified; private directory contents were not printed")
+
+
 def check_opencode():
+    binary = opencode_binary() or "opencode2"
+
     def read(route):
         # File stdout avoids losing buffered CLI output for large registries.
         with tempfile.TemporaryFile(mode="w+", dir=PRIVATE) as output:
-            subprocess.run(["opencode2", "api", "get", route], check=True,
+            subprocess.run([binary, "api", "get", route], check=True,
                            stdout=output, stderr=subprocess.PIPE, text=True, timeout=60)
             output.seek(0)
             return json.load(output)["data"]
@@ -247,15 +424,18 @@ def check_opencode():
 def main():
     os.umask(0o077)
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("action", choices=("init", "run", "doctor", "probe-models", "mcp-config", "check-opencode", "auth-copilot", "bootstrap-client", "enable", "restart", "stop", "status", "version", "cli"))
-    parser.add_argument("--profile", choices=("copilot-ollama", "ollama", "openai", "codex-ollama"), default="copilot-ollama")
+    parser.add_argument("action", choices=("setup", "init", "run", "doctor", "probe-models", "mcp-config", "configure-opencode", "check-opencode", "auth-copilot", "bootstrap-client", "enable", "restart", "stop", "status", "version", "cli"))
+    parser.add_argument("--profile", choices=("copilot", "copilot-ollama", "ollama", "openai", "codex-ollama"), default="copilot")
+    parser.add_argument("--yes", action="store_true", help="approve reviewed setup steps; does not replace provider login")
     args, remaining = parser.parse_known_args()
     if remaining and args.action != "cli":
         parser.error("extra arguments are only accepted by the cli command")
     if args.action != "check-opencode":
         load_environment()
     bin_dir = runtime() / "bin"
-    if args.action == "init":
+    if args.action == "setup":
+        setup(args.profile, args.yes)
+    elif args.action == "init":
         init(args.profile)
     elif args.action == "auth-copilot":
         command([str(bin_dir / "python"), "-c", "from litellm.llms.github_copilot.authenticator import Authenticator; Authenticator().get_access_token()"])
@@ -267,6 +447,8 @@ def main():
         bootstrap_client()
     elif args.action == "mcp-config":
         print(json.dumps(mcp_config(), indent=2))
+    elif args.action == "configure-opencode":
+        configure_opencode()
     elif args.action == "check-opencode":
         check_opencode()
     elif args.action == "doctor":
@@ -274,31 +456,13 @@ def main():
         command([str(bin_dir / "openviking-server"), "doctor", "--config", str(config_path())])
     elif args.action == "probe-models":
         server_config()
-        # These fixed synthetic probes validate real model access, not recall quality.
-        command([str(bin_dir / "python"), "-c", """
-import json, os, sys, time
-from pathlib import Path
-os.environ['OPENVIKING_CONFIG_FILE'] = sys.argv[1]
-from openviking_cli.utils.config.open_viking_config import OpenVikingConfig
-config = OpenVikingConfig.from_dict(json.loads(os.path.expandvars(Path(sys.argv[1]).read_text())))
-config.vlm.max_tokens = 256
-embedder = config.embedding.get_embedder()
-started = time.perf_counter()
-vector = embedder.embed('OpenViking synthetic embedding probe', is_query=True).dense_vector
-embedding_ms = (time.perf_counter() - started) * 1000
-assert len(vector) == config.embedding.dense.dimension, 'embedding dimension mismatch'
-started = time.perf_counter()
-reply = config.vlm.get_completion(prompt='Reply with exactly OK.')
-assert isinstance(reply, str) and reply.strip(), 'empty extraction-model response'
-print(json.dumps({'embedding_ms': round(embedding_ms, 2), 'dimension': len(vector),
-                  'vlm_ms': round((time.perf_counter() - started) * 1000, 2),
-                  'model_response_received': True}))
-""", str(config_path())])
+        command(runtime_command("probe"))
     elif args.action == "run":
         config = server_config()
         os.chdir(config_path().parent)
         os.umask(0o077)
-        os.execv(str(bin_dir / "openviking-server"), ["openviking-server", "--config", str(config_path()), "--host", "127.0.0.1", "--port", str(config["server"].get("port", 1933))])
+        argv = runtime_command("run")
+        os.execv(argv[0], argv)
     else:
         service(args.action)
 
