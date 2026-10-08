@@ -1,4 +1,5 @@
 #!/usr/bin/env bats
+# tests/test_ci_summary.bats
 
 setup() {
     export REPO_ROOT
@@ -13,18 +14,22 @@ setup() {
         TRIXIE_BUILD=success \
         TRIXIE_INSTALL=success \
         TRIXIE_SMOKE=success \
+        TRIXIE_ARM64_BUILD=success \
+        TRIXIE_ARM64_INSTALL=success \
+        TRIXIE_ARM64_SMOKE=success \
         MACOS_BUILD=success \
         MACOS_INSTALL=success \
         MACOS_SMOKE=success \
         "$REPO_ROOT/.github/scripts/render-deployment-summary.sh" "$SUMMARY_FILE"
 
     [ "$status" -eq 0 ]
-    # 4 gate verdicts (pr-metadata, prek, trixie, macos) + 6 phase cells.
-    [ "$(grep -o ':white_check_mark: passed' "$SUMMARY_FILE" | wc -l | tr -d ' ')" -eq 10 ]
+    # Five gate verdicts plus nine deployment phase cells.
+    [ "$(grep -o ':white_check_mark: passed' "$SUMMARY_FILE" | wc -l | tr -d ' ')" -eq 14 ]
     grep -F '| PR metadata |' "$SUMMARY_FILE"
     grep -F '| prek |' "$SUMMARY_FILE"
-    grep -F '| Debian Trixie |' "$SUMMARY_FILE"
-    grep -F '| macOS |' "$SUMMARY_FILE"
+    grep -F '| Debian Trixie x86-64 |' "$SUMMARY_FILE"
+    grep -F '| Debian Trixie ARM64 |' "$SUMMARY_FILE"
+    grep -F '| macOS ARM64 |' "$SUMMARY_FILE"
 }
 
 @test "CI summary surfaces a failed gate (e.g. PR metadata) even when deployments pass" {
@@ -34,6 +39,9 @@ setup() {
         TRIXIE_BUILD=success \
         TRIXIE_INSTALL=success \
         TRIXIE_SMOKE=success \
+        TRIXIE_ARM64_BUILD=success \
+        TRIXIE_ARM64_INSTALL=success \
+        TRIXIE_ARM64_SMOKE=success \
         MACOS_BUILD=success \
         MACOS_INSTALL=success \
         MACOS_SMOKE=success \
@@ -50,6 +58,9 @@ setup() {
         TRIXIE_BUILD=success \
         TRIXIE_INSTALL=failure \
         TRIXIE_SMOKE=skipped \
+        TRIXIE_ARM64_BUILD=success \
+        TRIXIE_ARM64_INSTALL=success \
+        TRIXIE_ARM64_SMOKE=success \
         MACOS_BUILD=cancelled \
         MACOS_INSTALL= \
         MACOS_SMOKE=success \
@@ -62,6 +73,117 @@ setup() {
     grep -F ':warning: cancelled' "$SUMMARY_FILE"
     grep -F ':grey_question: unavailable' "$SUMMARY_FILE"
     # Trixie rolls up to failed (a failing phase); macOS rolls up to cancelled.
-    grep -F '| Debian Trixie | :x: failed |' "$SUMMARY_FILE"
-    grep -F '| macOS | :warning: cancelled |' "$SUMMARY_FILE"
+    grep -F '| Debian Trixie x86-64 | :x: failed |' "$SUMMARY_FILE"
+    grep -F '| Debian Trixie ARM64 | :white_check_mark: passed |' "$SUMMARY_FILE"
+    grep -F '| macOS ARM64 | :warning: cancelled |' "$SUMMARY_FILE"
+}
+
+@test "CI summary reports an ARM64 failure separately from successful x86-64" {
+    run env PR_METADATA_RESULT=success PREK_RESULT=success \
+        TRIXIE_BUILD=success TRIXIE_INSTALL=success TRIXIE_SMOKE=success \
+        TRIXIE_ARM64_BUILD=success TRIXIE_ARM64_INSTALL=failure TRIXIE_ARM64_SMOKE=skipped \
+        MACOS_BUILD=success MACOS_INSTALL=success MACOS_SMOKE=success \
+        "$REPO_ROOT/.github/scripts/render-deployment-summary.sh" "$SUMMARY_FILE"
+    [ "$status" -eq 0 ]
+    grep -F '| Debian Trixie x86-64 | :white_check_mark: passed |' "$SUMMARY_FILE"
+    grep -F '| Debian Trixie ARM64 | :x: failed |' "$SUMMARY_FILE"
+    grep -F '| macOS ARM64 | :white_check_mark: passed |' "$SUMMARY_FILE"
+}
+
+setup_macos_runner() {
+    export TEST_BREW_PREFIX="$BATS_TEST_TMPDIR/brew" BREW_LOG="$BATS_TEST_TMPDIR/brew.log"
+    mkdir -p "$TEST_BREW_PREFIX/bin" "$BATS_TEST_TMPDIR/bin"
+    cat >"$BATS_TEST_TMPDIR/bin/uname" <<'STUB'
+#!/bin/sh
+case "$1" in
+    -s) printf '%s\n' "${TEST_SYSTEM:-Darwin}" ;;
+    -m) printf '%s\n' "${TEST_MACHINE:-arm64}" ;;
+esac
+STUB
+    cat >"$BATS_TEST_TMPDIR/bin/brew" <<'STUB'
+#!/bin/sh
+printf '%s\n' "$*" >>"$BREW_LOG"
+case "$1" in
+    --prefix) printf '%s\n' "$TEST_BREW_PREFIX" ;;
+    unlink) exit "${TEST_UNLINK_RESULT:-0}" ;;
+esac
+STUB
+    chmod +x "$BATS_TEST_TMPDIR/bin/uname" "$BATS_TEST_TMPDIR/bin/brew"
+}
+
+@test "macOS CI unlinks only the runner's conflicting OpenSSL 1.1 keg" {
+    setup_macos_runner
+    ln -s "$TEST_BREW_PREFIX/opt/openssl@1.1/bin/openssl" "$TEST_BREW_PREFIX/bin/openssl"
+    run env PATH="$BATS_TEST_TMPDIR/bin:$PATH" GITHUB_ACTIONS=true \
+        "$REPO_ROOT/.github/scripts/prepare-macos-runner.sh"
+    [ "$status" -eq 0 ]
+    [ "$(cat "$BREW_LOG")" = "untap aws/tap
+--prefix
+unlink openssl@1.1" ]
+}
+
+@test "macOS CI leaves a current OpenSSL 3 link unchanged" {
+    setup_macos_runner
+    ln -s "$TEST_BREW_PREFIX/opt/openssl@3/bin/openssl" "$TEST_BREW_PREFIX/bin/openssl"
+    run env PATH="$BATS_TEST_TMPDIR/bin:$PATH" GITHUB_ACTIONS=true \
+        "$REPO_ROOT/.github/scripts/prepare-macos-runner.sh"
+    [ "$status" -eq 0 ]
+    [ "$(readlink "$TEST_BREW_PREFIX/bin/openssl")" = "$TEST_BREW_PREFIX/opt/openssl@3/bin/openssl" ]
+    run grep -F unlink "$BREW_LOG"
+    [ "$status" -ne 0 ]
+}
+
+@test "macOS runner preparation refuses a workstation or Intel runner before Homebrew" {
+    setup_macos_runner
+    run env PATH="$BATS_TEST_TMPDIR/bin:$PATH" GITHUB_ACTIONS=false \
+        "$REPO_ROOT/.github/scripts/prepare-macos-runner.sh"
+    [ "$status" -eq 1 ]
+    [ ! -f "$BREW_LOG" ]
+    run env PATH="$BATS_TEST_TMPDIR/bin:$PATH" GITHUB_ACTIONS=true TEST_MACHINE=x86_64 \
+        "$REPO_ROOT/.github/scripts/prepare-macos-runner.sh"
+    [ "$status" -eq 1 ]
+    [ ! -f "$BREW_LOG" ]
+}
+
+@test "macOS runner preparation does not hide a failed OpenSSL unlink" {
+    setup_macos_runner
+    ln -s "$TEST_BREW_PREFIX/opt/openssl@1.1/bin/openssl" "$TEST_BREW_PREFIX/bin/openssl"
+    run env PATH="$BATS_TEST_TMPDIR/bin:$PATH" GITHUB_ACTIONS=true TEST_UNLINK_RESULT=1 \
+        "$REPO_ROOT/.github/scripts/prepare-macos-runner.sh"
+    [ "$status" -eq 1 ]
+}
+
+@test "CI declares native Linux coverage and requires both deployment results" {
+    run python3 - "$REPO_ROOT" <<'PY'
+from pathlib import Path
+import re
+import sys
+
+root = Path(sys.argv[1])
+workflow = (root / ".github/workflows/ci.yaml").read_text()
+prek = (root / ".github/workflows/prek.yaml").read_text()
+for name, runner, arch, machine in [
+    ("trixie-deployment", "ubuntu-24.04", "amd64", "x86_64"),
+    ("trixie-arm64-deployment", "ubuntu-24.04-arm", "arm64", "aarch64"),
+]:
+    job = re.search(rf"(?ms)^  {name}:\n(.*?)(?=^  \S|\Z)", workflow)[1]
+    assert f"runner: {runner}\n" in job
+    assert f"arch: {arch}\n" in job
+    assert f"machine: {machine}\n" in job
+for name in ["ci", "ci-summary"]:
+    job = re.search(rf"(?ms)^  {name}:\n(.*?)(?=^  \S|\Z)", workflow)[1]
+    assert "trixie-arm64-deployment" in job
+gate = re.search(r"(?ms)^  ci:\n(.*?)(?=^  \S|\Z)", workflow)[1]
+assert 'test "$TRIXIE_ARM64_RESULT" = success' in gate
+assert "runner: ubuntu-24.04\n" in prek
+assert "runner: ubuntu-24.04-arm\n" in prek
+assert "fail-fast: false" in prek
+assert "luacheck-${{ runner.os }}-${{ runner.arch }}" in prek
+pbvar = (root / ".github/workflows/pbvar-build.yaml").read_text()
+for runner in ["ubuntu-24.04", "ubuntu-24.04-arm", "macos-15"]:
+    assert f"runner: {runner}\n" in pbvar
+assert "fail-fast: false" in pbvar
+assert '- ".github/workflows/pbvar-build.yaml"' in pbvar
+PY
+    [ "$status" -eq 0 ]
 }

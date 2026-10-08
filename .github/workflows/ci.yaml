@@ -1,3 +1,4 @@
+# .github/workflows/ci.yaml
 ---
 name: ci
 
@@ -38,75 +39,23 @@ jobs:
 
   trixie-deployment:
     name: Trixie deployment
-    runs-on: ubuntu-latest
-    environment: trixie
-    timeout-minutes: 20
-    outputs:
-      build: ${{ steps.outcomes.outputs.build }}
-      install: ${{ steps.outcomes.outputs.install }}
-      smoke: ${{ steps.outcomes.outputs.smoke }}
-    steps:
-      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7
+    uses: ./.github/workflows/trixie-deployment.yaml
+    with:
+      runner: ubuntu-24.04
+      arch: amd64
+      machine: x86_64
 
-      - name: Build Trixie deployment image
-        id: build
-        continue-on-error: true
-        run: >-
-          docker build
-          --file tests/trixie-deployment/Dockerfile.trixie
-          --tag dotfiles-trixie-deployment
-          .
-
-      - name: Install dotfiles in Trixie
-        id: install
-        if: steps.build.outcome == 'success'
-        continue-on-error: true
-        run: |
-          docker run \
-            --detach \
-            --name dotfiles-trixie-deployment \
-            dotfiles-trixie-deployment \
-            sleep infinity
-          docker exec dotfiles-trixie-deployment \
-            bash /home/dotfiles/source/tests/trixie-deployment/deploy.sh
-
-      - name: Smoke test Trixie deployment
-        id: smoke
-        if: steps.install.outcome == 'success'
-        continue-on-error: true
-        run: >-
-          docker exec dotfiles-trixie-deployment
-          bash /home/dotfiles/source/tests/deployment-smoke.sh
-
-      - name: Stop Trixie deployment container
-        if: always()
-        run: docker rm --force dotfiles-trixie-deployment 2>/dev/null || true
-
-      - name: Export Trixie phase outcomes
-        id: outcomes
-        if: always()
-        env:
-          BUILD_OUTCOME: ${{ steps.build.outcome }}
-          INSTALL_OUTCOME: ${{ steps.install.outcome }}
-          SMOKE_OUTCOME: ${{ steps.smoke.outcome }}
-        run: |
-          {
-            printf 'build=%s\n' "$BUILD_OUTCOME"
-            printf 'install=%s\n' "$INSTALL_OUTCOME"
-            printf 'smoke=%s\n' "$SMOKE_OUTCOME"
-          } >> "$GITHUB_OUTPUT"
-
-      - name: Enforce successful Trixie deployment
-        if: >-
-          always() &&
-          (steps.build.outcome != 'success' ||
-          steps.install.outcome != 'success' ||
-          steps.smoke.outcome != 'success')
-        run: exit 1
+  trixie-arm64-deployment:
+    name: Trixie deployment (ARM64)
+    uses: ./.github/workflows/trixie-deployment.yaml
+    with:
+      runner: ubuntu-24.04-arm
+      arch: arm64
+      machine: aarch64
 
   macos-deployment:
     name: macOS deployment
-    runs-on: macos-15
+    runs-on: macos-15 # ARM64; Intel uses macos-15-intel.
     environment: macos
     timeout-minutes: 20
     env:
@@ -121,10 +70,8 @@ jobs:
     steps:
       - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7
 
-      # The runner preinstalls aws/tap, which Homebrew now flags as untrusted on
-      # every brew command. We do not use it, so drop it to keep the logs clean.
-      - name: Drop the untrusted aws/tap
-        run: brew untap aws/tap 2>/dev/null || true
+      - name: Verify ARM64 macOS and prepare runner Homebrew
+        run: .github/scripts/prepare-macos-runner.sh
 
       - name: Build clean macOS deployment source
         id: build
@@ -176,7 +123,7 @@ jobs:
     name: CI summary
     # always() + every gate so the comment reflects the real per-run outcome
     # (including a red PR metadata / prek), not just the deployment jobs.
-    needs: [pr-metadata, prek, trixie-deployment, macos-deployment]
+    needs: [pr-metadata, prek, trixie-deployment, trixie-arm64-deployment, macos-deployment]
     if: always() && github.event_name == 'pull_request'
     runs-on: ubuntu-latest
     steps:
@@ -189,6 +136,9 @@ jobs:
           TRIXIE_BUILD: ${{ needs.trixie-deployment.outputs.build }}
           TRIXIE_INSTALL: ${{ needs.trixie-deployment.outputs.install }}
           TRIXIE_SMOKE: ${{ needs.trixie-deployment.outputs.smoke }}
+          TRIXIE_ARM64_BUILD: ${{ needs.trixie-arm64-deployment.outputs.build }}
+          TRIXIE_ARM64_INSTALL: ${{ needs.trixie-arm64-deployment.outputs.install }}
+          TRIXIE_ARM64_SMOKE: ${{ needs.trixie-arm64-deployment.outputs.smoke }}
           MACOS_BUILD: ${{ needs.macos-deployment.outputs.build }}
           MACOS_INSTALL: ${{ needs.macos-deployment.outputs.install }}
           MACOS_SMOKE: ${{ needs.macos-deployment.outputs.smoke }}
@@ -205,7 +155,7 @@ jobs:
 
   ci:
     name: CI
-    needs: [pr-metadata, prek, trixie-deployment, macos-deployment]
+    needs: [pr-metadata, prek, trixie-deployment, trixie-arm64-deployment, macos-deployment]
     if: always()
     runs-on: ubuntu-latest
     steps:
@@ -215,11 +165,13 @@ jobs:
           PR_METADATA_RESULT: ${{ needs.pr-metadata.result }}
           PREK_RESULT: ${{ needs.prek.result }}
           TRIXIE_RESULT: ${{ needs.trixie-deployment.result }}
+          TRIXIE_ARM64_RESULT: ${{ needs.trixie-arm64-deployment.result }}
           MACOS_RESULT: ${{ needs.macos-deployment.result }}
         run: |
           printf 'PR metadata: %s\n' "$PR_METADATA_RESULT"
           printf 'prek: %s\n' "$PREK_RESULT"
           printf 'Trixie deployment: %s\n' "$TRIXIE_RESULT"
+          printf 'Trixie ARM64 deployment: %s\n' "$TRIXIE_ARM64_RESULT"
           printf 'macOS deployment: %s\n' "$MACOS_RESULT"
           if [[ "$EVENT_NAME" = pull_request ]]; then
             test "$PR_METADATA_RESULT" = success
@@ -228,6 +180,7 @@ jobs:
           fi
           test "$PREK_RESULT" = success
           test "$TRIXIE_RESULT" = success
+          test "$TRIXIE_ARM64_RESULT" = success
           test "$MACOS_RESULT" = success
 
   release-please:

@@ -1,9 +1,20 @@
 <!-- docs/ci.md -->
 # CI
 
-Pull requests and pushes to `main` use one workflow. The quick checks and both
+Pull requests and pushes to `main` use one workflow. The quick checks and all
 deployment targets run in parallel, because proving a dotfiles change should
 not require a coffee break and a small ritual.
+
+## Table of Contents
+
+- [Pull request metadata](#pull-request-metadata)
+- [prek](#prek)
+- [Trixie deployment](#trixie-deployment)
+- [macOS deployment](#macos-deployment)
+- [pbvar tests](#pbvar-tests)
+- [Parallel jobs and summaries](#parallel-jobs-and-summaries)
+- [Required repository rules](#required-repository-rules)
+- [Running checks locally](#running-checks-locally)
 
 ## Pull request metadata
 
@@ -47,17 +58,29 @@ version documented in [Contributing](../CONTRIBUTING.md) and runs
 - palette drift checks;
 - Python and Bats suites.
 
+The full hook set runs on native Linux x86-64 (`ubuntu-24.04`) and ARM64
+(`ubuntu-24.04-arm`). Each job asserts its machine architecture. Fail-fast is
+disabled so a failure on one architecture does not cancel coverage of the other.
+
 The workflow checks out the palette submodule and installs the system
 dependencies needed by hooks. Bats is pinned in the hooks' isolated Node
 environment, so local runs and CI use the same runner without a global Bats
 installation. The workflow caches `~/.cache/prek` by operating system,
 architecture, prek version, and hook configuration. The shared CI summary
-comment includes the prek result. The workflow and job names are both `prek`.
+comment includes the combined prek result. The prek and LuaRocks caches include
+the runner architecture, so native artifacts never cross between runners.
 
 ## Trixie deployment
 
-The Trixie job builds `tests/trixie-deployment/Dockerfile.trixie`, then runs a
-real unattended package-mode chezmoi apply as a non-root user.
+Two Trixie jobs call `.github/workflows/trixie-deployment.yaml`: x86-64 on
+`ubuntu-24.04`, and ARM64 on `ubuntu-24.04-arm`. Each builds
+`tests/trixie-deployment/Dockerfile.trixie`, then runs a real unattended
+package-mode chezmoi apply as a non-root user.
+
+The host machine, Docker platform, and built image architecture must agree.
+These are native runs, not QEMU emulation. Separate reusable-workflow calls keep
+each architecture's build, install, and smoke outputs distinct; one result
+cannot overwrite the other as a matrix output might.
 
 The deployment deliberately starts with an existing GitHub CLI APT source using
 an alternate valid keyring path. That catches duplicate-repository and
@@ -71,8 +94,15 @@ Git behavior, tmux options, dynamic scrollback, and wheel binding.
 
 ## macOS deployment
 
-The macOS job runs natively on `macos-15`; it is not a Linux container wearing
-an Apple sticker.
+The macOS job runs natively on the ARM64 `macos-15` image. Runner preparation
+rejects Intel machines before Homebrew work begins. The labels follow GitHub's
+[hosted runner reference](https://docs.github.com/en/actions/reference/runners/github-hosted-runners).
+
+The disposable runner's Homebrew setup can force-link retired OpenSSL 1.1 into
+the shared binary directory. Preparation unlinks that keg only when it owns
+the conflicting `openssl` link, allowing OpenSSL 3 dependencies to link normally.
+It does not uninstall the keg or use force-overwrite. The helper refuses to run
+outside GitHub Actions and also removes the runner's unused, untrusted `aws/tap`.
 
 The build phase copies a clean source tree and verifies the rendered archive.
 The install phase performs a fully headless package-mode apply with Homebrew.
@@ -81,14 +111,23 @@ The same runtime smoke script then checks Zsh, Git, and tmux.
 Build, install, and smoke outcomes are exported separately so a failure says
 which layer broke.
 
+## pbvar tests
+
+The separate `pbvar-build` workflow runs Go formatting, vet, and tests natively
+on Linux x86-64, Linux ARM64, and macOS ARM64. It runs when the tool or its
+workflow changes. Architecture assertions and disabled fail-fast preserve
+coverage of every target. Release cross-compilation remains a separate Linux
+job and waits for every native test entry to pass.
+
 ## Parallel jobs and summaries
 
-Trixie, macOS, prek, and PR metadata are sibling jobs. GitHub can schedule
-them together instead of serializing two operating systems for no good reason.
+Both Trixie architectures, ARM64 macOS, prek, and PR metadata are sibling jobs.
+GitHub can schedule them together instead of serializing operating systems.
 
 The deployment summary job posts one sticky table with build, install, and
-smoke outcomes for both platforms. The aggregate `CI` job fails unless every
-required sibling succeeds.
+smoke outcomes separately for Linux x86-64, Linux ARM64, and macOS ARM64. The
+aggregate `CI` job fails unless both Linux deployments, macOS, and every prek
+matrix entry succeed. It also enforces PR metadata on pull requests.
 
 On pushes to `main`, PR metadata is expected to be skipped. The other checks
 still run before Release Please is allowed to update or publish anything.
@@ -101,9 +140,13 @@ The `main` ruleset should require:
 - squash merges and linear history;
 - `CI`;
 - `PR metadata`;
-- `ci / prek` (runs prek);
-- successful `trixie` deployment;
-- successful `macos` deployment.
+- successful prek checks on both Linux architectures;
+- successful Trixie deployments on both Linux architectures;
+- successful ARM64 macOS deployment.
+
+The stable `CI` check enforces all architecture-specific jobs. Architecture
+names can change individual check contexts; review any separately required
+checks against the actual run before changing repository rules.
 
 GitHub environment names and check names are case-sensitive enough to waste an
 afternoon. Copy them from the completed workflow when configuring the ruleset.

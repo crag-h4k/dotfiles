@@ -284,7 +284,7 @@ repos:
         language: node
         additional_dependencies: ['bats@1.13.0']
         pass_filenames: false
-        files: ^(\.github/(scripts/render-deployment-summary\.sh|workflows/ci\.yaml)|tests/test_ci_summary\.bats)$
+        files: ^(\.github/(scripts/(render-deployment-summary|prepare-macos-runner)\.sh|workflows/(ci|prek|trixie-deployment|pbvar-build)\.yaml)|tests/test_ci_summary\.bats)$
 
       - id: bats-pr-metadata
         name: bats (branch and PR title convention)

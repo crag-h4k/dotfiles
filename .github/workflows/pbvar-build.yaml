@@ -1,3 +1,4 @@
+# .github/workflows/pbvar-build.yaml
 ---
 name: pbvar-build
 
@@ -9,6 +10,7 @@ on:
   pull_request:
     paths:
       - "tools/pbvar/**"
+      - ".github/workflows/pbvar-build.yaml"
   push:
     tags:
       - "pbvar-v*"
@@ -19,8 +21,33 @@ permissions:
 
 jobs:
   test:
-    runs-on: ubuntu-latest
+    name: pbvar (${{ matrix.platform }})
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - platform: Linux x86-64
+            runner: ubuntu-24.04
+            system: Linux
+            machine: x86_64
+          - platform: Linux ARM64
+            runner: ubuntu-24.04-arm
+            system: Linux
+            machine: aarch64
+          - platform: macOS ARM64
+            runner: macos-15
+            system: Darwin
+            machine: arm64
+    runs-on: ${{ matrix.runner }}
+    env:
+      EXPECTED_SYSTEM: ${{ matrix.system }}
+      EXPECTED_MACHINE: ${{ matrix.machine }}
     steps:
+      - name: Verify native runner architecture
+        run: |
+          test "$(uname -s)" = "$EXPECTED_SYSTEM"
+          test "$(uname -m)" = "$EXPECTED_MACHINE"
+
       - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7
       - uses: actions/setup-go@40f1582b2485089dde7abd97c1529aa768e1baff # v5
         with:

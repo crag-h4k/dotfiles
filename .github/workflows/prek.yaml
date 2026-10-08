@@ -1,3 +1,4 @@
+# .github/workflows/prek.yaml
 ---
 name: prek
 
@@ -13,10 +14,27 @@ permissions:
 
 jobs:
   prek:
-    runs-on: ubuntu-latest
+    name: prek (Linux ${{ matrix.arch }})
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - arch: x86-64
+            runner: ubuntu-24.04
+            machine: x86_64
+          - arch: ARM64
+            runner: ubuntu-24.04-arm
+            machine: aarch64
+    runs-on: ${{ matrix.runner }}
     env:
       PREK_VERSION: "0.5.4"
+      EXPECTED_MACHINE: ${{ matrix.machine }}
     steps:
+      - name: Verify native Linux runner architecture
+        run: |
+          test "$(uname -s)" = Linux
+          test "$(uname -m)" = "$EXPECTED_MACHINE"
+
       - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7
         with:
           # base16 scheme submodule, so build-palettes.py --check can verify the
@@ -67,9 +85,9 @@ jobs:
         uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
         with:
           path: ~/.luarocks-tree
-          key: luacheck-${{ runner.os }}-lua${{ steps.lua.outputs.version }}-1.2.0
+          key: luacheck-${{ runner.os }}-${{ runner.arch }}-lua${{ steps.lua.outputs.version }}-1.2.0
           restore-keys: |
-            luacheck-${{ runner.os }}-lua${{ steps.lua.outputs.version }}-
+            luacheck-${{ runner.os }}-${{ runner.arch }}-lua${{ steps.lua.outputs.version }}-
 
       - name: Install luacheck
         run: |
