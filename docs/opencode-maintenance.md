@@ -32,6 +32,9 @@ CLI, server, plugin SDK, and terminal versions when diagnosing compatibility.
 - Stage and check CLI/plugin runtime compatibility and required imports before
   switching the stable binary or runtime links. Preserve old releases on failure.
   Chezmoi must not manage runtime node_modules, npm lockfiles, or authentication.
+  Resolve OpenTUI and Solid.js against the selected SDK's declared peers through
+  `npm-candidate.sh`. Runtime aging exceptions cover `@opencode/*` and
+  `@opentui/*`, not all npm packages. Metadata failure must not start installation.
 - Keep the managed footer on the shared palette and native V2 rendering API.
   Provider usage belongs at the far right. Preserve monthly Copilot and weekly
   quota coverage for direct logins and compatible gateways when available.
@@ -49,6 +52,9 @@ CLI, server, plugin SDK, and terminal versions when diagnosing compatibility.
   agent; the terminal plugin replies once to its permission asks while
   connected, never to question forms. Configured denials create no request.
   Keep the native agent picker available if the plugin fails to load.
+  Before the first prompt creates a session, Shift+Tab falls through to the
+  native home-screen agent cycle. Do not create or query a session merely to
+  select the initial mode, and return `false` synchronously for that key path.
 - The agent-catalog CLI plugin reads OpenCode's agent registry for the current
   location. Open it through the command palette as **Browse configured agents**
   or run `/subagents` or `/subagents-catalog`. It is read-only: browsing an agent

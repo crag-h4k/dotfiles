@@ -1,4 +1,5 @@
 /** @jsxImportSource @opentui/solid */
+// home/dot_config/opencode/plugins/session-workflow/tui.tsx
 import { Plugin } from "@opencode/plugin/tui"
 import { nextMode, shouldAutoApprove } from "./workflow.mjs"
 
@@ -35,7 +36,12 @@ export default Plugin.define({
           mode: "global",
           priority: 10,
           commands: [
-            { id: "dotfiles.mode.cycle", title: "Cycle Build / Plan / Auto", bind: "shift+tab", run: cycle },
+            {
+              id: "dotfiles.mode.cycle",
+              title: "Cycle Build / Plan / Auto",
+              bind: "shift+tab",
+              run: () => context.ui.router.current().type === "session" ? cycle() : false,
+            },
           ],
         }))
         return <></>

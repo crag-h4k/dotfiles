@@ -437,9 +437,10 @@ are skipped; metadata failures appear under `Could not check`.
 
 Floating npm candidates use npm's age-aware resolution, so a preview does not
 pin a fresh release that the user's release-age window would reject. OpenCode
-uses the same `@opencode/*` exception as its native updater so its exact CLI,
-platform binary, and matching SDK can advance together. Other packages retain
-the configured release-age window.
+uses an `@opencode/*` exception for its exact CLI and platform release family.
+Runtime synchronization also exempts `@opentui/*` when resolving the SDK's
+declared peers, so a required same-day OpenTUI release is not rejected. Other
+packages retain the configured release-age window.
 
 Native discovery refreshes registry metadata and Git objects without installing
 packages or changing checked-out files. Parser candidates come from the planned

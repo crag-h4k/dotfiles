@@ -21,9 +21,11 @@
 set -euo pipefail
 
 backup_root="$HOME/.dotfiles-backup"
-backup_dir="$backup_root/$(date +%Y%m%dT%H%M%S)"
+mkdir -p "$backup_root"
+backup_dir=$(mktemp -d "$backup_root/$(date +%Y%m%dT%H%M%S)-XXXXXX")
 backed_up=0
 moved=0
+managed_zshrc=false
 started=$SECONDS
 
 printf 'dotfiles: inspecting existing configs for backup...\n'
@@ -68,6 +70,7 @@ move_aside() {
 # 1. Every managed file (the configs themselves).
 while IFS= read -r target; do
     copy_into_backup "$target"
+    if [[ "$target" == "$HOME/.zshrc" ]]; then managed_zshrc=true; fi
 done < <(chezmoi managed --path-style=absolute --include=files 2>/dev/null)
 
 # 2. Non-managed state / local-addition files colocated with a managed file (e.g.
@@ -146,6 +149,16 @@ while IFS= read -r t; do
         move_aside "$t"
     fi
 done < <(chezmoi managed --path-style=absolute --include=externals 2>/dev/null)
+
+# Some installers append a duplicate ~/.local/bin guard to the managed zshrc.
+# Normalize only that recognized tail after backup; other edits remain conflicts.
+if [[ "$managed_zshrc" == true && -f "$HOME/.zshrc" ]] && command -v python3 >/dev/null 2>&1; then
+    zshrc_source="${CHEZMOI_SOURCE_DIR:?}/dot_zshrc"
+    normalizer="$CHEZMOI_SOURCE_DIR/../scripts/normalize-zshrc.py"
+    if [[ -f "$zshrc_source" && -f "$normalizer" ]]; then
+        python3 "$normalizer" "$zshrc_source" "$HOME/.zshrc" "$backup_dir"
+    fi
+fi
 
 elapsed=$(( SECONDS - started ))
 if (( backed_up > 0 || moved > 0 )); then

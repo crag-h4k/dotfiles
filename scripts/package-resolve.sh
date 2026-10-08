@@ -2,6 +2,10 @@
 # scripts/package-resolve.sh
 # Resolve selected packages once; installers consume these exact decisions.
 
+# shellcheck source-path=SCRIPTDIR
+# shellcheck source=../home/dot_config/opencode/npm-candidate.sh
+source "$_COMMON_SH_DIR/../home/dot_config/opencode/npm-candidate.sh"
+
 _resolve_version() {
     "$1" --version 2>/dev/null | grep -Eo '[0-9]+\.[0-9]+\.[0-9]+([-+][0-9A-Za-z.-]+)?' | head -1
 }
@@ -20,37 +24,6 @@ _resolve_compare() {
         status=update
         reason="version differs"
     fi
-}
-
-_resolve_npm_candidate() {
-    local name="$1" selector="$2" directory output result=0
-    directory=$(mktemp -d) || return 1
-    directory=$(cd "$directory" && pwd -P) || return 1
-    if ! node -e 'console.log(JSON.stringify({private:true,dependencies:{[process.argv[1]]:process.argv[2]}}))' \
-        "$name" "$selector" >"$directory/package.json"; then
-        rm -f "$directory/package.json"
-        rmdir "$directory"
-        return 1
-    fi
-    # A missing dependency makes outdated resolve the tag/range with npm's own
-    # release-age and before filters, without installing anything. `view` ignores
-    # those filters and can preview an exact version that installation rejects.
-    local -a command=(npm outdated --prefix "$directory" --long --json --fetch-retries=0 --fetch-timeout=15000)
-    if [[ "$name" == @opencode/cli ]]; then
-        command=(env 'NPM_CONFIG_MIN_RELEASE_AGE_EXCLUDE=@opencode/*' "${command[@]}")
-    fi
-    output=$("${command[@]}" 2>/dev/null) || result=$?
-    rm -f "$directory/package.json"
-    rmdir "$directory"
-    (( result <= 1 )) || return 1
-    printf '%s' "$output" | node -e '
-let s=""; process.stdin.on("data", c => s += c); process.stdin.on("end", () => {
-  try {
-    const version=JSON.parse(s)[process.argv[1]]?.wanted
-    if (typeof version !== "string") process.exit(1)
-    console.log(version)
-  } catch { process.exit(1) }
-})' "$name"
 }
 
 _resolve_npm() {
@@ -85,7 +58,7 @@ const fs = require("node:fs")
 const path = require("node:path")
 const [config, version] = process.argv.slice(2)
 try {
-  for (const name of ["@opencode/plugin", "@opentui/solid", "solid-js"]) {
+  for (const name of ["@opencode/plugin", "@opentui/core", "@opentui/solid", "solid-js"]) {
     const file = path.join(config, "node_modules", name, "package.json")
     const pkg = JSON.parse(fs.readFileSync(file, "utf8"))
     if (!pkg.version || (name === "@opencode/plugin" && pkg.version !== version)) process.exit(1)

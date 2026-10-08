@@ -267,7 +267,7 @@ STUB
   run bash -c 'source "$1/scripts/common.sh"; source "$1/scripts/package-resolve.sh"; name=@opencode/cli; probe=opencode2; policy=floating; OPENCODE2_VERSION=latest; current=-; candidate=-; _resolve_npm; printf "%s\n" "$status"' _ "$ROOT"
   [ "$status" -eq 0 ]
   [ "$output" = check ]
-  for package in @opentui/solid solid-js; do
+  for package in @opentui/core @opentui/solid solid-js; do
     mkdir -p "$config/node_modules/$package"
     printf '{"version":"1.0.0","exports":{".":{"import":"./index.js"}}}\n' >"$config/node_modules/$package/package.json"
     touch "$config/node_modules/$package/index.js"
@@ -275,6 +275,10 @@ STUB
   run bash -c 'source "$1/scripts/common.sh"; source "$1/scripts/package-resolve.sh"; name=@opencode/cli; probe=opencode2; policy=floating; OPENCODE2_VERSION=latest; current=-; candidate=-; _resolve_npm; printf "%s\n" "$status"' _ "$ROOT"
   [ "$status" -eq 0 ]
   [ "$output" = installed ]
+  rm "$config/node_modules/@opentui/core/index.js"
+  run bash -c 'source "$1/scripts/common.sh"; source "$1/scripts/package-resolve.sh"; name=@opencode/cli; probe=opencode2; policy=floating; OPENCODE2_VERSION=latest; current=-; candidate=-; _resolve_npm; printf "%s\n" "$status"' _ "$ROOT"
+  [ "$status" -eq 0 ]
+  [ "$output" = check ]
 }
 
 @test "Terraform version inspection disables proxy auto-installation" {

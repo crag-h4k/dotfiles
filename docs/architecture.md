@@ -80,11 +80,11 @@ runtime, and libraries. A headless health check runs before the stable pointer
 and wrapper switch. The previous tree remains available for rollback, and an
 APT-owned Neovim package is removed only after the staged tree works.
 
-OpenCode 2 stages its CLI and unlocked plugin runtime independently. The CLI,
-runtime install, and required module checks all pass before the isolated native
-binary and unmanaged `node_modules` links change. Chezmoi tracks neither the
-runtime nor an npm lockfile. Previous release directories remain in place if
-staging or activation fails.
+OpenCode 2 uses an isolated npm-owned CLI and a local plugin runtime. The SDK
+matches the CLI version; OpenTUI and Solid.js candidates satisfy the declared
+peer requirements. Metadata failure stops runtime installation before changing
+existing modules. Chezmoi manages the wrapper and configuration, not runtime
+`node_modules` or npm lockfiles.
 
 The tmux `↓ • ↑` network indicator uses `xamut/tmux-network-bandwidth`,
 replacing the Linux-only `tmux-net-speed`. Its package set includes

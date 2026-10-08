@@ -95,6 +95,7 @@ package_plan_signature() {
         done
         printf '%s\n' "${OPENCODE2_VERSION:-latest}" "${COPILOT_VERSION:-prerelease}" "${PREK_VERSION:-0.5.4}" "${OPENVIKING_VERSION:-0.4.23}"
         cksum "$_COMMON_SH_DIR/package-plan.sh" "$_COMMON_SH_DIR/package-resolve.sh" "$_COMMON_SH_DIR/common.sh"
+        cksum "$_COMMON_SH_DIR/../home/dot_config/opencode/npm-candidate.sh"
         for flag in "$_COMMON_SH_DIR/plan-neovim-packages.lua" "$_COMMON_SH_DIR/neovim-package-lib.lua" \
             "$_COMMON_SH_DIR/neovim-update-lib.lua" \
             "$_COMMON_SH_DIR/install-neovim.sh" "$_COMMON_SH_DIR/install-openviking.sh" "$_COMMON_SH_DIR/update-neovim-packages.lua" \

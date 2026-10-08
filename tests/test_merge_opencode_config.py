@@ -21,7 +21,6 @@ import re
 import shutil
 import subprocess
 import sys
-import tempfile
 from fnmatch import fnmatchcase
 from pathlib import Path
 
@@ -36,13 +35,16 @@ pytestmark = pytest.mark.skipif(
 
 
 @pytest.fixture(scope="module")
-def script() -> str:
+def script(tmp_path_factory) -> str:
     """Render the modify_ template the way chezmoi will, return the script path."""
+    directory = tmp_path_factory.mktemp("opencode-merge")
+    config = directory / "chezmoi.toml"
+    config.write_text('[data]\npalette="dracula"\n[data.components.ai]\nopencode=true\nopenviking=false\n')
     out = subprocess.run(
-        ["chezmoi", "execute-template", "--source", str(REPO)],
+        ["chezmoi", "execute-template", "--source", str(REPO), "--config", str(config)],
         stdin=TMPL.open(), capture_output=True, text=True, check=True,
     ).stdout
-    path = Path(tempfile.mkdtemp()) / "merge.py"
+    path = directory / "merge.py"
     path.write_text(out)
     return str(path)
 
