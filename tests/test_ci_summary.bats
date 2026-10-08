@@ -105,14 +105,26 @@ STUB
 printf '%s\n' "$*" >>"$BREW_LOG"
 case "$1" in
     --prefix) printf '%s\n' "$TEST_BREW_PREFIX" ;;
-    unlink) exit "${TEST_UNLINK_RESULT:-0}" ;;
+    unlink)
+        [ "${TEST_UNLINK_RESULT:-0}" -eq 0 ] || exit "$TEST_UNLINK_RESULT"
+        case "${TEST_UNLINK_EFFECT:-none}" in
+            remove) rm "$TEST_BREW_PREFIX/bin/openssl" ;;
+            replace)
+                rm "$TEST_BREW_PREFIX/bin/openssl"
+                ln -s "$TEST_BREW_PREFIX/opt/openssl@3/bin/openssl" "$TEST_BREW_PREFIX/bin/openssl"
+                ;;
+            none) printf '0 symlinks removed\n' ;;
+        esac
+        ;;
 esac
 STUB
     chmod +x "$BATS_TEST_TMPDIR/bin/uname" "$BATS_TEST_TMPDIR/bin/brew"
 }
 
-@test "macOS CI unlinks only the runner's conflicting OpenSSL 1.1 keg" {
+@test "macOS CI removes the exact stale runner link when Homebrew removes zero symlinks" {
     setup_macos_runner
+    mkdir -p "$TEST_BREW_PREFIX/opt/openssl@1.1/bin"
+    printf 'legacy OpenSSL binary\n' >"$TEST_BREW_PREFIX/opt/openssl@1.1/bin/openssl"
     ln -s "$TEST_BREW_PREFIX/opt/openssl@1.1/bin/openssl" "$TEST_BREW_PREFIX/bin/openssl"
     run env PATH="$BATS_TEST_TMPDIR/bin:$PATH" GITHUB_ACTIONS=true \
         "$REPO_ROOT/.github/scripts/prepare-macos-runner.sh"
@@ -120,6 +132,46 @@ STUB
     [ "$(cat "$BREW_LOG")" = "untap aws/tap
 --prefix
 unlink openssl@1.1" ]
+    [[ "$output" == *'0 symlinks removed'* ]]
+    [ ! -L "$TEST_BREW_PREFIX/bin/openssl" ]
+    [ "$(cat "$TEST_BREW_PREFIX/opt/openssl@1.1/bin/openssl")" = 'legacy OpenSSL binary' ]
+}
+
+@test "macOS CI accepts a successful Homebrew unlink without a leftover link" {
+    setup_macos_runner
+    ln -s "$TEST_BREW_PREFIX/opt/openssl@1.1/bin/openssl" "$TEST_BREW_PREFIX/bin/openssl"
+    run env PATH="$BATS_TEST_TMPDIR/bin:$PATH" GITHUB_ACTIONS=true TEST_UNLINK_EFFECT=remove \
+        "$REPO_ROOT/.github/scripts/prepare-macos-runner.sh"
+    [ "$status" -eq 0 ]
+    [ ! -L "$TEST_BREW_PREFIX/bin/openssl" ]
+    [[ "$output" != *'Removing stale runner link'* ]]
+}
+
+@test "macOS CI rechecks the target after Homebrew replaces the link" {
+    setup_macos_runner
+    ln -s "$TEST_BREW_PREFIX/opt/openssl@1.1/bin/openssl" "$TEST_BREW_PREFIX/bin/openssl"
+    run env PATH="$BATS_TEST_TMPDIR/bin:$PATH" GITHUB_ACTIONS=true TEST_UNLINK_EFFECT=replace \
+        "$REPO_ROOT/.github/scripts/prepare-macos-runner.sh"
+    [ "$status" -eq 0 ]
+    [ "$(readlink "$TEST_BREW_PREFIX/bin/openssl")" = "$TEST_BREW_PREFIX/opt/openssl@3/bin/openssl" ]
+}
+
+@test "macOS CI preserves a regular OpenSSL file or unrelated legacy symlink" {
+    setup_macos_runner
+    printf 'local OpenSSL binary\n' >"$TEST_BREW_PREFIX/bin/openssl"
+    run env PATH="$BATS_TEST_TMPDIR/bin:$PATH" GITHUB_ACTIONS=true \
+        "$REPO_ROOT/.github/scripts/prepare-macos-runner.sh"
+    [ "$status" -eq 0 ]
+    [ "$(cat "$TEST_BREW_PREFIX/bin/openssl")" = 'local OpenSSL binary' ]
+    rm "$TEST_BREW_PREFIX/bin/openssl"
+    local unrelated="$BATS_TEST_TMPDIR/unrelated/openssl@1.1/bin/openssl"
+    ln -s "$unrelated" "$TEST_BREW_PREFIX/bin/openssl"
+    run env PATH="$BATS_TEST_TMPDIR/bin:$PATH" GITHUB_ACTIONS=true \
+        "$REPO_ROOT/.github/scripts/prepare-macos-runner.sh"
+    [ "$status" -eq 0 ]
+    [ "$(readlink "$TEST_BREW_PREFIX/bin/openssl")" = "$unrelated" ]
+    run grep -F unlink "$BREW_LOG"
+    [ "$status" -ne 0 ]
 }
 
 @test "macOS CI leaves a current OpenSSL 3 link unchanged" {
@@ -151,6 +203,7 @@ unlink openssl@1.1" ]
     run env PATH="$BATS_TEST_TMPDIR/bin:$PATH" GITHUB_ACTIONS=true TEST_UNLINK_RESULT=1 \
         "$REPO_ROOT/.github/scripts/prepare-macos-runner.sh"
     [ "$status" -eq 1 ]
+    [ "$(readlink "$TEST_BREW_PREFIX/bin/openssl")" = "$TEST_BREW_PREFIX/opt/openssl@1.1/bin/openssl" ]
 }
 
 @test "CI declares native Linux coverage and requires both deployment results" {

@@ -98,11 +98,13 @@ The macOS job runs natively on the ARM64 `macos-15` image. Runner preparation
 rejects Intel machines before Homebrew work begins. The labels follow GitHub's
 [hosted runner reference](https://docs.github.com/en/actions/reference/runners/github-hosted-runners).
 
-The disposable runner's Homebrew setup can force-link retired OpenSSL 1.1 into
-the shared binary directory. Preparation unlinks that keg only when it owns
-the conflicting `openssl` link, allowing OpenSSL 3 dependencies to link normally.
-It does not uninstall the keg or use force-overwrite. The helper refuses to run
-outside GitHub Actions and also removes the runner's unused, untrusted `aws/tap`.
+The disposable runner's Homebrew setup can leave a manual `bin/openssl` symlink
+to `opt/openssl@1.1/bin/openssl`. Preparation unlinks the retired keg first.
+If Homebrew leaves that exact symlink behind, the helper rechecks its target
+and removes only the symlink, allowing OpenSSL 3 dependencies to link normally.
+Regular files, other targets, and the retired keg's files remain untouched.
+It does not uninstall packages or use force-overwrite. The helper refuses to
+run outside GitHub Actions and also removes the runner's unused, untrusted `aws/tap`.
 
 The build phase copies a clean source tree and verifies the rendered archive.
 The install phase performs a fully headless package-mode apply with Homebrew.
