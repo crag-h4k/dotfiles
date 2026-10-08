@@ -42,6 +42,9 @@ write_opencode_stubs() {
   cat >"$stubs/npm" <<STUB
 #!/bin/sh
 printf '%s\n' "\$*" >>'$log'
+if [ -n "\${NPM_POLICY_LOG:-}" ]; then
+  printf '%s %s\n' "\${NPM_CONFIG_MIN_RELEASE_AGE:-unset}" "\${NPM_CONFIG_MIN_RELEASE_AGE_EXCLUDE:-unset}" >>"\$NPM_POLICY_LOG"
+fi
 prefix=""
 previous=""
 for arg in "\$@"; do
@@ -49,11 +52,30 @@ for arg in "\$@"; do
   previous="\$arg"
 done
   case "\$1" in
-  --version) printf '%s\n' "\${NPM_TEST_VERSION:-11.15.0}" ;;
-  view)
-    case "\$2" in
-      @opentui/solid@latest) printf '0.5.11\n' ;;
-      @opentui/solid@0.5.11) printf '1.9.12\n' ;;
+   --version) printf '%s\n' "\${NPM_TEST_VERSION:-11.15.0}" ;;
+   outdated)
+     [ "\${NPM_CANDIDATE_FAIL:-0}" = 1 ] && exit 2
+     name=\$(node -p 'Object.keys(require(process.argv[1]).dependencies)[0]' "\$prefix/package.json")
+     if [ "\${NPM_VERIFY_PEERS:-0}" = 1 ]; then
+       selector=\$(node -p 'Object.values(require(process.argv[1]).dependencies)[0]' "\$prefix/package.json")
+       case "\$name:\$selector" in
+         '@opentui/solid:>=0.5.11'|'@opentui/core:>=0.5.11 0.5.11'|'solid-js:>=1.9.0 1.9.12') ;;
+         *) exit 91 ;;
+       esac
+     fi
+     case "\$name" in
+       @opentui/solid) printf '{"@opentui/solid":{"wanted":"%s","latest":"0.5.17"}}\n' "\${NPM_TEST_TUI_VERSION:-0.5.11}" ;;
+       @opentui/core) printf '{"@opentui/core":{"wanted":"%s"}}\n' "\${NPM_TEST_TUI_VERSION:-0.5.11}" ;;
+       solid-js) printf '{"solid-js":{"wanted":"1.9.12"}}\n' ;;
+       *) exit 1 ;;
+     esac
+     exit 1
+     ;;
+   view)
+     case "\$2" in
+       @opencode/plugin@*) printf '{"@opentui/solid":">=%s","@opentui/core":">=%s","solid-js":">=1.9.0"}\n' "\${NPM_TEST_TUI_VERSION:-0.5.11}" "\${NPM_TEST_TUI_VERSION:-0.5.11}" ;;
+       @opentui/solid@latest) printf '0.5.11\n' ;;
+       @opentui/solid@*) printf '{"@opentui/core":"%s","solid-js":"1.9.12"}\n' "\${NPM_TEST_TUI_VERSION:-0.5.11}" ;;
       *) exit 1 ;;
     esac
     ;;
@@ -68,13 +90,15 @@ CLI
       chmod +x "\$prefix/bin/opencode2"
     else
       [ "\${NPM_RUNTIME_FAIL:-0}" = 1 ] && exit 1
-      mkdir -p "\$prefix/node_modules/@opencode/plugin" \
+       mkdir -p "\$prefix/node_modules/@opencode/plugin" "\$prefix/node_modules/@opentui/core" \
         "\$prefix/node_modules/@opentui/solid" "\$prefix/node_modules/solid-js"
-      printf '{"name":"@opencode/plugin","version":"2.0.8","main":"index.js"}\n' >"\$prefix/node_modules/@opencode/plugin/package.json"
-      printf 'module.exports = {}\n' >"\$prefix/node_modules/@opencode/plugin/index.js"
-      printf '{"name":"@opentui/solid","version":"1.0.0","main":"index.js"}\n' >"\$prefix/node_modules/@opentui/solid/package.json"
+       printf '{"name":"@opencode/plugin","version":"%s","main":"index.js"}\n' "\${NPM_TEST_SDK_VERSION:-2.0.8}" >"\$prefix/node_modules/@opencode/plugin/package.json"
+       printf 'module.exports = {}\n' >"\$prefix/node_modules/@opencode/plugin/index.js"
+       printf '{"name":"@opentui/core","version":"%s","main":"index.js"}\n' "\${NPM_TEST_TUI_VERSION:-0.5.11}" >"\$prefix/node_modules/@opentui/core/package.json"
+       printf 'module.exports = {}\n' >"\$prefix/node_modules/@opentui/core/index.js"
+       printf '{"name":"@opentui/solid","version":"%s","main":"index.js"}\n' "\${NPM_TEST_TUI_VERSION:-0.5.11}" >"\$prefix/node_modules/@opentui/solid/package.json"
       printf 'module.exports = {}\n' >"\$prefix/node_modules/@opentui/solid/index.js"
-      printf '{"name":"solid-js","version":"1.0.0","main":"index.js"}\n' >"\$prefix/node_modules/solid-js/package.json"
+       printf '{"name":"solid-js","version":"1.9.12","main":"index.js"}\n' >"\$prefix/node_modules/solid-js/package.json"
       printf 'module.exports = {}\n' >"\$prefix/node_modules/solid-js/index.js"
     fi
     ;;
@@ -542,6 +566,8 @@ STUB
   local stubs="$BATS_TEST_TMPDIR/top-node-stubs" npm_log="$BATS_TEST_TMPDIR/top-node-npm.log"
   mkdir -p "$root" "$home" "$stubs"
   cp -R "$REPO_ROOT/scripts" "$root/scripts"
+  mkdir -p "$root/home/dot_config/opencode"
+  cp "$REPO_ROOT/home/dot_config/opencode/npm-candidate.sh" "$root/home/dot_config/opencode/npm-candidate.sh"
   cat >"$stubs/brew" <<'STUB'
 #!/bin/sh
 case "$*" in
@@ -575,6 +601,8 @@ debian_node_bootstrap_fixture() {
   local root="$BATS_TEST_TMPDIR/bootstrap" stubs="$BATS_TEST_TMPDIR/bootstrap-bin"
   mkdir -p "$root" "$stubs"
   cp -R "$REPO_ROOT/scripts" "$root/scripts"
+  mkdir -p "$root/home/dot_config/opencode"
+  cp "$REPO_ROOT/home/dot_config/opencode/npm-candidate.sh" "$root/home/dot_config/opencode/npm-candidate.sh"
   export BOOTSTRAP_LOG="$BATS_TEST_TMPDIR/bootstrap.log"
   export BOOTSTRAP_READY="$BATS_TEST_TMPDIR/bootstrap-ready"
   cat >>"$root/scripts/common.sh" <<'STUB'
@@ -775,4 +803,61 @@ STUB
     bash "$REPO_ROOT/home/dot_config/opencode/executable_sync-runtime.sh" "$binary" "$config"
   [ "$status" -eq 0 ]
   [ ! -s "$log" ]
+}
+
+@test "runtime sync installs compatible resolved peers instead of an unconstrained metadata tag" {
+  local home="$BATS_TEST_TMPDIR/aged-runtime" stubs="$BATS_TEST_TMPDIR/aged-stubs"
+  local config="$home/config" log="$home/npm.log" binary="$home/opencode2" policy_log="$home/npm-policy.log"
+  mkdir -p "$config" "$stubs"
+  printf '#!/bin/sh\nprintf "opencode2 v2.0.8\\n"\n' >"$binary"
+  chmod +x "$binary"
+  write_opencode_stubs "$stubs" "$log"
+  run env HOME="$home" PATH="$stubs:$PATH" NPM_CONFIG_MIN_RELEASE_AGE=3 NPM_VERIFY_PEERS=1 NPM_POLICY_LOG="$policy_log" \
+    bash "$REPO_ROOT/home/dot_config/opencode/executable_sync-runtime.sh" "$binary" "$config"
+  [ "$status" -eq 0 ]
+  grep -Fq '@opentui/solid@0.5.11' "$log"
+  grep -Fq '@opentui/core@0.5.11' "$log"
+  grep -Fq 'solid-js@1.9.12' "$log"
+  grep -Fq 'outdated --prefix' "$log"
+  run grep -F 'view @opentui/solid@latest' "$log"
+  [ "$status" -ne 0 ]
+  run grep -F 'install --prefix' "$log"
+  [[ "$output" != *'@opentui/solid@0.5.17'* ]]
+  [ "$(sort -u "$policy_log")" = '3 @opencode/*,@opentui/*' ]
+}
+
+@test "runtime candidate failure leaves the existing SDK untouched without starting install" {
+  local home="$BATS_TEST_TMPDIR/unresolved-runtime" stubs="$BATS_TEST_TMPDIR/unresolved-stubs"
+  local config="$home/config" log="$home/npm.log" binary="$home/opencode2"
+  mkdir -p "$config/node_modules/@opencode/plugin" "$stubs"
+  printf '#!/bin/sh\nprintf "opencode2 v2.0.8\\n"\n' >"$binary"
+  chmod +x "$binary"
+  printf '{"version":"2.0.7"}\n' >"$config/node_modules/@opencode/plugin/package.json"
+  local before
+  before=$(cksum "$config/node_modules/@opencode/plugin/package.json")
+  write_opencode_stubs "$stubs" "$log"
+  run env HOME="$home" PATH="$stubs:$PATH" NPM_CANDIDATE_FAIL=1 \
+    bash "$REPO_ROOT/home/dot_config/opencode/executable_sync-runtime.sh" "$binary" "$config"
+  [ "$status" -ne 0 ]
+  [[ "$output" == *'eligible OpenTUI Solid release'* ]]
+  [ "$(cksum "$config/node_modules/@opencode/plugin/package.json")" = "$before" ]
+  run grep -F 'install --prefix' "$log"
+  [ "$status" -ne 0 ]
+}
+
+@test "SDK 2.0.26 can install its fresh required OpenTUI family while keeping the age guard elsewhere" {
+  local home="$BATS_TEST_TMPDIR/fresh-sdk" stubs="$BATS_TEST_TMPDIR/fresh-sdk-stubs"
+  local config="$home/config" log="$home/npm.log" binary="$home/opencode2" policy_log="$home/policy.log"
+  mkdir -p "$config" "$stubs"
+  printf '#!/bin/sh\nprintf "opencode2 v2.0.26\\n"\n' >"$binary"
+  chmod +x "$binary"
+  write_opencode_stubs "$stubs" "$log"
+  run env HOME="$home" PATH="$stubs:$PATH" NPM_CONFIG_MIN_RELEASE_AGE=3 NPM_POLICY_LOG="$policy_log" \
+    NPM_TEST_SDK_VERSION=2.0.26 NPM_TEST_TUI_VERSION=0.5.17 \
+    bash "$REPO_ROOT/home/dot_config/opencode/executable_sync-runtime.sh" "$binary" "$config"
+  [ "$status" -eq 0 ]
+  grep -Fq '@opencode/plugin@2.0.26' "$log"
+  grep -Fq '@opentui/core@0.5.17' "$log"
+  grep -Fq '@opentui/solid@0.5.17' "$log"
+  [ "$(sort -u "$policy_log")" = '3 @opencode/*,@opentui/*' ]
 }

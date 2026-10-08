@@ -61,6 +61,7 @@ async function verifySessionWorkflowPlugin(ts, sourcePath, workflow) {
   let commands
   const handlers = {}
   const replies = []
+  const lookups = []
   const context = {
     data: {
       on: (type, handler) => { handlers[type] = handler; return () => {} },
@@ -68,7 +69,7 @@ async function verifySessionWorkflowPlugin(ts, sourcePath, workflow) {
     },
     client: {
       session: {
-        get: async ({ sessionID }) => sessions.get(sessionID),
+        get: async ({ sessionID }) => { lookups.push(sessionID); return sessions.get(sessionID) },
         switchAgent: async ({ sessionID, agent }) => { sessions.get(sessionID).agent = agent },
       },
       permission: { reply: async (reply) => { replies.push(reply) } },
@@ -82,6 +83,14 @@ async function verifySessionWorkflowPlugin(ts, sourcePath, workflow) {
   }
   const dispose = plugin.setup(context)
   const run = (id) => commands.find((command) => command.id === id).run()
+
+  route = { type: "home" }
+  assert.equal(run("dotfiles.mode.cycle"), false)
+  assert.equal(lookups.length, 0)
+  route = { type: "plugin", name: "test" }
+  assert.equal(run("dotfiles.mode.cycle"), false)
+  assert.equal(lookups.length, 0)
+  route = { type: "session", sessionID: "recent" }
 
   await run("dotfiles.mode.cycle")
   assert.equal(sessions.get("recent").agent, "plan")

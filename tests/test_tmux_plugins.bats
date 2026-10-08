@@ -193,6 +193,30 @@ expected_managed_plugins() {
   done
 }
 
+@test "notification pills expand both branches without leaking style text" {
+  local option flag accent raw expanded visible
+  require_status_runtime
+  prepare_status_runtime
+  start_status_server notification-rendering
+  env -u TMUX HOME="$TEST_HOME" tmux -L "$SOCKET" rename-window -t dotfiles-status:0 rendered-test
+  for flag in 0 1; do
+    env -u TMUX HOME="$TEST_HOME" tmux -L "$SOCKET" set-option -wq @notify_window "$flag"
+    for accent in "" '#eb6f92'; do
+      env -u TMUX HOME="$TEST_HOME" tmux -L "$SOCKET" set-option -wq @notify_window_accent "$accent"
+      for option in window-status-format window-status-current-format; do
+        raw=$(tmux_window_value "$option")
+        expanded=$(env -u TMUX HOME="$TEST_HOME" tmux -L "$SOCKET" display-message -p "$raw")
+        visible=$(printf '%s' "$expanded" | sed 's/#\[[^]]*\]//g')
+        [[ "$visible" == *''* && "$visible" == *''* ]]
+        [[ "$visible" == *'rendered-test'* ]]
+        [[ "$visible" != *'fg='* && "$visible" != *'bg='* && "$visible" != *'#['* ]]
+        if [[ "$flag" == 1 ]]; then [[ "$visible" == *'●'* ]]
+        else [[ "$visible" != *'●'* ]]; fi
+      done
+    done
+  done
+}
+
 @test "tmux config builds plugins after overrides and runs TPM last" {
   local override_line managed_line tpm_line last_executable
 

@@ -6,6 +6,7 @@
 - [Daily operation](#daily-operation)
 - [OpenCode updates](#opencode-updates)
 - [Local overrides](#local-overrides)
+  - [Shell PATH additions](#shell-path-additions)
   - [OpenCode server plugins](#opencode-server-plugins)
 - [Terminal (tmux) behavior](#terminal-tmux-behavior)
   - [Status bar](#status-bar)
@@ -80,8 +81,15 @@ OpenCode's `/update` command and `opencode2 update` use the isolated npm install
 under `~/.local/share/opencode2`. The wrapper passes that prefix to npm. It also
 exempts the `@opencode/*` release family from npm's release-age filter because
 the native updater requests an exact new CLI version and platform package.
-The matching local SDK needs that same exception. Other packages retain the
+The matching runtime exempts both `@opencode/*` and `@opentui/*`: a fresh SDK can
+require OpenTUI packages published the same day. Other packages retain the
 user's release-age guard, and dotfiles does not modify `~/.npmrc`.
+
+Runtime synchronization reads the installed CLI's SDK peer requirements, then
+uses npm's age-aware resolver for compatible OpenTUI and Solid.js candidates.
+Installation consumes those exact versions. Missing peer metadata or unresolved
+candidates stop the sync before npm changes the existing runtime; there is no
+fallback to an unconstrained `latest` tag.
 
 You can also update the CLI directly with npm:
 
@@ -161,6 +169,18 @@ font-size = 14
 alias ll='eza -l'
 export EDITOR=vim
 ```
+
+### Shell PATH additions
+
+An external installer can append a `~/.local/bin` PATH guard to `.zshrc`, causing
+chezmoi to report a local edit. The managed `.zshenv` already adds that directory.
+Before apply, the backup hook removes only the recognized duplicate tail when
+the rest of `.zshrc` and the installed `.zshenv` exactly match managed source.
+The full original remains in the uniquely named pre-apply snapshot.
+
+Other local edits, symlinked targets, and changed `.zshenv` files are left alone.
+They keep the normal conflict prompt. Put intentional shell customizations in
+`~/.zsh_override`; do not use “overwrite all” to dismiss an unexplained change.
 
 ### Git identities
 
