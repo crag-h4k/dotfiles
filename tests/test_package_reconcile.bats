@@ -35,8 +35,10 @@ setup() {
   chmod +x "$HOME/.local/bin/copilot"
   cat >"$BATS_TEST_TMPDIR/bin/npm" <<'STUB'
 #!/bin/sh
-[ "$1 $2" = 'view @github/copilot@prerelease' ] || exit 90
-printf '"1.2.3-beta.4"\n'
+[ "$1" = outdated ] && [ "$2" = --prefix ] || exit 90
+node -e 'if (require(process.argv[1]).dependencies["@github/copilot"] !== "prerelease") process.exit(1)' "$3/package.json" || exit 91
+printf '{"@github/copilot":{"wanted":"1.2.3-beta.4"}}\n'
+exit 1
 STUB
   chmod +x "$BATS_TEST_TMPDIR/bin/npm"
   run bash -c 'source "$1/scripts/common.sh"; source "$1/scripts/package-resolve.sh"; name=@github/copilot; probe=copilot; policy=floating; COPILOT_VERSION=prerelease; current=-; candidate=-; _resolve_npm; printf "%s %s\n" "$status" "$candidate"' _ "$ROOT"
@@ -50,6 +52,63 @@ STUB
   run bash -c 'source "$1/scripts/common.sh"; source "$1/scripts/package-resolve.sh"; name=tool; probe=tool; policy=floating; current=-; candidate=-; _resolve_npm; printf "%s\n" "$status"' _ "$ROOT"
   [ "$status" -eq 0 ]
   [ "$output" = blocked ]
+}
+
+@test "npm candidate selection uses age-aware wanted without installing a package" {
+  cat >"$BATS_TEST_TMPDIR/bin/npm" <<'STUB'
+#!/bin/sh
+[ "$1" = outdated ] && [ "$2" = --prefix ] || exit 90
+node -e 'if (require(process.argv[1]).dependencies.tool !== "latest") process.exit(1)' "$3/package.json" || exit 91
+printf '{"tool":{"wanted":"1.2.3","latest":"1.2.3"}}\n'
+exit 1
+STUB
+  chmod +x "$BATS_TEST_TMPDIR/bin/npm"
+  run bash -c 'source "$1/scripts/common.sh"; source "$1/scripts/package-resolve.sh"; name=tool; probe=tool; policy=floating; current=-; candidate=-; _resolve_npm; printf "%s %s\n" "$status" "$candidate"' _ "$ROOT"
+  [ "$status" -eq 0 ]
+  [ "$output" = 'planned 1.2.3' ]
+}
+
+@test "OpenCode candidate resolution uses the updater exception and retains release age" {
+  cat >"$BATS_TEST_TMPDIR/bin/npm" <<'STUB'
+#!/bin/sh
+[ "$1" = outdated ] || exit 90
+[ "$NPM_CONFIG_MIN_RELEASE_AGE" = 3 ] || exit 91
+[ "$NPM_CONFIG_MIN_RELEASE_AGE_EXCLUDE" = '@opencode/*' ] || exit 92
+printf '{"@opencode/cli":{"wanted":"2.0.25"}}\n'
+exit 1
+STUB
+  chmod +x "$BATS_TEST_TMPDIR/bin/npm"
+  # The isolated child shell expands its positional source path.
+  # shellcheck disable=SC2016
+  run env NPM_CONFIG_MIN_RELEASE_AGE=3 bash -c 'source "$1/scripts/common.sh"; source "$1/scripts/package-resolve.sh"; _resolve_npm_candidate @opencode/cli latest' _ "$ROOT"
+  [ "$status" -eq 0 ]
+  [ "$output" = 2.0.25 ]
+}
+
+@test "Debian nodejs without bundled npm is deferred until NodeSource setup" {
+  cat >"$BATS_TEST_TMPDIR/bin/apt-cache" <<'STUB'
+#!/bin/sh
+printf '  Installed: 20.19.2+dfsg-1\n  Candidate: 20.19.2+dfsg-1\n'
+STUB
+  chmod +x "$BATS_TEST_TMPDIR/bin/apt-cache"
+  run bash -c 'source "$1/scripts/common.sh"; source "$1/scripts/package-resolve.sh"; _records=($'"'"'apt\tnodejs\tinstalled\tfloating\tNodeSource\tnode'"'"'); _resolve_records; printf "%s\n" "${_records[@]}"' _ "$ROOT"
+  [ "$status" -eq 0 ]
+  [[ "$output" == $'apt\tnodejs\tcheck\t'* ]]
+  [[ "$output" == *$'\t-\tresolve Node.js 24 and bundled npm after NodeSource setup' ]]
+}
+
+@test "current NodeSource nodejs still schedules repair when npm is broken" {
+  cat >"$BATS_TEST_TMPDIR/bin/apt-cache" <<'STUB'
+#!/bin/sh
+printf '  Installed: 24.21.0-1nodesource1\n  Candidate: 24.21.0-1nodesource1\n'
+STUB
+  printf '#!/bin/sh\nprintf "v24.21.0\n"\n' >"$BATS_TEST_TMPDIR/bin/node"
+  printf '#!/bin/sh\nexit 127\n' >"$BATS_TEST_TMPDIR/bin/npm"
+  chmod +x "$BATS_TEST_TMPDIR/bin/apt-cache" "$BATS_TEST_TMPDIR/bin/node" "$BATS_TEST_TMPDIR/bin/npm"
+  run bash -c 'source "$1/scripts/common.sh"; source "$1/scripts/package-resolve.sh"; _records=($'"'"'apt\tnodejs\tinstalled\tfloating\tNodeSource\tnode'"'"'); _resolve_records; printf "%s\n" "${_records[@]}"' _ "$ROOT"
+  [ "$status" -eq 0 ]
+  [[ "$output" == $'apt\tnodejs\tcheck\t'* ]]
+  [[ "$output" == *$'\t24.21.0-1nodesource1\tNode.js or bundled npm needs repair' ]]
 }
 
 @test "exact prek pin skips uv installation" {
@@ -150,7 +209,7 @@ STUB
   mkdir -p "$prefix/lib/node_modules/@opencode/cli" "$prefix/bin" "$config/node_modules/@opencode/plugin"
   printf '{"version":"1.2.3"}\n' >"$prefix/lib/node_modules/@opencode/cli/package.json"
   printf '#!/bin/sh\nprintf "opencode2 v1.2.3\\n"\n' >"$prefix/bin/opencode2"
-  printf '#!/bin/sh\nprintf '\''"1.2.3"\\n'\''\n' >"$BATS_TEST_TMPDIR/bin/npm"
+  printf '#!/bin/sh\nprintf '\''{"@opencode/cli":{"wanted":"1.2.3"}}\\n'\''\n' >"$BATS_TEST_TMPDIR/bin/npm"
   chmod +x "$prefix/bin/opencode2" "$BATS_TEST_TMPDIR/bin/npm"
   printf '{"version":"1.2.3","exports":{".":{"import":"./index.js"}}}\n' >"$config/node_modules/@opencode/plugin/package.json"
   touch "$config/node_modules/@opencode/plugin/index.js"

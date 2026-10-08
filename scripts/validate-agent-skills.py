@@ -463,7 +463,7 @@ def validate_component_contract(root: Path) -> list[str]:
     forbidden_toggle = re.compile(r"writing[-_]?quality", re.IGNORECASE)
     for relative in (
         "home/.chezmoi.toml.tmpl",
-        "home/.chezmoiscripts/run_once_after_00-install.sh.tmpl",
+        "home/.chezmoiscripts/run_after_00-install.sh.tmpl",
         "scripts/install.sh",
         "scripts/package-plan.sh",
     ):

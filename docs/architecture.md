@@ -34,7 +34,7 @@ checkouts during apply. Approved package mode owns routine updates so it can
 check cleanliness and fast-forward safety first.
 
 This creates an intentional boundary. Selected configuration payloads,
-including missing externals, materialize through chezmoi before `run_once`.
+including missing externals, materialize through chezmoi before the installer.
 Package managers, palette submodule initialization, and refreshes of existing
 external checkouts happen only after package confirmation.
 Agent skills are separate immutable file externals with exact commit URLs and
@@ -54,6 +54,10 @@ Homebrew and APT use that fresh metadata and batch selected package-manager
 operations. Independent operations report their own failure and the run ends
 with an aggregate result summary.
 
+The installer uses a `run_after` hook, so every apply checks the selected set
+when package mode is saved. Update, external refresh, and init/apply all use
+this same path. Config-only mode does not resolve or install packages.
+
 Each package run with pending work has one `[y/N]` confirmation after the
 refreshed plan. A fully current plan displays a green `Everything is up to
 date.` message and continues without prompting. Set `DOTFILES_ASSUME_YES=1`
@@ -61,7 +65,11 @@ for an unattended deployment. Declining, or running headlessly without that
 opt-in, applies configuration only and does not change the stored `installMode`.
 
 On Debian, NodeSource and Aqua Security use explicit signed APT sources.
-NodeSource is selected for Neovim or any Node-dependent AI feature. tenv,
+NodeSource is selected for Neovim or any Node-dependent AI feature. Its Node.js
+package bundles npm; it is installed and verified before the remaining APT
+batch and npm consumers. Debian's older nodejs-only candidate is deferred until
+NodeSource is configured. A current Node.js with broken npm triggers package
+reinstallation rather than passing the runtime check. tenv,
 Neovim, tree-sitter CLI, and yq release downloads are
 checksum-verified; user-local executables use atomic replacement. tenv also
 verifies HashiCorp signatures when its `terraform` proxy installs a project
@@ -152,7 +160,7 @@ dirty the dotfiles repository. See [Neovim tooling](neovim.md) for the full spli
 | `home/.chezmoiignore` | (templated) | ignores an off component's (or sub-feature's) target paths |
 | `home/.chezmoiexternal.toml` | (templated externals) | plugins gated by `.components.zsh` / `.components.tmux` |
 | `home/.chezmoiscripts/run_before_00-backup.sh` | apply hook | snapshots existing targets before changes |
-| `home/.chezmoiscripts/run_once_after_00-install.sh.tmpl` | apply hook | delegates package/config setup to the project scripts |
+| `home/.chezmoiscripts/run_after_00-install.sh.tmpl` | apply hook | checks selected packages on every package-mode apply |
 
 Repository-only lint policy lives under `config/linters/`: `gitleaks.toml`,
 `luacheckrc`, `markdownlint.yaml`, and `stylua.toml`.

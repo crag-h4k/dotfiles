@@ -4,6 +4,7 @@
 ## Table of Contents
 
 - [Daily operation](#daily-operation)
+- [OpenCode updates](#opencode-updates)
 - [Local overrides](#local-overrides)
   - [OpenCode server plugins](#opencode-server-plugins)
 - [Terminal (tmux) behavior](#terminal-tmux-behavior)
@@ -26,20 +27,14 @@ cd ~/dotfiles
 $EDITOR home/dot_zshrc
 chezmoi apply
 
-# Force a direct fast-forward-only external refresh. Routine safe updates use
-# cup, which also skips dirty and diverged checkouts before pulling:
+# Refresh selected chezmoi externals, then check the complete selected package set:
 chezmoi apply --refresh-externals
 
-# Re-run package provisioning without deleting chezmoi script state. This
-# refreshes package metadata, shows pending work, and asks once for approval.
-# If nothing needs work, it prints “Everything is up to date.” and continues.
-# Approving advances the persisted packageRun trigger and reruns only the
-# content-hashed installer:
+# Open only the package plan and installation-mode prompt:
 cup
 
-# Run the same update without a TTY. All three opt-ins are required:
-DOTFILES_PACKAGE_UPDATE=1 DOTFILES_INSTALL_MODE=packages \
-  DOTFILES_ASSUME_YES=1 chezmoi init --apply --no-tty
+# Run unattended package checks using the saved package mode:
+DOTFILES_ASSUME_YES=1 chezmoi apply
 
 # Inspect what chezmoi thinks should change:
 chezmoi diff
@@ -65,6 +60,38 @@ chezmoi --source "$PWD" apply
 The repository-level `.chezmoiroot` still directs chezmoi into `home/`. It is
 safe to review a worktree this way without replacing your normal source
 directory.
+
+With `installMode = "packages"`, every apply refreshes the selected package
+plan, prompts for pending changes, and skips current packages. This includes
+`chezmoi update`, `chezmoi apply --refresh-externals`, and `chezmoi init --apply`.
+It covers native packages, npm CLIs, release downloads, language tools, managed
+Git checkouts, and Neovim packages. Source-controlled pins stay pinned; package
+approval also initializes the palette submodule at the source's exact commit.
+
+Config-only mode skips package work. A headless apply without
+`DOTFILES_ASSUME_YES=1` declines package changes. The direct chezmoi external
+refresh flag can still refresh Git externals before the installer runs; omit it
+to use the installer's cleanliness and fast-forward checks.
+
+## OpenCode updates
+
+OpenCode's `/update` command and `opencode2 update` use the isolated npm install
+under `~/.local/share/opencode2`. The wrapper passes that prefix to npm. It also
+exempts the `@opencode/*` release family from npm's release-age filter because
+the native updater requests an exact new CLI version and platform package.
+The matching local SDK needs that same exception. Other packages retain the
+user's release-age guard, and dotfiles does not modify `~/.npmrc`.
+
+You can also update the CLI directly with npm:
+
+```sh
+npm install -g --prefix "$HOME/.local/share/opencode2" '@opencode/cli@latest'
+```
+
+Direct npm retains your npm configuration and may choose an older release when
+a release-age window is set. Relaunch `opencode2` to synchronize its local SDK
+with the installed CLI. Package-mode chezmoi applies update the same install
+and synchronize the SDK in the same run.
 
 When applying from another account's checkout, the installer can reuse the
 palette submodule if its checkout matches the pinned commit and its tracked

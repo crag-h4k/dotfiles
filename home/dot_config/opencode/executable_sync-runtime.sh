@@ -4,6 +4,9 @@
 
 set -euo pipefail
 
+# The SDK and its sibling packages must match the installed CLI release exactly.
+export NPM_CONFIG_MIN_RELEASE_AGE_EXCLUDE='@opencode/*'
+
 binary="${1:?usage: sync-runtime.sh OPENCODE_BINARY [CONFIG_DIR]}"
 config_dir="${2:-$HOME/.config/opencode}"
 runtime_package="$config_dir/node_modules/@opencode/plugin/package.json"

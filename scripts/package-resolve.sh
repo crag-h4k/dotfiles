@@ -1,4 +1,5 @@
 # shellcheck shell=bash
+# scripts/package-resolve.sh
 # Resolve selected packages once; installers consume these exact decisions.
 
 _resolve_version() {
@@ -21,8 +22,39 @@ _resolve_compare() {
     fi
 }
 
+_resolve_npm_candidate() {
+    local name="$1" selector="$2" directory output result=0
+    directory=$(mktemp -d) || return 1
+    directory=$(cd "$directory" && pwd -P) || return 1
+    if ! node -e 'console.log(JSON.stringify({private:true,dependencies:{[process.argv[1]]:process.argv[2]}}))' \
+        "$name" "$selector" >"$directory/package.json"; then
+        rm -f "$directory/package.json"
+        rmdir "$directory"
+        return 1
+    fi
+    # A missing dependency makes outdated resolve the tag/range with npm's own
+    # release-age and before filters, without installing anything. `view` ignores
+    # those filters and can preview an exact version that installation rejects.
+    local -a command=(npm outdated --prefix "$directory" --long --json --fetch-retries=0 --fetch-timeout=15000)
+    if [[ "$name" == @opencode/cli ]]; then
+        command=(env 'NPM_CONFIG_MIN_RELEASE_AGE_EXCLUDE=@opencode/*' "${command[@]}")
+    fi
+    output=$("${command[@]}" 2>/dev/null) || result=$?
+    rm -f "$directory/package.json"
+    rmdir "$directory"
+    (( result <= 1 )) || return 1
+    printf '%s' "$output" | node -e '
+let s=""; process.stdin.on("data", c => s += c); process.stdin.on("end", () => {
+  try {
+    const version=JSON.parse(s)[process.argv[1]]?.wanted
+    if (typeof version !== "string") process.exit(1)
+    console.log(version)
+  } catch { process.exit(1) }
+})' "$name"
+}
+
 _resolve_npm() {
-    local prefix="$HOME/.local" selector=latest manifest output
+    local prefix="$HOME/.local" selector=latest manifest
     case "$name" in
         @opencode/cli) prefix="${OPENCODE2_NPM_PREFIX:-$HOME/.local/share/opencode2}"; selector="$OPENCODE2_VERSION" ;;
         @github/copilot) prefix="${COPILOT_NPM_PREFIX:-$HOME/.local}"; selector="$COPILOT_VERSION" ;;
@@ -34,13 +66,7 @@ _resolve_npm() {
     if [[ "$policy" == pinned:* ]]; then
         candidate="${policy#pinned:}"
     elif command -v npm >/dev/null 2>&1; then
-        if output=$(npm view "$name@$selector" version --json --fetch-retries=0 --fetch-timeout=15000 2>/dev/null); then
-            candidate=$(printf '%s' "$output" | node -e '
-let s=""; process.stdin.on("data", c => s += c); process.stdin.on("end", () => {
-  try { const v=JSON.parse(s); if (typeof v !== "string") process.exit(1); console.log(v) }
-  catch { process.exit(1) }
-})' 2>/dev/null) || candidate=-
-        fi
+        candidate=$(_resolve_npm_candidate "$name" "$selector") || candidate=-
     else
         status=check
         reason="resolve after Node installation"
@@ -268,6 +294,16 @@ _resolve_records() {
                         [[ "$current" != '(none)' ]] || current=-
                         [[ "$candidate" != '(none)' ]] || candidate=-
                         _resolve_compare
+                        if [[ "$name" == nodejs ]]; then
+                            if [[ ! "$candidate" =~ ^([0-9]+)\. ]] || (( BASH_REMATCH[1] < 24 )) \
+                                || [[ "$candidate" != *nodesource* ]]; then
+                                status=check candidate=-
+                                reason="resolve Node.js 24 and bundled npm after NodeSource setup"
+                            elif [[ "$status" == installed ]] && ! verify_node_runtime; then
+                                status=check
+                                reason="Node.js or bundled npm needs repair"
+                            fi
+                        fi
                         if [[ "$status" == update ]] && dpkg --compare-versions "$current" gt "$candidate"; then
                             status=installed
                             reason="installed version is newer than repository candidate"
