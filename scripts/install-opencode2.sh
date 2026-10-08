@@ -14,6 +14,9 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 # shellcheck source=common.sh
 source "$SCRIPT_DIR/common.sh"
 
+# Match the native updater's exception without changing the user's npmrc.
+export NPM_CONFIG_MIN_RELEASE_AGE_EXCLUDE='@opencode/*'
+
 OPENCODE2_VERSION="${OPENCODE2_VERSION:-latest}"
 NPM_PREFIX="${OPENCODE2_NPM_PREFIX:-$HOME/.local/share/opencode2}"
 WRAPPER="${OPENCODE2_WRAPPER:-$HOME/.local/bin/opencode2}"

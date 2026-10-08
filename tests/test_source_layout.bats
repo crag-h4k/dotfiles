@@ -21,7 +21,7 @@ SOURCE_ROOT="$REPO_ROOT/home"
     .chezmoiignore \
     .chezmoiremove \
     .chezmoiscripts/run_before_00-backup.sh \
-    .chezmoiscripts/run_once_after_00-install.sh.tmpl; do
+    .chezmoiscripts/run_after_00-install.sh.tmpl; do
     [ -f "$SOURCE_ROOT/$source_path" ]
     [ ! -e "$REPO_ROOT/$source_path" ]
   done

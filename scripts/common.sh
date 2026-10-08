@@ -753,6 +753,35 @@ verify_node_min_major() {
     (( major >= minimum ))
 }
 
+verify_node_runtime() {
+    verify_node_min_major 24 || return 1
+    command -v npm >/dev/null 2>&1 || return 1
+    local version
+    version=$(npm --version 2>/dev/null) || return 1
+    [[ "$version" =~ ^[0-9]+\.[0-9]+\.[0-9]+ ]]
+}
+
+install_node_runtime_debian() {
+    local target
+    target=$(package_target apt nodejs)
+    if [[ -z "$target" ]]; then
+        target=$(LC_ALL=C apt-cache policy nodejs | awk '/Candidate:/ {print $2; exit}') || return 1
+    fi
+    # Debian's nodejs package does not include npm. NodeSource bundles both.
+    if [[ ! "$target" =~ ^([0-9]+)\. ]] || (( BASH_REMATCH[1] < 24 )) \
+        || [[ "$target" != *nodesource* ]]; then
+        warn "NodeSource Node.js 24+ with bundled npm is unavailable; refusing nodejs ${target:-unknown}"
+        return 1
+    fi
+    local -a args=(install -y)
+    # A current nodejs package with a broken/missing npm needs its files restored.
+    if verify_node_min_major 24 && ! verify_node_runtime; then
+        args+=(--reinstall)
+    fi
+    sudo apt-get "${args[@]}" "nodejs=$target" || return 1
+    verify_node_runtime
+}
+
 # NodeSource is needed for every selected feature that installs an npm CLI, not
 # only for Neovim. Keep this predicate shared by planning, repository setup, and
 # post-install verification so an AI-only Debian host gets Node.js 24 too.

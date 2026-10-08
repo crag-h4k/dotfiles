@@ -21,6 +21,9 @@ if [[ ! -x "$binary" ]]; then
 fi
 
 export NPM_CONFIG_PREFIX="$prefix"
+# Native /update requests an exact fresh release, including its platform package.
+# Keep the user's release-age guard for everything outside the OpenCode family.
+export NPM_CONFIG_MIN_RELEASE_AGE_EXCLUDE='@opencode/*'
 
 cli_override="$HOME/.config/opencode/cli.override.json"
 if [[ -r "$cli_override" && -z "${OPENCODE_CLI_CONFIG_CONTENT:-}" ]]; then

@@ -1,6 +1,7 @@
 #!/usr/bin/env bash
+# scripts/install.sh
 # Top-level installer. Driven by chezmoi's
-# home/.chezmoiscripts/run_once_after_00-install.sh.tmpl, which exports
+# home/.chezmoiscripts/run_after_00-install.sh.tmpl, which exports
 # the component selection (made at `chezmoi init`) as INSTALL_* env vars and
 # then calls this script. It installs base tools plus packages for the selected
 # components. It does NOT call `chezmoi apply` - chezmoi invokes this script,
@@ -64,7 +65,7 @@ if [[ "${DOTFILES_INSTALL_LOG_ACTIVE:-}" != 1 ]]; then
 fi
 
 # Component flags, read from the environment (set by chezmoi via
-# home/.chezmoiscripts/run_once_after_00-install.sh.tmpl). Defaults apply only
+# home/.chezmoiscripts/run_after_00-install.sh.tmpl). Defaults apply only
 # for standalone runs.
 INSTALL_ZSH="${INSTALL_ZSH:-true}"
 INSTALL_TMUX="${INSTALL_TMUX:-true}"
@@ -130,6 +131,8 @@ main() {
 
     if [[ "$do_packages" == true ]]; then
         if [[ -z "${DOTFILES_PACKAGE_PLAN:-}" ]]; then
+            info "refreshing package metadata for the unattended or bootstrap run"
+            "$SCRIPT_DIR/package-plan.sh" --refresh || die "could not refresh package metadata"
             package_plan_create || die "could not resolve package plan"
         fi
         info "executing resolved package plan"
@@ -195,7 +198,7 @@ main() {
                 ((${#brew_cask_update[@]} == 0)) ||
                     package_try "Homebrew cask update" brew upgrade --cask --no-ask "${brew_cask_update[@]}" || true
                 if [[ "$node_required" == true ]]; then
-                    if package_try "Node.js 24+ verification" verify_node_min_major 24; then
+                    if package_try "Node.js 24+ and npm verification" verify_node_runtime; then
                         node_ready=true
                     fi
                 fi
@@ -215,8 +218,15 @@ main() {
                 if [[ "$DOTFILES_APT_REPO_CHANGED" == true ]]; then
                     package_try "APT metadata refresh after repository setup" sudo apt-get update || true
                 fi
+                if [[ "$node_required" == true ]]; then
+                    package_action_try apt nodejs "Node.js 24+ and bundled npm bootstrap" install_node_runtime_debian || true
+                    if package_try "Node.js 24+ and npm verification" verify_node_runtime; then
+                        node_ready=true
+                    fi
+                fi
                 while IFS=$'\t' read -r src name status _policy origin probe _current target reason <&3; do
                     [[ "$src" == apt ]] || continue
+                    [[ "$name" != nodejs ]] || continue
                     case "$status" in
                         planned|update|check)
                             if [[ "$target" != - ]]; then apt_packages+=("$name=$target")
@@ -240,11 +250,6 @@ main() {
                 if [[ "$INSTALL_NEOVIM" == true ]]; then
                     package_action_try github-release tree-sitter-cli "tree-sitter CLI pinned v0.26.11" install_tree_sitter_cli_debian || true
                     package_action_try github-release tenv "tenv latest release" install_tenv_debian || true
-                fi
-                if [[ "$node_required" == true ]]; then
-                    if package_try "Node.js 24+ verification" verify_node_min_major 24; then
-                        node_ready=true
-                    fi
                 fi
                 [[ "$INSTALL_NOTIFY" == true ]] && { package_action_try github-release yq "yq latest release" install_yq_debian update || true; }
                 [[ "$INSTALL_TERMINAL_GHOSTTY" == true ]] &&

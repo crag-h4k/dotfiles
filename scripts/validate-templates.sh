@@ -23,7 +23,7 @@ SOURCE_DIR="$REPO_DIR/home"
 EXTERNAL="$SOURCE_DIR/.chezmoiexternal.toml"
 IGNORE="$SOURCE_DIR/.chezmoiignore"
 CONFIG_TMPL="$SOURCE_DIR/.chezmoi.toml.tmpl"
-RUNONCE="$SOURCE_DIR/.chezmoiscripts/run_once_after_00-install.sh.tmpl"
+RUNONCE="$SOURCE_DIR/.chezmoiscripts/run_after_00-install.sh.tmpl"
 NOTIFY_TMPL="$SOURCE_DIR/dot_config/notify/notify.yaml.tmpl"
 NOTIFY_SOUNDS="$SOURCE_DIR/dot_config/notify/sounds"
 
@@ -484,7 +484,7 @@ assert_git_gate() { # config ignore_global
 assert_git_gate false false
 assert_git_gate true  true
 
-# --- home/.chezmoiscripts/run_once_after_00-install.sh.tmpl: install vars ---
+# --- home/.chezmoiscripts/run_after_00-install.sh.tmpl: install vars ---
 # The terminal binary installs are gated by INSTALL_TERMINAL_* env vars dug from
 # the terminal.* data keys. Prove INSTALL_TERMINAL_GHOSTTY renders true when the
 # ghostty sub-feature is on and false when off (its data-key resolution is
@@ -662,7 +662,7 @@ if (( fail )); then
 fi
 
 if (( have_tomllib )); then
-    echo "validate-templates: OK - ${ncases} numeric + keyword/space/default/submenu cases assert correct booleans, externals parse, run_once install vars render"
+    echo "validate-templates: OK - ${ncases} numeric + keyword/space/default/submenu cases assert correct booleans, externals parse, post-apply install vars render"
 else
-    echo "validate-templates: OK - ${ncases} numeric + keyword/space/default/submenu cases assert correct booleans, run_once install vars render (TOML parse skipped, no tomllib)"
+    echo "validate-templates: OK - ${ncases} numeric + keyword/space/default/submenu cases assert correct booleans, post-apply install vars render (TOML parse skipped, no tomllib)"
 fi

@@ -569,6 +569,98 @@ STUB
   [ "$status" -ne 0 ]
 }
 
+debian_node_bootstrap_fixture() {
+  local root="$BATS_TEST_TMPDIR/bootstrap" stubs="$BATS_TEST_TMPDIR/bootstrap-bin"
+  mkdir -p "$root" "$stubs"
+  cp -R "$REPO_ROOT/scripts" "$root/scripts"
+  export BOOTSTRAP_LOG="$BATS_TEST_TMPDIR/bootstrap.log"
+  export BOOTSTRAP_READY="$BATS_TEST_TMPDIR/bootstrap-ready"
+  cat >>"$root/scripts/common.sh" <<'STUB'
+ensure_nodesource_apt_repo() {
+    printf 'repo\n' >>"$BOOTSTRAP_LOG"
+    export DOTFILES_APT_REPO_CHANGED=true
+}
+STUB
+  cat >"$stubs/sudo" <<'STUB'
+#!/bin/sh
+printf '%s\n' "$*" >>"$BOOTSTRAP_LOG"
+case "$*" in
+  *nodejs=24.21.0-1nodesource1*)
+    [ "${BOOTSTRAP_FAIL:-false}" != true ] || exit 1
+    touch "$BOOTSTRAP_READY"
+    ;;
+esac
+STUB
+  cat >"$stubs/apt-cache" <<'STUB'
+#!/bin/sh
+printf '  Candidate: 24.21.0-1nodesource1\n'
+STUB
+  cat >"$stubs/node" <<'STUB'
+#!/bin/sh
+if [ -e "$BOOTSTRAP_READY" ] || [ "${BOOTSTRAP_NODE_CURRENT:-false}" = true ]; then
+  printf 'v24.21.0\n'
+else
+  printf 'v20.19.2\n'
+fi
+STUB
+  cat >"$stubs/npm" <<'STUB'
+#!/bin/sh
+[ -e "$BOOTSTRAP_READY" ] || exit 127
+if [ "$1" = --version ]; then
+  printf '11.19.0\n'
+else
+  printf 'npm %s\n' "$*" >>"$BOOTSTRAP_LOG"
+fi
+STUB
+  cat >"$root/scripts/install-opencode2.sh" <<'STUB'
+#!/bin/sh
+npm install @opencode/cli
+STUB
+  chmod +x "$stubs"/*
+  # Bats isolates exported plans in separate test subshells.
+  # shellcheck disable=SC2031
+  export DOTFILES_PACKAGE_PLAN="$BATS_TEST_TMPDIR/bootstrap-plan"
+  {
+    printf 'apt\tnodejs\tcheck\tfloating\tNodeSource\tnode\t-\t-\tbootstrap\n'
+    printf 'apt\tgit\tplanned\tfloating\tDebian\tgit\t-\t1.2.3\tmissing\n'
+    printf 'npm\t@opencode/cli\tplanned\tfloating\tregistry\topencode2\t-\t2.0.8\tmissing\n'
+  } >"$DOTFILES_PACKAGE_PLAN"
+  run env HOME="$BATS_TEST_TMPDIR/bootstrap-home" PATH="$stubs:$PATH" \
+    DOTFILES_PLAN_OS=debian DOTFILES_INSTALL_MODE=packages DOTFILES_ASSUME_YES=1 \
+    DOTFILES_SOURCE_ROOT="$root" INSTALL_ZSH=false INSTALL_TMUX=false INSTALL_NEOVIM=false \
+    INSTALL_NOTIFY=false INSTALL_AI_CODECOMPANION=false INSTALL_AI_STATUSLINE=false \
+    INSTALL_AI_OPENCODE=true INSTALL_AI_COPILOT=false \
+    INSTALL_TERMINAL_GHOSTTY=false INSTALL_TERMINAL_ITERM2=false \
+    bash "$root/scripts/install.sh"
+}
+
+@test "Debian bootstraps NodeSource and npm before the APT batch and npm consumers" {
+  debian_node_bootstrap_fixture
+  [ "$status" -eq 0 ]
+  [ "$(cat "$BOOTSTRAP_LOG")" = "repo
+apt-get update
+apt-get install -y nodejs=24.21.0-1nodesource1
+apt-get install -y git=1.2.3
+npm install @opencode/cli" ]
+}
+
+@test "Debian repairs bundled npm even when Node.js already satisfies the minimum" {
+  export BOOTSTRAP_NODE_CURRENT=true
+  debian_node_bootstrap_fixture
+  [ "$status" -eq 0 ]
+  grep -Fq 'apt-get install -y --reinstall nodejs=24.21.0-1nodesource1' "$BOOTSTRAP_LOG"
+  grep -Fq 'npm install @opencode/cli' "$BOOTSTRAP_LOG"
+}
+
+@test "failed Debian npm bootstrap skips npm consumers but continues independent packages" {
+  export BOOTSTRAP_FAIL=true
+  debian_node_bootstrap_fixture
+  [ "$status" -eq 1 ]
+  grep -Fq 'apt-get install -y git=1.2.3' "$BOOTSTRAP_LOG"
+  run grep -F 'npm install' "$BOOTSTRAP_LOG"
+  [ "$status" -ne 0 ]
+}
+
 @test "Debian Luacheck uses an explicit account tree accepted by root" {
   local home="$BATS_TEST_TMPDIR/root home" stubs="$BATS_TEST_TMPDIR/rocks-stubs"
   local plan="$BATS_TEST_TMPDIR/rocks-plan" log="$BATS_TEST_TMPDIR/rocks-log"

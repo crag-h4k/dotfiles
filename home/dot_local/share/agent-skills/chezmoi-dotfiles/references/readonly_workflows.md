@@ -33,6 +33,10 @@ Trace records from `scripts/package-plan.sh` and `scripts/package-resolve.sh`
 into `scripts/install.sh` and the component installer. Verify that installation
 consumes the approved candidate. A rerun should recognize current versions and
 skip their work; unresolved versions must remain distinguishable from updates.
+Every package-mode apply checks the selected package set, including source
+updates, explicit external refreshes, and init/apply with unchanged selections.
+For Debian Node/npm failures, check the NodeSource bootstrap before the main
+APT batch and verify both binaries; Debian's nodejs-only package is insufficient.
 Check actual binaries/package records instead of assuming a cache stamp proves
 success. Keep native managers, release assets, Git externals, and Neovim-owned
 packages visible at the detail level needed to approve the transaction.
