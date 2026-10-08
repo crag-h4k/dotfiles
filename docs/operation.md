@@ -8,6 +8,7 @@
 - [Local overrides](#local-overrides)
   - [OpenCode server plugins](#opencode-server-plugins)
 - [Terminal (tmux) behavior](#terminal-tmux-behavior)
+  - [Status bar](#status-bar)
 - [Statusline (Claude / Codex)](#statusline-claude--codex)
 - [OpenViking memory](#openviking-memory)
 - [Secret scanning](#secret-scanning)
@@ -425,6 +426,13 @@ while window tabs read by task:
 | Window | tracks the foreground command via tmux `automatic-rename` (`#{pane_current_command}`) |
 
 So `tmux ls` shows project names while the window tabs show `1:zsh`, `2:nvim`, `3:git` live.
+
+### Status bar
+
+The tmux status bar renders session, host, window tabs, network, CPU, RAM, and
+date/time as separate rounded pills. Each color comes from the selected shared
+palette. The active window uses the palette's green accent. A notification keeps
+its group accent from `notify.yaml`, which is also rendered from that palette.
 
 ## Statusline (Claude / Codex)
 

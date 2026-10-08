@@ -4,6 +4,8 @@
 
 REPO_ROOT="$(cd "${BATS_TEST_DIRNAME}/.." && pwd)"
 TMUX_CONF="${REPO_ROOT}/home/dot_tmux.conf"
+STATUS_TEMPLATE="${REPO_ROOT}/home/dot_tmux/conf.d/status.conf.tmpl"
+NOTIFY_CONF="${REPO_ROOT}/home/dot_tmux/conf.d/notify.conf"
 IGNORE="${REPO_ROOT}/home/.chezmoiignore"
 PLANNER="${REPO_ROOT}/scripts/package-plan.sh"
 TPM_SOURCE="${TPM_TEST_SOURCE:-${HOME}/.tmux/plugins/tpm}"
@@ -116,6 +118,39 @@ tmux_value() {
     tmux -L "$SOCKET" show-options -gqv "$option"
 }
 
+tmux_window_value() {
+  local option="$1"
+
+  env -u TMUX -u TMUX_PLUGIN_MANAGER_PATH HOME="$TEST_HOME" \
+    tmux -L "$SOCKET" show-window-options -gv "$option"
+}
+
+require_status_runtime() {
+  command -v chezmoi >/dev/null 2>&1 || skip "chezmoi not installed"
+  command -v tmux >/dev/null 2>&1 || skip "tmux not installed"
+}
+
+prepare_status_runtime() {
+  chezmoi execute-template --source "$REPO_ROOT" < "$STATUS_TEMPLATE" \
+    > "$TEST_HOME/.tmux/conf.d/status.conf"
+  cp "$NOTIFY_CONF" "$TEST_HOME/.tmux/conf.d/notify.conf"
+  cat > "$TEST_HOME/.tmux.conf" <<EOF
+source-file $TEST_HOME/.tmux/conf.d/status.conf
+source-file $TEST_HOME/.tmux/conf.d/notify.conf
+EOF
+}
+
+start_status_server() {
+  local suffix="${1:-status}"
+
+  SOCKET="dotfiles-status-${BATS_TEST_NUMBER}-${BASHPID}-${suffix}"
+  env -u TMUX -u TMUX_PLUGIN_MANAGER_PATH \
+    HOME="$TEST_HOME" \
+    TERM=xterm-256color \
+    tmux -L "$SOCKET" -f "$TEST_HOME/.tmux.conf" \
+    new-session -d -s dotfiles-status
+}
+
 expected_managed_plugins() {
   local spec plugin_repo
   local plugins="tmux-plugins/tpm"
@@ -125,6 +160,37 @@ expected_managed_plugins() {
     plugins+=" $plugin_repo"
   done
   printf '%s\n' "$plugins"
+}
+
+@test "rendered tmux status formats use rounded pills" {
+  local current_tab inactive_tab palette_color status_left status_right
+
+  require_status_runtime
+  prepare_status_runtime
+  start_status_server rounded-pills
+
+  status_left="$(tmux_value status-left)"
+  status_right="$(tmux_value status-right)"
+  inactive_tab="$(tmux_window_value window-status-format)"
+  current_tab="$(tmux_window_value window-status-current-format)"
+
+  for palette_color in \
+    @palette_red \
+    @palette_black \
+    @palette_background \
+    @palette_foreground \
+    @palette_surface \
+    @palette_comment \
+    @palette_green; do
+    [[ "$(tmux_value "$palette_color")" == \#* ]]
+  done
+
+  for format in "$status_left" "$status_right" "$inactive_tab" "$current_tab"; do
+    [[ "$format" == *""* ]]
+    [[ "$format" == *""* ]]
+    [[ "$format" != *""* ]]
+    [[ "$format" != *""* ]]
+  done
 }
 
 @test "tmux config builds plugins after overrides and runs TPM last" {
