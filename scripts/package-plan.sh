@@ -17,12 +17,14 @@ INSTALL_AI_CODECOMPANION="${INSTALL_AI_CODECOMPANION:-false}"
 INSTALL_AI_STATUSLINE="${INSTALL_AI_STATUSLINE:-false}"
 INSTALL_AI_OPENCODE="${INSTALL_AI_OPENCODE:-false}"
 INSTALL_AI_COPILOT="${INSTALL_AI_COPILOT:-false}"
+INSTALL_AI_OPENVIKING="${INSTALL_AI_OPENVIKING:-false}"
 INSTALL_TERMINAL_GHOSTTY="${INSTALL_TERMINAL_GHOSTTY:-false}"
 INSTALL_TERMINAL_ITERM2="${INSTALL_TERMINAL_ITERM2:-false}"
 [[ "$INSTALL_AI_CODECOMPANION" == true ]] && INSTALL_NEOVIM=true
 OPENCODE2_VERSION="${OPENCODE2_VERSION:-latest}"
 COPILOT_VERSION="${COPILOT_VERSION:-prerelease}"
 PREK_VERSION="${PREK_VERSION:-0.5.4}"
+OPENVIKING_VERSION="${OPENVIKING_VERSION:-0.4.23}"
 _plan_mode="${1:---records}"
 _status_result=planned
 _brew_inventory_loaded=0
@@ -285,6 +287,11 @@ _status() {
                 have=$("$probe" --version 2>/dev/null | awk '{print $2}')
                 [[ "$have" == "$want" ]] && _status_result=installed
             fi
+            if [[ "$name" == openviking && -x "$probe" ]]; then
+                local have
+                have=$("$probe" -c 'import importlib.metadata, openviking, openviking_sdk, litellm; print(importlib.metadata.version("openviking"))' 2>/dev/null || true)
+                [[ "$have" != "${policy#pinned:}" ]] || _status_result=installed
+            fi
             ;;
         git-external|git-runtime)
             [[ -e "$probe" ]] && _status_result=installed
@@ -483,6 +490,20 @@ _build() {
     # like the other npm globals. npm is the only channel (no Homebrew/apt).
     [[ "$INSTALL_AI_COPILOT" == true ]] &&
         _add npm @github/copilot "https://www.npmjs.com/package/@github/copilot" copilot "$(_version_policy "$COPILOT_VERSION")"
+
+    if [[ "$INSTALL_AI_OPENVIKING" == true ]]; then
+        case "$os" in
+            macos)
+                _add brew-formula uv "OpenViking Python environment"
+                _add brew-formula python3 "OpenViking Python runtime"
+                ;;
+            debian) _add apt python3 "OpenViking Python runtime" ;;
+        esac
+        local openviking_root
+        openviking_root=$(openviking_install_root)
+        _add uv-tool openviking "https://pypi.org/project/openviking/" \
+            "$openviking_root/current/bin/python" "pinned:$OPENVIKING_VERSION"
+    fi
 
     if [[ "$INSTALL_ZSH" == true ]]; then
         _add git-external ohmyzsh/ohmyzsh "https://github.com/ohmyzsh/ohmyzsh.git" "$HOME/.zsh/ohmyzsh"

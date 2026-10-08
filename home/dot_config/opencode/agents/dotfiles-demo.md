@@ -13,8 +13,18 @@ permissions:
   - action: read
     resource: "~/.config/opencode/demo/showcase.md"
     effect: allow
+  - action: "openviking_*"
+    resource: "*"
+    effect: allow
+  - action: skill
+    resource: "openviking-*"
+    effect: allow
+  - action: skill
+    resource: ov-experience-memory
+    effect: allow
 ---
 
+<!-- home/dot_config/opencode/agents/dotfiles-demo.md -->
 # Demo
 
 Read showcase.md once, then describe three useful features in at most 60 words.

@@ -1,0 +1,29 @@
+{
+  "server": {
+    "host": "127.0.0.1",
+    "port": 1933,
+    "auth_mode": "api_key",
+    "root_api_key": "${OPENVIKING_ROOT_API_KEY}"
+  },
+  "storage": {
+    "workspace": "./data",
+    "agfs": { "backend": "local" },
+    "vectordb": { "backend": "local" }
+  },
+  "embedding": {
+    "max_concurrent": 1,
+    "max_input_tokens": 1536,
+    "dense": {
+      "provider": "litellm",
+      "model": "ollama/nomic-embed-text:v1.5",
+      "api_base": "http://127.0.0.1:11434",
+      "dimension": 768
+    }
+  },
+  "vlm": {
+    "provider": "litellm",
+    "model": "github_copilot/gpt-5.2",
+    "max_concurrent": 2,
+    "timeout": 120
+  }
+}

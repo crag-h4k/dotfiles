@@ -1,0 +1,12 @@
+{
+  "url": "http://127.0.0.1:1933",
+  "api_key": "",
+  "plugin": {
+    "autoRecall": true,
+    "autoCapture": true,
+    "recallQueryExpansion": "off",
+    "recallCompress": "off",
+    "recallTokenBudget": 2000,
+    "opencode": { "repoContext": false, "mcpEnabled": false, "commitKeepRecentCount": 0 }
+  }
+}

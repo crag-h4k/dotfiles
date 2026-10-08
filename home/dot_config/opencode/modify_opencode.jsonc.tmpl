@@ -20,7 +20,8 @@
 #            The retired singular "plugin" key is removed when present.
 #   SEEDED - native "permissions" are written only when the incoming file has no
 #            permission policy. The exact old seed is migrated. Existing native
-#            permissions retain their policy, except generic hook and Git rules
+#            permissions retain their policy, except managed OpenViking allows
+#            and generic hook and Git rules
 #            migrated below; private overlays and unrelated policies survive.
 #   KEPT   - copied through verbatim, comments included: every other top-level
 #            key, in its original order. That is how machine-local "instructions"
@@ -62,7 +63,7 @@ HEADER = """\
 //
 // Native "permissions" are seeded once so a new machine is not unguarded. The
 // exact retired seed is migrated automatically; customized policies are yours
-// except the generic hook and Git rules migrated by this script.
+// except the managed OpenViking allows and generic hook/Git rule migrations.
 //
 // Terminal settings and the selected theme live in cli.json."""
 
@@ -88,6 +89,13 @@ PLAN_HANDOFF_RULES = (
 )
 PLAN_HANDOFF_START = "// dotfiles:plan-handoff:start"
 PLAN_HANDOFF_END = "// dotfiles:plan-handoff:end"
+OPENVIKING_RULES = (
+    '{ "action": "openviking_*", "resource": "*", "effect": "allow" }',
+    '{ "action": "skill", "resource": "openviking-*", "effect": "allow" }',
+    '{ "action": "skill", "resource": "ov-experience-memory", "effect": "allow" }',
+)
+OPENVIKING_RULES_START = "// dotfiles:openviking-permissions:start"
+OPENVIKING_RULES_END = "// dotfiles:openviking-permissions:end"
 
 
 def plan_handoff_rules(indent, followed=False):
@@ -111,7 +119,12 @@ NEW_AGENTS = """\
     "ricer": { "mode": "subagent" }
   }""" % (BUILD_COLOR, PLAN_COLOR, plan_handoff_rules("        "))
 
-MANAGED_PLUGINS = ("opencode-copilot-statusline@1.0.0",)
+MANAGED_PLUGINS = (
+    "opencode-copilot-statusline@1.0.0",
+{{ if dig "components" "ai" "openviking" false . }}
+    "@openviking/opencode-plugin@2026.10.7",
+{{ end }}
+)
 PLUGINS_START = "// dotfiles:plugins:start"
 PLUGINS_END = "// dotfiles:plugins:end"
 PLUGIN_AUDIT = """\
@@ -122,7 +135,16 @@ PLUGIN_AUDIT = """\
     // it only to GitHub's undocumented Copilot quota API. No telemetry or
     // install-time scripts. cli.json disables its stock TUI half; the local
     // footer displays the quota after session cost, without a reset countdown.
-    // A GitHub API change can make the quota unavailable."""
+    // A GitHub API change can make the quota unavailable.
+{{ if dig "components" "ai" "openviking" false . }}
+    // OpenViking: upstream V2 hooks provide automatic recall and capture.
+    // Audited @2026.10.7: captures user/assistant messages and tool output,
+    // and sends them to the server in private ovcli.conf. Use upstream hook-only
+    // mode; native MCP and skill discovery avoid its unsupported skill source API.
+    // Server model endpoints determine where extraction and embeddings run.
+    // No install-time scripts or runtime npm dependencies. Configure the private
+    // client and validate its server before enabling capture in a live session.
+{{ end }}"""
 
 # Retained byte-for-byte only to recognize and migrate the old generated seed.
 LEGACY_SEED_PERMISSION = """\
@@ -891,6 +913,36 @@ def merge_agents(agents_block):
     return merge_plan_permissions(agents_block)
 
 
+def merge_openviking_permissions(block):
+    """Append narrow managed memory allows after the user's global rules."""
+    wrapped = "{\n" + block + "\n}"
+    _, _, entries = scan(wrapped)
+    entry = next(item for item in entries if item["name"] == "permissions")
+    start = entry_value_start(wrapped, entry)
+    if wrapped[start] != "[":
+        raise ValueError("permissions is not an array")
+    end = array_close(wrapped, start)
+    body = wrapped[start + 1:end]
+    if body.count(OPENVIKING_RULES_START) != body.count(OPENVIKING_RULES_END) or body.count(OPENVIKING_RULES_START) > 1:
+        raise ValueError("ambiguous managed OpenViking permissions")
+    if OPENVIKING_RULES_START in body:
+        first = body.rfind("\n", 0, body.index(OPENVIKING_RULES_START)) + 1
+        last = body.index(OPENVIKING_RULES_END) + len(OPENVIKING_RULES_END)
+        body = body[:first] + body[last:]
+    values, tokens = jsonc_read("[" + body + "]")
+    if values and tokens[-2].group() != ",":
+        position = tokens[-2].end() - 1
+        body = body[:position] + "," + body[position:]
+    indent = line_indent(wrapped, entry["start"]) + "  "
+    owned = [indent + OPENVIKING_RULES_START]
+    owned.extend(indent + rule + ("," if index < len(OPENVIKING_RULES) - 1 else "")
+                 for index, rule in enumerate(OPENVIKING_RULES))
+    owned.append(indent + OPENVIKING_RULES_END)
+    closing_indent = line_indent(wrapped, entry["start"])
+    updated = wrapped[:start + 1] + body.rstrip() + "\n" + "\n".join(owned) + "\n" + closing_indent + wrapped[end:]
+    return updated[2:-2]
+
+
 def build_owned(agents_block, plugins_block):
     """Build managed fields around the preserved agent and plugin settings."""
     blocks = [
@@ -944,7 +996,7 @@ def emit(s):
 # native permissions included.
 if not text.strip():
     emit(render(build_owned(NEW_AGENTS, merge_plugins('  "plugins": []')),
-                SEED_PERMISSIONS.split("\n"), []))
+                merge_openviking_permissions(SEED_PERMISSIONS).split("\n"), []))
     raise SystemExit(0)
 
 root_open, root_close, entries = scan(text)
@@ -1110,10 +1162,14 @@ if has_native_permissions:
             line = line.replace('"effect": "deny"', '"effect": "ask"')
         migrated.append(line)
     kept_text = "\n".join(kept)
-    kept = kept_text.replace("\n".join(native_lines), "\n".join(migrated), 1).split("\n")
+    try:
+        policy = merge_openviking_permissions("\n".join(migrated))
+    except ValueError as error:
+        passthrough(str(error))
+    kept = kept_text.replace("\n".join(native_lines), policy, 1).split("\n")
 seed = None
 if not has_native_permissions and not has_custom_legacy_permission:
-    seed = SEED_PERMISSIONS.split("\n")
+    seed = merge_openviking_permissions(SEED_PERMISSIONS).split("\n")
 merged = render(build_owned(agents_block, plugins_block), seed, kept)
 try:
     jsonc_read(merged)

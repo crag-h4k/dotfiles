@@ -1,0 +1,314 @@
+#!/usr/bin/env python3
+# home/dot_local/bin/executable_openvikingctl
+"""Workstation lifecycle commands for the upstream OpenViking server."""
+import argparse
+import json
+import os
+from pathlib import Path
+import platform
+import secrets
+import shlex
+import subprocess
+import sys
+import tempfile
+import urllib.error
+import urllib.request
+import urllib.parse
+
+HOME = Path.home()
+PRIVATE = HOME / ".openviking"
+EXAMPLES = HOME / ".local/share/dotfiles/openviking"
+LABEL = "io.github.crag-h4k.dotfiles.openviking"
+UNIT = "dotfiles-openviking.service"
+
+
+def private_json(path):
+    stat = path.stat()
+    if stat.st_uid != os.getuid() or stat.st_mode & 0o077:
+        raise ValueError(f"{path} must be owned by you and have mode 600")
+    return json.loads(path.read_text())
+
+
+def write_private(path, value, replace=False):
+    path.parent.mkdir(mode=0o700, parents=True, exist_ok=True)
+    if not replace:
+        fd = os.open(path, os.O_WRONLY | os.O_CREAT | os.O_EXCL, 0o600)
+        with os.fdopen(fd, "w") as handle:
+            json.dump(value, handle, indent=2)
+            handle.write("\n")
+        return
+    fd, temporary = tempfile.mkstemp(prefix=".config-", dir=path.parent)
+    with os.fdopen(fd, "w") as handle:
+        json.dump(value, handle, indent=2)
+        handle.write("\n")
+    os.replace(temporary, path)
+
+
+def load_environment():
+    path = PRIVATE / "service.env"
+    if not path.exists():
+        return
+    stat = path.stat()
+    if stat.st_uid != os.getuid() or stat.st_mode & 0o077:
+        raise ValueError("private service.env must be owned by you and have mode 600")
+    for line in path.read_text().splitlines():
+        parts = shlex.split(line, comments=True)
+        if not parts:
+            continue
+        if parts[0] == "export":
+            parts.pop(0)
+        if len(parts) != 1 or "=" not in parts[0]:
+            raise ValueError("service.env accepts KEY=value assignments, not shell commands")
+        key, value = parts[0].split("=", 1)
+        if not key.isidentifier():
+            raise ValueError("invalid environment variable name in service.env")
+        os.environ.setdefault(key, value)
+
+
+def runtime():
+    root = os.environ.get("OPENVIKING_INSTALL_ROOT")
+    if not root and (PRIVATE / "runtime.json").exists():
+        root = private_json(PRIVATE / "runtime.json")["install_root"]
+    return Path(root or HOME / ".local/share/openviking") / "current"
+
+
+def config_path():
+    return Path(os.environ.get("OPENVIKING_CONFIG_FILE", PRIVATE / "ov.conf"))
+
+
+def server_config():
+    config = private_json(config_path())
+    server = config.get("server", {})
+    if server.get("host", "127.0.0.1") not in ("127.0.0.1", "localhost", "::1"):
+        raise ValueError("this workstation service only permits a loopback listener")
+    if server.get("auth_mode") != "api_key":
+        raise ValueError("configure API-key authentication before starting the service")
+    key = server.get("root_api_key", "")
+    if not isinstance(key, str) or not key or "${" in key:
+        raise ValueError("configure a real private root API key before starting the service")
+    port = server.get("port", 1933)
+    if type(port) is not int or not 1 <= port <= 65535:
+        raise ValueError("server.port must be an integer between 1 and 65535")
+    return config
+
+
+def command(argv, check=True, capture=False):
+    return subprocess.run(argv, check=check, capture_output=capture, text=capture)
+
+
+def init(profile):
+    PRIVATE.mkdir(mode=0o700, parents=True, exist_ok=True)
+    server = PRIVATE / "ov.conf"
+    client = PRIVATE / "ovcli.conf"
+    if server.exists():
+        print("Preserved existing private ov.conf")
+    else:
+        config = json.loads((EXAMPLES / (profile + ".json")).read_text())
+        config["server"]["root_api_key"] = secrets.token_urlsafe(32)
+        write_private(server, config)
+        print("Created private ov.conf from the starter profile")
+    if client.exists():
+        print("Preserved existing private ovcli.conf")
+    else:
+        write_private(client, json.loads((EXAMPLES / "ovcli.json").read_text()))
+        print("Created private ovcli.conf; bootstrap-client will provision its user key")
+    print("Edit your private model settings, authenticate, then run openvikingctl doctor")
+
+
+def service(action):
+    if action in ("enable", "restart"):
+        server_config()
+        if not (runtime() / "bin/openviking-server").is_file():
+            raise ValueError("install the OpenViking runtime before enabling its service")
+    if platform.system() == "Darwin":
+        domain = "gui/" + str(os.getuid())
+        if action == "enable":
+            target = domain + "/" + LABEL
+            command(["launchctl", "enable", target])
+            if command(["launchctl", "print", target], check=False, capture=True).returncode == 0:
+                command(["launchctl", "kickstart", target])
+            else:
+                command(["launchctl", "bootstrap", domain, str(HOME / "Library/LaunchAgents" / (LABEL + ".plist"))])
+        elif action == "restart":
+            command(["launchctl", "kickstart", "-k", domain + "/" + LABEL])
+        elif action == "stop":
+            command(["launchctl", "disable", domain + "/" + LABEL])
+            command(["launchctl", "bootout", domain + "/" + LABEL])
+        else:
+            command(["launchctl", "print", domain + "/" + LABEL])
+    elif platform.system() == "Linux":
+        if action == "enable":
+            command(["systemctl", "--user", "daemon-reload"])
+            command(["systemctl", "--user", "enable", "--now", UNIT])
+        elif action == "stop":
+            command(["systemctl", "--user", "disable", "--now", UNIT])
+        else:
+            command(["systemctl", "--user", action, UNIT])
+    else:
+        raise ValueError("OpenViking user-service wiring supports macOS and Linux")
+
+
+class NoRedirect(urllib.request.HTTPRedirectHandler):
+    def redirect_request(self, request, fp, code, msg, headers, new_url):
+        return None
+
+
+def bootstrap_client():
+    config = server_config()
+    path = PRIVATE / "ovcli.conf"
+    client = private_json(path)
+    if client.get("api_key"):
+        print("Preserved existing client API key")
+        return
+    port = config["server"].get("port", 1933)
+    url = "http://127.0.0.1:" + str(port)
+    opener = urllib.request.build_opener(NoRedirect())
+
+    def post(route, body):
+        request = urllib.request.Request(url + route, data=json.dumps(body).encode(), headers={
+            "Content-Type": "application/json",
+            "Authorization": "Bearer " + config["server"]["root_api_key"],
+        })
+        with opener.open(request, timeout=30) as response:
+            return json.load(response)["result"]
+
+    # ROOT administers identities; the agent gets its own USER data credential.
+    try:
+        post("/api/v1/admin/accounts", {"account_id": "local", "admin_user_id": "operator"})
+    except urllib.error.HTTPError as error:
+        if error.code != 409:
+            raise
+    result = post("/api/v1/admin/accounts/local/users", {"user_id": "agent", "role": "user"})
+    client["url"] = url
+    client["api_key"] = result["user_key"]
+    write_private(path, client, replace=True)
+    print("Provisioned private USER credential for the agent; no key printed")
+
+
+def mcp_config():
+    client = private_json(PRIVATE / "ovcli.conf")
+    settings = client.get("plugin", {})
+    if settings.get("opencode", {}).get("mcpEnabled", settings.get("mcpEnabled", True)) is not False:
+        raise ValueError("set plugin.opencode.mcpEnabled=false in your private client config first")
+    key = client.get("api_key")
+    if not isinstance(key, str) or not key:
+        raise ValueError("bootstrap the private USER client credential first")
+    url = client["url"].rstrip("/")
+    parsed = urllib.parse.urlparse(url)
+    if parsed.username or parsed.password or parsed.query or parsed.fragment:
+        raise ValueError("client URL must not carry credentials or query parameters")
+    if parsed.scheme != "https" and not (parsed.scheme == "http" and parsed.hostname in ("127.0.0.1", "localhost", "::1")):
+        raise ValueError("native MCP requires loopback HTTP or HTTPS")
+    target = PRIVATE / "mcp-user-key"
+    if target.is_symlink():
+        raise ValueError("refusing to replace a symlinked MCP key file")
+    if target.exists():
+        stat = target.stat()
+        if stat.st_uid != os.getuid() or stat.st_mode & 0o077:
+            raise ValueError("existing MCP key file must be private and owned by you")
+    fd, temporary = tempfile.mkstemp(prefix=".mcp-key-", dir=PRIVATE)
+    with os.fdopen(fd, "w") as handle:
+        handle.write(key + "\n")
+    os.replace(temporary, target)
+    return {"mcp": {"servers": {"openviking": {
+        "type": "remote", "url": url + "/mcp", "oauth": False, "codemode": False,
+        "headers": {"Authorization": "Bearer {file:" + str(target) + "}"},
+    }}}}
+
+
+def check_opencode():
+    def read(route):
+        # File stdout avoids losing buffered CLI output for large registries.
+        with tempfile.TemporaryFile(mode="w+", dir=PRIVATE) as output:
+            subprocess.run(["opencode2", "api", "get", route], check=True,
+                           stdout=output, stderr=subprocess.PIPE, text=True, timeout=60)
+            output.seek(0)
+            return json.load(output)["data"]
+
+    plugins = read("/api/plugin")
+    servers = read("/api/mcp")
+    skills = read("/api/skill")
+    package = "@openviking/opencode-plugin"
+    plugin_active = any(
+        item.get("source", {}).get("type") == "package" and
+        (item["source"].get("target") == package or
+         item["source"].get("target", "").startswith(package + "@")) and
+        item.get("state", {}).get("status") == "active" for item in plugins)
+    mcp_connected = any(item.get("name") == "openviking" and
+                        item.get("status", {}).get("status") == "connected" for item in servers)
+    required = {"openviking-memory", "openviking-skills", "ov-experience-memory"}
+    missing = required - {item["id"] for item in skills}
+    print(json.dumps({"plugin_active": plugin_active, "mcp_connected": mcp_connected,
+                      "missing_skills": sorted(missing)}))
+    if not plugin_active or not mcp_connected or missing:
+        raise ValueError("OpenViking registration check failed; do not treat capture/recall as working")
+
+
+def main():
+    os.umask(0o077)
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument("action", choices=("init", "run", "doctor", "probe-models", "mcp-config", "check-opencode", "auth-copilot", "bootstrap-client", "enable", "restart", "stop", "status", "version", "cli"))
+    parser.add_argument("--profile", choices=("copilot-ollama", "ollama", "openai", "codex-ollama"), default="copilot-ollama")
+    args, remaining = parser.parse_known_args()
+    if remaining and args.action != "cli":
+        parser.error("extra arguments are only accepted by the cli command")
+    if args.action != "check-opencode":
+        load_environment()
+    bin_dir = runtime() / "bin"
+    if args.action == "init":
+        init(args.profile)
+    elif args.action == "auth-copilot":
+        command([str(bin_dir / "python"), "-c", "from litellm.llms.github_copilot.authenticator import Authenticator; Authenticator().get_access_token()"])
+    elif args.action == "version":
+        command([str(bin_dir / "python"), "-c", "import importlib.metadata; print(importlib.metadata.version('openviking'))"])
+    elif args.action == "cli":
+        command([str(bin_dir / "ov"), *(remaining[1:] if remaining[:1] == ["--"] else remaining)])
+    elif args.action == "bootstrap-client":
+        bootstrap_client()
+    elif args.action == "mcp-config":
+        print(json.dumps(mcp_config(), indent=2))
+    elif args.action == "check-opencode":
+        check_opencode()
+    elif args.action == "doctor":
+        server_config()
+        command([str(bin_dir / "openviking-server"), "doctor", "--config", str(config_path())])
+    elif args.action == "probe-models":
+        server_config()
+        # These fixed synthetic probes validate real model access, not recall quality.
+        command([str(bin_dir / "python"), "-c", """
+import json, os, sys, time
+from pathlib import Path
+os.environ['OPENVIKING_CONFIG_FILE'] = sys.argv[1]
+from openviking_cli.utils.config.open_viking_config import OpenVikingConfig
+config = OpenVikingConfig.from_dict(json.loads(os.path.expandvars(Path(sys.argv[1]).read_text())))
+config.vlm.max_tokens = 256
+embedder = config.embedding.get_embedder()
+started = time.perf_counter()
+vector = embedder.embed('OpenViking synthetic embedding probe', is_query=True).dense_vector
+embedding_ms = (time.perf_counter() - started) * 1000
+assert len(vector) == config.embedding.dense.dimension, 'embedding dimension mismatch'
+started = time.perf_counter()
+reply = config.vlm.get_completion(prompt='Reply with exactly OK.')
+assert isinstance(reply, str) and reply.strip(), 'empty extraction-model response'
+print(json.dumps({'embedding_ms': round(embedding_ms, 2), 'dimension': len(vector),
+                  'vlm_ms': round((time.perf_counter() - started) * 1000, 2),
+                  'model_response_received': True}))
+""", str(config_path())])
+    elif args.action == "run":
+        config = server_config()
+        os.chdir(config_path().parent)
+        os.umask(0o077)
+        os.execv(str(bin_dir / "openviking-server"), ["openviking-server", "--config", str(config_path()), "--host", "127.0.0.1", "--port", str(config["server"].get("port", 1933))])
+    else:
+        service(args.action)
+
+
+if __name__ == "__main__":
+    try:
+        main()
+    except urllib.error.HTTPError as error:
+        print(f"OpenViking HTTP {error.code}; inspect the private server log or existing account state", file=sys.stderr)
+        raise SystemExit(1)
+    except (ValueError, OSError, subprocess.CalledProcessError) as error:
+        print("openvikingctl: " + str(error), file=sys.stderr)
+        raise SystemExit(1)

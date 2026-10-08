@@ -763,6 +763,32 @@ node_runtime_selected() {
         || "${INSTALL_AI_COPILOT:-false}" == true ]]
 }
 
+openviking_install_root() {
+    if [[ -n "${OPENVIKING_INSTALL_ROOT:-}" ]]; then
+        printf '%s\n' "$OPENVIKING_INSTALL_ROOT"
+        return
+    fi
+    if [[ ! -f "$HOME/.openviking/runtime.json" ]]; then
+        printf '%s\n' "$HOME/.local/share/openviking"
+        return
+    fi
+    python3 - "$HOME/.openviking/runtime.json" <<'PY'
+import json
+import os
+from pathlib import Path
+import sys
+
+path = Path(sys.argv[1])
+stat = path.stat()
+if stat.st_uid != os.getuid() or stat.st_mode & 0o077:
+    raise SystemExit("OpenViking runtime.json must be private and owned by this account")
+root = json.loads(path.read_text())["install_root"]
+if not isinstance(root, str) or not Path(root).is_absolute() or any(c in root for c in "\n\r\t"):
+    raise SystemExit("Invalid OpenViking install_root")
+print(root)
+PY
+}
+
 _tenv_terraform_lock_file() {
     local lock_dir
     lock_dir="${TENV_LOCK_PATH:-${TENV_ROOT:-${TFENV_ROOT:-$HOME/.tenv}}}"
