@@ -119,6 +119,81 @@ def init(profile):
     print("Edit your private model settings, authenticate, then run openvikingctl doctor")
 
 
+def compose_file():
+    if config_path() != PRIVATE / "ov.conf":
+        raise ValueError("Compose mounts ~/.openviking/ov.conf; unset OPENVIKING_CONFIG_FILE before using Compose")
+    path = EXAMPLES / "compose.yaml"
+    if not path.is_file():
+        raise ValueError("managed Compose file is missing; reapply the OpenViking component")
+    return path
+
+
+def compose_args():
+    args = ["docker", "compose", "-f", str(compose_file())]
+    override = PRIVATE / "compose.override.yaml"
+    if override.is_symlink():
+        raise ValueError("refusing a symlinked private Compose override")
+    if override.exists():
+        stat = override.stat()
+        if stat.st_uid != os.getuid() or stat.st_mode & 0o077:
+            raise ValueError("private Compose override must be owned by you and have mode 600")
+        args.extend(["-f", str(override)])
+    return args
+
+
+def compose_ollama_url():
+    if platform.system() == "Darwin":
+        return "http://host.docker.internal:11434"
+    if platform.system() == "Linux":
+        return "http://ollama:11434"
+    raise ValueError("OpenViking Compose supports macOS and Linux")
+
+
+def compose_init(profile):
+    compose_file()
+    created = not config_path().exists()
+    init(profile)
+    (HOME / ".config/litellm/github_copilot").mkdir(mode=0o700, parents=True, exist_ok=True)
+    if created:
+        config = server_config()
+        changed = False
+        for settings in (config.get("embedding", {}).get("dense", {}), config.get("vlm", {})):
+            if settings.get("model", "").startswith(("ollama/", "ollama_chat/")):
+                settings["api_base"] = compose_ollama_url()
+                changed = True
+        if changed:
+            write_private(config_path(), config, replace=True)
+    print("Private model settings are preserved on reruns; confirm their routes before starting Compose")
+
+
+def compose(action, assume_yes=False):
+    args = compose_args()
+    if action == "up":
+        config = server_config()
+        if config.get("server", {}).get("port", 1933) != 1933:
+            raise ValueError("Compose publishes port 1933; review the private server.port before starting")
+        for name, settings in (("embedding.dense", config.get("embedding", {}).get("dense", {})),
+                               ("vlm", config.get("vlm", {}))):
+            if settings.get("model", "").startswith(("ollama/", "ollama_chat/")):
+                expected = compose_ollama_url()
+                if settings.get("api_base", "").rstrip("/") != expected:
+                    raise ValueError("private " + name + ".api_base must be " + expected + " for this Compose deployment; review ov.conf before starting")
+        command(args + ["config", "--quiet"])
+        print("Compose images: ghcr.io/volcengine/openviking:v0.4.23" +
+              (", ollama/ollama:0.40.1" if platform.system() == "Linux" else ""))
+        if not confirm("Start the selected containers (downloads missing images)?", assume_yes):
+            print("Compose start declined")
+            return
+        if platform.system() == "Linux":
+            (HOME / ".local/share/ollama").mkdir(parents=True, exist_ok=True)
+        (HOME / ".config/litellm/github_copilot").mkdir(mode=0o700, parents=True, exist_ok=True)
+        command(args + ["up", "-d", "--wait"])
+    elif action == "stop":
+        command(args + ["stop"])
+    elif action == "status":
+        command(args + ["ps"])
+
+
 def runtime_command(action):
     helper = EXAMPLES / "runtime.py"
     if not helper.is_file():
@@ -424,7 +499,7 @@ def check_opencode():
 def main():
     os.umask(0o077)
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("action", choices=("setup", "init", "run", "doctor", "probe-models", "mcp-config", "configure-opencode", "check-opencode", "auth-copilot", "bootstrap-client", "enable", "restart", "stop", "status", "version", "cli"))
+    parser.add_argument("action", choices=("setup", "init", "run", "doctor", "probe-models", "mcp-config", "configure-opencode", "check-opencode", "auth-copilot", "bootstrap-client", "enable", "restart", "stop", "status", "version", "cli", "compose-init", "compose-up", "compose-stop", "compose-status"))
     parser.add_argument("--profile", choices=("copilot", "copilot-ollama", "ollama", "openai", "codex-ollama"), default="copilot")
     parser.add_argument("--yes", action="store_true", help="approve reviewed setup steps; does not replace provider login")
     args, remaining = parser.parse_known_args()
@@ -437,6 +512,10 @@ def main():
         setup(args.profile, args.yes)
     elif args.action == "init":
         init(args.profile)
+    elif args.action == "compose-init":
+        compose_init(args.profile)
+    elif args.action.startswith("compose-"):
+        compose(args.action.removeprefix("compose-"), args.yes)
     elif args.action == "auth-copilot":
         command([str(bin_dir / "python"), "-c", "from litellm.llms.github_copilot.authenticator import Authenticator; Authenticator().get_access_token()"])
     elif args.action == "version":

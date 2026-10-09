@@ -141,6 +141,7 @@ dirty the dotfiles repository. See [Neovim tooling](neovim.md) for the full spli
 | `home/dot_claude/skills/symlink_*` | `~/.claude/skills/*` | per-skill links for Claude Code and CodeCompanion; never replaces the directory |
 | `home/dot_agents/skills/symlink_*` | `~/.agents/skills/*` | per-skill links for Codex, OpenCode V2, and GitHub Copilot |
 | `home/dot_config/opencode/commands/{dotfiles,handoff,unslop,humanize}.md` | `~/.config/opencode/commands/{dotfiles,handoff,unslop,humanize}.md` | prompt-only routers with no shell blocks |
+| `home/dot_local/share/dotfiles/openviking/readonly_compose.yaml.tmpl` | `~/.local/share/dotfiles/openviking/compose.yaml` | explicit OpenViking Compose deployment; Linux includes Ollama, macOS connects to native Metal Ollama |
 | `home/dot_config/nvim/init.lua` | `~/.config/nvim/init.lua` | lazy.nvim entrypoint |
 | `home/dot_config/nvim/lua/dotfiles_palette.lua.tmpl` | `~/.config/nvim/lua/dotfiles_palette.lua` | selected Neovim plugin, flavor, and colorscheme |
 | `home/dot_config/nvim/lua/gitleaks.lua` | `~/.config/nvim/lua/gitleaks.lua` | asynchronous read/save secret warnings; honors project `.gitleaks.toml` |

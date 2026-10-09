@@ -89,7 +89,7 @@ Git is in the default component set. AI and terminal configuration are opt-in.
 | `ai` | `statusline` | `~/.claude/settings.json` + `~/.codex/config.toml` (merge) | off | Claude renderer plus a matching selected-palette Codex theme; keeps those files managed when notify hooks are off |
 | `ai` | `opencode` | OpenCode V2 (`@opencode/cli`) + V2 config + notifier bridge | on when AI is selected | isolated npm prefix, managed wrapper, native permissions, and exact-pinned statusline plugin |
 | `ai` | `copilot` | GitHub Copilot CLI (`@github/copilot` npm, `prerelease` tag) | off | npm-only channel (no Homebrew/apt); binary into `~/.local`; needs Node 22+ |
-| `ai` | `openviking` | local memory runtime, user services, and starter profiles | off | actual configuration and memory remain unmanaged; optional official OpenCode plugin |
+| `ai` | `openviking` | local memory runtime, Compose deployment, user services, and starter profiles | off | actual configuration and memory remain unmanaged; optional official OpenCode plugin |
 | `ai` | `codecompanion` | CodeCompanion.nvim + `claude-agent-acp` bridge | off | selecting it also enables and installs the Neovim component |
 | `terminal` | `ghostty` | Ghostty config + quick-terminal dropdown | on | macOS and Linux |
 | `terminal` | `iterm2` | iTerm2 Dynamic Profiles | off | macOS only; hidden in the submenu on non-macOS (data key still emitted for column parity), also gated in `home/.chezmoiignore` |
@@ -242,14 +242,16 @@ default ordering; automatic priority sorting is being developed separately.
 ### OpenViking
 
 `ai > openviking` installs an isolated Python memory-service runtime, native
-macOS/Debian user-service definitions, and read-only starter profiles. It is
-off by default. Your live model configuration, provider credentials, and memory
-database remain unmanaged; service activation is explicit.
+macOS/Debian user-service definitions, a portable Compose file, and read-only
+starter profiles. It is off by default. On Linux, Compose runs Ollama and
+OpenViking. On macOS, native Ollama keeps Metal acceleration while OpenViking
+runs in Compose. Your live model configuration, provider credentials, and
+memory database remain unmanaged; service activation is explicit.
 
 Selecting it alongside OpenCode registers the official pinned plugin in the
 managed section without replacing local plugin additions. See
 [OpenViking local memory](openviking.md) for guided setup, private initialization,
-provider authentication, loopback-only service activation, and trial measurements.
+provider authentication, Compose or native service activation, and trial measurements.
 
 ### OpenCode V2 footer
 

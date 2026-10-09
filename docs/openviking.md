@@ -7,6 +7,7 @@
 - [Guided setup](#guided-setup)
 - [Configuration ownership](#configuration-ownership)
 - [Choose providers](#choose-providers)
+- [Docker Compose on Linux and macOS](#docker-compose-on-linux-and-macos)
 - [Initialize and validate](#initialize-and-validate)
 - [Start the user service](#start-the-user-service)
 - [Enable OpenCode capture](#enable-opencode-capture)
@@ -30,12 +31,16 @@ The OpenCode integration pins the official plugin at `2026.10.7` for hooks only.
 Native MCP and native skill discovery provide the tools and three upstream
 skills. No copy of the plugin is patched or forked.
 
-The native runtime works on macOS arm64 and Debian arm64/x86_64. Keep Ollama
-native on a Mac to use Apple GPU acceleration. Docker Desktop on macOS does not
-provide GPU acceleration for Ollama; containerizing OpenViking alone would still
-require a route back to the native Ollama service.
+The native runtime works on macOS arm64 and Debian arm64/x86_64. An optional
+Compose deployment is described below. On Apple Silicon, Ollama runs natively
+for Metal acceleration while OpenViking runs in Docker. Linux runs both in
+Compose. Docker Desktop cannot pass Apple's Metal GPU to an Ollama container.
 
 ## Guided setup
+
+This section covers the existing native user-service path. For a portable
+deployment, use [Docker Compose on Linux and macOS](#docker-compose-on-linux-and-macos)
+instead. Do not start both servers against one workspace.
 
 For a new machine, select `ai > openviking` and `ai > opencode` during
 `chezmoi init --apply`, then approve package installation. Run this from your
@@ -139,6 +144,109 @@ Responses route for Responses-only models such as Luna, without patching
 installed packages or requiring a private Python startup hook. An unavailable
 model or failed inventory request stops startup; no alternate provider is
 selected. Foreground login must finish before the service starts.
+
+## Docker Compose on Linux and macOS
+
+The selected OpenViking component installs a managed Compose file at
+`~/.local/share/dotfiles/openviking/compose.yaml`. Docker Engine with Compose
+is required on Linux; Docker Desktop is required on macOS. Neither is silently
+installed. Package mode still stages the existing native OpenViking runtime for
+the `openvikingctl` doctor and probe commands. Compose deployment is explicit,
+not an apply side effect.
+
+Start with private configuration, choosing the model route before any image
+pull. For Codex OAuth extraction with Nomic embeddings:
+
+```sh
+openvikingctl compose-init --profile codex-ollama
+```
+
+`compose-init` creates `~/.openviking/ov.conf` and `ovcli.conf` only if absent.
+It gives a fresh Ollama profile the platform's container-side address. Linux
+uses `http://ollama:11434`; macOS uses
+`http://host.docker.internal:11434`. Existing model choices and credentials
+are never rewritten. If switching an existing native installation, edit only
+the Ollama `api_base` entries in your private `ov.conf` after backing it up;
+`compose-up` refuses to start with a mismatched route. Keep its authenticated
+server configuration and `./data` workspace. The container overrides the
+server's loopback bind address internally, while publishing port 1933 only on
+the host's loopback interface. Never run the native user service and Compose
+server simultaneously against the same embedded workspace.
+Compose does not load the native `service.env`. For an API-key model profile,
+set its provider credential privately in `ov.conf` before starting the
+container; do not place the key in the managed Compose file.
+
+On Linux, start Ollama and pull only the selected model:
+
+```sh
+docker compose -f ~/.local/share/dotfiles/openviking/compose.yaml up -d --wait ollama
+docker compose -f ~/.local/share/dotfiles/openviking/compose.yaml exec ollama ollama pull nomic-embed-text:v1.5
+```
+
+On macOS, install and start **native** Ollama, then run
+`ollama pull nomic-embed-text:v1.5`. Keep its listener local. Docker Desktop's
+`host.docker.internal` must reach that listener; validate from inside the
+OpenViking container before enabling capture. After a probe, use `ollama ps`
+to check whether the loaded model is on the GPU rather than assuming Metal is
+active. Do not expose Ollama on the LAN just to make a container connect.
+
+For provider login, use an interactive one-off container before starting the
+server. `openviking-server init` can import Codex auth or perform a separate
+device login. It preserves private config when you choose to update only VLM
+authentication. Inspect its options carefully instead of starting over:
+
+```sh
+docker compose -f ~/.local/share/dotfiles/openviking/compose.yaml run --rm --entrypoint openviking-server openviking init
+docker compose -f ~/.local/share/dotfiles/openviking/compose.yaml run --rm --entrypoint openviking-server openviking doctor
+openvikingctl compose-up
+```
+
+`compose-up` validates API-key protection and the selected Ollama route, shows
+the pinned images, asks before starting or pulling, then waits for health.
+Use `--yes` only after reviewing those images. The Linux Ollama container has
+no published port and limits itself to one model and one parallel request.
+macOS never creates an Ollama container. For shutdown and inspection:
+
+```sh
+openvikingctl compose-status
+openvikingctl compose-stop
+```
+
+If OpenCode runs in another Docker project, the host-only published port is
+not its container loopback. An optional private
+`~/.openviking/compose.override.yaml` can attach OpenViking to that project's
+network without publishing port 1933 on the LAN. The controller reads this
+override only when it is owned by you and mode 600; it never manages the file.
+For Linux, an example shape is:
+
+```yaml
+services:
+  openviking:
+    networks: [models, agent]
+networks:
+  agent:
+    external: true
+    name: <private-agent-network>
+```
+
+On macOS, use only `[agent]` in that override since the rendered Compose file
+has no `models` network. Keep the OpenCode container's connection and
+`OPENVIKING_URL` override private, pointing at `http://openviking:1933` on
+the shared network. Do not replace the host's working loopback `ovcli.conf`
+URL just to fix a container route. The OpenViking USER key is still required.
+
+The server uses the same private `~/.openviking` directory in the container,
+and Linux Ollama mounts `~/.local/share/ollama` for its model store. Copilot
+profiles also persist their separate LiteLLM login under
+`~/.config/litellm/github_copilot`. None of these directories is a managed
+dotfile. Back up the mounted directories with the containers stopped before
+changing hosts or image versions. Mac users back up native Ollama's model store
+separately. The Compose file contains no model credentials or user keys. After
+health passes, `openvikingctl bootstrap-client` and
+`configure-opencode` work for OpenCode running on the host. If OpenCode itself
+runs inside Docker, use the private network override above; container
+`127.0.0.1` is not the host. Automatic capture remains disabled until
+extraction and recall are tested.
 
 ## Initialize and validate
 
@@ -391,6 +499,8 @@ References:
 - [OpenCode V2 MCP configuration](https://opencode.ai/v2/docs/mcp-servers).
 - [OpenCode V2 native skill discovery](https://opencode.ai/v2/docs/skills).
 - [Server deployment](https://docs.openviking.ai/en/guides/03-deployment).
+- [Docker Desktop host networking](https://docs.docker.com/desktop/networking/).
+- [Ollama Docker installation](https://docs.ollama.com/docker).
 - [Provider configuration](https://docs.openviking.ai/en/guides/01-configuration).
 - [API-key authentication](https://docs.openviking.ai/en/guides/04-authentication).
 - [Operation telemetry](https://docs.openviking.ai/en/guides/07-operation-telemetry).

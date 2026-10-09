@@ -100,6 +100,91 @@ class OpenVikingTest(unittest.TestCase):
         self.init("copilot-ollama")
         self.assertEqual(config, self.ctl.private_json(self.ctl.PRIVATE / "ov.conf"))
 
+    def test_compose_init_routes_new_ollama_profiles_without_rewriting_existing_config(self):
+        (self.ctl.EXAMPLES / "compose.yaml").write_text("services: {}\n")
+        for os_name, endpoint in (("Darwin", "http://host.docker.internal:11434"),
+                                  ("Linux", "http://ollama:11434")):
+            with self.subTest(os_name=os_name):
+                server = self.ctl.PRIVATE / "ov.conf"
+                server.unlink(missing_ok=True)
+                with patch.object(self.ctl.platform, "system", return_value=os_name):
+                    with contextlib.redirect_stdout(io.StringIO()):
+                        self.ctl.compose_init("ollama")
+                config = self.ctl.private_json(server)
+                self.assertEqual(config["embedding"]["dense"]["api_base"], endpoint)
+                self.assertEqual(config["vlm"]["api_base"], endpoint)
+                original = server.read_bytes()
+                with patch.object(self.ctl.platform, "system", return_value=os_name):
+                    with contextlib.redirect_stdout(io.StringIO()):
+                        self.ctl.compose_init("copilot")
+                self.assertEqual(server.read_bytes(), original)
+
+    def test_compose_up_requires_approved_images_and_matching_private_route(self):
+        self.init("codex-ollama")
+        path = self.ctl.PRIVATE / "ov.conf"
+        compose = self.ctl.EXAMPLES / "compose.yaml"
+        compose.write_text("services: {}\n")
+        with patch.object(self.ctl.platform, "system", return_value="Linux"):
+            with patch.object(self.ctl, "command") as command:
+                with self.assertRaisesRegex(ValueError, "embedding.dense.api_base"):
+                    self.ctl.compose("up", assume_yes=True)
+                command.assert_not_called()
+            config = self.ctl.private_json(path)
+            config["embedding"]["dense"]["api_base"] = "http://ollama:11434"
+            self.ctl.write_private(path, config, replace=True)
+            config["server"]["port"] = 2000
+            self.ctl.write_private(path, config, replace=True)
+            with patch.object(self.ctl, "command") as command:
+                with self.assertRaisesRegex(ValueError, "publishes port 1933"):
+                    self.ctl.compose("up", assume_yes=True)
+                command.assert_not_called()
+            config["server"]["port"] = 1933
+            self.ctl.write_private(path, config, replace=True)
+            with patch.object(self.ctl, "command") as command:
+                with patch("builtins.input", return_value="n"):
+                    with contextlib.redirect_stdout(io.StringIO()):
+                        self.ctl.compose("up")
+                self.assertEqual(command.call_args.args[0][-2:], ["config", "--quiet"])
+            with patch.object(self.ctl, "command") as command:
+                with contextlib.redirect_stdout(io.StringIO()):
+                    self.ctl.compose("up", assume_yes=True)
+                self.assertEqual(command.call_args.args[0][-3:], ["up", "-d", "--wait"])
+
+    def test_compose_refuses_an_unmounted_custom_server_config(self):
+        (self.ctl.EXAMPLES / "compose.yaml").write_text("services: {}\n")
+        with patch.dict(os.environ, {"OPENVIKING_CONFIG_FILE": str(self.home / "other.conf")}):
+            with self.assertRaisesRegex(ValueError, "unset OPENVIKING_CONFIG_FILE"):
+                self.ctl.compose_init("codex-ollama")
+        self.assertFalse(self.ctl.PRIVATE.exists())
+
+    def test_compose_override_is_private_and_keeps_the_managed_file(self):
+        self.ctl.PRIVATE.mkdir()
+        managed = self.ctl.EXAMPLES / "compose.yaml"
+        managed.write_text("services: {}\n")
+        override = self.ctl.PRIVATE / "compose.override.yaml"
+        override.write_text("services: {}\n")
+        override.chmod(0o600)
+        self.assertEqual(self.ctl.compose_args(), ["docker", "compose", "-f", str(managed),
+                                                   "-f", str(override)])
+        override.chmod(0o644)
+        with self.assertRaisesRegex(ValueError, "mode 600"):
+            self.ctl.compose_args()
+        override.unlink()
+        override.symlink_to(managed)
+        with self.assertRaisesRegex(ValueError, "symlinked"):
+            self.ctl.compose_args()
+
+    def test_macos_compose_uses_native_ollama_without_a_container(self):
+        (self.ctl.EXAMPLES / "compose.yaml").write_text("services: {}\n")
+        with patch.object(self.ctl.platform, "system", return_value="Darwin"):
+            with contextlib.redirect_stdout(io.StringIO()):
+                self.ctl.compose_init("codex-ollama")
+            with patch.object(self.ctl, "command") as command:
+                with contextlib.redirect_stdout(io.StringIO()) as output:
+                    self.ctl.compose("up", assume_yes=True)
+            self.assertNotIn("ollama/ollama", output.getvalue())
+            self.assertEqual(len(command.call_args_list), 2)
+
     def test_public_config_is_refused_by_the_service(self):
         self.init()
         config = self.ctl.PRIVATE / "ov.conf"
@@ -549,7 +634,29 @@ class OpenVikingRenderTest(unittest.TestCase):
                     self.assertEqual("Library/LaunchAgents/io.github.crag-h4k.dotfiles.openviking.plist" in lines,
                                      os_name != "darwin" or not selected)
                     self.assertEqual(".config/systemd/user/dotfiles-openviking.service" in lines,
-                                     os_name != "linux" or not selected)
+                                      os_name != "linux" or not selected)
+
+    def test_compose_renders_linux_ollama_and_macos_native_metal_route(self):
+        relative = "home/dot_local/share/dotfiles/openviking/readonly_compose.yaml.tmpl"
+        for os_name in ("linux", "darwin"):
+            with self.subTest(os_name=os_name):
+                rendered = self.render(relative, "openviking", os_name)
+                self.assertIn("ghcr.io/volcengine/openviking:v0.4.23", rendered)
+                self.assertIn("${HOME}/.openviking:/app/.openviking", rendered)
+                self.assertIn("127.0.0.1:1933:1933", rendered)
+                self.assertEqual("ollama/ollama:0.40.1" in rendered, os_name == "linux")
+                if os_name == "darwin":
+                    self.assertNotIn("depends_on:", rendered)
+                else:
+                    self.assertIn("ollama: {condition: service_healthy}", rendered)
+                    self.assertIn("models: {}", rendered)
+                    self.assertNotIn("internal: true", rendered)
+                if shutil.which("docker"):
+                    with tempfile.TemporaryDirectory() as directory:
+                        compose = Path(directory) / "compose.yaml"
+                        compose.write_text(rendered)
+                        subprocess.run(["docker", "compose", "-f", str(compose), "config", "--quiet"],
+                                       env=dict(os.environ, HOME=directory), check=True, capture_output=True)
 
     def test_plugin_registration_is_selected_and_retired_without_dropping_local_entries(self):
         with tempfile.TemporaryDirectory() as directory:

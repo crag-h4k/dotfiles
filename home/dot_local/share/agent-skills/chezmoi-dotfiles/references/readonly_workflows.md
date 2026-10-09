@@ -56,6 +56,14 @@ health-check deadline, required imports, and stable pointer. Repair or roll back
 the failed transition while retaining the previous working release. Respect
 target ownership when another account uses a shared source checkout.
 
+For OpenViking Compose, Linux runs Ollama and OpenViking together; macOS keeps
+Ollama native for Metal and connects from the OpenViking container through
+`host.docker.internal`. Keep the authenticated server, credentials, workspace,
+and Ollama model store private. Stop any native OpenViking user service before
+starting Compose against the same embedded workspace. Validate the selected
+model route and both rendered OS variants without applying a worktree to the
+maintainer's real home.
+
 ## Terminal and editor regressions
 
 Record the chain: terminal/client, SSH, tmux or direct session, application, and

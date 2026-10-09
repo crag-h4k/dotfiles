@@ -22,7 +22,7 @@
   },
   "vlm": {
     "provider": "openai-codex",
-    "model": "gpt-5.3-codex",
+    "model": "gpt-5.6-terra",
     "max_concurrent": 2,
     "timeout": 120
   }

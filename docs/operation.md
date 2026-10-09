@@ -509,11 +509,13 @@ adaptive width tiers.
 
 ## OpenViking memory
 
-`ai > openviking` provides starter profiles and native user-service wiring.
+`ai > openviking` provides starter profiles, a managed Compose file, and
+optional native user-service wiring.
 The live `~/.openviking/ov.conf` and `ovcli.conf` remain private and unmanaged.
-Use `openvikingctl stop` before deselecting the component; configuration and
-memory are retained. See [OpenViking local memory](openviking.md) for setup,
-provider selection, and performance measurements.
+Use `openvikingctl compose-stop` (or `openvikingctl stop` for the native service)
+before deselecting the component. Configuration and memory are retained. See
+[OpenViking local memory](openviking.md) for setup, provider selection, and
+performance measurements.
 
 ## Secret scanning
 
