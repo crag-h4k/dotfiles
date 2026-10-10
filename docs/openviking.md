@@ -10,6 +10,7 @@
 - [Initialize and validate](#initialize-and-validate)
 - [Start the user service](#start-the-user-service)
 - [Enable OpenCode capture](#enable-opencode-capture)
+- [Import a Codex snapshot](#import-a-codex-snapshot)
 - [OpenCode permissions](#opencode-permissions)
 - [Measure the trial](#measure-the-trial)
 - [Storage and recovery](#storage-and-recovery)
@@ -304,6 +305,20 @@ checks before assuming memory still works. Native MCP/discovery reduce plugin
 API coupling, but they cannot guarantee compatibility with an untested future
 release. Keep the last validated runtime recoverable and review plugin pin
 updates rather than loading a floating npm release.
+
+## Import a Codex snapshot
+
+`openvikingctl import-codex` replays a reviewed copy of Codex's `sessions/`
+directory through OpenViking's native ingest pipeline. It does not read live
+Codex history automatically. Pass `--source` and a stable `--name`; the default
+is a preview that counts eligible sessions and messages without importing them.
+Add `--apply` only after reviewing the snapshot, destination, and provider's
+data-handling policy. `--session`, `--since`, and `--limit` can narrow a batch.
+
+The import uses the private OpenViking client configuration and keeps progress
+under `~/.openviking/imports/<name>/state/`. Preserve that state and the original
+snapshot for safe retries. Neither transcripts, client credentials, nor progress
+files belong in this repository.
 
 ## OpenCode permissions
 
