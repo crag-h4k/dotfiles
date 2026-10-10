@@ -4,6 +4,8 @@
 ## Table of Contents
 
 - [Daily operation](#daily-operation)
+- [Lazygit](#lazygit)
+- [Telemetry opt-outs](#telemetry-opt-outs)
 - [Telemetry opt-outs](#telemetry-opt-outs)
 - [OpenCode updates](#opencode-updates)
 - [Local overrides](#local-overrides)
@@ -76,6 +78,28 @@ Config-only mode skips package work. A headless apply without
 `DOTFILES_ASSUME_YES=1` declines package changes. The direct chezmoi external
 refresh flag can still refresh Git externals before the installer runs; omit it
 to use the installer's cleanliness and fast-forward checks.
+
+## Lazygit
+
+Run `lazygit` in a repository to inspect file and hunk diffs, stage changes,
+and browse commits. It is an interactive Git client: staging, commits, branch
+changes and pushes in its UI modify the repository. Agent approval prompts do
+not constrain actions you choose to take in Lazygit yourself.
+
+The package planner includes Lazygit in the base Homebrew and Trixie APT sets,
+independent of the Gum component selection. It installs only in approved package
+mode. The managed `~/.config/lazygit/config.yml` renders from the selected
+palette; macOS links its default config path to that same file. Its default
+background Git fetch and branch forwarding are disabled so opening a repo
+does not update remotes or other worktrees. Update checks, automatic conflict
+staging, and force pushes are disabled as well. You can still fetch, stage,
+commit, and push deliberately from the UI.
+
+There is no official Oh My Zsh Lazygit plugin to enable. The existing `git`
+plugin supplies shell aliases, but Lazygit does not need it. Run it in the
+terminal attached to the machine with the checkout you want to review; a
+local laptop terminal cannot display a checkout that only exists on a remote
+host.
 
 ## Telemetry opt-outs
 

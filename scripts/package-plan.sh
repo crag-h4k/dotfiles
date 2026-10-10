@@ -359,6 +359,7 @@ _build() {
             _add brew-formula gum "Homebrew core"
             _add brew-formula chezmoi "Homebrew core"
             _add brew-formula prek "Homebrew core"
+            _add brew-formula lazygit "Homebrew core"
             if [[ "$INSTALL_ZSH" == true ]]; then
                 _add brew-formula zsh "Homebrew core"
                 _add brew-formula gh "Homebrew core"
@@ -401,7 +402,7 @@ _build() {
             _add brew-formula pre-commit "Legacy hook runner removal" pre-commit remove
             ;;
         debian)
-            for pkg in git curl ca-certificates gnupg gum; do
+            for pkg in git curl ca-certificates gnupg gum lazygit; do
                 _add apt "$pkg" "Debian apt repository"
             done
             if [[ "$INSTALL_ZSH" == true ]]; then

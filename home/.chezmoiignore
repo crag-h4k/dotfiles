@@ -65,6 +65,9 @@ AGENTS.md
 .gitconfig.work
 .zsh_override
 .zsh_private
+{{ if ne .chezmoi.os "darwin" -}}
+Library/Application Support/lazygit/config.yml
+{{ end -}}
 {{/* Writing-quality skills are an automatic child of the existing AI parent.
      Any selected AI sub-feature enables the one canonical skill store, the
      per-skill harness links, and the OpenCode commands. Keep this expression
@@ -81,24 +84,36 @@ AGENTS.md
 {{ if not $agentSkillsEnabled -}}
 .local/share/agent-skills/PROVENANCE.md
 .local/share/agent-skills/handoff
+.local/share/agent-skills/git-publish
+.local/share/agent-skills/pr-watch
+.local/share/agent-skills/git-worktree
 .local/share/agent-skills/chezmoi-dotfiles
 .local/share/agent-skills/humanizer
 .local/share/agent-skills/unslop-code
 .local/share/agent-skills/unslop-text
 .local/share/agent-skills/unslop-ui
 .claude/skills/handoff
+.claude/skills/git-publish
+.claude/skills/pr-watch
+.claude/skills/git-worktree
 .claude/skills/chezmoi-dotfiles
 .claude/skills/humanizer
 .claude/skills/unslop-code
 .claude/skills/unslop-text
 .claude/skills/unslop-ui
 .agents/skills/handoff
+.agents/skills/git-publish
+.agents/skills/pr-watch
+.agents/skills/git-worktree
 .agents/skills/chezmoi-dotfiles
 .agents/skills/humanizer
 .agents/skills/unslop-code
 .agents/skills/unslop-text
 .agents/skills/unslop-ui
 .config/opencode/commands/handoff.md
+.config/opencode/commands/publish.md
+.config/opencode/commands/pr-watch.md
+.config/opencode/commands/worktree.md
 .config/opencode/commands/dotfiles.md
 .config/opencode/commands/humanize.md
 .config/opencode/commands/unslop.md

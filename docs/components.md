@@ -57,6 +57,12 @@ Enter numbers (e.g. "1 3"), type default, or press Enter for default (1 2 3 4)
 Both interfaces persist their selection and resolve the same
 `[data.components]` tables.
 
+Lazygit is a base package on both macOS (Homebrew) and Debian (Trixie APT),
+regardless of which components are selected in Gum or the typed menu. It has
+no Oh My Zsh plugin requirement. Package mode still shows it in the approval
+plan; configs-only mode does not install it. Its config follows the selected
+palette even on machines without Zsh.
+
 | Input | Selects |
 | --- | --- |
 | Numbers (e.g. `1 3`) | Any subset; spacing/order don't matter - `1 3`, `13`, and `3 1` are equivalent |

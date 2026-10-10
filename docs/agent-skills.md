@@ -8,6 +8,7 @@
 - [Invocation](#invocation)
   - [Dotfiles maintenance](#dotfiles-maintenance)
   - [Handoff](#handoff)
+  - [Git publishing and review](#git-publishing-and-review)
   - [Unslop](#unslop)
   - [Humanizer](#humanizer)
 - [Provenance and pins](#provenance-and-pins)
@@ -29,6 +30,9 @@ The only canonical copies live under `~/.local/share/agent-skills/`:
 ├── PROVENANCE.md
 ├── chezmoi-dotfiles/
 ├── handoff/
+├── git-publish/
+├── pr-watch/
+├── git-worktree/
 ├── humanizer/
 ├── unslop-code/
 ├── unslop-text/
@@ -37,7 +41,7 @@ The only canonical copies live under `~/.local/share/agent-skills/`:
 
 Chezmoi creates one relative symlink per skill under both `~/.claude/skills/`
 and `~/.agents/skills/`. It never replaces either skills directory. Existing
-and future skills beside these six remain untouched.
+and future skills beside these nine remain untouched.
 
 Selecting `ai > openviking` adds three unmodified upstream instruction skills:
 `openviking-memory`, `openviking-skills`, and `ov-experience-memory`. They follow
@@ -59,7 +63,10 @@ for the separate hook and authenticated MCP connections.
 OpenCode commands live at `~/.config/opencode/commands/dotfiles.md`,
 `~/.config/opencode/commands/handoff.md`,
 `~/.config/opencode/commands/unslop.md`, and
-`~/.config/opencode/commands/humanize.md`. They are prompt-only Markdown with no
+`~/.config/opencode/commands/humanize.md`,
+`~/.config/opencode/commands/publish.md`,
+`~/.config/opencode/commands/pr-watch.md`, and
+`~/.config/opencode/commands/worktree.md`. They are prompt-only Markdown with no
 shell interpolation.
 
 Other harnesses are unsupported. A future integration should warn and continue
@@ -123,6 +130,52 @@ print the environment or file contents. Chezmoi installs it read-only and
 executable so the skill can invoke it directly. A draft that contains a private-key
 block, a cloud access key, a service token, or a password assignment is not
 written.
+
+### Git publishing and review
+
+Three read-only instruction packages adapt MIT-licensed EveryInc workflows:
+
+| Skill | OpenCode command | Behavior |
+| --- | --- | --- |
+| `git-publish` | `/publish <change>` | Explicit staging, commit-message choices, approved push and template-based PR creation/update. |
+| `pr-watch` | `/pr-watch <PR>` | Bounded CI watching and review-feedback checkpoints; no automatic fixes or external writes. |
+| `git-worktree` | `/worktree <task or ref>` | Approved isolation using the repository's worktree layout; no silent switching or cleanup. |
+
+They work through native skill discovery in standalone OpenCode V2 and the
+other supported harnesses; OpenChamber is not required. They install with any
+selected AI sub-feature, not with the unconditional Lazygit package. Their
+normal skill discovery remains enabled, but invocation never grants write
+permission. In OpenCode, decisions and Git approvals use `question`; other
+harnesses use their available blocking question tool. Only a non-OpenCode
+harness lacking such a tool may fall back to chat. OpenCode stops writes until
+`question` works; errors and dismissed questions are not approval.
+
+Publishing preserves unrelated index entries and stops on mixed user/task edits.
+Before a commit it presents at least two Conventional Commit messages and asks
+for a choice and explicit authorization. Push/PR changes use the verified head
+and base repositories, including fork differences. Review uses an existing
+review skill rather than installing EveryInc's multi-agent review framework.
+
+PR monitoring defaults to a ten-minute bounded CI wait; `checkpoint` takes one
+snapshot. Reviews and inline unresolved threads are inspected before and after
+the wait, not streamed continuously. Changing the head invalidates earlier green
+checks. No checks, failed API reads, incomplete thread pagination, or unknown
+review requirements cannot establish merge readiness. Failures and feedback
+go through question-tool decisions; fixes, Git writes, replies, resolutions,
+CI reruns, and merge require their own scoped authorization. Monitoring ends
+when checks finish, the budget expires, or it reaches a blocker; it does not
+leave a daemon running. No autonomous EveryInc babysitter is installed.
+
+Worktree setup detects an existing checkout before proposing another. It follows
+configured host/repository paths instead of assuming `.worktrees/`, asks before
+fetch/create/switch operations, and moves the primary session to a newly created
+tree only with available host support. Independent feature work does not reuse
+another task's worktree. Branches and trees remain after merge unless cleanup
+is separately authorized.
+
+The source revision, selected-file hashes, and adaptation boundaries are in
+`~/.local/share/agent-skills/PROVENANCE.md`. Each package includes the original
+MIT license. Updates are reviewed source changes, not floating downloads.
 
 ### Unslop
 
