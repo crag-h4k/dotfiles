@@ -193,6 +193,26 @@ expected_managed_plugins() {
   done
 }
 
+@test "rendered tmux metrics use the mobile-compatible Nerd Font icons" {
+  local status_right icon
+
+  require_status_runtime
+  prepare_status_runtime
+  start_status_server metric-icons
+
+  status_right="$(tmux_value status-right)"
+  for icon in '' '' '' ''; do
+    [[ "$status_right" == *"$icon"* ]]
+  done
+  for icon in '󰌗' '⚙' '▦' '󰥔'; do
+    [[ "$status_right" != *"$icon"* ]]
+  done
+  [[ "$status_right" == *'#{network_bandwidth}'* ]]
+  [[ "$status_right" == *'#{cpu_percentage}'* ]]
+  [[ "$status_right" == *'#{ram_percentage}'* ]]
+  [[ "$(tmux_value status)" == on ]]
+}
+
 @test "notification pills expand both branches without leaking style text" {
   local option flag accent raw expanded visible
   require_status_runtime
