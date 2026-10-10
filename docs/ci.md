@@ -58,9 +58,9 @@ version documented in [Contributing](../CONTRIBUTING.md) and runs
 - palette drift checks;
 - Python and Bats suites.
 
-The full hook set runs on native Linux x86-64 (`ubuntu-24.04`) and ARM64
-(`ubuntu-24.04-arm`). Each job asserts its machine architecture. Fail-fast is
-disabled so a failure on one architecture does not cancel coverage of the other.
+The full hook set runs on native Linux x86-64 (`ubuntu-24.04`). The job asserts
+its machine architecture. ARM64 coverage stays in the Trixie and macOS
+deployment jobs, not in a second copy of the same prek hooks.
 
 The workflow checks out the palette submodule and installs the system
 dependencies needed by hooks. Bats is pinned in the hooks' isolated Node
@@ -135,8 +135,8 @@ GitHub can schedule them together instead of serializing operating systems.
 
 The deployment summary job posts one sticky table with build, install, and
 smoke outcomes separately for Linux x86-64, Linux ARM64, and macOS ARM64. The
-aggregate `CI` job fails unless both Linux deployments, macOS, and every prek
-matrix entry succeed. It also enforces PR metadata on pull requests.
+aggregate `CI` job fails unless both Linux deployments, macOS, and prek succeed.
+It also enforces PR metadata on pull requests.
 
 On pushes to `main`, PR metadata is expected to be skipped. The other checks
 still run before Release Please is allowed to update or publish anything.
@@ -149,7 +149,7 @@ The `main` ruleset should require:
 - squash merges and linear history;
 - `CI`;
 - `PR metadata`;
-- successful prek checks on both Linux architectures;
+- successful full prek checks on Linux x86-64;
 - successful Trixie deployments on both Linux architectures;
 - successful ARM64 macOS deployment.
 

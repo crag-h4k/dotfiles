@@ -14,21 +14,11 @@ permissions:
 
 jobs:
   prek:
-    name: prek (Linux ${{ matrix.arch }})
-    strategy:
-      fail-fast: false
-      matrix:
-        include:
-          - arch: x86-64
-            runner: ubuntu-24.04
-            machine: x86_64
-          - arch: ARM64
-            runner: ubuntu-24.04-arm
-            machine: aarch64
-    runs-on: ${{ matrix.runner }}
+    name: prek (Linux x86-64)
+    runs-on: ubuntu-24.04
     env:
       PREK_VERSION: "0.5.4"
-      EXPECTED_MACHINE: ${{ matrix.machine }}
+      EXPECTED_MACHINE: x86_64
     steps:
       - name: Verify native Linux runner architecture
         run: |

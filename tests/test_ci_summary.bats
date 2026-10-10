@@ -228,9 +228,10 @@ for name in ["ci", "ci-summary"]:
     assert "trixie-arm64-deployment" in job
 gate = re.search(r"(?ms)^  ci:\n(.*?)(?=^  \S|\Z)", workflow)[1]
 assert 'test "$TRIXIE_ARM64_RESULT" = success' in gate
-assert "runner: ubuntu-24.04\n" in prek
-assert "runner: ubuntu-24.04-arm\n" in prek
-assert "fail-fast: false" in prek
+assert "runs-on: ubuntu-24.04\n" in prek
+assert "ubuntu-24.04-arm" not in prek
+assert "matrix." not in prek
+assert "prek run --show-diff-on-failure --color=never --all-files" in prek
 assert "luacheck-${{ runner.os }}-${{ runner.arch }}" in prek
 pbvar = (root / ".github/workflows/pbvar-build.yaml").read_text()
 for runner in ["ubuntu-24.04", "ubuntu-24.04-arm", "macos-15"]:
