@@ -37,3 +37,29 @@ SOURCE_ROOT="$REPO_ROOT/home"
     [ -f "$REPO_ROOT/config/linters/$linter_config" ]
   done
 }
+
+@test "Lazygit renders the selected palette and macOS links to the shared config" {
+  local config="${BATS_TEST_TMPDIR}/chezmoi.toml" output
+  printf '[data]\npalette="nord"\n' > "$config"
+  run chezmoi execute-template --source "$REPO_ROOT" --config "$config" \
+    < "$SOURCE_ROOT/dot_config/lazygit/config.yml.tmpl"
+  [ "$status" -eq 0 ]
+  [[ "$output" == *'activeBorderColor: ["#b48ead", bold]'* ]]
+  [[ "$output" == *'autoFetch: false'* ]]
+  [[ "$output" == *'autoForwardBranches: none'* ]]
+  [[ "$output" == *'method: never'* ]]
+
+  local link="$SOURCE_ROOT/Library/Application Support/lazygit/symlink_config.yml"
+  [ "$(cat "$link")" = '../../../.config/lazygit/config.yml' ]
+  [ "$(cd "$(dirname "$link")/../../.." && pwd)/dot_config/lazygit/config.yml.tmpl" = \
+    "$SOURCE_ROOT/dot_config/lazygit/config.yml.tmpl" ]
+
+  run chezmoi execute-template --source "$REPO_ROOT" --config "$config" \
+    --override-data '{"chezmoi":{"os":"linux"}}' < "$SOURCE_ROOT/.chezmoiignore"
+  [ "$status" -eq 0 ]
+  [[ "$output" == *'Library/Application Support/lazygit/config.yml'* ]]
+  run chezmoi execute-template --source "$REPO_ROOT" --config "$config" \
+    --override-data '{"chezmoi":{"os":"darwin"}}' < "$SOURCE_ROOT/.chezmoiignore"
+  [ "$status" -eq 0 ]
+  [[ "$output" != *'Library/Application Support/lazygit/config.yml'* ]]
+}
