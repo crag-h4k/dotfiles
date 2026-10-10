@@ -105,6 +105,13 @@ repos:
   # the CI workflow installs it via apt luarocks.
   - repo: local
     hooks:
+      - id: test-telemetry-env
+        name: python (Zsh telemetry exports)
+        entry: python3 -m unittest tests/test_telemetry_env.py
+        language: system
+        pass_filenames: false
+        files: ^(home/dot_zshenv|tests/test_telemetry_env\.py)$
+
       - id: test-zshrc-migration
         name: python (backed-up redundant zshrc PATH tail)
         entry: python3 -m unittest tests/test_zshrc_migration.py
