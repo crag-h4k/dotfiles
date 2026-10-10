@@ -90,6 +90,7 @@ INSTALL_AI_OPENCODE="${INSTALL_AI_OPENCODE:-false}"
 # gates only the binary install.
 INSTALL_AI_COPILOT="${INSTALL_AI_COPILOT:-false}"
 INSTALL_AI_OPENVIKING="${INSTALL_AI_OPENVIKING:-false}"
+INSTALL_AI_SSH_MCP="${INSTALL_AI_SSH_MCP:-false}"
 # Shared notify runtime. AI-hook-only hosts still need notify.yaml, lib.sh, and
 # mikefarah yq even when neither Zsh nor tmux is selected as a component.
 INSTALL_NOTIFY="${INSTALL_NOTIFY:-false}"
@@ -114,7 +115,7 @@ main() {
         node_ready=false
     fi
     info "dotfiles installer: platform=$os"
-    info "components: zsh=$INSTALL_ZSH tmux=$INSTALL_TMUX neovim=$INSTALL_NEOVIM git.config=$INSTALL_GIT_CONFIG ai.codecompanion=$INSTALL_AI_CODECOMPANION ai.opencode=$INSTALL_AI_OPENCODE ai.copilot=$INSTALL_AI_COPILOT ai.openviking=$INSTALL_AI_OPENVIKING notify=$INSTALL_NOTIFY terminal.ghostty=$INSTALL_TERMINAL_GHOSTTY terminal.iterm2=$INSTALL_TERMINAL_ITERM2"
+    info "components: zsh=$INSTALL_ZSH tmux=$INSTALL_TMUX neovim=$INSTALL_NEOVIM git.config=$INSTALL_GIT_CONFIG ai.codecompanion=$INSTALL_AI_CODECOMPANION ai.opencode=$INSTALL_AI_OPENCODE ai.copilot=$INSTALL_AI_COPILOT ai.openviking=$INSTALL_AI_OPENVIKING ai.ssh_mcp=$INSTALL_AI_SSH_MCP notify=$INSTALL_NOTIFY terminal.ghostty=$INSTALL_TERMINAL_GHOSTTY terminal.iterm2=$INSTALL_TERMINAL_ITERM2"
 
     # Confirm before any package-manager mutation. Decline degrades to the same
     # configs-only tail this function already runs for `configs` mode, for THIS
@@ -286,6 +287,14 @@ main() {
                 package_action_try npm @github/copilot "GitHub Copilot CLI" env COPILOT_VERSION="${copilot_target:-${COPILOT_VERSION:-prerelease}}" INSTALL_AI_COPILOT=true DOTFILES_NODE_READY=true bash "$SCRIPT_DIR/install-copilot.sh" || true
             else
                 package_skip "GitHub Copilot CLI; Node.js 24+ unavailable"
+            fi
+        fi
+        if [[ "$INSTALL_AI_SSH_MCP" == true ]]; then
+            if [[ "$node_ready" == true ]]; then
+                package_action_try npm ssh-mcp "SSH MCP" \
+                    env INSTALL_AI_SSH_MCP=true bash "$SCRIPT_DIR/install-ssh-mcp.sh" || true
+            else
+                package_skip "SSH MCP; Node.js 24+ unavailable"
             fi
         fi
         if [[ "$os" == debian ]]; then

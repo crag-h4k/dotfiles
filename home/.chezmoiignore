@@ -45,6 +45,7 @@ AGENTS.md
 .config/opencode/cli.override.json
 .config/opencode/override.zsh
 .config/opencode/remote.env
+.config/ssh-mcp
 .config/opencode/v2-plugins/local
 # Work-in-progress tab sorter: do not deploy or discover until the Mac focus bug is fixed.
 .config/opencode/plugins/priority-tabs
@@ -75,6 +76,7 @@ AGENTS.md
      (dig "components" "ai" "opencode" false .)
      (dig "components" "ai" "copilot" false .)
      (dig "components" "ai" "openviking" false .)
+     (dig "components" "ai" "ssh_mcp" false .)
      (dig "components" "ai" "codecompanion" false .) -}}
 {{ if not $agentSkillsEnabled -}}
 .local/share/agent-skills/PROVENANCE.md
@@ -113,6 +115,9 @@ AGENTS.md
 .claude/skills/openviking-memory
 .claude/skills/openviking-skills
 .claude/skills/ov-experience-memory
+{{ end -}}
+{{ if not (dig "components" "ai" "ssh_mcp" false .) -}}
+.local/share/dotfiles/ssh-mcp
 {{ end -}}
 {{ if or (ne .chezmoi.os "darwin") (not (dig "components" "ai" "openviking" false .)) -}}
 Library/LaunchAgents/io.github.crag-h4k.dotfiles.openviking.plist

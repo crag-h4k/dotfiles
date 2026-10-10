@@ -17,6 +17,8 @@
 #            managed plugin registrations, agent colors, Ricer's subagent mode,
 #            and narrow Plan handoff permissions. Every
 #            other agent field, nested comment, and custom agent is preserved.
+#   SEEDED - when ai > ssh_mcp is selected, add a local MCP entry only if one
+#            does not already exist. The user's disabled flag and overrides win.
 #            The retired singular "plugin" key is removed when present.
 #   SEEDED - native "permissions" are written only when the incoming file has no
 #            permission policy. The exact old seed is migrated. Existing native
@@ -96,6 +98,8 @@ OPENVIKING_RULES = (
 )
 OPENVIKING_RULES_START = "// dotfiles:openviking-permissions:start"
 OPENVIKING_RULES_END = "// dotfiles:openviking-permissions:end"
+SSH_MCP_SELECTED = {{ if dig "components" "ai" "ssh_mcp" false . }}True{{ else }}False{{ end }}
+SSH_MCP_ENTRY = r'"ssh-mcp": {"type": "local", "command": ["/bin/sh", "-c", "exec \"$HOME/.local/bin/ssh-mcp\""], "disabled": true}'
 
 
 def plan_handoff_rules(indent, followed=False):
@@ -943,6 +947,33 @@ def merge_openviking_permissions(block):
     return updated[2:-2]
 
 
+def seed_ssh_mcp(block):
+    """Insert the opt-in registration without replacing local MCP settings."""
+    wrapped = "{\n" + block + "\n}"
+    _, _, entries = scan(wrapped)
+    entry = next(item for item in entries if item["name"] == "mcp")
+    start = entry_value_start(wrapped, entry)
+    if wrapped[start] != "{":
+        raise ValueError("mcp is not an object")
+    mcp = wrapped[start:entry["end"]]
+    opening, closing, members = scan(mcp)
+    servers = next((item for item in members if item["name"] == "servers"), None)
+    if servers is None:
+        mcp = insert_object_member(mcp, opening, closing, members,
+                                   '"servers": {' + SSH_MCP_ENTRY + '}')
+    else:
+        offset = entry_value_start(mcp, servers)
+        if mcp[offset] != "{":
+            raise ValueError("mcp.servers is not an object")
+        server_block = mcp[offset:servers["end"]]
+        open_server, close_server, server_entries = scan(server_block)
+        if not any(item["name"] == "ssh-mcp" for item in server_entries):
+            updated = insert_object_member(server_block, open_server, close_server,
+                                           server_entries, SSH_MCP_ENTRY)
+            mcp = mcp[:offset] + updated + mcp[servers["end"]:]
+    return (wrapped[:start] + mcp + wrapped[entry["end"]:])[2:-2]
+
+
 def build_owned(agents_block, plugins_block):
     """Build managed fields around the preserved agent and plugin settings."""
     blocks = [
@@ -996,7 +1027,8 @@ def emit(s):
 # native permissions included.
 if not text.strip():
     emit(render(build_owned(NEW_AGENTS, merge_plugins('  "plugins": []')),
-                merge_openviking_permissions(SEED_PERMISSIONS).split("\n"), []))
+                merge_openviking_permissions(SEED_PERMISSIONS).split("\n"),
+                ['  "mcp": {"servers": {' + SSH_MCP_ENTRY + '}}'] if SSH_MCP_SELECTED else []))
     raise SystemExit(0)
 
 root_open, root_close, entries = scan(text)
@@ -1119,6 +1151,20 @@ while kept and not kept[0].strip():
     kept.pop(0)
 while kept and not kept[-1].strip():
     kept.pop()
+
+if SSH_MCP_SELECTED:
+    mcp_entry = next((item for item in entries if item["name"] == "mcp"), None)
+    if mcp_entry is None:
+        kept.extend(['  "mcp": {"servers": {' + SSH_MCP_ENTRY + '}}'])
+    else:
+        first, last = entry_span(mcp_entry)
+        original = "\n".join(lines[first:last + 1])
+        try:
+            updated = seed_ssh_mcp(original)
+        except ValueError as exc:
+            passthrough("cannot seed SSH MCP: %s" % exc)
+        kept_text = "\n".join(kept).replace(original, updated, 1)
+        kept = kept_text.split("\n")
 
 has_native_permissions = any(e["name"] == "permissions" for e in entries)
 has_custom_legacy_permission = any(e["name"] == "permission" for e in entries) and not legacy_permission

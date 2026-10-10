@@ -13,6 +13,7 @@
      (dig "components" "ai" "opencode" false .)
      (dig "components" "ai" "copilot" false .)
      (dig "components" "ai" "openviking" false .)
+     (dig "components" "ai" "ssh_mcp" false .)
      (dig "components" "ai" "codecompanion" false .) -}}
 {{ if dig "components" "ai" "openviking" false . -}}
 # Unmodified OpenViking skills use native harness discovery, not plugin skill APIs.
