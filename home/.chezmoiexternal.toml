@@ -13,8 +13,31 @@
      (dig "components" "ai" "opencode" false .)
      (dig "components" "ai" "copilot" false .)
      (dig "components" "ai" "openviking" false .)
-     (dig "components" "ai" "ssh_mcp" false .)
      (dig "components" "ai" "codecompanion" false .) -}}
+{{ if dig "components" "ai" "opencode" false . -}}
+[".local/share/agent-skills/caveman/SKILL.md"]
+    type = "file"
+    url = "https://raw.githubusercontent.com/JuliusBrussee/caveman/2e08b9177c07bb7249a8a2d1a6758e5db281d002/skills/caveman/SKILL.md"
+    readonly = true
+    [".local/share/agent-skills/caveman/SKILL.md".checksum]
+        sha256 = "415d43518f2b1a9498c15a445d4657117b129ee5e81b19454ce348439cc6672b"
+
+[".local/share/agent-skills/caveman-review/SKILL.md"]
+    type = "file"
+    url = "https://raw.githubusercontent.com/JuliusBrussee/caveman/2e08b9177c07bb7249a8a2d1a6758e5db281d002/skills/caveman-review/SKILL.md"
+    readonly = true
+    [".local/share/agent-skills/caveman-review/SKILL.md".checksum]
+        sha256 = "599330563f19b5c59c3efddffcd7e8d9098b74c29817ab422ccd3253b103fcb8"
+
+{{ range $name := list "caveman" "caveman-review" -}}
+[".local/share/agent-skills/{{ $name }}/LICENSE"]
+    type = "file"
+    url = "https://raw.githubusercontent.com/JuliusBrussee/caveman/2e08b9177c07bb7249a8a2d1a6758e5db281d002/LICENSE"
+    readonly = true
+    [".local/share/agent-skills/{{ $name }}/LICENSE".checksum]
+        sha256 = "cfc7749b96f63bd31c3c42b5c471bf756814053e847c10f3eb003417bc523d30"
+{{ end -}}
+{{ end -}}
 {{ if dig "components" "ai" "openviking" false . -}}
 # Unmodified OpenViking skills use native harness discovery, not plugin skill APIs.
 [".local/share/agent-skills/openviking-memory/SKILL.md"]

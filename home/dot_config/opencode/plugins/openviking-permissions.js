@@ -2,6 +2,7 @@
 import { Plugin } from "@opencode/plugin"
 
 const rules = [
+  { action: "caveman_*", resource: "*", effect: "allow" },
   { action: "openviking_*", resource: "*", effect: "allow" },
   { action: "skill", resource: "openviking-*", effect: "allow" },
   { action: "skill", resource: "ov-experience-memory", effect: "allow" },

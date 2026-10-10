@@ -51,6 +51,15 @@ _resolve_npm() {
     fi
     if ! release_version_valid "$candidate"; then candidate=-; fi
     _resolve_compare
+    if [[ "$name" == @caveman-ai/cli && "$status" == installed ]]; then
+        local binary
+        for binary in caveman-proxy caveman-engine caveman-mcp; do
+            if [[ ! -x "$HOME/.caveman/bin/$binary" ]]; then
+                status=check
+                reason="Caveman companion runtime needs repair"
+            fi
+        done
+    fi
     if [[ "$name" == @opencode/cli && "$status" == installed ]]; then
         # The native CLI and its local SDK are one installation unit.
         if ! node - "$HOME/.config/opencode" "$current" <<'JS'

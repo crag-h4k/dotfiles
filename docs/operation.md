@@ -13,6 +13,7 @@
 - [Statusline (Claude / Codex)](#statusline-claude--codex)
 - [OpenViking memory](#openviking-memory)
 - [SSH MCP for OpenCode V2](#ssh-mcp-for-opencode-v2)
+- [Caveman compression](#caveman-compression)
 - [Secret scanning](#secret-scanning)
 - [Docker and Terraform checks](#docker-and-terraform-checks)
 - [Supported platforms](#supported-platforms)
@@ -523,9 +524,9 @@ provider selection, and performance measurements.
 
 ## SSH MCP for OpenCode V2
 
-Select `ai > ssh_mcp` alongside `ai > opencode` to install the pinned
-`ssh-mcp` CLI and seed `mcp.servers.ssh-mcp` in OpenCode V2 as disabled. This
-is a separate, default-off choice. Package approval is required for the binary.
+Selecting `ai > opencode` installs the pinned `ssh-mcp` CLI and seeds
+`mcp.servers.ssh-mcp` disabled. It has no individual picker entry.
+Package approval is required for the binary.
 It uses a local stdio connection; no remote SSH service or key is installed by
 dotfiles.
 
@@ -545,10 +546,17 @@ OpenCode merge adds `ssh-mcp` only when absent and never replaces a local entry.
 To enable it, set `"disabled": false` on `mcp.servers.ssh-mcp` in your global
 `~/.config/opencode/opencode.jsonc` and reload OpenCode. Set it back to `true`
 to turn it off. Chezmoi preserves either choice on subsequent applies.
-Deselecting the component stops future package
+Deselecting OpenCode stops future package
 checks but does not delete a previously installed binary or registration;
 disable the entry before deselecting it. OpenCode tool permissions and the
 SSH MCP profile's role and approval rules are independent checks.
+
+## Caveman compression
+
+Selecting OpenCode installs the CLI, signed companions, and two upstream
+skills, and seeds its recovery MCP disabled. Its V2 plugin reads an enabled
+private route. Follow [Caveman setup and recovery](caveman.md); user-service
+activation and OC2 reload are deliberate steps, not apply side effects.
 
 ## Secret scanning
 

@@ -316,6 +316,8 @@ read-only agents can use memory without enabling unrelated writes.
 New agents receive the same exceptions when the registry is rebuilt.
 
 The skill exceptions cover `openviking-*` and `ov-experience-memory`. These
+shared managed rules also allow the bundled `caveman_*` tools in every agent
+mode, independently of whether its proxy route is enabled. These
 rules do not allow shell lifecycle commands, Git operations, filesystem edits,
 or access to protected credential files. OpenViking's server-side account/ACL
 checks and organization-level hard permission policies still apply. Destructive

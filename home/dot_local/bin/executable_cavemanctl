@@ -1,0 +1,224 @@
+#!/usr/bin/env python3
+# home/dot_local/bin/executable_cavemanctl
+"""Configure the private Caveman proxy and its workstation user service."""
+import argparse
+import ipaddress
+import json
+import os
+from pathlib import Path
+import platform
+import re
+import secrets
+import subprocess
+import sys
+import tempfile
+import time
+import urllib.error
+import urllib.parse
+import urllib.request
+
+HOME = Path.home()
+PRIVATE = HOME / ".caveman/oc2"
+UNIT = "dotfiles-caveman.service"
+LABEL = "io.github.crag-h4k.dotfiles.caveman"
+
+
+def read_private(path):
+    stat = path.stat()
+    if path.is_symlink() or stat.st_uid != os.getuid() or stat.st_mode & 0o077:
+        raise ValueError(f"{path} must be a private file owned by you")
+    return path.read_text()
+
+
+def write_private(path, value):
+    fd, temporary = tempfile.mkstemp(prefix=".caveman-", dir=path.parent)
+    try:
+        with os.fdopen(fd, "w") as stream:
+            stream.write(value)
+        os.replace(temporary, path)
+    finally:
+        if os.path.exists(temporary):
+            os.unlink(temporary)
+
+
+def endpoint(value):
+    parsed = urllib.parse.urlsplit(value)
+    if parsed.scheme not in ("http", "https") or not parsed.hostname or parsed.username or parsed.password or parsed.query or parsed.fragment:
+        raise ValueError("endpoints require HTTP(S) URLs without credentials, query, or fragment")
+    return value.rstrip("/")
+
+
+def validate(value):
+    if value.get("backend", "native") not in ("native", "compose"):
+        raise ValueError("backend must be native or compose")
+    if not re.fullmatch(r"[a-zA-Z0-9_-]+", value["provider"]):
+        raise ValueError("invalid provider ID")
+    endpoint(value["upstream"])
+    endpoint(value["url"])
+    host, port = value["listen"].rsplit(":", 1)
+    ipaddress.ip_address(host.strip("[]"))
+    if not 1 <= int(port) <= 65535 or value["mode"] not in ("record", "compress"):
+        raise ValueError("invalid listener port or proxy mode")
+    if type(value["enabled"]) is not bool:
+        raise ValueError("enabled must be a boolean")
+    if not isinstance(value["allow_private_hosts"], list) or not all(
+        isinstance(host, str) and re.fullmatch(r"[a-zA-Z0-9_.:-]+", host)
+        for host in value["allow_private_hosts"]
+    ):
+        raise ValueError("allow_private_hosts must contain exact hostnames or addresses")
+    return value
+
+
+def settings():
+    return validate(json.loads(read_private(PRIVATE / "settings.json")))
+
+
+def save(value):
+    write_private(PRIVATE / "settings.json", json.dumps(value, indent=2) + "\n")
+
+
+def init(args):
+    PRIVATE.mkdir(mode=0o700, parents=True, exist_ok=True)
+    if (PRIVATE / "settings.json").exists():
+        settings()
+        print("Preserved private Caveman settings")
+    else:
+        if not args.provider or not args.upstream:
+            raise ValueError("init requires --provider and --upstream on first use")
+        value = {"provider": args.provider, "upstream": endpoint(args.upstream), "backend": args.backend,
+                 "listen": args.listen, "url": endpoint(args.url), "mode": "compress",
+                 "allow_private_hosts": args.allow_private_host, "enabled": False}
+        save(validate(value))
+        print("Created private settings with OC2 routing disabled")
+    token = PRIVATE / "proxy-token"
+    if not token.exists():
+        with os.fdopen(os.open(token, os.O_WRONLY | os.O_CREAT | os.O_EXCL, 0o600), "w") as stream:
+            stream.write(secrets.token_hex(32))
+    read_private(token)
+
+
+def environment():
+    return {**os.environ, "CAVEMAN_HOME": str(PRIVATE),
+            "CAVEMAN_CCR_DB": str(PRIVATE / "ccr.db"), "DO_NOT_TRACK": "1"}
+
+
+def render(value):
+    token = read_private(PRIVATE / "proxy-token").strip()
+    if len(token) < 16 or any(char.isspace() for char in token):
+        raise ValueError("proxy token must contain at least 16 non-whitespace characters")
+    config = {"label": "dotfiles", "mode": value["mode"], "listen": value["listen"],
+              "compat": {value["provider"]: {"base_url": value["upstream"]}}}
+    path = PRIVATE / "proxy.json"
+    write_private(path, json.dumps(config, indent=2) + "\n")
+    write_private(PRIVATE / "proxy.env", "CAVEMAN_AUTH_TOKEN=" + token + "\nCAVE_SSRF_ALLOWLIST=" + ",".join(value["allow_private_hosts"]) + "\n")
+    return path, token
+
+
+def run():
+    value = settings()
+    if value.get("backend", "native") != "native":
+        raise ValueError("Compose owns this proxy; use the Compose stack lifecycle")
+    path, token = render(value)
+    env = environment()
+    env.update(CAVEMAN_CONFIG=str(path), CAVEMAN_AUTH_TOKEN=token,
+               CAVE_SSRF_ALLOWLIST=",".join(value["allow_private_hosts"]))
+    binary = HOME / ".caveman/bin/caveman-proxy"
+    os.execve(binary, [str(binary), "serve"], env)
+
+
+def service(action):
+    if platform.system() == "Linux":
+        if action == "enable":
+            subprocess.run(["systemctl", "--user", "daemon-reload"], check=True)
+            command = ["systemctl", "--user", "enable", "--now", UNIT]
+        elif action == "stop":
+            command = ["systemctl", "--user", "disable", "--now", UNIT]
+        else:
+            command = ["systemctl", "--user", action, UNIT]
+    elif platform.system() == "Darwin":
+        domain = f"gui/{os.getuid()}"
+        target = domain + "/" + LABEL
+        plist = HOME / "Library/LaunchAgents" / (LABEL + ".plist")
+        if action == "enable":
+            subprocess.run(["launchctl", "enable", target], check=True)
+            loaded = subprocess.run(["launchctl", "print", target], capture_output=True).returncode == 0
+            command = ["launchctl", "kickstart", "-k", target] if loaded else ["launchctl", "bootstrap", domain, str(plist)]
+        elif action == "stop":
+            subprocess.run(["launchctl", "disable", target], check=True)
+            command = ["launchctl", "bootout", domain, str(plist)]
+        else:
+            command = ["launchctl", "kickstart", "-k", target]
+    else:
+        raise ValueError("user services support macOS and Linux")
+    subprocess.run(command, check=True)
+
+
+def ready(value):
+    with urllib.request.urlopen(value["url"].rstrip("/") + "/health/ready", timeout=5) as response:
+        return response.status == 200
+
+
+def main():
+    os.umask(0o077)
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument("action", choices=("init", "render", "run", "mcp", "enable", "disable", "stop", "restart", "status", "stats"))
+    parser.add_argument("--backend", choices=("native", "compose"), default="native")
+    parser.add_argument("--provider")
+    parser.add_argument("--upstream", help="upstream origin, before /v1")
+    parser.add_argument("--listen", default="127.0.0.1:8787")
+    parser.add_argument("--url", default="http://127.0.0.1:8787", help="proxy URL reachable by the OC2 server")
+    parser.add_argument("--allow-private-host", action="append", default=[])
+    args = parser.parse_args()
+    if args.action == "init":
+        init(args)
+    elif args.action == "render":
+        render(settings())
+        print("Rendered private proxy.json and proxy.env")
+    elif args.action == "run":
+        run()
+    elif args.action in ("mcp", "stats"):
+        binary = HOME / ".caveman/bin" / ("caveman-mcp" if args.action == "mcp" else "caveman-proxy")
+        argv = [str(binary)] + (["stats"] if args.action == "stats" else [])
+        os.execve(binary, argv, environment())
+    else:
+        value = settings()
+        if args.action == "enable":
+            if value.get("backend", "native") == "native":
+                service("enable")
+            deadline = time.monotonic() + 30
+            while True:
+                if time.monotonic() >= deadline:
+                    raise ValueError("proxy did not become ready; OC2 activation was not changed")
+                try:
+                    if ready(value):
+                        break
+                except (urllib.error.URLError, TimeoutError):
+                    pass
+                time.sleep(0.5)
+            value["enabled"] = True
+            save(value)
+            print("Proxy ready. Enable Caveman in OC2 MCP settings, then reload the location.")
+        elif args.action == "disable":
+            value["enabled"] = False
+            save(value)
+            print("Reload OC2 locations to restore direct routing, then use cavemanctl stop.")
+        elif args.action == "stop":
+            if value["enabled"]:
+                raise ValueError("disable and reload OC2 before stopping the proxy")
+            if value.get("backend", "native") != "native":
+                raise ValueError("Compose owns this proxy; use the Compose stack lifecycle")
+            service("stop")
+        elif args.action == "status":
+            print(json.dumps({"enabled": value["enabled"], "ready": ready(value), "mode": value["mode"], "provider": value["provider"], "backend": value.get("backend", "native")}))
+        else:
+            if value.get("backend", "native") != "native":
+                raise ValueError("Compose owns this proxy; use the Compose stack lifecycle")
+            service(args.action)
+
+
+if __name__ == "__main__":
+    try:
+        main()
+    except (OSError, ValueError, KeyError, subprocess.CalledProcessError) as error:
+        print("cavemanctl: " + str(error), file=sys.stderr)
+        raise SystemExit(1)

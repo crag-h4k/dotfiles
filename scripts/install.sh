@@ -90,7 +90,8 @@ INSTALL_AI_OPENCODE="${INSTALL_AI_OPENCODE:-false}"
 # gates only the binary install.
 INSTALL_AI_COPILOT="${INSTALL_AI_COPILOT:-false}"
 INSTALL_AI_OPENVIKING="${INSTALL_AI_OPENVIKING:-false}"
-INSTALL_AI_SSH_MCP="${INSTALL_AI_SSH_MCP:-false}"
+INSTALL_AI_SSH_MCP="$INSTALL_AI_OPENCODE"
+INSTALL_AI_CAVEMAN="$INSTALL_AI_OPENCODE"
 # Shared notify runtime. AI-hook-only hosts still need notify.yaml, lib.sh, and
 # mikefarah yq even when neither Zsh nor tmux is selected as a component.
 INSTALL_NOTIFY="${INSTALL_NOTIFY:-false}"
@@ -295,6 +296,14 @@ main() {
                     env INSTALL_AI_SSH_MCP=true bash "$SCRIPT_DIR/install-ssh-mcp.sh" || true
             else
                 package_skip "SSH MCP; Node.js 24+ unavailable"
+            fi
+        fi
+        if [[ "$INSTALL_AI_CAVEMAN" == true ]]; then
+            if [[ "$node_ready" == true ]]; then
+                package_action_try npm @caveman-ai/cli "Caveman CLI and signed runtime" \
+                    env INSTALL_AI_CAVEMAN=true bash "$SCRIPT_DIR/install-caveman.sh" || true
+            else
+                package_skip "Caveman; Node.js 24+ unavailable"
             fi
         fi
         if [[ "$os" == debian ]]; then

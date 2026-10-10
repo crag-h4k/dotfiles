@@ -27,6 +27,8 @@ done
 script_dir=$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)
 python3 "$script_dir/openviking-deployment-smoke.py" ||
     fail "OpenViking native runtime smoke failed"
+python3 "$script_dir/caveman-deployment-smoke.py" ||
+    fail "Caveman native runtime smoke failed"
 
 [[ "$(git config --global --get init.defaultBranch)" == main ]] ||
     fail "Git default branch is not main"

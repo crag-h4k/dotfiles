@@ -86,12 +86,36 @@ def test_ssh_mcp_starts_disabled_and_local_enable_survives(ssh_script):
     assert again == enabled
 
 
-def test_ssh_mcp_is_absent_when_unselected(script):
+def test_bundled_mcps_start_disabled_without_individual_selection(script):
     merged, _ = merge(script, "")
-    assert "mcp" not in parse(merged)
+    servers = parse(merged)["mcp"]["servers"]
+    assert servers["ssh-mcp"]["disabled"] is True
+    assert servers["caveman"]["disabled"] is True
+    assert servers["caveman"]["codemode"] is False
+    assert servers["caveman"]["command"] == ["/bin/sh", "-c", 'exec "$HOME/.local/bin/cavemanctl" mcp']
     local = '{\n  "mcp": {"servers": {"ssh-mcp": {"type": "local", "command": ["ssh-mcp"], "disabled": true}}}\n}'
     merged, _ = merge(script, local)
     assert parse(merged)["mcp"]["servers"]["ssh-mcp"]["disabled"] is True
+
+
+def test_caveman_local_enable_and_codemode_survive_apply(script):
+    initial, error = merge(script, "")
+    assert not error
+    configured = initial.replace('"codemode": false, "disabled": true', '"codemode": false, "disabled": false')
+    repeated, error = merge(script, configured)
+    assert not error
+    assert repeated == configured
+    assert parse(repeated)["mcp"]["servers"]["caveman"]["disabled"] is False
+
+
+def test_managed_caveman_allow_follows_global_catchall_and_is_idempotent(script):
+    original = '{\n  "permissions": [{"action": "*", "resource": "*", "effect": "ask"}]\n}\n'
+    result, error = merge(script, original)
+    assert not error
+    rules = parse(result)["permissions"]
+    assert rules[0] == {"action": "*", "resource": "*", "effect": "ask"}
+    assert rules[-4] == {"action": "caveman_*", "resource": "*", "effect": "allow"}
+    assert merge(script, result)[0] == result
 
 
 def test_ssh_mcp_seed_handles_missing_servers_and_existing_local_entry(ssh_script):
@@ -269,7 +293,7 @@ AGENTS_WITH_BUILTIN_FIELDS = """\
 
 def test_empty_stdin_seeds_a_complete_generic_file(script):
     out, _ = merge(script, "")
-    assert strict_json_keys(out) == ["$schema", "agents", "permissions", "plugins"]
+    assert strict_json_keys(out) == ["$schema", "agents", "mcp", "permissions", "plugins"]
     d = parse(out)
     assert d["$schema"] == "https://opencode.ai/config.json"
     assert set(d["agents"]) == {"build", "plan", "ricer"}
@@ -652,7 +676,7 @@ def test_existing_native_permissions_and_comments_are_preserved(script):
 }
 """
     out, _ = merge(script, src)
-    assert parse(out)["permissions"][:-3] == [
+    assert parse(out)["permissions"][:-4] == [
         {"action": "shell", "resource": "custom *", "effect": "allow"}
     ]
     assert "// Local policy stays private and unchanged." in out
@@ -689,7 +713,7 @@ def test_existing_prek_allow_adds_pre_commit_without_changing_other_rules(script
 '''
     out, _ = merge(script, src)
     rules = parse(out)["permissions"]
-    assert [rule["resource"] for rule in rules[:-3]] == [
+    assert [rule["resource"] for rule in rules[:-4]] == [
         "prek *", "pre-commit *", "terraform plan *"
     ]
     assert merge(script, out)[0] == out
@@ -712,7 +736,7 @@ def test_existing_native_worktree_rule_narrows_without_replacing_local_policy(sc
     assert '// Keep other local choices in their original order.' in out
     assert permission_effect(parse(out)["permissions"], "shell", "git worktree remove old") == "ask"
     assert permission_effect(parse(out)["permissions"], "shell", "git worktree list") == "allow"
-    assert parse(out)["permissions"][:-3][-2:] == [
+    assert parse(out)["permissions"][:-4][-2:] == [
         {"action": "shell", "resource": "git push *", "effect": "ask"},
         {"action": "shell", "resource": "rm -rf *", "effect": "deny"},
     ]
@@ -956,7 +980,7 @@ def test_work_keys_and_their_comments_are_preserved_verbatim(script):
     out, _ = merge(script, WORK)
     d = parse(out)
     assert d["instructions"] == ["/home/example/memory/MEMORY.md"]
-    assert sorted(d["mcp"]) == ["warehouse", "wiki"]
+    assert sorted(d["mcp"]) == ["servers", "warehouse", "wiki"]
     assert d["mcp"]["wiki"]["url"] == "https://wiki.example.invalid/mcp"
     assert "// WORK-ONLY. Memory index loaded every session." in out
     assert "// WORK-ONLY. Internal servers. Note the // inside these URLs" in out
@@ -987,7 +1011,7 @@ def test_trailing_comma_is_fixed_when_an_owned_key_was_last(script):
         '  "plugin": [\n    "stale@0.0.1"\n  ]\n}\n'
     )
     out, _ = merge(script, src)
-    assert strict_json_keys(out) == ["$schema", "agents", "permission", "plugins"]
+    assert strict_json_keys(out) == ["$schema", "agents", "mcp", "permission", "plugins"]
 
 
 # --- idempotence ------------------------------------------------------------
