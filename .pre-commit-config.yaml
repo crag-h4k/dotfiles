@@ -119,6 +119,20 @@ repos:
         pass_filenames: false
         files: ^(home/(dot_zshrc|dot_zshenv|\.chezmoiscripts/run_before_00-backup\.sh)|scripts/normalize-zshrc\.py|tests/test_zshrc_migration\.py)$
 
+      - id: test-caveman
+        name: python (Caveman private config and user services)
+        entry: python3 -m unittest tests/test_caveman.py
+        language: system
+        pass_filenames: false
+        files: ^(home/(\.chezmoi.*|dot_local/bin/executable_cavemanctl|Library/LaunchAgents/.*caveman.*|dot_config/systemd/user/dotfiles-caveman\.service)|scripts/install-caveman\.sh|tests/test_caveman\.py)$
+
+      - id: test-caveman-plugin
+        name: node test (Caveman V2 routing and recovery)
+        entry: node --test tests/test_caveman_plugin.mjs
+        language: system
+        pass_filenames: false
+        files: ^(home/dot_config/opencode/plugins/caveman\.js|tests/test_caveman_plugin\.mjs)$
+
       - id: test-openviking
         name: python (OpenViking private config and user services)
         entry: python3 -m unittest tests/test_openviking.py
@@ -303,7 +317,7 @@ repos:
         language: node
         additional_dependencies: ['bats@1.13.0']
         pass_filenames: false
-        files: ^(\.chezmoiroot|home/|config/linters/|scripts/|tests/test_source_layout\.bats)$
+        files: ^(\.chezmoiroot|home/|config/linters/|scripts/|tests/(test_source_layout\.bats|trixie-deployment/Dockerfile\.trixie))$
 
       - id: bats-ci-summary
         name: bats (deployment PR summary)

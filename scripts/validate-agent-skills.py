@@ -19,7 +19,8 @@ CORE_SKILL_IDS = (
     "chezmoi-dotfiles", "handoff", "humanizer", "unslop-code", "unslop-text", "unslop-ui"
 ) + GIT_SKILL_IDS
 OPENVIKING_SKILL_IDS = ("openviking-memory", "openviking-skills", "ov-experience-memory")
-SKILL_IDS = CORE_SKILL_IDS + OPENVIKING_SKILL_IDS
+CAVEMAN_SKILL_IDS = ("caveman", "caveman-review")
+SKILL_IDS = CORE_SKILL_IDS + OPENVIKING_SKILL_IDS + CAVEMAN_SKILL_IDS
 GUIDANCE_FILES = (
     "AGENTS.md",
     "home/AGENTS.md",
@@ -181,6 +182,25 @@ OPENVIKING_GATED_TARGETS = {
     f"{prefix}/{skill_id}"
     for prefix in (".local/share/agent-skills", ".agents/skills", ".claude/skills")
     for skill_id in OPENVIKING_SKILL_IDS
+}
+CAVEMAN_EXTERNALS = {
+    ".local/share/agent-skills/caveman/SKILL.md": (
+        "https://raw.githubusercontent.com/JuliusBrussee/caveman/2e08b9177c07bb7249a8a2d1a6758e5db281d002/skills/caveman/SKILL.md",
+        "415d43518f2b1a9498c15a445d4657117b129ee5e81b19454ce348439cc6672b",
+    ),
+    ".local/share/agent-skills/caveman-review/SKILL.md": (
+        "https://raw.githubusercontent.com/JuliusBrussee/caveman/2e08b9177c07bb7249a8a2d1a6758e5db281d002/skills/caveman-review/SKILL.md",
+        "599330563f19b5c59c3efddffcd7e8d9098b74c29817ab422ccd3253b103fcb8",
+    ),
+    **{f".local/share/agent-skills/{skill}/LICENSE": (
+        "https://raw.githubusercontent.com/JuliusBrussee/caveman/2e08b9177c07bb7249a8a2d1a6758e5db281d002/LICENSE",
+        "cfc7749b96f63bd31c3c42b5c471bf756814053e847c10f3eb003417bc523d30",
+    ) for skill in CAVEMAN_SKILL_IDS},
+}
+CAVEMAN_GATED_TARGETS = {
+    f"{prefix}/{skill}"
+    for prefix in (".local/share/agent-skills", ".agents/skills", ".claude/skills")
+    for skill in CAVEMAN_SKILL_IDS
 }
 
 
@@ -351,6 +371,8 @@ def validate_external_contract(root: Path) -> list[str]:
         expected = dict(EXPECTED_EXTERNALS)
         if feature == "openviking":
             expected.update(OPENVIKING_EXTERNALS)
+        if feature == "opencode":
+            expected.update(CAVEMAN_EXTERNALS)
         if set(actual) != set(expected):
             errors.append(f"AI feature {feature} rendered an unexpected external file set")
             continue
@@ -376,7 +398,7 @@ def validate_ignore_contract(root: Path) -> list[str]:
     """Check that every AI sub-feature controls the same per-path asset set."""
     errors: list[str] = []
     disabled = set(render_template(root, "home/.chezmoiignore", set()).splitlines())
-    missing = (EXPECTED_GATED_TARGETS | OPENVIKING_GATED_TARGETS) - disabled
+    missing = (EXPECTED_GATED_TARGETS | OPENVIKING_GATED_TARGETS | CAVEMAN_GATED_TARGETS) - disabled
     if missing:
         errors.append(f"disabled AI fails to ignore: {', '.join(sorted(missing))}")
 
@@ -395,6 +417,9 @@ def validate_ignore_contract(root: Path) -> list[str]:
             )
         for target in OPENVIKING_GATED_TARGETS:
             if (target in enabled) != (feature != "openviking"):
+                errors.append(f"AI feature {feature} incorrectly gates {target}")
+        for target in CAVEMAN_GATED_TARGETS:
+            if (target in enabled) != (feature != "opencode"):
                 errors.append(f"AI feature {feature} incorrectly gates {target}")
     return errors
 

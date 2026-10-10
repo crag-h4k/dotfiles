@@ -29,7 +29,6 @@
     (dict "num" "4" "key" "opencode"      "label" "opencode"      "desc" "OpenCode V2 + managed standalone wrapper + tmux notifier" "all" true)
     (dict "num" "5" "key" "copilot"       "label" "copilot"       "desc" "GitHub Copilot CLI (npm @github/copilot; pulls in the copilot binary)" "all" false)
     (dict "num" "8" "key" "openviking"    "label" "openviking"    "desc" "local memory service + unmanaged starter configs" "all" false)
-    (dict "num" "9" "key" "ssh_mcp"       "label" "ssh_mcp"       "desc" "SSH MCP for OpenCode V2 (private host profiles)" "all" false)
     (dict "num" "6" "key" "codecompanion" "label" "codecompanion" "desc" "CodeCompanion.nvim assistant (also installs Neovim, Node + claude-agent-acp)" "all" false)
 -}}
 {{- /* Terminal-emulator sub-features. MULTI-select (like git/ai): installing more */ -}}
@@ -267,6 +266,8 @@
 {{-       end -}}
 {{- /* Persisted OpenCode V2 selections used the old `opencode2` key/number 7. */ -}}
 {{-       if and (eq $c.key "ai") (or (hasKey $subTokens "opencode2") (hasKey $subTokens "7") (dig "components" "ai" "opencode2" false $root)) }}{{- $subTokens = set $subTokens "opencode" true }}{{- end -}}
+{{- /* SSH MCP is now bundled with OpenCode; migrate the retired menu token. */ -}}
+{{-       if and (eq $c.key "ai") (or (hasKey $subTokens "ssh_mcp") (hasKey $subTokens "9")) }}{{- $subTokens = set $subTokens "opencode" true }}{{- end -}}
 {{- /* Personal identity used to be a peer of managed Git config. Promote a */ -}}
 {{- /* personal-only old selection to managed config before resolving fields. */ -}}
 {{-       if and (eq $c.key "git") (or (hasKey $subTokens "personal") (hasKey $subTokens "2") (dig "components" "git" "personal" false $root)) }}{{- $subTokens = set $subTokens "config" true }}{{- end -}}

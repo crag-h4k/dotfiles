@@ -77,6 +77,11 @@ Two Trixie jobs call `.github/workflows/trixie-deployment.yaml`: x86-64 on
 `tests/trixie-deployment/Dockerfile.trixie`, then runs a real unattended
 package-mode chezmoi apply as a non-root user.
 
+Python is a bootstrap prerequisite: selected configuration merge programs run
+before the post-apply package hook. The Trixie image includes it alongside Git,
+curl, and chezmoi so OpenCode configuration can be applied before its packages
+are installed.
+
 The host machine, Docker platform, and built image architecture must agree.
 These are native runs, not QEMU emulation. Separate reusable-workflow calls keep
 each architecture's build, install, and smoke outputs distinct; one result
@@ -87,7 +92,7 @@ an alternate valid keyring path. That catches duplicate-repository and
 conflicting `Signed-By` regressions before they reach a workstation.
 
 The focused component set installs Zsh, tmux, shared Git configuration, and
-the isolated OpenViking runtime.
+OpenCode, its disabled MCP runtimes, and the isolated OpenViking runtime.
 Trixie's `tmux` comes from Debian APT: no source build, no mystery binary.
 
 After install, the shared smoke test checks the managed files, shell runtime,

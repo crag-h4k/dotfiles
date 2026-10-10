@@ -96,7 +96,6 @@ Git is in the default component set. AI and terminal configuration are opt-in.
 | `ai` | `opencode` | OpenCode V2 (`@opencode/cli`) + V2 config + notifier bridge | on when AI is selected | isolated npm prefix, managed wrapper, native permissions, and exact-pinned statusline plugin |
 | `ai` | `copilot` | GitHub Copilot CLI (`@github/copilot` npm, `prerelease` tag) | off | npm-only channel (no Homebrew/apt); binary into `~/.local`; needs Node 22+ |
 | `ai` | `openviking` | local memory runtime, user services, and starter profiles | off | actual configuration and memory remain unmanaged; optional official OpenCode plugin |
-| `ai` | `ssh_mcp` | SSH MCP package and private-profile starter | off | OpenCode V2 registration starts disabled and is seeded only when also selecting `opencode`; host profiles remain unmanaged |
 | `ai` | `codecompanion` | CodeCompanion.nvim + `claude-agent-acp` bridge | off | selecting it also enables and installs the Neovim component |
 | `terminal` | `ghostty` | Ghostty config + quick-terminal dropdown | on | macOS and Linux |
 | `terminal` | `iterm2` | iTerm2 Dynamic Profiles | off | macOS only; hidden in the submenu on non-macOS (data key still emitted for column parity), also gated in `home/.chezmoiignore` |
@@ -110,6 +109,11 @@ Gum treats commas as selection separators, which otherwise breaks preselection.
 The submenu only appears when its parent is selected.
 
 Nothing AI-related installs unless the AI component is selected.
+
+Selecting OpenCode includes the SSH MCP and Caveman runtimes. Their MCP entries
+start disabled and preserve local enablement on later applies. Individual MCPs
+do not add picker rows. Older `ssh_mcp` selections migrate to OpenCode. Caveman
+also requires explicit private proxy setup; see [Caveman](caveman.md).
 
 ### Shared agent skills
 

@@ -4,6 +4,21 @@
 
 PLANNER="${BATS_TEST_DIRNAME}/../scripts/package-plan.sh"
 
+@test "OpenCode bundles pinned MCP runtimes and Node on both platforms" {
+  for os in macos debian; do
+    run env DOTFILES_PLAN_OS="$os" DOTFILES_PLAN_ASSUME_MISSING=1 \
+      INSTALL_AI_OPENCODE=true bash "$PLANNER" --records
+    [ "$status" -eq 0 ]
+    [[ "$output" == *$'npm\t@caveman-ai/cli\tplanned\tpinned:2.1.0\t'* ]]
+    [[ "$output" == *$'npm\tssh-mcp\tplanned\tpinned:2.18.0\t'* ]]
+    if [[ "$os" == macos ]]; then
+      [[ "$output" == *$'brew-formula\tnode\t'* ]]
+    else
+      [[ "$output" == *$'apt\tnodejs\t'* ]]
+    fi
+  done
+}
+
 @test "macOS plan dedupes overlaps and groups every package source" {
   run env DOTFILES_PLAN_OS=macos DOTFILES_PLAN_ASSUME_MISSING=1 \
     INSTALL_ZSH=true INSTALL_TMUX=true INSTALL_NEOVIM=true INSTALL_NOTIFY=true \

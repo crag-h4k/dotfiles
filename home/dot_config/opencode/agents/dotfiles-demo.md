@@ -16,6 +16,9 @@ permissions:
   - action: "openviking_*"
     resource: "*"
     effect: allow
+  - action: "caveman_*"
+    resource: "*"
+    effect: allow
   - action: skill
     resource: "openviking-*"
     effect: allow

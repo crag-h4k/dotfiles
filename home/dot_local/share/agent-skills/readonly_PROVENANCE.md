@@ -42,6 +42,16 @@ tool permissions themselves.
 
 ## Included boundaries
 
+Selecting `ai > opencode` installs the unmodified `caveman` and
+`caveman-review` instructions and their Apache-2.0 license from
+`JuliusBrussee/caveman` commit `2e08b9177c07bb7249a8a2d1a6758e5db281d002`.
+The archive SHA-256 is
+`786d8a715578cec088fcc2f49fa9f5b50beef40569274eacf18f948f0a0d4c76`.
+Archive paths and member types were checked; selected raw files matched their
+archive members. Exact per-file checksums live in the external manifest.
+The separately pinned Caveman CLI and companion binaries belong to package
+installation, not skill discovery.
+
 The three Git workflows are maintained local adaptations, not automatically
 refreshed upstream externals. Each package carries Every's original MIT notice.
 Source review used these exact files at the pinned revision:
