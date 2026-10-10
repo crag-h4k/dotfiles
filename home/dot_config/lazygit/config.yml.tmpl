@@ -1,0 +1,20 @@
+{{- $colors := (get .palettes (dig "palette" "dracula" .)).colors -}}
+gui:
+  theme:
+    activeBorderColor: ["{{ $colors.purple }}", bold]
+    inactiveBorderColor: ["{{ $colors.comment }}"]
+    searchingActiveBorderColor: ["{{ $colors.cyan }}", bold]
+    optionsTextColor: ["{{ $colors.blue }}"]
+    cherryPickedCommitFgColor: ["{{ $colors.background }}"]
+    cherryPickedCommitBgColor: ["{{ $colors.cyan }}"]
+    markedBaseCommitFgColor: ["{{ $colors.background }}"]
+    markedBaseCommitBgColor: ["{{ $colors.yellow }}"]
+    unstagedChangesColor: ["{{ $colors.red }}"]
+    defaultFgColor: ["{{ $colors.foreground }}"]
+git:
+  autoFetch: false
+  autoForwardBranches: none
+  autoStageResolvedConflicts: false
+  disableForcePushing: true
+update:
+  method: never

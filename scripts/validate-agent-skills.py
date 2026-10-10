@@ -4,6 +4,7 @@
 from __future__ import annotations
 
 import re
+import hashlib
 import subprocess
 import sys
 import tempfile
@@ -13,9 +14,10 @@ from urllib.parse import urlsplit
 
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
+GIT_SKILL_IDS = ("git-publish", "pr-watch", "git-worktree")
 CORE_SKILL_IDS = (
     "chezmoi-dotfiles", "handoff", "humanizer", "unslop-code", "unslop-text", "unslop-ui"
-)
+) + GIT_SKILL_IDS
 OPENVIKING_SKILL_IDS = ("openviking-memory", "openviking-skills", "ov-experience-memory")
 CAVEMAN_SKILL_IDS = ("caveman", "caveman-review")
 SKILL_IDS = CORE_SKILL_IDS + OPENVIKING_SKILL_IDS + CAVEMAN_SKILL_IDS
@@ -70,6 +72,10 @@ PUBLIC_TEXT_FILES = (
     "home/dot_config/opencode/agents/ricer.md",
     "home/dot_local/share/agent-skills/handoff/readonly_SKILL.md",
     "home/dot_local/share/agent-skills/handoff/scripts/readonly_executable_snapshot.sh",
+    *(f"home/dot_local/share/agent-skills/{skill_id}/readonly_SKILL.md"
+      for skill_id in GIT_SKILL_IDS),
+    *(f"home/dot_config/opencode/commands/{command}.md"
+      for command in ("publish", "pr-watch", "worktree")),
 )
 EXPECTED_EXTERNALS = {
     ".local/share/agent-skills/unslop-code/SKILL.md": (
@@ -154,6 +160,9 @@ EXPECTED_GATED_TARGETS = {
     ".config/opencode/commands/dotfiles.md",
     ".config/opencode/commands/humanize.md",
     ".config/opencode/commands/unslop.md",
+    ".config/opencode/commands/publish.md",
+    ".config/opencode/commands/pr-watch.md",
+    ".config/opencode/commands/worktree.md",
 }
 OPENVIKING_EXTERNALS = {
     ".local/share/agent-skills/openviking-memory/SKILL.md": (
@@ -474,6 +483,8 @@ def validate_layout(root: Path) -> list[str]:
         canonical_root / "humanizer/readonly_SKILL.md",
         canonical_root / "humanizer/agents/readonly_openai.yaml",
         *(canonical_root / "chezmoi-dotfiles" / path for path in DOTFILES_SKILL_FILES),
+        *(canonical_root / skill_id / name for skill_id in GIT_SKILL_IDS
+          for name in ("readonly_SKILL.md", "readonly_LICENSE")),
     }
     actual_managed = {path for path in canonical_root.rglob("*") if path.is_file()}
     if actual_managed != expected_managed:
@@ -555,7 +566,7 @@ def validate_invocation_policy(root: Path) -> list[str]:
     unslop_position = humanize.find("load `unslop-text`")
     if humanizer_position < 0 or unslop_position < humanizer_position:
         errors.append("humanize command does not run Humanizer before unslop-text")
-    for command in ("dotfiles", "handoff", "humanize", "unslop"):
+    for command in ("dotfiles", "handoff", "humanize", "unslop", "publish", "pr-watch", "worktree"):
         text = (root / f"home/dot_config/opencode/commands/{command}.md").read_text(
             encoding="utf-8"
         )
@@ -576,6 +587,29 @@ def validate_public_text(root: Path) -> list[str]:
     return errors
 
 
+def validate_git_skill_manifests(root: Path) -> list[str]:
+    """Check discovery IDs and preserve the audited upstream license bytes."""
+    errors: list[str] = []
+    for skill_id in GIT_SKILL_IDS:
+        package = root / "home/dot_local/share/agent-skills" / skill_id
+        text = (package / "readonly_SKILL.md").read_text(encoding="utf-8")
+        match = re.match(r"\A---\n(.*?)\n---\n", text, re.DOTALL)
+        if match is None:
+            errors.append(f"{skill_id}: missing YAML frontmatter")
+            continue
+        header = match.group(1)
+        if not re.search(rf"^name: {re.escape(skill_id)}$", header, re.MULTILINE):
+            errors.append(f"{skill_id}: manifest name must match its discovery ID")
+        if not re.search(r"^description: \S", header, re.MULTILINE):
+            errors.append(f"{skill_id}: missing discovery description")
+        if re.search(r"^allowed-tools:", header, re.MULTILINE):
+            errors.append(f"{skill_id}: manifest must not pre-approve tools")
+        license_hash = hashlib.sha256((package / "readonly_LICENSE").read_bytes()).hexdigest()
+        if license_hash != "61d89de7646effdaba2d0a4ab7bd0eba60b4094b83efe5bc73c7940e43e93fc6":
+            errors.append(f"{skill_id}: MIT notice differs from the audited upstream license")
+    return errors
+
+
 def validate_repository(root: Path = REPO_ROOT) -> list[str]:
     """Run every offline agent-skill validation."""
     errors: list[str] = []
@@ -587,6 +621,7 @@ def validate_repository(root: Path = REPO_ROOT) -> list[str]:
         validate_layout,
         validate_component_contract,
         validate_maintainer_skill,
+        validate_git_skill_manifests,
         validate_invocation_policy,
         validate_public_text,
     ):

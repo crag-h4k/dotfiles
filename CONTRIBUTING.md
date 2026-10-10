@@ -13,6 +13,10 @@ behavior changes. A source-only change does not activate installed harness asset
 
 ## Branches and PRs
 
+Pull requests use [the GitHub template](.github/pull_request_template.md) to
+record the change, evidence, deployment status, and known limitations. Fill
+its sections for the actual diff; local checks and platform CI are separate.
+
 Start from current `main` and use a worktree:
 
 ```sh

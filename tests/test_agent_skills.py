@@ -6,6 +6,7 @@ from __future__ import annotations
 import importlib.util
 import io
 import os
+import shutil
 import subprocess
 import tarfile
 import tempfile
@@ -89,6 +90,11 @@ class LayoutRejectionTests(unittest.TestCase):
         (canonical / "handoff/scripts/readonly_executable_snapshot.sh").touch()
         (canonical / "humanizer/readonly_SKILL.md").touch()
         (canonical / "humanizer/agents/readonly_openai.yaml").touch()
+        for skill_id in VALIDATOR.GIT_SKILL_IDS:
+            package = canonical / skill_id
+            package.mkdir()
+            (package / "readonly_SKILL.md").touch()
+            (package / "readonly_LICENSE").touch()
         for relative in VALIDATOR.DOTFILES_SKILL_FILES:
             path = canonical / "chezmoi-dotfiles" / relative
             path.parent.mkdir(parents=True, exist_ok=True)
@@ -114,6 +120,22 @@ class LayoutRejectionTests(unittest.TestCase):
 class RepositoryContractTests(unittest.TestCase):
     def test_repository_contract(self) -> None:
         self.assertEqual(VALIDATOR.validate_repository(REPO_ROOT), [])
+
+    def test_git_skill_manifest_rejects_wrong_ids_tool_grants_and_changed_license(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            relative = "home/dot_local/share/agent-skills"
+            for skill_id in VALIDATOR.GIT_SKILL_IDS:
+                shutil.copytree(REPO_ROOT / relative / skill_id, root / relative / skill_id)
+            self.assertEqual(VALIDATOR.validate_git_skill_manifests(root), [])
+            package = root / relative / "git-publish"
+            manifest = package / "readonly_SKILL.md"
+            manifest.write_text(manifest.read_text().replace("name: git-publish", "name: wrong-id\nallowed-tools: Bash"))
+            (package / "readonly_LICENSE").write_text("Missing MIT notice\n")
+            findings = VALIDATOR.validate_git_skill_manifests(root)
+            self.assertTrue(any("discovery ID" in finding for finding in findings))
+            self.assertTrue(any("pre-approve" in finding for finding in findings))
+            self.assertTrue(any("MIT notice" in finding for finding in findings))
 
     def test_public_scan_covers_the_ricer_definition(self) -> None:
         relative = "home/dot_config/opencode/agents/ricer.md"
@@ -181,6 +203,17 @@ class SkillDeploymentTests(unittest.TestCase):
                     ".config/opencode/commands/dotfiles.md",
                 ):
                     self.assertEqual(target in managed, bool(features), target)
+                for skill_id in VALIDATOR.GIT_SKILL_IDS:
+                    for target in (
+                        f".local/share/agent-skills/{skill_id}/SKILL.md",
+                        f".local/share/agent-skills/{skill_id}/LICENSE",
+                        f".agents/skills/{skill_id}",
+                        f".claude/skills/{skill_id}",
+                    ):
+                        self.assertEqual(target in managed, bool(features), target)
+                for command in ("publish", "pr-watch", "worktree"):
+                    target = f".config/opencode/commands/{command}.md"
+                    self.assertEqual(target in managed, bool(features), target)
                 for target in (
                     ".config/opencode/agents/auto.md",
                     ".config/opencode/agents/ricer.md",
@@ -189,6 +222,28 @@ class SkillDeploymentTests(unittest.TestCase):
                     ".config/opencode/plugins/session-workflow/workflow.mjs",
                 ):
                     self.assertEqual(target in managed, features == {"opencode"}, target)
+
+    def test_git_skills_apply_as_readonly_packages_without_replacing_local_skills(self) -> None:
+        self.config.write_text(VALIDATOR.component_config({"opencode"}))
+        independent = self.destination / ".agents/skills/local-example/SKILL.md"
+        independent.parent.mkdir(parents=True)
+        independent.write_text("Keep local skill\n")
+        for skill_id in VALIDATOR.GIT_SKILL_IDS:
+            canonical = self.destination / ".local/share/agent-skills" / skill_id
+            targets = [canonical, *(self.destination / f".{harness}/skills" / skill_id
+                                    for harness in ("agents", "claude"))]
+            for target in targets:
+                target.parent.mkdir(parents=True, exist_ok=True)
+            self.run_chezmoi("apply", "--", *(str(target) for target in targets))
+            for filename in ("SKILL.md", "LICENSE"):
+                deployed = canonical / filename
+                source = REPO_ROOT / "home/dot_local/share/agent-skills" / skill_id / f"readonly_{filename}"
+                self.assertEqual(deployed.read_bytes(), source.read_bytes())
+                self.assertEqual(deployed.stat().st_mode & 0o222, 0)
+            for linked in targets[1:]:
+                self.assertTrue(linked.is_symlink())
+                self.assertEqual(linked.resolve(), canonical.resolve())
+        self.assertEqual(independent.read_text(), "Keep local skill\n")
 
     def test_archive_omits_repository_guidance(self) -> None:
         self.config.write_text(VALIDATOR.component_config(set(VALIDATOR.AI_FEATURES)))
