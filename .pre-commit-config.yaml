@@ -317,7 +317,7 @@ repos:
         language: node
         additional_dependencies: ['bats@1.13.0']
         pass_filenames: false
-        files: ^(\.chezmoiroot|home/|config/linters/|scripts/|tests/test_source_layout\.bats)$
+        files: ^(\.chezmoiroot|home/|config/linters/|scripts/|tests/(test_source_layout\.bats|trixie-deployment/Dockerfile\.trixie))$
 
       - id: bats-ci-summary
         name: bats (deployment PR summary)

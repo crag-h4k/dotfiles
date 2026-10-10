@@ -173,7 +173,8 @@ The matching runtime exempts both `@opencode/*` and `@opentui/*`: a fresh SDK ca
 require OpenTUI packages published the same day. Other packages retain the
 user's release-age guard, and dotfiles does not modify `~/.npmrc`.
 
-Runtime synchronization reads the installed CLI's SDK peer requirements, then
+Runtime synchronization reads the installed CLI's SDK peer requirements and
+OpenTUI Solid's declared dependencies and peers, then
 uses npm's age-aware resolver for compatible OpenTUI and Solid.js candidates.
 Installation consumes those exact versions. Missing peer metadata or unresolved
 candidates stop the sync before npm changes the existing runtime; there is no

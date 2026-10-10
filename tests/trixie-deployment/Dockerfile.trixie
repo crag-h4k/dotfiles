@@ -4,13 +4,15 @@ FROM debian:trixie-slim
 ARG DEBIAN_FRONTEND=noninteractive
 
 # Bootstrap only what a fresh machine needs before chezmoi owns the rest of the
-# package plan. sudo is intentionally present: deployment runs as an ordinary
+# package plan. Python runs merge programs during apply, before the package hook.
+# sudo is intentionally present: deployment runs as an ordinary
 # user, matching a real workstation rather than applying dotfiles as root.
 RUN apt-get update \
     && apt-get install -y --no-install-recommends \
         ca-certificates \
         curl \
         git \
+        python3 \
         sudo \
     && rm -rf /var/lib/apt/lists/*
 
