@@ -63,3 +63,17 @@ SOURCE_ROOT="$REPO_ROOT/home"
   [ "$status" -eq 0 ]
   [[ "$output" != *'Library/Application Support/lazygit/config.yml'* ]]
 }
+
+@test "Trixie bootstraps Python before selected configuration merges run" {
+  run python3 - "$REPO_ROOT/tests/trixie-deployment/Dockerfile.trixie" <<'PY'
+import pathlib
+import sys
+
+source = pathlib.Path(sys.argv[1]).read_text()
+install = source.split("apt-get install -y --no-install-recommends", 1)[1].split("&&", 1)[0]
+packages = install.replace("\\", " ").split()
+assert "python3" in packages
+assert source.index("python3") < source.index("USER dotfiles")
+PY
+  [ "$status" -eq 0 ]
+}

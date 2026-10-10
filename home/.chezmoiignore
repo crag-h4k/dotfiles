@@ -55,6 +55,8 @@ AGENTS.md
 # OpenViking owns its private configuration, credentials, memory, and runtime.
 .openviking
 .local/share/openviking
+.caveman
+.caveman-cloud
 .config/litellm/github_copilot
 .config/opencode/openviking
 .zsh/custom/functions/local-*.zsh
@@ -79,7 +81,6 @@ Library/Application Support/lazygit/config.yml
      (dig "components" "ai" "opencode" false .)
      (dig "components" "ai" "copilot" false .)
      (dig "components" "ai" "openviking" false .)
-     (dig "components" "ai" "ssh_mcp" false .)
      (dig "components" "ai" "codecompanion" false .) -}}
 {{ if not $agentSkillsEnabled -}}
 .local/share/agent-skills/PROVENANCE.md
@@ -131,8 +132,27 @@ Library/Application Support/lazygit/config.yml
 .claude/skills/openviking-skills
 .claude/skills/ov-experience-memory
 {{ end -}}
-{{ if not (dig "components" "ai" "ssh_mcp" false .) -}}
+{{ if not (dig "components" "ai" "opencode" false .) -}}
 .local/share/dotfiles/ssh-mcp
+{{ end -}}
+{{ if not (dig "components" "ai" "opencode" false .) -}}
+.local/bin/cavemanctl
+.local/share/dotfiles/caveman
+.local/share/agent-skills/caveman
+.local/share/agent-skills/caveman-review
+.agents/skills/caveman
+.agents/skills/caveman-review
+.claude/skills/caveman
+.claude/skills/caveman-review
+{{ end -}}
+{{ if not (dig "components" "ai" "opencode" false .) -}}
+.config/opencode/plugins/caveman.js
+{{ end -}}
+{{ if or (ne .chezmoi.os "darwin") (not (dig "components" "ai" "opencode" false .)) -}}
+Library/LaunchAgents/io.github.crag-h4k.dotfiles.caveman.plist
+{{ end -}}
+{{ if or (ne .chezmoi.os "linux") (not (dig "components" "ai" "opencode" false .)) -}}
+.config/systemd/user/dotfiles-caveman.service
 {{ end -}}
 {{ if or (ne .chezmoi.os "darwin") (not (dig "components" "ai" "openviking" false .)) -}}
 Library/LaunchAgents/io.github.crag-h4k.dotfiles.openviking.plist

@@ -18,7 +18,8 @@ INSTALL_AI_STATUSLINE="${INSTALL_AI_STATUSLINE:-false}"
 INSTALL_AI_OPENCODE="${INSTALL_AI_OPENCODE:-false}"
 INSTALL_AI_COPILOT="${INSTALL_AI_COPILOT:-false}"
 INSTALL_AI_OPENVIKING="${INSTALL_AI_OPENVIKING:-false}"
-INSTALL_AI_SSH_MCP="${INSTALL_AI_SSH_MCP:-false}"
+INSTALL_AI_SSH_MCP="$INSTALL_AI_OPENCODE"
+INSTALL_AI_CAVEMAN="$INSTALL_AI_OPENCODE"
 INSTALL_TERMINAL_GHOSTTY="${INSTALL_TERMINAL_GHOSTTY:-false}"
 INSTALL_TERMINAL_ITERM2="${INSTALL_TERMINAL_ITERM2:-false}"
 [[ "$INSTALL_AI_CODECOMPANION" == true ]] && INSTALL_NEOVIM=true
@@ -494,6 +495,8 @@ _build() {
         _add npm @github/copilot "https://www.npmjs.com/package/@github/copilot" copilot "$(_version_policy "$COPILOT_VERSION")"
     [[ "$INSTALL_AI_SSH_MCP" == true ]] &&
         _add npm ssh-mcp "https://www.npmjs.com/package/ssh-mcp" ssh-mcp pinned:2.18.0
+    [[ "$INSTALL_AI_CAVEMAN" == true ]] &&
+        _add npm @caveman-ai/cli "https://www.npmjs.com/package/@caveman-ai/cli (includes signed bin-v2.1.0 runtime)" caveman pinned:2.1.0
 
     if [[ "$INSTALL_AI_OPENVIKING" == true ]]; then
         case "$os" in

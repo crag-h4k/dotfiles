@@ -17,8 +17,8 @@
 #            managed plugin registrations, agent colors, Ricer's subagent mode,
 #            and narrow Plan handoff permissions. Every
 #            other agent field, nested comment, and custom agent is preserved.
-#   SEEDED - when ai > ssh_mcp is selected, add a local MCP entry only if one
-#            does not already exist. The user's disabled flag and overrides win.
+#   SEEDED - with OpenCode selected, add bundled disabled MCP entries only when
+#            absent. The user's disabled flag and overrides win.
 #            The retired singular "plugin" key is removed when present.
 #   SEEDED - native "permissions" are written only when the incoming file has no
 #            permission policy. The exact old seed is migrated. Existing native
@@ -98,8 +98,13 @@ OPENVIKING_RULES = (
 )
 OPENVIKING_RULES_START = "// dotfiles:openviking-permissions:start"
 OPENVIKING_RULES_END = "// dotfiles:openviking-permissions:end"
-SSH_MCP_SELECTED = {{ if dig "components" "ai" "ssh_mcp" false . }}True{{ else }}False{{ end }}
+CAVEMAN_RULES_START = "// dotfiles:caveman-permissions:start"
+CAVEMAN_RULES_END = "// dotfiles:caveman-permissions:end"
+CAVEMAN_RULE = '{ "action": "caveman_*", "resource": "*", "effect": "allow" }'
+MCP_SELECTED = {{ if dig "components" "ai" "opencode" false . }}True{{ else }}False{{ end }}
 SSH_MCP_ENTRY = r'"ssh-mcp": {"type": "local", "command": ["/bin/sh", "-c", "exec \"$HOME/.local/bin/ssh-mcp\""], "disabled": true}'
+CAVEMAN_MCP_ENTRY = r'"caveman": {"type": "local", "command": ["/bin/sh", "-c", "exec \"$HOME/.local/bin/cavemanctl\" mcp"], "codemode": false, "disabled": true}'
+MCP_ENTRIES = (("ssh-mcp", SSH_MCP_ENTRY), ("caveman", CAVEMAN_MCP_ENTRY))
 
 
 def plan_handoff_rules(indent, followed=False):
@@ -918,7 +923,7 @@ def merge_agents(agents_block):
 
 
 def merge_openviking_permissions(block):
-    """Append narrow managed memory allows after the user's global rules."""
+    """Append managed memory and compression allows after global catch-alls."""
     wrapped = "{\n" + block + "\n}"
     _, _, entries = scan(wrapped)
     entry = next(item for item in entries if item["name"] == "permissions")
@@ -927,18 +932,21 @@ def merge_openviking_permissions(block):
         raise ValueError("permissions is not an array")
     end = array_close(wrapped, start)
     body = wrapped[start + 1:end]
-    if body.count(OPENVIKING_RULES_START) != body.count(OPENVIKING_RULES_END) or body.count(OPENVIKING_RULES_START) > 1:
-        raise ValueError("ambiguous managed OpenViking permissions")
-    if OPENVIKING_RULES_START in body:
-        first = body.rfind("\n", 0, body.index(OPENVIKING_RULES_START)) + 1
-        last = body.index(OPENVIKING_RULES_END) + len(OPENVIKING_RULES_END)
-        body = body[:first] + body[last:]
+    for first_marker, last_marker in ((CAVEMAN_RULES_START, CAVEMAN_RULES_END),
+                                      (OPENVIKING_RULES_START, OPENVIKING_RULES_END)):
+        if body.count(first_marker) != body.count(last_marker) or body.count(first_marker) > 1:
+            raise ValueError("ambiguous managed context permissions")
+        if first_marker in body:
+            first = body.rfind("\n", 0, body.index(first_marker)) + 1
+            last = body.index(last_marker) + len(last_marker)
+            body = body[:first] + body[last:]
     values, tokens = jsonc_read("[" + body + "]")
     if values and tokens[-2].group() != ",":
         position = tokens[-2].end() - 1
         body = body[:position] + "," + body[position:]
     indent = line_indent(wrapped, entry["start"]) + "  "
-    owned = [indent + OPENVIKING_RULES_START]
+    owned = [indent + CAVEMAN_RULES_START, indent + CAVEMAN_RULE + ",",
+             indent + CAVEMAN_RULES_END, indent + OPENVIKING_RULES_START]
     owned.extend(indent + rule + ("," if index < len(OPENVIKING_RULES) - 1 else "")
                  for index, rule in enumerate(OPENVIKING_RULES))
     owned.append(indent + OPENVIKING_RULES_END)
@@ -947,8 +955,8 @@ def merge_openviking_permissions(block):
     return updated[2:-2]
 
 
-def seed_ssh_mcp(block):
-    """Insert the opt-in registration without replacing local MCP settings."""
+def seed_mcp(block):
+    """Seed bundled registrations without replacing local MCP settings."""
     wrapped = "{\n" + block + "\n}"
     _, _, entries = scan(wrapped)
     entry = next(item for item in entries if item["name"] == "mcp")
@@ -960,17 +968,17 @@ def seed_ssh_mcp(block):
     servers = next((item for item in members if item["name"] == "servers"), None)
     if servers is None:
         mcp = insert_object_member(mcp, opening, closing, members,
-                                   '"servers": {' + SSH_MCP_ENTRY + '}')
+                                   '"servers": {' + ', '.join(value for _, value in MCP_ENTRIES) + '}')
     else:
         offset = entry_value_start(mcp, servers)
         if mcp[offset] != "{":
             raise ValueError("mcp.servers is not an object")
         server_block = mcp[offset:servers["end"]]
-        open_server, close_server, server_entries = scan(server_block)
-        if not any(item["name"] == "ssh-mcp" for item in server_entries):
-            updated = insert_object_member(server_block, open_server, close_server,
-                                           server_entries, SSH_MCP_ENTRY)
-            mcp = mcp[:offset] + updated + mcp[servers["end"]:]
+        for name, value in MCP_ENTRIES:
+            open_server, close_server, server_entries = scan(server_block)
+            if not any(item["name"] == name for item in server_entries):
+                server_block = insert_object_member(server_block, open_server, close_server, server_entries, value)
+        mcp = mcp[:offset] + server_block + mcp[servers["end"]:]
     return (wrapped[:start] + mcp + wrapped[entry["end"]:])[2:-2]
 
 
@@ -1028,7 +1036,7 @@ def emit(s):
 if not text.strip():
     emit(render(build_owned(NEW_AGENTS, merge_plugins('  "plugins": []')),
                 merge_openviking_permissions(SEED_PERMISSIONS).split("\n"),
-                ['  "mcp": {"servers": {' + SSH_MCP_ENTRY + '}}'] if SSH_MCP_SELECTED else []))
+                ['  "mcp": {"servers": {' + ', '.join(value for _, value in MCP_ENTRIES) + '}}'] if MCP_SELECTED else []))
     raise SystemExit(0)
 
 root_open, root_close, entries = scan(text)
@@ -1152,17 +1160,19 @@ while kept and not kept[0].strip():
 while kept and not kept[-1].strip():
     kept.pop()
 
-if SSH_MCP_SELECTED:
+if MCP_SELECTED:
     mcp_entry = next((item for item in entries if item["name"] == "mcp"), None)
     if mcp_entry is None:
-        kept.extend(['  "mcp": {"servers": {' + SSH_MCP_ENTRY + '}}'])
+        if kept:
+            set_trailing_comma(kept, True)
+        kept.extend(['  "mcp": {"servers": {' + ', '.join(value for _, value in MCP_ENTRIES) + '}}'])
     else:
         first, last = entry_span(mcp_entry)
         original = "\n".join(lines[first:last + 1])
         try:
-            updated = seed_ssh_mcp(original)
+            updated = seed_mcp(original)
         except ValueError as exc:
-            passthrough("cannot seed SSH MCP: %s" % exc)
+            passthrough("cannot seed bundled MCP servers: %s" % exc)
         kept_text = "\n".join(kept).replace(original, updated, 1)
         kept = kept_text.split("\n")
 
