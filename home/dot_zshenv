@@ -13,6 +13,8 @@ export PATH=$MAX_PATH/bin:$PATH
 
 export LANG="en_US.UTF-8"
 export DO_NOT_TRACK=1
+export HOMEBREW_NO_ANALYTICS=1
+export CHECKPOINT_DISABLE=1
 # EDITOR/VISUAL belong in zshenv, not zshrc: git commit, `fc`, and every
 # edit-in-editor affordance (including OpenCode's compose-in-editor, which is the
 # only reliable workaround for the OpenTUI multi-line paste bug) run from
