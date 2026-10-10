@@ -56,7 +56,7 @@ for palette in $(yq '.paletteOrder[]' "$SOURCE_DIR/.chezmoidata/palettes.yaml");
       and .keybinds["session.tab.previous"] == "<leader>h"
       and .keybinds["session.tab.next"] == "<leader>l"
       and .keybinds["session.list"] == "<leader>t"
-      and .keybinds["agent.cycle"] == "none"
+      and (.keybinds | has("agent.cycle") | not)
       and .keybinds["session.first"] == "home"
       and .keybinds["theme.switch"] == "none"
        and .leader.timeout == 1500

@@ -57,11 +57,20 @@ SOURCE_ROOT="$REPO_ROOT/home"
   run chezmoi execute-template --source "$REPO_ROOT" --config "$config" \
     --override-data '{"chezmoi":{"os":"linux"}}' < "$SOURCE_ROOT/.chezmoiignore"
   [ "$status" -eq 0 ]
-  [[ "$output" == *'Library/Application Support/lazygit/config.yml'* ]]
+  [[ "$output" == *'Library/Application Support'* ]]
   run chezmoi execute-template --source "$REPO_ROOT" --config "$config" \
     --override-data '{"chezmoi":{"os":"darwin"}}' < "$SOURCE_ROOT/.chezmoiignore"
   [ "$status" -eq 0 ]
-  [[ "$output" != *'Library/Application Support/lazygit/config.yml'* ]]
+  [[ "$output" != *'Library/Application Support'* ]]
+}
+
+@test "OpenCode CLI leaves native agent cycling available on the home screen" {
+  local output
+  run chezmoi execute-template --source "$REPO_ROOT" \
+    < "$SOURCE_ROOT/dot_config/opencode/private_cli.json.tmpl"
+  [ "$status" -eq 0 ]
+  output="$(printf '%s' "$output" | jq -r '.keybinds["agent.cycle"] // "native"')"
+  [ "$output" = native ]
 }
 
 @test "Trixie bootstraps Python before selected configuration merges run" {

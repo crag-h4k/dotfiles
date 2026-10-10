@@ -236,7 +236,8 @@ Credential files and recursive removal commands remain denied.
 `cli.json` enables session tabs and uses `Ctrl+G` as a 1500 ms leader.
 `<leader>h` / `<leader>l` move between tabs. The
 session-workflow CLI plugin uses Shift+Tab to cycle Build → Plan → Auto → Build
-for the current session.
+for the current session. Before a session exists, the plugin yields Shift+Tab
+to OpenCode's native agent picker, so the first prompt need not start in Build.
 Auto is a primary agent with a red identity pill; Ricer remains available as
 a subagent rather than occupying a slot in this cycle. While a terminal client
 is open, Auto mirrors native `--auto`: it replies once to pending permission asks,

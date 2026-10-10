@@ -68,7 +68,7 @@ AGENTS.md
 .zsh_override
 .zsh_private
 {{ if ne .chezmoi.os "darwin" -}}
-Library/Application Support/lazygit/config.yml
+Library/Application Support
 {{ end -}}
 {{/* Writing-quality skills are an automatic child of the existing AI parent.
      Any selected AI sub-feature enables the one canonical skill store, the
