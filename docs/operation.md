@@ -20,6 +20,11 @@
 
 ## Daily operation
 
+The managed `.zshenv` exports `DO_NOT_TRACK=1` in interactive and non-interactive
+Zsh sessions. OpenViking's systemd unit and macOS LaunchAgent set it explicitly
+because they run without a shell. This opts out of telemetry in tools that honor
+the variable.
+
 ```sh
 # Edit the source and apply it in one command:
 chezmoi edit --apply ~/.zshrc

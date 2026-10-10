@@ -7,6 +7,7 @@ ConditionPathExists=%h/.openviking/ov.conf
 Type=simple
 ExecStart=%h/.local/bin/openvikingctl run
 Environment=PATH=%h/.local/bin:/usr/local/bin:/usr/bin:/bin
+Environment=DO_NOT_TRACK=1
 UMask=0077
 Restart=on-failure
 RestartSec=30
