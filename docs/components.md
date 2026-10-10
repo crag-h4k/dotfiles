@@ -525,6 +525,14 @@ Both are gated by `home/.chezmoiignore`. iTerm2 also requires
 `.chezmoi.os == "darwin"`, and its cask exists only in the macOS installer.
 Selecting it on Debian is harmless.
 
+The tmux status bar uses Nerd Font icons for wired network (U+EF09), CPU
+(U+F2DB), memory (U+EFC5), and clock (U+F017). These Basic Multilingual Plane
+glyphs preserve the rounded layout without the redraw stacking observed with
+the previous icon set in Termius on iPadOS. Select a current Nerd Font in each
+terminal, including Ghostty and iTerm2. In Termius, open the terminal side
+panel's **Themes** tab and choose JetBrains Mono or Meslo. UTF-8 alone does not
+guarantee that a terminal and tmux agree on glyph widths.
+
 #### Ghostty
 
 Ghostty runs on macOS and Linux. Its config at
