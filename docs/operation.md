@@ -12,6 +12,7 @@
   - [Status bar](#status-bar)
 - [Statusline (Claude / Codex)](#statusline-claude--codex)
 - [OpenViking memory](#openviking-memory)
+- [SSH MCP for OpenCode V2](#ssh-mcp-for-opencode-v2)
 - [Secret scanning](#secret-scanning)
 - [Docker and Terraform checks](#docker-and-terraform-checks)
 - [Supported platforms](#supported-platforms)
@@ -514,6 +515,35 @@ The live `~/.openviking/ov.conf` and `ovcli.conf` remain private and unmanaged.
 Use `openvikingctl stop` before deselecting the component; configuration and
 memory are retained. See [OpenViking local memory](openviking.md) for setup,
 provider selection, and performance measurements.
+
+## SSH MCP for OpenCode V2
+
+Select `ai > ssh_mcp` alongside `ai > opencode` to install the pinned
+`ssh-mcp` CLI and seed `mcp.servers.ssh-mcp` in OpenCode V2 as disabled. This
+is a separate, default-off choice. Package approval is required for the binary.
+It uses a local stdio connection; no remote SSH service or key is installed by
+dotfiles.
+
+The managed starter is at
+`~/.local/share/dotfiles/ssh-mcp/config-starter.toml`. Copy it to your private
+SSH MCP config (`~/.config/ssh-mcp/config.toml` on Linux, or
+`~/Library/Application Support/ssh-mcp/config.toml` on macOS), add only the
+hosts you want accessible, and set the directory to mode 0700 and file to
+0600. The starter requires approval for every command; its example profile
+is commented out. Use an SSH agent or a private key reference, and verify and
+pin each host's fingerprint before connecting. The upstream SSH transport
+does not use OpenSSH's `known_hosts`; without a pin, trust on first use is
+forgotten when the MCP process restarts.
+
+The private TOML, keys, SSH config, and host profiles are not managed. The
+OpenCode merge adds `ssh-mcp` only when absent and never replaces a local entry.
+To enable it, set `"disabled": false` on `mcp.servers.ssh-mcp` in your global
+`~/.config/opencode/opencode.jsonc` and reload OpenCode. Set it back to `true`
+to turn it off. Chezmoi preserves either choice on subsequent applies.
+Deselecting the component stops future package
+checks but does not delete a previously installed binary or registration;
+disable the entry before deselecting it. OpenCode tool permissions and the
+SSH MCP profile's role and approval rules are independent checks.
 
 ## Secret scanning
 

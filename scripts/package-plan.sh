@@ -18,6 +18,7 @@ INSTALL_AI_STATUSLINE="${INSTALL_AI_STATUSLINE:-false}"
 INSTALL_AI_OPENCODE="${INSTALL_AI_OPENCODE:-false}"
 INSTALL_AI_COPILOT="${INSTALL_AI_COPILOT:-false}"
 INSTALL_AI_OPENVIKING="${INSTALL_AI_OPENVIKING:-false}"
+INSTALL_AI_SSH_MCP="${INSTALL_AI_SSH_MCP:-false}"
 INSTALL_TERMINAL_GHOSTTY="${INSTALL_TERMINAL_GHOSTTY:-false}"
 INSTALL_TERMINAL_ITERM2="${INSTALL_TERMINAL_ITERM2:-false}"
 [[ "$INSTALL_AI_CODECOMPANION" == true ]] && INSTALL_NEOVIM=true
@@ -490,6 +491,8 @@ _build() {
     # like the other npm globals. npm is the only channel (no Homebrew/apt).
     [[ "$INSTALL_AI_COPILOT" == true ]] &&
         _add npm @github/copilot "https://www.npmjs.com/package/@github/copilot" copilot "$(_version_policy "$COPILOT_VERSION")"
+    [[ "$INSTALL_AI_SSH_MCP" == true ]] &&
+        _add npm ssh-mcp "https://www.npmjs.com/package/ssh-mcp" ssh-mcp pinned:2.18.0
 
     if [[ "$INSTALL_AI_OPENVIKING" == true ]]; then
         case "$os" in

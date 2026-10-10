@@ -49,6 +49,65 @@ def script(tmp_path_factory) -> str:
     return str(path)
 
 
+@pytest.fixture(scope="module")
+def ssh_script(tmp_path_factory) -> str:
+    directory = tmp_path_factory.mktemp("opencode-ssh-merge")
+    config = directory / "chezmoi.toml"
+    config.write_text('[data]\npalette="dracula"\n[data.components.ai]\nopencode=true\nssh_mcp=true\n')
+    result = subprocess.run(
+        ["chezmoi", "execute-template", "--source", str(REPO), "--config", str(config)],
+        stdin=TMPL.open(), capture_output=True, text=True, check=True,
+    )
+    path = directory / "merge.py"
+    path.write_text(result.stdout)
+    return str(path)
+
+
+def test_ssh_mcp_starts_disabled_and_local_enable_survives(ssh_script):
+    original = '''{
+  "mcp": {
+    "servers": {
+      // Keep this connection intact.
+      "other": {"type": "remote", "url": "https://example.invalid/mcp"}
+    }
+  }
+}'''
+    merged, error = merge(ssh_script, original)
+    assert not error
+    assert parse(merged)["mcp"]["servers"]["ssh-mcp"] == {
+        "type": "local", "command": ["/bin/sh", "-c", 'exec "$HOME/.local/bin/ssh-mcp"'],
+        "disabled": True,
+    }
+    assert '// Keep this connection intact.' in merged
+    enabled = merged.replace('"disabled": true', '"disabled": false')
+    again, error = merge(ssh_script, enabled)
+    assert not error
+    assert parse(again)["mcp"]["servers"]["ssh-mcp"]["disabled"] is False
+    assert again == enabled
+
+
+def test_ssh_mcp_is_absent_when_unselected(script):
+    merged, _ = merge(script, "")
+    assert "mcp" not in parse(merged)
+    local = '{\n  "mcp": {"servers": {"ssh-mcp": {"type": "local", "command": ["ssh-mcp"], "disabled": true}}}\n}'
+    merged, _ = merge(script, local)
+    assert parse(merged)["mcp"]["servers"]["ssh-mcp"]["disabled"] is True
+
+
+def test_ssh_mcp_seed_handles_missing_servers_and_existing_local_entry(ssh_script):
+    for source in ('', '{\n  "mcp": {}\n}', '{\n  "mcp": {"timeout": {"startup": 45000}}\n}'):
+        result, error = merge(ssh_script, source)
+        assert not error
+        assert parse(result)["mcp"]["servers"]["ssh-mcp"]["type"] == "local"
+        if "startup" in source:
+            assert parse(result)["mcp"]["timeout"]["startup"] == 45000
+    original = '{\n  "mcp": {"servers": {"ssh-mcp": {"type": "local", "command": ["custom-ssh"], "disabled": true}}}\n}'
+    merged, error = merge(ssh_script, original)
+    assert not error
+    assert parse(merged)["mcp"]["servers"]["ssh-mcp"]["command"] == ["custom-ssh"]
+    assert parse(merged)["mcp"]["servers"]["ssh-mcp"]["disabled"] is True
+
+
 def merge(script: str, text: str, env: dict | None = None):
     """Run the merge script on `text`; return (stdout, stderr)."""
     e = dict(os.environ)

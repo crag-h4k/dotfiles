@@ -170,11 +170,15 @@ prek run bats-ci-summary --all-files
 prek run actionlint --all-files
 ```
 
-Run the full local gate before review:
+Run applicable hooks against the changed files before review. This includes
+staged and unstaged changes relative to local `main`; stage new files first:
 
 ```sh
-prek run --all-files
+python3 scripts/prek-changed.py
 ```
+
+CI keeps `prek run --all-files` so unrelated files still get checked before
+merge.
 
 The macOS job needs a macOS runner. The Trixie deployment can be reproduced
 with the documented Dockerfile, but ordinary development should not need to

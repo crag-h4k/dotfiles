@@ -56,7 +56,7 @@ parse_toml() {
 # Render home/.chezmoi.toml.tmpl with componentSelection (and optionally gitSelection
 # / aiSelection / terminalSelection) pre-seeded, then echo the component booleans
 # in the fixed column order:
-#   zsh tmux neovim  git.config git.ignore_global  ai.codecompanion ai.claude_hooks ai.codex_hooks ai.statusline ai.opencode ai.copilot  terminal.ghostty terminal.iterm2
+#   zsh tmux neovim  git.config git.ignore_global  ai.codecompanion ai.claude_hooks ai.codex_hooks ai.statusline ai.opencode ai.copilot ai.ssh_mcp  terminal.ghostty terminal.iterm2
 # zsh/tmux/neovim are bare [data.components] bools; the rest live in the nested
 # [data.components.git] / [data.components.ai] / [data.components.terminal] tables.
 # terminal.ghostty/terminal.iterm2 are emitted for BOTH OSes (the .chezmoi.os gate
@@ -87,7 +87,7 @@ render_components() {
     fi
     # Pull the booleans out by key name (each is unique across the rendered
     # config), so reordering the lists later does not silently break assertions.
-    local zsh tmux neovim gconfig gignore aicc aihooks aicodex aistatus aiopencode aicopilot ghostty iterm2
+    local zsh tmux neovim gconfig gignore aicc aihooks aicodex aistatus aiopencode aicopilot aissh ghostty iterm2
     zsh=$(printf '%s\n' "$out" | sed -n 's/^[[:space:]]*zsh = \(.*\)$/\1/p')
     tmux=$(printf '%s\n' "$out" | sed -n 's/^[[:space:]]*tmux = \(.*\)$/\1/p')
     neovim=$(printf '%s\n' "$out" | sed -n 's/^[[:space:]]*neovim = \(.*\)$/\1/p')
@@ -99,10 +99,11 @@ render_components() {
     aistatus=$(printf '%s\n' "$out" | sed -n 's/^[[:space:]]*statusline = \(.*\)$/\1/p')
     aiopencode=$(printf '%s\n' "$out" | sed -n 's/^[[:space:]]*opencode = \(.*\)$/\1/p')
     aicopilot=$(printf '%s\n' "$out" | sed -n 's/^[[:space:]]*copilot = \(.*\)$/\1/p')
+    aissh=$(printf '%s\n' "$out" | sed -n 's/^[[:space:]]*ssh_mcp = \(.*\)$/\1/p')
     ghostty=$(printf '%s\n' "$out" | sed -n 's/^[[:space:]]*ghostty = \(.*\)$/\1/p')
     iterm2=$(printf '%s\n' "$out" | sed -n 's/^[[:space:]]*iterm2 = \(.*\)$/\1/p')
-    printf '%s %s %s %s %s %s %s %s %s %s %s %s %s' \
-        "$zsh" "$tmux" "$neovim" "$gconfig" "$gignore" "$aicc" "$aihooks" "$aicodex" "$aistatus" "$aiopencode" "$aicopilot" "$ghostty" "$iterm2"
+    printf '%s %s %s %s %s %s %s %s %s %s %s %s %s %s' \
+        "$zsh" "$tmux" "$neovim" "$gconfig" "$gignore" "$aicc" "$aihooks" "$aicodex" "$aistatus" "$aiopencode" "$aicopilot" "$aissh" "$ghostty" "$iterm2"
 }
 
 # bool "true" if digit d (1..5) is present in the numeric string, else "false".
@@ -113,7 +114,7 @@ has_digit() {
     esac
 }
 
-COLS="zsh tmux neovim git.config git.ignore_global ai.codecompanion ai.claude_hooks ai.codex_hooks ai.statusline ai.opencode ai.copilot terminal.ghostty terminal.iterm2"
+COLS="zsh tmux neovim git.config git.ignore_global ai.codecompanion ai.claude_hooks ai.codex_hooks ai.statusline ai.opencode ai.copilot ai.ssh_mcp terminal.ghostty terminal.iterm2"
 
 # Assert a selection WITHOUT a sub-seed renders the expected top-level state.
 # The git/ai/terminal PARENTS map to their default sub-feature (git.ignore_global /
@@ -123,7 +124,7 @@ COLS="zsh tmux neovim git.config git.ignore_global ai.codecompanion ai.claude_ho
 # (egit=git.ignore_global, eai=ai.opencode, eghostty=terminal.ghostty when the
 # respective parent is on; eiterm2 stays off without an explicit sub-seed.)
 assert_top() {
-    local selection="$1" want="$2 $3 $4 false $5 false false false false $6 false $7 $8" got
+    local selection="$1" want="$2 $3 $4 false $5 false false false false $6 false false $7 $8" got
     got=$(render_components "$selection") || {
         echo "validate-templates: FAILED to render/parse (sel='$selection'): $got" >&2
         fail=1
@@ -144,7 +145,7 @@ assert_top() {
 assert_sub() {
     local selection="$1" gitsel="$2" aisel="$3" termsel="$4"
     shift 4
-    local want="$1 $2 $3 $4 $5 $6 $7 $8 $9 ${10} ${11} ${12} ${13}" got
+    local want="$1 $2 $3 $4 $5 $6 $7 $8 $9 ${10} ${11} false ${12} ${13}" got
     got=$(render_components "$selection" "$gitsel" "$aisel" "$termsel") || {
         echo "validate-templates: FAILED to render/parse (sel='$selection' git='$gitsel' ai='$aisel' term='$termsel'): $got" >&2
         fail=1
@@ -261,7 +262,7 @@ assert_ai_only() { # aiSelection expected_on_key
         fail=1; rm -rf "$cfgdir"; return
     fi
     rm -rf "$cfgdir"
-    for key in claude_hooks codex_hooks statusline opencode copilot codecompanion; do
+    for key in claude_hooks codex_hooks statusline opencode copilot ssh_mcp codecompanion; do
         val=$(printf '%s\n' "$out" | sed -n "s/^[[:space:]]*${key} = \\(.*\\)\$/\\1/p")
         if [[ "$key" == "$want_key" ]]; then
             [[ "$val" == true ]] || { echo "validate-templates: ai '$aisel' expected $key=true, got '$val'" >&2; fail=1; }
@@ -273,6 +274,7 @@ assert_ai_only() { # aiSelection expected_on_key
 assert_ai_only "opencode2"    "opencode"
 assert_ai_only "opencode"     "opencode"
 assert_ai_only "codex_hooks"  "codex_hooks"
+assert_ai_only "ssh_mcp"      "ssh_mcp"
 
 # The old V2 token is rewritten in persisted data and never emitted as a child key.
 cfgdir=$(mktemp -d)
