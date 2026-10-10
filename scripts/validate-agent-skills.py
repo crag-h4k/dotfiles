@@ -16,7 +16,7 @@ REPO_ROOT = Path(__file__).resolve().parents[1]
 CORE_SKILL_IDS = (
     "chezmoi-dotfiles", "handoff", "humanizer", "unslop-code", "unslop-text", "unslop-ui"
 )
-OPENVIKING_SKILL_IDS = ("openviking-memory", "openviking-skills", "ov-experience-memory")
+OPENVIKING_SKILL_IDS = ("openviking-memory", "openviking-skills", "ov-experience-memory", "openviking-cleanup")
 SKILL_IDS = CORE_SKILL_IDS + OPENVIKING_SKILL_IDS
 GUIDANCE_FILES = (
     "AGENTS.md",
@@ -41,6 +41,7 @@ AI_FEATURES = (
     "opencode",
     "copilot",
     "openviking",
+    "ssh_mcp",
     "codecompanion",
 )
 ALLOWED_URL_HOSTS = {
@@ -69,6 +70,7 @@ PUBLIC_TEXT_FILES = (
     "home/dot_config/opencode/agents/ricer.md",
     "home/dot_local/share/agent-skills/handoff/readonly_SKILL.md",
     "home/dot_local/share/agent-skills/handoff/scripts/readonly_executable_snapshot.sh",
+    "home/dot_local/share/agent-skills/openviking-cleanup/readonly_SKILL.md",
 )
 EXPECTED_EXTERNALS = {
     ".local/share/agent-skills/unslop-code/SKILL.md": (
@@ -448,6 +450,7 @@ def validate_layout(root: Path) -> list[str]:
         canonical_root / "handoff/scripts/readonly_executable_snapshot.sh",
         canonical_root / "humanizer/readonly_SKILL.md",
         canonical_root / "humanizer/agents/readonly_openai.yaml",
+        canonical_root / "openviking-cleanup/readonly_SKILL.md",
         *(canonical_root / "chezmoi-dotfiles" / path for path in DOTFILES_SKILL_FILES),
     }
     actual_managed = {path for path in canonical_root.rglob("*") if path.is_file()}
@@ -476,25 +479,27 @@ def validate_component_contract(root: Path) -> list[str]:
 
 
 def validate_maintainer_skill(root: Path) -> list[str]:
-    """Check the first-party manifest without imposing a tool permission policy."""
-    text = (
-        root / "home/dot_local/share/agent-skills/chezmoi-dotfiles/readonly_SKILL.md"
-    ).read_text(encoding="utf-8")
-    match = re.match(r"\A---\n(.*?)\n---\n", text, re.DOTALL)
-    if match is None:
-        return ["chezmoi-dotfiles: missing YAML frontmatter"]
-    header = match.group(1)
+    """Check authored workflow manifests without pre-approving tools."""
     errors: list[str] = []
-    if not re.search(r"^name: chezmoi-dotfiles$", header, re.MULTILINE):
-        errors.append("chezmoi-dotfiles: manifest name must match its discovery ID")
-    if not re.search(r"^description: \S", header, re.MULTILINE):
-        errors.append("chezmoi-dotfiles: missing discovery description")
-    if re.search(r"^allowed-tools:", header, re.MULTILINE):
-        errors.append("chezmoi-dotfiles: manifest must not pre-approve tools")
-    if re.search(
-        r"(?:disable-model-invocation:\s*true|opencode/autoinvoke:\s*false)", header
-    ):
-        errors.append("chezmoi-dotfiles: normal model selection must remain enabled")
+    for skill_id in ("chezmoi-dotfiles", "openviking-cleanup"):
+        text = (
+            root / f"home/dot_local/share/agent-skills/{skill_id}/readonly_SKILL.md"
+        ).read_text(encoding="utf-8")
+        match = re.match(r"\A---\n(.*?)\n---\n", text, re.DOTALL)
+        if match is None:
+            errors.append(f"{skill_id}: missing YAML frontmatter")
+            continue
+        header = match.group(1)
+        if not re.search(rf"^name: {re.escape(skill_id)}$", header, re.MULTILINE):
+            errors.append(f"{skill_id}: manifest name must match its discovery ID")
+        if not re.search(r"^description: \S", header, re.MULTILINE):
+            errors.append(f"{skill_id}: missing discovery description")
+        if re.search(r"^allowed-tools:", header, re.MULTILINE):
+            errors.append(f"{skill_id}: manifest must not pre-approve tools")
+        if re.search(
+            r"(?:disable-model-invocation:\s*true|opencode/autoinvoke:\s*false)", header
+        ):
+            errors.append(f"{skill_id}: normal model selection must remain enabled")
     return errors
 
 

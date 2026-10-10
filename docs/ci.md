@@ -93,7 +93,9 @@ Trixie's `tmux` comes from Debian APT: no source build, no mystery binary.
 After install, the shared smoke test checks the managed files, shell runtime,
 Git behavior, tmux options, dynamic scrollback, and wheel binding.
 OpenViking runs with disposable private configuration and no provider login.
-Its smoke test starts the native server, verifies loopback readiness, rejects
+Its smoke test runs the import recovery/client-isolation regression suite using
+the installed native Python runtime, so native cursor coverage is not skipped.
+It also starts the native server, verifies loopback readiness, rejects
 unauthenticated data access, and provisions a separate USER credential. It does
 not start a persistent user service, download Ollama models, or validate remote
 provider quality.

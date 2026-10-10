@@ -10,6 +10,7 @@
   - [Handoff](#handoff)
   - [Unslop](#unslop)
   - [Humanizer](#humanizer)
+  - [OpenViking cleanup](#openviking-cleanup)
 - [Provenance and pins](#provenance-and-pins)
   - [License boundaries](#license-boundaries)
   - [Update audit](#update-audit)
@@ -45,6 +46,10 @@ the same canonical-store and per-entry-link pattern, but their downloads and
 links are gated on OpenViking only. Native discovery avoids the plugin's
 unsupported skill-directory API. See [OpenViking local memory](openviking.md)
 for the separate hook and authenticated MCP connections.
+
+The same selection also adds the first-party `openviking-cleanup` review skill.
+It is not installed with other AI features alone and requires no new picker,
+package, or external download.
 
 ## Harness support
 
@@ -164,9 +169,24 @@ Humanizer's adapter carries all host-specific controls:
 No implicit-invocation restrictions are added to the unslop skills, `handoff`,
 or `chezmoi-dotfiles`.
 
+### OpenViking cleanup
+
+Ask the agent to use `openviking-cleanup` to review current memories. The skill
+inventories the requested user/peer scope, checks current evidence, and proposes
+exact edits, historical annotations, merges, and deletions in batches. Review
+is read-only until you approve the named actions. It preserves useful dated
+history, original session archives, and unapproved candidates, then verifies
+content, deletion results, and representative recall.
+
+OpenViking's native `ov compile --skill memory` consolidates in place, applying
+model-generated changes automatically. It is not a preview mode and does not
+provide this approval-first interaction. The review skill uses existing tools
+instead of adding another plugin or CLI. It grants no permissions and does not
+schedule pruning or change extraction settings without a separate decision.
+
 ## Provenance and pins
 
-`handoff` and `chezmoi-dotfiles` are authored in this repository and have no
+`handoff`, `chezmoi-dotfiles`, and `openviking-cleanup` are authored in this repository and have no
 external pin. Maintenance references carry sanitized decisions and workflows;
 private session data and local harness settings remain outside the public source.
 

@@ -49,6 +49,21 @@ def main():
                    OPENVIKING_INSTALL_ROOT=str(root.resolve()), PYTHONPATH="")
         env.pop("OPENVIKING_CONFIG_FILE", None)
         controller = [str(args.controller.resolve())]
+        snapshot = temporary / "codex-snapshot"
+        rollout = snapshot / "2026/01/01/rollout-smoke.jsonl"
+        rollout.parent.mkdir(parents=True)
+        records = [
+            {"type": "session_meta", "payload": {"id": "smoke", "timestamp": "2026-01-01T00:00:00Z"}},
+            {"type": "response_item", "payload": {"type": "message", "role": "user",
+                                                 "content": [{"type": "input_text", "text": "fixture"}]}},
+        ]
+        rollout.write_text("".join(json.dumps(record) + "\n" for record in records))
+        preview = subprocess.run([*controller, "import-codex", "--source", str(snapshot), "--name", "smoke"],
+                                 env=env, check=True, capture_output=True, text=True, timeout=30)
+        if json.loads(preview.stdout)["messages"] != 1 or (private / "imports").exists():
+            raise ValueError("Codex preview failed or unexpectedly wrote import state")
+        subprocess.run([str(root / "current/bin/python"), "-B", "-m", "unittest", "tests.test_openviking_import"],
+                       env=env, cwd=Path(__file__).resolve().parents[1], check=True, timeout=120)
         subprocess.run([*controller, "init", "--profile", "ollama"], env=env, check=True,
                        stdout=subprocess.PIPE, stderr=subprocess.PIPE, timeout=30)
         url = "http://127.0.0.1:" + str(port)

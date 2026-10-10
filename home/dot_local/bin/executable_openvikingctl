@@ -423,8 +423,12 @@ def check_opencode():
 
 def main():
     os.umask(0o077)
+    if sys.argv[1:2] == ["import-codex"]:
+        load_environment()
+        result = command([str(runtime() / "bin/python"), "-B", str(EXAMPLES / "codex_import.py"), *sys.argv[2:]], check=False)
+        raise SystemExit(result.returncode if result.returncode >= 0 else 128 - result.returncode)
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("action", choices=("setup", "init", "run", "doctor", "probe-models", "mcp-config", "configure-opencode", "check-opencode", "auth-copilot", "bootstrap-client", "enable", "restart", "stop", "status", "version", "cli"))
+    parser.add_argument("action", choices=("setup", "init", "run", "doctor", "probe-models", "mcp-config", "configure-opencode", "check-opencode", "auth-copilot", "bootstrap-client", "enable", "restart", "stop", "status", "version", "cli", "import-codex"))
     parser.add_argument("--profile", choices=("copilot", "copilot-ollama", "ollama", "openai", "codex-ollama"), default="copilot")
     parser.add_argument("--yes", action="store_true", help="approve reviewed setup steps; does not replace provider login")
     args, remaining = parser.parse_known_args()

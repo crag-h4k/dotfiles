@@ -39,6 +39,12 @@ Native discovery links point at one canonical copy per skill. They install
 only with the OpenViking component and do not configure a connection or grant
 tool permissions themselves.
 
+`openviking-cleanup` is an additional first-party review workflow, authored in
+this repository without an upstream pin. It follows the same OpenViking-only
+gate and compatibility links. It uses existing memory tools for read-only
+auditing, batched decisions, and approved changes; it adds no plugin or CLI and
+does not run automatic in-place consolidation as a preview.
+
 ## Included boundaries
 
 The store includes only the distributable skill instructions, references,

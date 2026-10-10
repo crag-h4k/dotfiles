@@ -12,6 +12,8 @@
 - [Enable OpenCode capture](#enable-opencode-capture)
 - [OpenCode permissions](#opencode-permissions)
 - [Measure the trial](#measure-the-trial)
+- [Import Codex history](#import-codex-history)
+- [Review and clean up memories](#review-and-clean-up-memories)
 - [Storage and recovery](#storage-and-recovery)
 
 ## Select and install
@@ -372,6 +374,115 @@ rates. It records neither queries nor retrieved content. This measures
 is reported separately; call it cold only if the model was unloaded beforehand.
 Use the same corpus and queries when comparing providers. Save reports privately
 outside this repository if you want a multi-day history.
+
+## Import Codex history
+
+`openvikingctl import-codex` replays a reviewed, local snapshot of Codex session
+logs through the installed OpenViking parser and session pipeline. It ships with
+`ai > openviking`; applying dotfiles never starts an import. The command works
+with the native runtime on macOS and Debian and can send to an existing server,
+including a container's published loopback port.
+
+Copy the source account's `~/.codex/sessions/` privately, retaining its
+`YEAR/MONTH/DAY/rollout-*.jsonl` layout. Finish the copy and review the conversation
+text for credentials before importing. The parser keeps user and assistant text
+and original timestamps, omitting developer/system messages, tool records, and
+encrypted reasoning. Text can still contain credentials even when tool output
+is excluded. This command does not scan or redact it for you.
+
+Use a stable name for the snapshot. Preview is offline: it reports session,
+message, and character counts without contacting a server or creating import
+state. A new preview counts unfinished sessions; `--limit` bounds that set.
+
+```sh
+openvikingctl import-codex \
+  --source "$HOME/private/codex-snapshot/sessions" --name previous-workstation
+```
+
+Back up the destination before the first write. Start with a small batch, then
+check the extracted memories and recall before removing `--limit`:
+
+```sh
+openvikingctl import-codex \
+  --source "$HOME/private/codex-snapshot/sessions" --name previous-workstation \
+  --limit 2 --apply
+```
+
+The command uses the USER credential in `~/.openviking/ovcli.conf`.
+`--client-config` selects another private client file. `--url` overrides its
+endpoint for this invocation, useful when the saved URL is only reachable inside
+Docker. HTTP is accepted on loopback only; remote endpoints require HTTPS.
+Neither option changes the live configuration or selected model providers.
+The server's configured providers receive the imported conversation text.
+Import clients use only the selected URL, USER key, optional account/user, and
+timeout. They do not inherit other SDK files or `OPENVIKING_*` environment
+authentication/routing settings. Extra authentication headers, gateway tokens,
+and non-API-key authentication require a separate supported workflow and are
+refused here. Rejected arguments are not reprinted by the controller.
+
+Sessions use `codex-<name>__codex__<native-id>` identifiers. Human messages have
+no project peer, since a historical working directory does not establish a Git
+identity on the receiving machine. Automatic commits are disabled for these
+sessions; the importer submits one extraction task per complete conversation
+and waits for it. `--wait-timeout` defaults to 900 seconds per task. A timeout
+leaves its task ID available for the next invocation to resume waiting.
+
+Private progress lives under `~/.openviking/imports/<name>/state/`, containing
+`progress.json` and the native SQLite cursor database. Keep them together and
+reuse the same name, snapshot, and destination for reruns. Finished sessions
+are skipped. Before the first applied batch, progress binds a complete manifest
+of every discovered rollout, including files excluded by pilot limits or filters.
+Changed, added, or missing files are rejected on subsequent runs. An identical
+restored copy at the same path can resume at its confirmed offset. A single-process
+lock prevents concurrent runs sharing this state. Pending appends are reconciled
+only when the server count exactly matches the confirmed count or the full
+pending batch. Partial, reset, extra, and out-of-bounds cursor states stop instead
+of restarting or silently skipping messages. Lost commit replies are checked
+against task history before proceeding.
+Resuming a submitted commit also requires a matching session cursor at the full
+source EOF with the expected message total. A missing or older cursor row cannot
+bypass verification of a saved extraction task or become an empty completion.
+The task's type and session identity must also match before its completion is
+accepted.
+
+Source mutation during replay or inconsistent server/cursor state writes a
+durable invalid-state marker. Restoring the original file alone does not clear
+it. Inspect what reached the server and restore a matching reviewed snapshot and
+progress/cursor state before explicit recovery; never blindly clear the marker
+or rename the import to start again. Legacy progress created without a complete
+snapshot manifest is also refused until explicitly reconciled. These checks
+do not modify memories already extracted by an earlier version.
+
+An ambiguous or failed extraction stops the run. Inspect the stored task ID
+through the authenticated OpenViking task API before recovery; the command
+does not automatically reset sessions or repeat failed extraction. Changing the
+destination or client credential also stops the run for review. Do not rename
+an import to bypass these checks: that would create another set of sessions.
+Session deletion is not a rollback of extracted memories. Restore the reviewed
+backup if derived memories need to be reverted, accounting for other writes
+made since that backup.
+
+`--session ID` selects a native Codex session; repeat it to select the same pilot
+again and verify that its completed sessions are skipped. `--since YYYY-MM-DD`
+filters by original session start date. Markdown memory
+files are separate input: review their facts against current state and import
+only the still-useful information explicitly. Historical descriptions can be
+outdated, and extraction can revise existing memories rather than merely add
+new ones.
+
+## Review and clean up memories
+
+Selecting `ai > openviking` installs the first-party `openviking-cleanup` skill
+beside the three unmodified upstream skills, with the same per-entry native
+discovery links. Ask the agent to use it for an approval-first memory review.
+It checks current evidence, separates dated history from live claims, and brings
+up exact changes in batches before applying them. Configuration changes and
+automatic pruning are not side effects of installing or invoking the skill.
+
+The upstream 0.4.23 `ov compile --skill memory` command already provides automatic
+in-place consolidation, including merges and deletions. It does not have a
+proposal/approval stage, so do not use it as a dry-run. The cleanup skill uses the
+existing memory tools and requires no additional plugin, CLI, or package.
 
 ## Storage and recovery
 

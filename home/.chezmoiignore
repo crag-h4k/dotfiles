@@ -108,12 +108,15 @@ AGENTS.md
 .local/share/dotfiles/openviking
 .local/share/agent-skills/openviking-memory
 .local/share/agent-skills/openviking-skills
+.local/share/agent-skills/openviking-cleanup
 .local/share/agent-skills/ov-experience-memory
 .agents/skills/openviking-memory
 .agents/skills/openviking-skills
+.agents/skills/openviking-cleanup
 .agents/skills/ov-experience-memory
 .claude/skills/openviking-memory
 .claude/skills/openviking-skills
+.claude/skills/openviking-cleanup
 .claude/skills/ov-experience-memory
 {{ end -}}
 {{ if not (dig "components" "ai" "ssh_mcp" false .) -}}

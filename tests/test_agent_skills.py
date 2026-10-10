@@ -89,6 +89,8 @@ class LayoutRejectionTests(unittest.TestCase):
         (canonical / "handoff/scripts/readonly_executable_snapshot.sh").touch()
         (canonical / "humanizer/readonly_SKILL.md").touch()
         (canonical / "humanizer/agents/readonly_openai.yaml").touch()
+        (canonical / "openviking-cleanup").mkdir()
+        (canonical / "openviking-cleanup/readonly_SKILL.md").touch()
         for relative in VALIDATOR.DOTFILES_SKILL_FILES:
             path = canonical / "chezmoi-dotfiles" / relative
             path.parent.mkdir(parents=True, exist_ok=True)
@@ -189,6 +191,12 @@ class SkillDeploymentTests(unittest.TestCase):
                     ".config/opencode/plugins/session-workflow/workflow.mjs",
                 ):
                     self.assertEqual(target in managed, features == {"opencode"}, target)
+                for target in (
+                    ".local/share/agent-skills/openviking-cleanup/SKILL.md",
+                    ".agents/skills/openviking-cleanup",
+                    ".claude/skills/openviking-cleanup",
+                ):
+                    self.assertEqual(target in managed, features == {"openviking"}, target)
 
     def test_archive_omits_repository_guidance(self) -> None:
         self.config.write_text(VALIDATOR.component_config(set(VALIDATOR.AI_FEATURES)))
@@ -285,6 +293,33 @@ class SkillDeploymentTests(unittest.TestCase):
             self.assertEqual((linked / "SKILL.md").read_bytes(), (canonical / "SKILL.md").read_bytes())
             independent = self.destination / f".{harness}/skills/local-example/SKILL.md"
             self.assertEqual(independent.read_text(), "Independent local skill\n")
+
+    def test_openviking_cleanup_apply_and_deselect_preserve_other_skills(self) -> None:
+        self.config.write_text(VALIDATOR.component_config({"openviking"}))
+        canonical = self.destination / ".local/share/agent-skills/openviking-cleanup"
+        links = [self.destination / f".{harness}/skills/openviking-cleanup"
+                 for harness in ("agents", "claude")]
+        independent = self.destination / ".agents/skills/local-example/SKILL.md"
+        independent.parent.mkdir(parents=True)
+        independent.write_text("Independent local skill\n")
+        targets = [canonical, *links]
+        for target in targets:
+            target.parent.mkdir(parents=True, exist_ok=True)
+        self.run_chezmoi("apply", "--", *(str(path) for path in targets))
+        source = REPO_ROOT / "home/dot_local/share/agent-skills/openviking-cleanup/readonly_SKILL.md"
+        self.assertEqual((canonical / "SKILL.md").read_bytes(), source.read_bytes())
+        self.assertEqual((canonical / "SKILL.md").stat().st_mode & 0o222, 0)
+        for linked in links:
+            self.assertTrue(linked.is_symlink())
+            self.assertEqual(linked.resolve(), canonical.resolve())
+        self.run_chezmoi("apply", "--", *(str(path) for path in targets))
+        self.assertEqual((canonical / "SKILL.md").read_bytes(), source.read_bytes())
+        self.config.write_text(VALIDATOR.component_config({"opencode"}))
+        managed = self.run_chezmoi("managed", "--path-style=relative").decode().splitlines()
+        self.assertNotIn(".local/share/agent-skills/openviking-cleanup/SKILL.md", managed)
+        for harness in ("agents", "claude"):
+            self.assertNotIn(f".{harness}/skills/openviking-cleanup", managed)
+        self.assertEqual(independent.read_text(), "Independent local skill\n")
 
 
 if __name__ == "__main__":
