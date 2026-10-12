@@ -273,6 +273,8 @@ assert_ai_only() { # aiSelection expected_on_key
 assert_ai_only "opencode2"    "opencode"
 assert_ai_only "opencode"     "opencode"
 assert_ai_only "codex_hooks"  "codex_hooks"
+assert_ai_only "ssh_mcp"      "opencode"
+assert_ai_only "9"            "opencode"
 
 # The old V2 token is rewritten in persisted data and never emitted as a child key.
 cfgdir=$(mktemp -d)

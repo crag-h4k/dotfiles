@@ -4,6 +4,7 @@
 from __future__ import annotations
 
 import re
+import hashlib
 import subprocess
 import sys
 import tempfile
@@ -13,11 +14,13 @@ from urllib.parse import urlsplit
 
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
+GIT_SKILL_IDS = ("git-publish", "pr-watch", "git-worktree")
 CORE_SKILL_IDS = (
     "chezmoi-dotfiles", "handoff", "humanizer", "unslop-code", "unslop-text", "unslop-ui"
-)
+) + GIT_SKILL_IDS
 OPENVIKING_SKILL_IDS = ("openviking-memory", "openviking-skills", "ov-experience-memory")
-SKILL_IDS = CORE_SKILL_IDS + OPENVIKING_SKILL_IDS
+CAVEMAN_SKILL_IDS = ("caveman", "caveman-review")
+SKILL_IDS = CORE_SKILL_IDS + OPENVIKING_SKILL_IDS + CAVEMAN_SKILL_IDS
 GUIDANCE_FILES = (
     "AGENTS.md",
     "home/AGENTS.md",
@@ -62,6 +65,7 @@ PUBLIC_TEXT_FILES = (
     "home/dot_local/share/agent-skills/readonly_PROVENANCE.md",
     "home/dot_local/share/agent-skills/humanizer/readonly_SKILL.md",
     "home/dot_local/share/agent-skills/humanizer/agents/readonly_openai.yaml",
+    "home/dot_local/share/agent-skills/ov-experience-memory/readonly_SKILL.md",
     "home/dot_config/opencode/commands/handoff.md",
     "home/dot_config/opencode/commands/dotfiles.md",
     "home/dot_config/opencode/commands/humanize.md",
@@ -69,6 +73,10 @@ PUBLIC_TEXT_FILES = (
     "home/dot_config/opencode/agents/ricer.md",
     "home/dot_local/share/agent-skills/handoff/readonly_SKILL.md",
     "home/dot_local/share/agent-skills/handoff/scripts/readonly_executable_snapshot.sh",
+    *(f"home/dot_local/share/agent-skills/{skill_id}/readonly_SKILL.md"
+      for skill_id in GIT_SKILL_IDS),
+    *(f"home/dot_config/opencode/commands/{command}.md"
+      for command in ("publish", "pr-watch", "worktree")),
 )
 EXPECTED_EXTERNALS = {
     ".local/share/agent-skills/unslop-code/SKILL.md": (
@@ -153,6 +161,9 @@ EXPECTED_GATED_TARGETS = {
     ".config/opencode/commands/dotfiles.md",
     ".config/opencode/commands/humanize.md",
     ".config/opencode/commands/unslop.md",
+    ".config/opencode/commands/publish.md",
+    ".config/opencode/commands/pr-watch.md",
+    ".config/opencode/commands/worktree.md",
 }
 OPENVIKING_EXTERNALS = {
     ".local/share/agent-skills/openviking-memory/SKILL.md": (
@@ -163,7 +174,7 @@ OPENVIKING_EXTERNALS = {
         "https://raw.githubusercontent.com/volcengine/OpenViking/9b9ac101f1c47a62c050a7d7bb372c6f36266302/examples/opencode-plugin/skills/openviking-skills/SKILL.md",
         "e48e9776960ebb9aeca5a78df3d0661e4c4fb03f722cbf0b09b832f5df9e4207",
     ),
-    ".local/share/agent-skills/ov-experience-memory/SKILL.md": (
+    ".local/share/dotfiles/openviking/ov-experience-memory-upstream.md": (
         "https://raw.githubusercontent.com/volcengine/OpenViking/9b9ac101f1c47a62c050a7d7bb372c6f36266302/examples/opencode-plugin/skills/ov-experience-memory/SKILL.md",
         "9490d86db2fcfa572e49bc0105f5916c1c4344f3691f74a0bc245a53045de7d8",
     ),
@@ -172,6 +183,25 @@ OPENVIKING_GATED_TARGETS = {
     f"{prefix}/{skill_id}"
     for prefix in (".local/share/agent-skills", ".agents/skills", ".claude/skills")
     for skill_id in OPENVIKING_SKILL_IDS
+}
+CAVEMAN_EXTERNALS = {
+    ".local/share/agent-skills/caveman/SKILL.md": (
+        "https://raw.githubusercontent.com/JuliusBrussee/caveman/2e08b9177c07bb7249a8a2d1a6758e5db281d002/skills/caveman/SKILL.md",
+        "415d43518f2b1a9498c15a445d4657117b129ee5e81b19454ce348439cc6672b",
+    ),
+    ".local/share/agent-skills/caveman-review/SKILL.md": (
+        "https://raw.githubusercontent.com/JuliusBrussee/caveman/2e08b9177c07bb7249a8a2d1a6758e5db281d002/skills/caveman-review/SKILL.md",
+        "599330563f19b5c59c3efddffcd7e8d9098b74c29817ab422ccd3253b103fcb8",
+    ),
+    **{f".local/share/agent-skills/{skill}/LICENSE": (
+        "https://raw.githubusercontent.com/JuliusBrussee/caveman/2e08b9177c07bb7249a8a2d1a6758e5db281d002/LICENSE",
+        "cfc7749b96f63bd31c3c42b5c471bf756814053e847c10f3eb003417bc523d30",
+    ) for skill in CAVEMAN_SKILL_IDS},
+}
+CAVEMAN_GATED_TARGETS = {
+    f"{prefix}/{skill}"
+    for prefix in (".local/share/agent-skills", ".agents/skills", ".claude/skills")
+    for skill in CAVEMAN_SKILL_IDS
 }
 
 
@@ -325,8 +355,12 @@ def render_template(root: Path, source: str, enabled_features: set[str]) -> str:
 def validate_external_contract(root: Path) -> list[str]:
     """Check exact pins, checksums, readonly mode, and AI gating."""
     errors: list[str] = []
+    upstream_experience = ".local/share/dotfiles/openviking/ov-experience-memory-upstream.md"
     disabled = tomllib.loads(render_template(root, "home/.chezmoiexternal.toml", set()))
-    leaked = sorted(key for key in disabled if key.startswith(".local/share/agent-skills/"))
+    leaked = sorted(
+        key for key in disabled
+        if key.startswith(".local/share/agent-skills/") or key == upstream_experience
+    )
     if leaked:
         errors.append(f"disabled AI rendered agent-skill externals: {', '.join(leaked)}")
 
@@ -337,11 +371,13 @@ def validate_external_contract(root: Path) -> list[str]:
         actual = {
             key: value
             for key, value in rendered.items()
-            if key.startswith(".local/share/agent-skills/")
+            if key.startswith(".local/share/agent-skills/") or key == upstream_experience
         }
         expected = dict(EXPECTED_EXTERNALS)
         if feature == "openviking":
             expected.update(OPENVIKING_EXTERNALS)
+        if feature == "opencode":
+            expected.update(CAVEMAN_EXTERNALS)
         if set(actual) != set(expected):
             errors.append(f"AI feature {feature} rendered an unexpected external file set")
             continue
@@ -367,7 +403,7 @@ def validate_ignore_contract(root: Path) -> list[str]:
     """Check that every AI sub-feature controls the same per-path asset set."""
     errors: list[str] = []
     disabled = set(render_template(root, "home/.chezmoiignore", set()).splitlines())
-    missing = (EXPECTED_GATED_TARGETS | OPENVIKING_GATED_TARGETS) - disabled
+    missing = (EXPECTED_GATED_TARGETS | OPENVIKING_GATED_TARGETS | CAVEMAN_GATED_TARGETS) - disabled
     if missing:
         errors.append(f"disabled AI fails to ignore: {', '.join(sorted(missing))}")
 
@@ -386,6 +422,9 @@ def validate_ignore_contract(root: Path) -> list[str]:
             )
         for target in OPENVIKING_GATED_TARGETS:
             if (target in enabled) != (feature != "openviking"):
+                errors.append(f"AI feature {feature} incorrectly gates {target}")
+        for target in CAVEMAN_GATED_TARGETS:
+            if (target in enabled) != (feature != "opencode"):
                 errors.append(f"AI feature {feature} incorrectly gates {target}")
     return errors
 
@@ -448,7 +487,12 @@ def validate_layout(root: Path) -> list[str]:
         canonical_root / "handoff/scripts/readonly_executable_snapshot.sh",
         canonical_root / "humanizer/readonly_SKILL.md",
         canonical_root / "humanizer/agents/readonly_openai.yaml",
+        canonical_root / "ov-experience-memory/readonly_SKILL.md",
+        canonical_root / "private_caveman/.keep",
+        canonical_root / "private_caveman-review/.keep",
         *(canonical_root / "chezmoi-dotfiles" / path for path in DOTFILES_SKILL_FILES),
+        *(canonical_root / skill_id / name for skill_id in GIT_SKILL_IDS
+          for name in ("readonly_SKILL.md", "readonly_LICENSE")),
     }
     actual_managed = {path for path in canonical_root.rglob("*") if path.is_file()}
     if actual_managed != expected_managed:
@@ -498,6 +542,24 @@ def validate_maintainer_skill(root: Path) -> list[str]:
     return errors
 
 
+def validate_experience_adapter(root: Path) -> list[str]:
+    """Check the locally adapted skill still resolves under its upstream ID."""
+    path = root / "home/dot_local/share/agent-skills/ov-experience-memory/readonly_SKILL.md"
+    text = path.read_text(encoding="utf-8")
+    match = re.match(r"\A---\n(.*?)\n---\n", text, re.DOTALL)
+    if match is None:
+        return ["ov-experience-memory: missing YAML frontmatter"]
+    header = match.group(1)
+    errors = []
+    if not re.search(r"^name: ov-experience-memory$", header, re.MULTILINE):
+        errors.append("ov-experience-memory: manifest name must match its discovery ID")
+    if not re.search(r"^description: \S", header, re.MULTILINE):
+        errors.append("ov-experience-memory: missing discovery description")
+    if re.search(r"^allowed-tools:", header, re.MULTILINE):
+        errors.append("ov-experience-memory: manifest must not pre-approve tools")
+    return errors
+
+
 def validate_invocation_policy(root: Path) -> list[str]:
     """Check Humanizer manual-only policy and command safety."""
     errors: list[str] = []
@@ -530,7 +592,7 @@ def validate_invocation_policy(root: Path) -> list[str]:
     unslop_position = humanize.find("load `unslop-text`")
     if humanizer_position < 0 or unslop_position < humanizer_position:
         errors.append("humanize command does not run Humanizer before unslop-text")
-    for command in ("dotfiles", "handoff", "humanize", "unslop"):
+    for command in ("dotfiles", "handoff", "humanize", "unslop", "publish", "pr-watch", "worktree"):
         text = (root / f"home/dot_config/opencode/commands/{command}.md").read_text(
             encoding="utf-8"
         )
@@ -551,6 +613,29 @@ def validate_public_text(root: Path) -> list[str]:
     return errors
 
 
+def validate_git_skill_manifests(root: Path) -> list[str]:
+    """Check discovery IDs and preserve the audited upstream license bytes."""
+    errors: list[str] = []
+    for skill_id in GIT_SKILL_IDS:
+        package = root / "home/dot_local/share/agent-skills" / skill_id
+        text = (package / "readonly_SKILL.md").read_text(encoding="utf-8")
+        match = re.match(r"\A---\n(.*?)\n---\n", text, re.DOTALL)
+        if match is None:
+            errors.append(f"{skill_id}: missing YAML frontmatter")
+            continue
+        header = match.group(1)
+        if not re.search(rf"^name: {re.escape(skill_id)}$", header, re.MULTILINE):
+            errors.append(f"{skill_id}: manifest name must match its discovery ID")
+        if not re.search(r"^description: \S", header, re.MULTILINE):
+            errors.append(f"{skill_id}: missing discovery description")
+        if re.search(r"^allowed-tools:", header, re.MULTILINE):
+            errors.append(f"{skill_id}: manifest must not pre-approve tools")
+        license_hash = hashlib.sha256((package / "readonly_LICENSE").read_bytes()).hexdigest()
+        if license_hash != "61d89de7646effdaba2d0a4ab7bd0eba60b4094b83efe5bc73c7940e43e93fc6":
+            errors.append(f"{skill_id}: MIT notice differs from the audited upstream license")
+    return errors
+
+
 def validate_repository(root: Path = REPO_ROOT) -> list[str]:
     """Run every offline agent-skill validation."""
     errors: list[str] = []
@@ -562,6 +647,8 @@ def validate_repository(root: Path = REPO_ROOT) -> list[str]:
         validate_layout,
         validate_component_contract,
         validate_maintainer_skill,
+        validate_experience_adapter,
+        validate_git_skill_manifests,
         validate_invocation_policy,
         validate_public_text,
     ):

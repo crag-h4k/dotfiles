@@ -71,21 +71,25 @@ opentui_version="$(_resolve_npm_candidate @opentui/solid "$opentui_requirement")
     printf 'opencode2: could not resolve an eligible OpenTUI Solid release\n' >&2
     exit 1
 }
-tui_peers="$(npm view "@opentui/solid@$opentui_version" peerDependencies --json 2>/dev/null)" || {
-    printf 'opencode2: could not resolve OpenTUI Solid peer dependencies\n' >&2
+tui_requirements="$(npm view "@opentui/solid@$opentui_version" dependencies peerDependencies --json 2>/dev/null)" || {
+    printf 'opencode2: could not read OpenTUI Solid dependency requirements\n' >&2
     exit 1
 }
 peer_ranges="$(node -e '
 try {
   const [sdk,tui]=process.argv.slice(1).map(JSON.parse)
   const ranges=["@opentui/core","solid-js"].map(name => {
-    const left=sdk[name],right=tui[name]
-    if (typeof left !== "string" || !left.trim() || typeof right !== "string" || !right.trim()) process.exit(1)
-    return left.split("||").flatMap(a => right.split("||").map(b => a.trim()+" "+b.trim())).join(" || ")
+    const left=sdk[name]
+    const constraints=[tui.dependencies?.[name],tui.peerDependencies?.[name]].filter(value => value !== undefined)
+    if (typeof left !== "string" || !left.trim() || !constraints.length) process.exit(1)
+    return constraints.reduce((range,right) => {
+      if (typeof right !== "string" || !right.trim()) process.exit(1)
+      return range.split("||").flatMap(a => right.split("||").map(b => a.trim()+" "+b.trim())).join(" || ")
+    },left)
   })
   console.log(ranges.join("\t"))
-} catch { process.exit(1) }' "$sdk_peers" "$tui_peers")" || {
-    printf 'opencode2: incomplete SDK or OpenTUI peer requirements\n' >&2
+} catch { process.exit(1) }' "$sdk_peers" "$tui_requirements")" || {
+    printf 'opencode2: incomplete SDK or OpenTUI dependency requirements\n' >&2
     exit 1
 }
 IFS=$'\t' read -r core_requirement solid_requirement <<<"$peer_ranges"

@@ -45,6 +45,7 @@ AGENTS.md
 .config/opencode/cli.override.json
 .config/opencode/override.zsh
 .config/opencode/remote.env
+.config/ssh-mcp
 .config/opencode/v2-plugins/local
 # Work-in-progress tab sorter: do not deploy or discover until the Mac focus bug is fixed.
 .config/opencode/plugins/priority-tabs
@@ -54,6 +55,8 @@ AGENTS.md
 # OpenViking owns its private configuration, credentials, memory, and runtime.
 .openviking
 .local/share/openviking
+.caveman
+.caveman-cloud
 .config/litellm/github_copilot
 .config/opencode/openviking
 .zsh/custom/functions/local-*.zsh
@@ -64,6 +67,9 @@ AGENTS.md
 .gitconfig.work
 .zsh_override
 .zsh_private
+{{ if ne .chezmoi.os "darwin" -}}
+Library/Application Support
+{{ end -}}
 {{/* Writing-quality skills are an automatic child of the existing AI parent.
      Any selected AI sub-feature enables the one canonical skill store, the
      per-skill harness links, and the OpenCode commands. Keep this expression
@@ -79,24 +85,36 @@ AGENTS.md
 {{ if not $agentSkillsEnabled -}}
 .local/share/agent-skills/PROVENANCE.md
 .local/share/agent-skills/handoff
+.local/share/agent-skills/git-publish
+.local/share/agent-skills/pr-watch
+.local/share/agent-skills/git-worktree
 .local/share/agent-skills/chezmoi-dotfiles
 .local/share/agent-skills/humanizer
 .local/share/agent-skills/unslop-code
 .local/share/agent-skills/unslop-text
 .local/share/agent-skills/unslop-ui
 .claude/skills/handoff
+.claude/skills/git-publish
+.claude/skills/pr-watch
+.claude/skills/git-worktree
 .claude/skills/chezmoi-dotfiles
 .claude/skills/humanizer
 .claude/skills/unslop-code
 .claude/skills/unslop-text
 .claude/skills/unslop-ui
 .agents/skills/handoff
+.agents/skills/git-publish
+.agents/skills/pr-watch
+.agents/skills/git-worktree
 .agents/skills/chezmoi-dotfiles
 .agents/skills/humanizer
 .agents/skills/unslop-code
 .agents/skills/unslop-text
 .agents/skills/unslop-ui
 .config/opencode/commands/handoff.md
+.config/opencode/commands/publish.md
+.config/opencode/commands/pr-watch.md
+.config/opencode/commands/worktree.md
 .config/opencode/commands/dotfiles.md
 .config/opencode/commands/humanize.md
 .config/opencode/commands/unslop.md
@@ -113,6 +131,28 @@ AGENTS.md
 .claude/skills/openviking-memory
 .claude/skills/openviking-skills
 .claude/skills/ov-experience-memory
+{{ end -}}
+{{ if not (dig "components" "ai" "opencode" false .) -}}
+.local/share/dotfiles/ssh-mcp
+{{ end -}}
+{{ if not (dig "components" "ai" "opencode" false .) -}}
+.local/bin/cavemanctl
+.local/share/dotfiles/caveman
+.local/share/agent-skills/caveman
+.local/share/agent-skills/caveman-review
+.agents/skills/caveman
+.agents/skills/caveman-review
+.claude/skills/caveman
+.claude/skills/caveman-review
+{{ end -}}
+{{ if not (dig "components" "ai" "opencode" false .) -}}
+.config/opencode/plugins/caveman.js
+{{ end -}}
+{{ if or (ne .chezmoi.os "darwin") (not (dig "components" "ai" "opencode" false .)) -}}
+Library/LaunchAgents/io.github.crag-h4k.dotfiles.caveman.plist
+{{ end -}}
+{{ if or (ne .chezmoi.os "linux") (not (dig "components" "ai" "opencode" false .)) -}}
+.config/systemd/user/dotfiles-caveman.service
 {{ end -}}
 {{ if or (ne .chezmoi.os "darwin") (not (dig "components" "ai" "openviking" false .)) -}}
 Library/LaunchAgents/io.github.crag-h4k.dotfiles.openviking.plist

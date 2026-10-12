@@ -68,8 +68,9 @@ palette, AI tooling, and verified deployments are central to the project.
 
 ## Finish the change
 
-Run focused checks while iterating, then `prek run --all-files` before review.
-The complete macOS/Trixie deployment gate remains required for merging. Record
+Run focused checks while iterating, then `python3 scripts/prek-changed.py`
+before review. CI runs `prek run --all-files`; the complete macOS/Trixie
+deployment gate remains required for merging. Record
 what ran, any failures or unavailable checks, and what still needs human review.
 Never weaken the gate to obtain a green result.
 

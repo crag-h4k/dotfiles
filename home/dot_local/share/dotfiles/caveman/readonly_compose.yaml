@@ -1,0 +1,24 @@
+# Extend this service from a private stack to select its network and addresses.
+services:
+  caveman:
+    image: ghcr.io/juliusbrussee/caveman-proxy:bin-v2.1.0@sha256:da293df3c6929c7b31eba580f7af74da0448e83a55a973cca86e81041877d0bb
+    user: "${CAVEMAN_UID:-1000}:${CAVEMAN_GID:-1000}"
+    restart: unless-stopped
+    init: true
+    read_only: true
+    cap_drop: [ALL]
+    security_opt: [no-new-privileges:true]
+    environment:
+      CAVEMAN_HOME: ${CAVEMAN_STATE_DIR:?set private Caveman state directory}
+      CAVEMAN_CCR_DB: ${CAVEMAN_STATE_DIR}/ccr.db
+      CAVEMAN_CONFIG: ${CAVEMAN_STATE_DIR}/proxy.json
+      CAVEMAN_LISTEN: 0.0.0.0:8787
+      DO_NOT_TRACK: "1"
+    env_file: ["${CAVEMAN_STATE_DIR:?set private Caveman state directory}/proxy.env"]
+    volumes:
+      - "${CAVEMAN_STATE_DIR:?set private Caveman state directory}:${CAVEMAN_STATE_DIR}"
+    ports:
+      - "${CAVEMAN_BIND:-127.0.0.1}:${CAVEMAN_PORT:-8787}:8787"
+    logging:
+      driver: json-file
+      options: {max-size: 10m, max-file: "3"}

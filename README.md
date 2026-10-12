@@ -40,15 +40,19 @@ Chezmoi wrangles Zsh, Neovim, Ghostty/iTerm2, Claude/Codex hooks, palettes, and 
 
 ## Quick start
 
-Install `gum` for the checkbox picker, then let chezmoi bootstrap the rest:
+Install Python for configuration merges and `gum` for the checkbox picker,
+then let chezmoi bootstrap the rest:
 
 ```sh
 # macOS
 command -v gum >/dev/null || brew install gum
+command -v python3 >/dev/null || brew install python3
 sh -c "$(curl -fsLS get.chezmoi.io)" -- init --apply crag-h4k
 
 # Debian Trixie
-command -v gum >/dev/null || { sudo apt-get update && sudo apt-get install -y gum; }
+if ! command -v gum >/dev/null || ! command -v python3 >/dev/null; then
+  sudo apt-get update && sudo apt-get install -y gum python3
+fi
 sh -c "$(curl -fsLS get.chezmoi.io)" -- init --apply crag-h4k
 ```
 

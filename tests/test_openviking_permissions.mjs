@@ -32,7 +32,7 @@ function effect(rules, action, resource) {
   return result
 }
 
-test("OpenViking tools and skills remain available in every agent mode", async () => {
+test("OpenViking and Caveman tools remain available in every agent mode", async () => {
   const agents = ["build", "plan", "auto", "explore", "general", "custom-reviewer"].map((id) => ({
     id,
     permissions: [{ action: "*", resource: "*", effect: "deny" }],
@@ -40,6 +40,9 @@ test("OpenViking tools and skills remain available in every agent mode", async (
   await apply(agents)
   for (const agent of agents) {
     for (const tool of ["openviking_find", "openviking_read", "openviking_write", "openviking_forget"]) {
+      assert.equal(effect(agent.permissions, tool, "*"), "allow")
+    }
+    for (const tool of ["caveman_caveman_compress", "caveman_caveman_retrieve", "caveman_caveman_stats", "caveman_caveman_toon_encode", "caveman_caveman_toon_decode"]) {
       assert.equal(effect(agent.permissions, tool, "*"), "allow")
     }
     for (const skill of ["openviking-memory", "openviking-skills", "ov-experience-memory"]) {
@@ -62,10 +65,11 @@ test("Existing rules survive and repeated transforms do not accumulate allows", 
   assert.equal(effect(agents[0].permissions, "shell", "git push origin main"), "ask")
 })
 
-test("Agents with no explicit rules receive only the OpenViking exceptions", async () => {
+test("Agents with no explicit rules receive only context-tool exceptions", async () => {
   const agents = [{ id: "future-agent" }]
   await apply(agents)
-  assert.equal(agents[0].permissions.length, 3)
+  assert.equal(agents[0].permissions.length, 4)
+  assert.equal(effect(agents[0].permissions, "caveman_caveman_retrieve", "*"), "allow")
   assert.equal(effect(agents[0].permissions, "openviking_search", "*"), "allow")
   assert.equal(effect(agents[0].permissions, "shell", "openvikingctl stop"), "ask")
 })

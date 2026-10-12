@@ -48,7 +48,7 @@ drive() {
 #!/bin/sh
 case "$*" in
   update) ;;
-  "list --formula") printf 'git\ncurl\ngum\nchezmoi\nprek\n' ;;
+  "list --formula") printf 'git\ncurl\ngum\nchezmoi\nprek\nlazygit\n' ;;
   "list --cask"|"outdated --formula --quiet"|"outdated --cask --quiet") ;;
   *) exit 91 ;;
 esac

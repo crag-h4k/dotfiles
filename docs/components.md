@@ -57,6 +57,12 @@ Enter numbers (e.g. "1 3"), type default, or press Enter for default (1 2 3 4)
 Both interfaces persist their selection and resolve the same
 `[data.components]` tables.
 
+Lazygit is a base package on both macOS (Homebrew) and Debian (Trixie APT),
+regardless of which components are selected in Gum or the typed menu. It has
+no Oh My Zsh plugin requirement. Package mode still shows it in the approval
+plan; configs-only mode does not install it. Its config follows the selected
+palette even on machines without Zsh.
+
 | Input | Selects |
 | --- | --- |
 | Numbers (e.g. `1 3`) | Any subset; spacing/order don't matter - `1 3`, `13`, and `3 1` are equivalent |
@@ -103,6 +109,11 @@ Gum treats commas as selection separators, which otherwise breaks preselection.
 The submenu only appears when its parent is selected.
 
 Nothing AI-related installs unless the AI component is selected.
+
+Selecting OpenCode includes the SSH MCP and Caveman runtimes. Their MCP entries
+start disabled and preserve local enablement on later applies. Individual MCPs
+do not add picker rows. Older `ssh_mcp` selections migrate to OpenCode. Caveman
+also requires explicit private proxy setup; see [Caveman](caveman.md).
 
 ### Shared agent skills
 
@@ -225,7 +236,8 @@ Credential files and recursive removal commands remain denied.
 `cli.json` enables session tabs and uses `Ctrl+G` as a 1500 ms leader.
 `<leader>h` / `<leader>l` move between tabs. The
 session-workflow CLI plugin uses Shift+Tab to cycle Build → Plan → Auto → Build
-for the current session.
+for the current session. Before a session exists, the plugin yields Shift+Tab
+to OpenCode's native agent picker, so the first prompt need not start in Build.
 Auto is a primary agent with a red identity pill; Ricer remains available as
 a subagent rather than occupying a slot in this cycle. While a terminal client
 is open, Auto mirrors native `--auto`: it replies once to pending permission asks,
@@ -517,6 +529,14 @@ default; iTerm2 is macOS-only.
 Both are gated by `home/.chezmoiignore`. iTerm2 also requires
 `.chezmoi.os == "darwin"`, and its cask exists only in the macOS installer.
 Selecting it on Debian is harmless.
+
+The tmux status bar uses Nerd Font icons for wired network (U+EF09), CPU
+(U+F2DB), memory (U+EFC5), and clock (U+F017). These Basic Multilingual Plane
+glyphs preserve the rounded layout without the redraw stacking observed with
+the previous icon set in Termius on iPadOS. Select a current Nerd Font in each
+terminal, including Ghostty and iTerm2. In Termius, open the terminal side
+panel's **Themes** tab and choose JetBrains Mono or Meslo. UTF-8 alone does not
+guarantee that a terminal and tmux agree on glyph widths.
 
 #### Ghostty
 

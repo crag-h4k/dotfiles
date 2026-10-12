@@ -105,12 +105,40 @@ repos:
   # the CI workflow installs it via apt luarocks.
   - repo: local
     hooks:
+      - id: test-telemetry-env
+        name: python (Zsh telemetry exports)
+        entry: python3 -m unittest tests/test_telemetry_env.py
+        language: system
+        pass_filenames: false
+        files: ^(home/dot_zshenv|tests/test_telemetry_env\.py)$
+
       - id: test-zshrc-migration
         name: python (backed-up redundant zshrc PATH tail)
         entry: python3 -m unittest tests/test_zshrc_migration.py
         language: system
         pass_filenames: false
         files: ^(home/(dot_zshrc|dot_zshenv|\.chezmoiscripts/run_before_00-backup\.sh)|scripts/normalize-zshrc\.py|tests/test_zshrc_migration\.py)$
+
+      - id: test-caveman
+        name: python (Caveman private config and user services)
+        entry: python3 -m unittest tests/test_caveman.py
+        language: system
+        pass_filenames: false
+        files: ^(home/(\.chezmoi.*|dot_local/bin/executable_cavemanctl|Library/LaunchAgents/.*caveman.*|dot_config/systemd/user/dotfiles-caveman\.service)|scripts/install-caveman\.sh|tests/test_caveman\.py)$
+
+      - id: test-caveman-plugin
+        name: node test (Caveman V2 routing and recovery)
+        entry: node --test tests/test_caveman_plugin.mjs
+        language: system
+        pass_filenames: false
+        files: ^(home/dot_config/opencode/plugins/caveman\.js|tests/test_caveman_plugin\.mjs)$
+
+      - id: test-private-managed-dirs
+        name: python (managed private skill and MCP directory modes)
+        entry: python3 -m unittest tests/test_private_managed_dirs.py
+        language: system
+        pass_filenames: false
+        files: ^(home/(\.chezmoi(ignore|external\.toml)|dot_local/share/(agent-skills/private_caveman(-review)?/\.keep|dotfiles/private_ssh-mcp/.*))|tests/test_private_managed_dirs\.py)$
 
       - id: test-openviking
         name: python (OpenViking private config and user services)
@@ -131,7 +159,7 @@ repos:
         entry: python3 -m unittest tests/test_agent_skills.py
         language: system
         pass_filenames: false
-        files: ^((.*/)?AGENTS\.md|docs/agent-(skills|guidance)\.md|home/(\.chezmoi(ignore|external\.toml)|dot_(agents|claude)/skills/.*|dot_config/opencode/(agents/ricer|commands/(dotfiles|handoff|humanize|unslop))\.md|dot_local/share/agent-skills/.*)|scripts/validate-agent-skills\.py|tests/test_agent_skills\.py)$
+        files: ^((.*/)?AGENTS\.md|docs/agent-(skills|guidance)\.md|home/(\.chezmoi(ignore|external\.toml)|dot_(agents|claude)/skills/.*|dot_config/opencode/(agents/ricer|commands/(dotfiles|handoff|humanize|unslop|publish|pr-watch|worktree))\.md|dot_local/share/agent-skills/.*)|scripts/validate-agent-skills\.py|tests/test_agent_skills\.py)$
 
       - id: luacheck
         name: luacheck
@@ -296,7 +324,7 @@ repos:
         language: node
         additional_dependencies: ['bats@1.13.0']
         pass_filenames: false
-        files: ^(\.chezmoiroot|home/|config/linters/|scripts/|tests/test_source_layout\.bats)$
+        files: ^(\.chezmoiroot|home/|config/linters/|scripts/|tests/(test_source_layout\.bats|trixie-deployment/Dockerfile\.trixie))$
 
       - id: bats-ci-summary
         name: bats (deployment PR summary)

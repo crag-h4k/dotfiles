@@ -53,6 +53,7 @@ test("live demo starts fresh, restricts reads, prompts once and reports actual u
     { action: "*", resource: "*", effect: "deny" },
     { action: "read", resource: "showcase.md", effect: "allow" },
     { action: "read", resource: "/fixture/showcase.md", effect: "allow" },
+    { action: "caveman_*", resource: "*", effect: "allow" },
   ])
   assert.equal(calls.filter(([kind]) => kind === "prompt").length, 1)
   assert.match(calls.at(-1)[1].message, /400 input · 50 output · 0 reasoning/)

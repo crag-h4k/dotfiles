@@ -4,6 +4,21 @@
 
 PLANNER="${BATS_TEST_DIRNAME}/../scripts/package-plan.sh"
 
+@test "OpenCode bundles pinned MCP runtimes and Node on both platforms" {
+  for os in macos debian; do
+    run env DOTFILES_PLAN_OS="$os" DOTFILES_PLAN_ASSUME_MISSING=1 \
+      INSTALL_AI_OPENCODE=true bash "$PLANNER" --records
+    [ "$status" -eq 0 ]
+    [[ "$output" == *$'npm\t@caveman-ai/cli\tplanned\tpinned:2.1.0\t'* ]]
+    [[ "$output" == *$'npm\tssh-mcp\tplanned\tpinned:2.18.0\t'* ]]
+    if [[ "$os" == macos ]]; then
+      [[ "$output" == *$'brew-formula\tnode\t'* ]]
+    else
+      [[ "$output" == *$'apt\tnodejs\t'* ]]
+    fi
+  done
+}
+
 @test "macOS plan dedupes overlaps and groups every package source" {
   run env DOTFILES_PLAN_OS=macos DOTFILES_PLAN_ASSUME_MISSING=1 \
     INSTALL_ZSH=true INSTALL_TMUX=true INSTALL_NEOVIM=true INSTALL_NOTIFY=true \
@@ -13,6 +28,7 @@ PLANNER="${BATS_TEST_DIRNAME}/../scripts/package-plan.sh"
   [ "$status" -eq 0 ]
   [ -z "$(printf '%s\n' "$output" | awk -F '\t' 'NF != 6 || ($3 != "absent" && $3 != "installed" && $3 != "planned" && $3 != "remove" && $3 != "update")')" ]
   [ "$(printf '%s\n' "$output" | grep -c $'^brew-formula\tpython3\t')" -eq 1 ]
+  [[ "$output" == *$'brew-formula\tlazygit\tplanned\tfloating\tHomebrew core'* ]]
   [[ "$output" == *$'brew-cask\tghostty\tplanned\tfloating\tHomebrew cask'* ]]
   [[ "$output" == *$'npm\t@agentclientprotocol/claude-agent-acp\tplanned\t'* ]]
   [[ "$output" == *$'git-runtime\ttmux-plugins/tpm\tplanned\tfloating\t'* ]]
@@ -29,6 +45,19 @@ PLANNER="${BATS_TEST_DIRNAME}/../scripts/package-plan.sh"
   [[ "$output" != *$'git-runtime\ttmux-plugins/tpm\t'* ]]
 }
 
+@test "Lazygit is in the base package set without any component selection" {
+  for platform in macos debian; do
+    run env DOTFILES_PLAN_OS="$platform" DOTFILES_PLAN_ASSUME_MISSING=1 \
+      INSTALL_ZSH=false INSTALL_TMUX=false INSTALL_NEOVIM=false \
+      bash "$PLANNER" --records
+    [ "$status" -eq 0 ]
+    case "$platform" in
+      macos) [[ "$output" == *$'brew-formula\tlazygit\tplanned\tfloating\tHomebrew core'* ]] ;;
+      debian) [[ "$output" == *$'apt\tlazygit\tplanned\tfloating\tDebian apt repository'* ]] ;;
+    esac
+  done
+}
+
 @test "Debian plan keeps fzf/zoxide in apt and uses one upstream Neovim tree" {
   run env DOTFILES_PLAN_OS=debian DOTFILES_PLAN_ASSUME_MISSING=1 \
     INSTALL_ZSH=true INSTALL_NEOVIM=true INSTALL_TERMINAL_GHOSTTY=true \
@@ -37,6 +66,7 @@ PLANNER="${BATS_TEST_DIRNAME}/../scripts/package-plan.sh"
   # fzf/zoxide install from Debian main; Neovim is one versioned upstream tree.
   [[ "$output" == *$'apt\tfzf\tplanned\tfloating\tDebian apt repository'* ]]
   [[ "$output" == *$'apt\tzoxide\tplanned\tfloating\tDebian apt repository'* ]]
+  [[ "$output" == *$'apt\tlazygit\tplanned\tfloating\tDebian apt repository'* ]]
   [[ "$output" == *$'github-release\tneovim\tplanned\tfloating\t'* ]]
   [[ "$output" != *$'apt\tneovim\t'* ]]
   # ghostty is no longer part of the Debian plan even when its component is on.

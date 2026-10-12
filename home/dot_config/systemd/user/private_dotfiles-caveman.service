@@ -1,0 +1,18 @@
+# home/dot_config/systemd/user/dotfiles-caveman.service
+[Unit]
+Description=Caveman context compression proxy
+ConditionPathExists=%h/.caveman/oc2/settings.json
+
+[Service]
+Type=simple
+ExecStart=%h/.local/bin/cavemanctl run
+Environment=PATH=%h/.local/bin:/usr/local/bin:/usr/bin:/bin
+Environment=DO_NOT_TRACK=1
+UMask=0077
+Restart=on-failure
+RestartSec=10
+NoNewPrivileges=true
+PrivateTmp=true
+
+[Install]
+WantedBy=default.target

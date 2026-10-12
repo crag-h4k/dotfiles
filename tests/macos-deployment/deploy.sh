@@ -30,7 +30,7 @@ printf '%s\n' \
     '[data]' \
     'componentSelection = "1 2 4 5"' \
     'gitSelection = "1 3"' \
-    'aiSelection = "openviking"' \
+    'aiSelection = "openviking opencode"' \
     'terminalSelection = ""' \
     'palette = "dracula"' \
     'zshTheme = "gud"' \

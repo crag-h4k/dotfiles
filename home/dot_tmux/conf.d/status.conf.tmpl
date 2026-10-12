@@ -35,8 +35,10 @@ set -g @ram_percentage_format "%.0f"
 set -g @tmux-network-bandwidth-padding 4
 
 set -g status-right-length 160
+# BMP Nerd Font icons keep Termius redraws stable. Avoid emoji fallback and
+# supplementary-plane icons here; keep these glyphs when changing the layout.
 set -g status-right "\
-#[fg={{ $p.colors.surface }},bg={{ $p.colors.background }}]#[fg={{ $p.colors.blue }},bg={{ $p.colors.surface }},bold] 󰌗 #[fg={{ $p.colors.foreground }},bg={{ $p.colors.surface }},nobold]#{network_bandwidth} #[fg={{ $p.colors.surface }},bg={{ $p.colors.background }}] \
-#[fg={{ $p.colors.surface }},bg={{ $p.colors.background }}]#[fg={{ $p.colors.orange }},bg={{ $p.colors.surface }},bold] ⚙ #[fg={{ $p.colors.foreground }},bg={{ $p.colors.surface }},nobold]#{cpu_percentage}%% #[fg={{ $p.colors.surface }},bg={{ $p.colors.background }}] \
-#[fg={{ $p.colors.surface }},bg={{ $p.colors.background }}]#[fg={{ $p.colors.cyan }},bg={{ $p.colors.surface }},bold] ▦ #[fg={{ $p.colors.foreground }},bg={{ $p.colors.surface }},nobold]#{ram_percentage}%% #[fg={{ $p.colors.surface }},bg={{ $p.colors.background }}] \
-#[fg={{ $p.colors.surface }},bg={{ $p.colors.background }}]#[fg={{ $p.colors.comment }},bg={{ $p.colors.surface }}] 󰥔 #[fg={{ $p.colors.foreground }},bg={{ $p.colors.surface }}] %Y-%m-%d %H:%M #[fg={{ $p.colors.surface }},bg={{ $p.colors.background }}] "
+#[fg={{ $p.colors.surface }},bg={{ $p.colors.background }}]#[fg={{ $p.colors.blue }},bg={{ $p.colors.surface }},bold]  #[fg={{ $p.colors.foreground }},bg={{ $p.colors.surface }},nobold]#{network_bandwidth} #[fg={{ $p.colors.surface }},bg={{ $p.colors.background }}] \
+#[fg={{ $p.colors.surface }},bg={{ $p.colors.background }}]#[fg={{ $p.colors.orange }},bg={{ $p.colors.surface }},bold]  #[fg={{ $p.colors.foreground }},bg={{ $p.colors.surface }},nobold]#{cpu_percentage}%% #[fg={{ $p.colors.surface }},bg={{ $p.colors.background }}] \
+#[fg={{ $p.colors.surface }},bg={{ $p.colors.background }}]#[fg={{ $p.colors.cyan }},bg={{ $p.colors.surface }},bold]  #[fg={{ $p.colors.foreground }},bg={{ $p.colors.surface }},nobold]#{ram_percentage}%% #[fg={{ $p.colors.surface }},bg={{ $p.colors.background }}] \
+#[fg={{ $p.colors.surface }},bg={{ $p.colors.background }}]#[fg={{ $p.colors.comment }},bg={{ $p.colors.surface }}]  #[fg={{ $p.colors.foreground }},bg={{ $p.colors.surface }}] %Y-%m-%d %H:%M #[fg={{ $p.colors.surface }},bg={{ $p.colors.background }}] "

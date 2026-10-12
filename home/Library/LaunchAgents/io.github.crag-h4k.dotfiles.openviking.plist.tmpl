@@ -7,7 +7,10 @@
   <key>ProgramArguments</key>
   <array><string>{{ .chezmoi.homeDir }}/.local/bin/openvikingctl</string><string>run</string></array>
   <key>EnvironmentVariables</key>
-  <dict><key>PATH</key><string>{{ .chezmoi.homeDir }}/.local/bin:/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin</string></dict>
+  <dict>
+    <key>PATH</key><string>{{ .chezmoi.homeDir }}/.local/bin:/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin</string>
+    <key>DO_NOT_TRACK</key><string>1</string>
+  </dict>
   <key>RunAtLoad</key><true/>
   <key>Disabled</key><true/>
   <key>KeepAlive</key><dict><key>SuccessfulExit</key><false/></dict>

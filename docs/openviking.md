@@ -10,6 +10,7 @@
 - [Initialize and validate](#initialize-and-validate)
 - [Start the user service](#start-the-user-service)
 - [Enable OpenCode capture](#enable-opencode-capture)
+- [Import a Codex snapshot](#import-a-codex-snapshot)
 - [OpenCode permissions](#opencode-permissions)
 - [Measure the trial](#measure-the-trial)
 - [Storage and recovery](#storage-and-recovery)
@@ -105,6 +106,15 @@ Each host owns its live configuration. A laptop can use Copilot extraction and
 local embeddings while a VM uses an approved remote endpoint. Updating dotfiles
 updates starter examples without replacing either host's settings. The private
 files and memory database are not synchronized between machines.
+
+All starter profiles set `server.agent_evolution.enabled=true`. This enables
+OpenViking's Experience training path for new installations, but does not create
+Experience memories by itself. Existing private `ov.conf` files are preserved
+by `openvikingctl init`; to opt in on an existing host, set
+`server.agent_evolution.enabled` to `true` in that file and restart the server.
+Check the account's Agent Evolution override as well. Experience extraction
+depends on the server's case/training pipeline and the configured model; an
+empty Experience directory after enabling is not evidence that training ran.
 
 ## Choose providers
 
@@ -216,10 +226,14 @@ Deselecting does not delete private configuration, installed releases, or memory
 The starter sets `plugin.opencode.mcpEnabled=false`. This skips the plugin's
 bundled MCP/skill registration, which calls the unsupported `SkillEditor.source`
 API in OpenCode `2.0.24`. It does not disable automatic capture or recall.
-The OpenViking component installs the three unmodified upstream skills through
-native discovery: `openviking-memory`, `openviking-skills`, and
-`ov-experience-memory`. They use the existing canonical store and per-entry
-compatibility links.
+The OpenViking component installs `openviking-memory`, `openviking-skills`, and
+the local `ov-experience-memory` adapter through native discovery. The first
+two retain their pinned upstream text; an unmodified upstream reference stays
+under `~/.local/share/dotfiles/openviking/` rather than being discovered as a
+second skill. The adapter checks the Experience directory once per session
+before searching, skips retrieval for the session when it is absent or empty,
+and rechecks next session so new Experiences become available. They use the
+existing canonical store and per-entry compatibility links.
 
 Insert the authenticated native MCP connection, preserving unrelated JSONC
 settings and comments:
@@ -305,6 +319,20 @@ API coupling, but they cannot guarantee compatibility with an untested future
 release. Keep the last validated runtime recoverable and review plugin pin
 updates rather than loading a floating npm release.
 
+## Import a Codex snapshot
+
+`openvikingctl import-codex` replays a reviewed copy of Codex's `sessions/`
+directory through OpenViking's native ingest pipeline. It does not read live
+Codex history automatically. Pass `--source` and a stable `--name`; the default
+is a preview that counts eligible sessions and messages without importing them.
+Add `--apply` only after reviewing the snapshot, destination, and provider's
+data-handling policy. `--session`, `--since`, and `--limit` can narrow a batch.
+
+The import uses the private OpenViking client configuration and keeps progress
+under `~/.openviking/imports/<name>/state/`. Preserve that state and the original
+snapshot for safe retries. Neither transcripts, client credentials, nor progress
+files belong in this repository.
+
 ## OpenCode permissions
 
 The marked global permission block and managed local plugin
@@ -316,6 +344,8 @@ read-only agents can use memory without enabling unrelated writes.
 New agents receive the same exceptions when the registry is rebuilt.
 
 The skill exceptions cover `openviking-*` and `ov-experience-memory`. These
+shared managed rules also allow the bundled `caveman_*` tools in every agent
+mode, independently of whether its proxy route is enabled. These
 rules do not allow shell lifecycle commands, Git operations, filesystem edits,
 or access to protected credential files. OpenViking's server-side account/ACL
 checks and organization-level hard permission policies still apply. Destructive

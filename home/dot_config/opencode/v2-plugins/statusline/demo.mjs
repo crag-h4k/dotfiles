@@ -38,6 +38,7 @@ export async function runDemo(context, input, showDiagnostics, directory) {
       { action: "*", resource: "*", effect: "deny" },
       { action: "read", resource: "showcase.md", effect: "allow" },
       { action: "read", resource: `${directory}/showcase.md`, effect: "allow" },
+      { action: "caveman_*", resource: "*", effect: "allow" },
     ],
   })
   context.ui.tabs.open(session.id)

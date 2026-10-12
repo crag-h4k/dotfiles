@@ -13,6 +13,10 @@ behavior changes. A source-only change does not activate installed harness asset
 
 ## Branches and PRs
 
+Pull requests use [the GitHub template](.github/pull_request_template.md) to
+record the change, evidence, deployment status, and known limitations. Fill
+its sections for the actual diff; local checks and platform CI are separate.
+
 Start from current `main` and use a worktree:
 
 ```sh
@@ -102,11 +106,15 @@ The Bats hooks install their pinned runner in prek's isolated Node environment.
 They do not require a global `bats` executable. Test subjects such as Zsh, tmux,
 and chezmoi still need to be installed for the corresponding suites.
 
-Before review, run the same complete gate as CI:
+Before review, run every applicable hook against the files changed from `main`,
+including staged and unstaged changes:
 
 ```sh
-prek run --all-files
+python3 scripts/prek-changed.py
 ```
+
+The commit hook continues to check staged files. CI runs the complete
+`prek run --all-files` gate plus separate macOS and Trixie deployment checks.
 
 Pull requests also run native macOS and containerized Debian Trixie
 deployments. Both are unattended package-mode installs followed by runtime

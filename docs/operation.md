@@ -4,6 +4,9 @@
 ## Table of Contents
 
 - [Daily operation](#daily-operation)
+- [Lazygit](#lazygit)
+- [Telemetry opt-outs](#telemetry-opt-outs)
+- [Telemetry opt-outs](#telemetry-opt-outs)
 - [OpenCode updates](#opencode-updates)
 - [Local overrides](#local-overrides)
   - [Shell PATH additions](#shell-path-additions)
@@ -12,6 +15,8 @@
   - [Status bar](#status-bar)
 - [Statusline (Claude / Codex)](#statusline-claude--codex)
 - [OpenViking memory](#openviking-memory)
+- [SSH MCP for OpenCode V2](#ssh-mcp-for-opencode-v2)
+- [Caveman compression](#caveman-compression)
 - [Secret scanning](#secret-scanning)
 - [Docker and Terraform checks](#docker-and-terraform-checks)
 - [Supported platforms](#supported-platforms)
@@ -75,6 +80,89 @@ Config-only mode skips package work. A headless apply without
 refresh flag can still refresh Git externals before the installer runs; omit it
 to use the installer's cleanliness and fast-forward checks.
 
+## Lazygit
+
+Run `lazygit` in a repository to inspect file and hunk diffs, stage changes,
+and browse commits. It is an interactive Git client: staging, commits, branch
+changes and pushes in its UI modify the repository. Agent approval prompts do
+not constrain actions you choose to take in Lazygit yourself.
+
+The package planner includes Lazygit in the base Homebrew and Trixie APT sets,
+independent of the Gum component selection. It installs only in approved package
+mode. The managed `~/.config/lazygit/config.yml` renders from the selected
+palette; macOS links its default config path to that same file. Its default
+background Git fetch and branch forwarding are disabled so opening a repo
+does not update remotes or other worktrees. Update checks, automatic conflict
+staging, and force pushes are disabled as well. You can still fetch, stage,
+commit, and push deliberately from the UI.
+
+There is no official Oh My Zsh Lazygit plugin to enable. The existing `git`
+plugin supplies shell aliases, but Lazygit does not need it. Run it in the
+terminal attached to the machine with the checkout you want to review; a
+local laptop terminal cannot display a checkout that only exists on a remote
+host.
+
+## Telemetry opt-outs
+
+The managed `.zshenv` exports these settings in interactive, non-interactive,
+and login Zsh sessions. Child processes inherit them, including commands called
+through Oh My Zsh aliases and completions. Receiving a variable does not mean a
+tool honors it.
+
+| Export | Effect |
+| --- | --- |
+| `DO_NOT_TRACK=1` | Opts out in supporting tools, including current GitHub CLI telemetry. |
+| `HOMEBREW_NO_ANALYTICS=1` | Disables Homebrew analytics without changing its persisted settings. |
+| `CHECKPOINT_DISABLE=1` | Disables HashiCorp Checkpoint requests, including Terraform upgrade/security-bulletin checks and their anonymous signature. |
+
+The tool-specific exports follow [Homebrew's analytics documentation][brew-analytics]
+and [Terraform's Checkpoint documentation][terraform-checkpoint].
+[GitHub CLI documents `DO_NOT_TRACK` support][gh-telemetry]; extensions and
+Copilot CLI have separate policies. These settings do not block registry
+downloads, provider/backend requests, or server-side logging of normal API use.
+
+OpenViking's systemd unit and macOS LaunchAgent separately set `DO_NOT_TRACK=1`
+because they run without a shell. That declares the preference; it does not
+establish that every dependency honors it. GUI applications, unrelated services,
+and container workloads do not automatically receive the shell exports.
+
+### Oh My Zsh tool coverage
+
+The configured plugins in `home/dot_zshrc` are the starting point for this audit:
+
+| Plugin/tool | Coverage or remaining limitation |
+| --- | --- |
+| `brew`, `terraform`, `gh` | Covered by the exports above for the documented client-side behavior. |
+| `aws` | Ordinary AWS CLI does not document a `DO_NOT_TRACK` opt-out in its [environment-variable reference][aws-env]. AWS SAM and CDK are different tools with separate telemetry controls; neither is selected by the `aws` plugin. |
+| `docker`, `docker-compose` | The [Docker CLI][docker-env] and [Compose][compose-env] environment references do not document a universal telemetry opt-out. Docker Desktop has a separate setting described below. |
+| `chezmoi`, `git`, `fzf`, `zoxide`, `tmux`, agent/completion/highlighting and display plugins | No additional telemetry opt-out was identified in the configured plugin implementations. This is not a guarantee about every executable, extension, or remote service they invoke. |
+
+Oh My Zsh's [update checker][omz-updates] makes GitHub requests and does not test
+`DO_NOT_TRACK`. Its existing update behavior is unchanged. Zsh history,
+autosuggestions, directory history, and the managed history backups remain
+local state; telemetry opt-outs do not disable them or erase their contents.
+
+For Docker Desktop, turn off **Settings > General > Send usage statistics**.
+[Docker documents this setting][docker-desktop] as controlling diagnostics,
+crash reports, and usage data. The dotfiles do not manage Desktop's settings
+store or impose a speculative Docker environment variable. Docker extensions
+and cloud features may need their own review.
+
+Go is installed by the Neovim component, rather than an Oh My Zsh plugin.
+[Go's telemetry mode][go-telemetry] is a separate persisted setting: `local`
+collects locally without uploading, while `off` stops collection too. This
+change does not alter that setting.
+
+[brew-analytics]: https://docs.brew.sh/Analytics
+[terraform-checkpoint]: https://developer.hashicorp.com/terraform/cli/commands#upgrade-and-security-bulletin-checks
+[gh-telemetry]: https://docs.github.com/en/github-cli/github-cli/github-cli-telemetry
+[aws-env]: https://docs.aws.amazon.com/cli/latest/userguide/cli-configure-envvars.html
+[docker-env]: https://docs.docker.com/reference/cli/docker/#environment-variables
+[compose-env]: https://docs.docker.com/compose/how-tos/environment-variables/envvars/
+[docker-desktop]: https://docs.docker.com/desktop/settings-and-maintenance/settings/#general
+[omz-updates]: https://github.com/ohmyzsh/ohmyzsh/blob/master/tools/check_for_upgrade.sh
+[go-telemetry]: https://go.dev/doc/telemetry
+
 ## OpenCode updates
 
 OpenCode's `/update` command and `opencode2 update` use the isolated npm install
@@ -85,7 +173,8 @@ The matching runtime exempts both `@opencode/*` and `@opentui/*`: a fresh SDK ca
 require OpenTUI packages published the same day. Other packages retain the
 user's release-age guard, and dotfiles does not modify `~/.npmrc`.
 
-Runtime synchronization reads the installed CLI's SDK peer requirements, then
+Runtime synchronization reads the installed CLI's SDK peer requirements and
+OpenTUI Solid's declared dependencies and peers, then
 uses npm's age-aware resolver for compatible OpenTUI and Solid.js candidates.
 Installation consumes those exact versions. Missing peer metadata or unresolved
 candidates stop the sync before npm changes the existing runtime; there is no
@@ -514,6 +603,47 @@ The live `~/.openviking/ov.conf` and `ovcli.conf` remain private and unmanaged.
 Use `openvikingctl stop` before deselecting the component; configuration and
 memory are retained. See [OpenViking local memory](openviking.md) for setup,
 provider selection, and performance measurements.
+
+## SSH MCP for OpenCode V2
+
+Selecting `ai > opencode` installs the pinned `ssh-mcp` CLI and seeds
+`mcp.servers.ssh-mcp` disabled. It has no individual picker entry.
+Package approval is required for the binary.
+It uses a local stdio connection; no remote SSH service or key is installed by
+dotfiles.
+
+The managed starter is at
+`~/.local/share/dotfiles/ssh-mcp/config-starter.toml`. Copy it to your private
+SSH MCP config (`~/.config/ssh-mcp/config.toml` on Linux, or
+`~/Library/Application Support/ssh-mcp/config.toml` on macOS), add only the
+hosts you want accessible, and set the directory to mode 0700 and file to
+0600. The starter requires approval for every command; its example profile
+is commented out. Use an SSH agent or a private key reference, and verify and
+pin each host's fingerprint before connecting. The upstream SSH transport
+does not use OpenSSH's `known_hosts`; without a pin, trust on first use is
+forgotten when the MCP process restarts.
+
+The private TOML, keys, SSH config, and host profiles are not managed. The
+OpenCode merge adds `ssh-mcp` only when absent and never replaces a local entry.
+Chezmoi installs the public starter directory with owner-only access (`700`);
+the live host-profile configuration remains separate and unmanaged. A repeated
+apply should not loosen either directory or produce a mode-only status diff.
+To enable it, set `"disabled": false` on `mcp.servers.ssh-mcp` in your global
+`~/.config/opencode/opencode.jsonc` and reload OpenCode. Set it back to `true`
+to turn it off. Chezmoi preserves either choice on subsequent applies.
+Deselecting OpenCode stops future package
+checks but does not delete a previously installed binary or registration;
+disable the entry before deselecting it. OpenCode tool permissions and the
+SSH MCP profile's role and approval rules are independent checks.
+
+## Caveman compression
+
+Selecting OpenCode installs the CLI, signed companions, and two upstream
+skills, and seeds its recovery MCP disabled. Its V2 plugin reads an enabled
+private route. Follow [Caveman setup and recovery](caveman.md); user-service
+activation and OC2 reload are deliberate steps, not apply side effects.
+Chezmoi keeps both upstream skill directories at `700` across repeated applies;
+the files retain their separately pinned external sources.
 
 ## Secret scanning
 

@@ -75,7 +75,14 @@ done
      case "\$2" in
        @opencode/plugin@*) printf '{"@opentui/solid":">=%s","@opentui/core":">=%s","solid-js":">=1.9.0"}\n' "\${NPM_TEST_TUI_VERSION:-0.5.11}" "\${NPM_TEST_TUI_VERSION:-0.5.11}" ;;
        @opentui/solid@latest) printf '0.5.11\n' ;;
-       @opentui/solid@*) printf '{"@opentui/core":"%s","solid-js":"1.9.12"}\n' "\${NPM_TEST_TUI_VERSION:-0.5.11}" ;;
+        @opentui/solid@*)
+          [ "\${NPM_TUI_METADATA_FAIL:-0}" = 1 ] && exit 1
+          case "\${NPM_TEST_TUI_LAYOUT:-peers}" in
+            dependencies) printf '{"dependencies":{"@opentui/core":"%s"},"peerDependencies":{"solid-js":"1.9.12"}}\n' "\${NPM_TEST_TUI_VERSION:-0.5.11}" ;;
+            missing-core) printf '{"peerDependencies":{"solid-js":"1.9.12"}}\n' ;;
+            *) printf '{"peerDependencies":{"@opentui/core":"%s","solid-js":"1.9.12"}}\n' "\${NPM_TEST_TUI_VERSION:-0.5.11}" ;;
+          esac
+          ;;
       *) exit 1 ;;
     esac
     ;;
@@ -853,11 +860,45 @@ STUB
   chmod +x "$binary"
   write_opencode_stubs "$stubs" "$log"
   run env HOME="$home" PATH="$stubs:$PATH" NPM_CONFIG_MIN_RELEASE_AGE=3 NPM_POLICY_LOG="$policy_log" \
-    NPM_TEST_SDK_VERSION=2.0.26 NPM_TEST_TUI_VERSION=0.5.17 \
+    NPM_TEST_SDK_VERSION=2.0.26 NPM_TEST_TUI_VERSION=0.5.17 NPM_TEST_TUI_LAYOUT=dependencies \
     bash "$REPO_ROOT/home/dot_config/opencode/executable_sync-runtime.sh" "$binary" "$config"
   [ "$status" -eq 0 ]
   grep -Fq '@opencode/plugin@2.0.26' "$log"
   grep -Fq '@opentui/core@0.5.17' "$log"
   grep -Fq '@opentui/solid@0.5.17' "$log"
   [ "$(sort -u "$policy_log")" = '3 @opencode/*,@opentui/*' ]
+}
+
+@test "missing OpenTUI Core declarations fail before installing or replacing the SDK" {
+  local home="$BATS_TEST_TMPDIR/missing-core" stubs="$BATS_TEST_TMPDIR/missing-core-stubs"
+  local config="$home/config" log="$home/npm.log" binary="$home/opencode2"
+  mkdir -p "$config/node_modules/@opencode/plugin" "$stubs"
+  printf '#!/bin/sh\nprintf "opencode2 v2.0.8\\n"\n' >"$binary"
+  chmod +x "$binary"
+  printf '{"version":"2.0.7"}\n' >"$config/node_modules/@opencode/plugin/package.json"
+  local before
+  before=$(cksum "$config/node_modules/@opencode/plugin/package.json")
+  write_opencode_stubs "$stubs" "$log"
+  run env HOME="$home" PATH="$stubs:$PATH" NPM_TEST_TUI_LAYOUT=missing-core \
+    bash "$REPO_ROOT/home/dot_config/opencode/executable_sync-runtime.sh" "$binary" "$config"
+  [ "$status" -ne 0 ]
+  [[ "$output" == *'incomplete SDK or OpenTUI dependency requirements'* ]]
+  [ "$(cksum "$config/node_modules/@opencode/plugin/package.json")" = "$before" ]
+  run grep -F 'install --prefix' "$log"
+  [ "$status" -ne 0 ]
+}
+
+@test "OpenTUI metadata query failures do not start runtime installation" {
+  local home="$BATS_TEST_TMPDIR/tui-metadata" stubs="$BATS_TEST_TMPDIR/tui-metadata-stubs"
+  local config="$home/config" log="$home/npm.log" binary="$home/opencode2"
+  mkdir -p "$config" "$stubs"
+  printf '#!/bin/sh\nprintf "opencode2 v2.0.8\\n"\n' >"$binary"
+  chmod +x "$binary"
+  write_opencode_stubs "$stubs" "$log"
+  run env HOME="$home" PATH="$stubs:$PATH" NPM_TUI_METADATA_FAIL=1 \
+    bash "$REPO_ROOT/home/dot_config/opencode/executable_sync-runtime.sh" "$binary" "$config"
+  [ "$status" -ne 0 ]
+  [[ "$output" == *'could not read OpenTUI Solid dependency requirements'* ]]
+  run grep -F 'install --prefix' "$log"
+  [ "$status" -ne 0 ]
 }

@@ -37,3 +37,52 @@ SOURCE_ROOT="$REPO_ROOT/home"
     [ -f "$REPO_ROOT/config/linters/$linter_config" ]
   done
 }
+
+@test "Lazygit renders the selected palette and macOS links to the shared config" {
+  local config="${BATS_TEST_TMPDIR}/chezmoi.toml" output
+  printf '[data]\npalette="nord"\n' > "$config"
+  run chezmoi execute-template --source "$REPO_ROOT" --config "$config" \
+    < "$SOURCE_ROOT/dot_config/lazygit/config.yml.tmpl"
+  [ "$status" -eq 0 ]
+  [[ "$output" == *'activeBorderColor: ["#b48ead", bold]'* ]]
+  [[ "$output" == *'autoFetch: false'* ]]
+  [[ "$output" == *'autoForwardBranches: none'* ]]
+  [[ "$output" == *'method: never'* ]]
+
+  local link="$SOURCE_ROOT/Library/Application Support/lazygit/symlink_config.yml"
+  [ "$(cat "$link")" = '../../../.config/lazygit/config.yml' ]
+  [ "$(cd "$(dirname "$link")/../../.." && pwd)/dot_config/lazygit/config.yml.tmpl" = \
+    "$SOURCE_ROOT/dot_config/lazygit/config.yml.tmpl" ]
+
+  run chezmoi execute-template --source "$REPO_ROOT" --config "$config" \
+    --override-data '{"chezmoi":{"os":"linux"}}' < "$SOURCE_ROOT/.chezmoiignore"
+  [ "$status" -eq 0 ]
+  [[ "$output" == *'Library/Application Support'* ]]
+  run chezmoi execute-template --source "$REPO_ROOT" --config "$config" \
+    --override-data '{"chezmoi":{"os":"darwin"}}' < "$SOURCE_ROOT/.chezmoiignore"
+  [ "$status" -eq 0 ]
+  [[ "$output" != *'Library/Application Support'* ]]
+}
+
+@test "OpenCode CLI leaves native agent cycling available on the home screen" {
+  local output
+  run chezmoi execute-template --source "$REPO_ROOT" \
+    < "$SOURCE_ROOT/dot_config/opencode/private_cli.json.tmpl"
+  [ "$status" -eq 0 ]
+  output="$(printf '%s' "$output" | jq -r '.keybinds["agent.cycle"] // "native"')"
+  [ "$output" = native ]
+}
+
+@test "Trixie bootstraps Python before selected configuration merges run" {
+  run python3 - "$REPO_ROOT/tests/trixie-deployment/Dockerfile.trixie" <<'PY'
+import pathlib
+import sys
+
+source = pathlib.Path(sys.argv[1]).read_text()
+install = source.split("apt-get install -y --no-install-recommends", 1)[1].split("&&", 1)[0]
+packages = install.replace("\\", " ").split()
+assert "python3" in packages
+assert source.index("python3") < source.index("USER dotfiles")
+PY
+  [ "$status" -eq 0 ]
+}
