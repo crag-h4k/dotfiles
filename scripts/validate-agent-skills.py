@@ -65,6 +65,7 @@ PUBLIC_TEXT_FILES = (
     "home/dot_local/share/agent-skills/readonly_PROVENANCE.md",
     "home/dot_local/share/agent-skills/humanizer/readonly_SKILL.md",
     "home/dot_local/share/agent-skills/humanizer/agents/readonly_openai.yaml",
+    "home/dot_local/share/agent-skills/ov-experience-memory/readonly_SKILL.md",
     "home/dot_config/opencode/commands/handoff.md",
     "home/dot_config/opencode/commands/dotfiles.md",
     "home/dot_config/opencode/commands/humanize.md",
@@ -173,7 +174,7 @@ OPENVIKING_EXTERNALS = {
         "https://raw.githubusercontent.com/volcengine/OpenViking/9b9ac101f1c47a62c050a7d7bb372c6f36266302/examples/opencode-plugin/skills/openviking-skills/SKILL.md",
         "e48e9776960ebb9aeca5a78df3d0661e4c4fb03f722cbf0b09b832f5df9e4207",
     ),
-    ".local/share/agent-skills/ov-experience-memory/SKILL.md": (
+    ".local/share/dotfiles/openviking/ov-experience-memory-upstream.md": (
         "https://raw.githubusercontent.com/volcengine/OpenViking/9b9ac101f1c47a62c050a7d7bb372c6f36266302/examples/opencode-plugin/skills/ov-experience-memory/SKILL.md",
         "9490d86db2fcfa572e49bc0105f5916c1c4344f3691f74a0bc245a53045de7d8",
     ),
@@ -354,8 +355,12 @@ def render_template(root: Path, source: str, enabled_features: set[str]) -> str:
 def validate_external_contract(root: Path) -> list[str]:
     """Check exact pins, checksums, readonly mode, and AI gating."""
     errors: list[str] = []
+    upstream_experience = ".local/share/dotfiles/openviking/ov-experience-memory-upstream.md"
     disabled = tomllib.loads(render_template(root, "home/.chezmoiexternal.toml", set()))
-    leaked = sorted(key for key in disabled if key.startswith(".local/share/agent-skills/"))
+    leaked = sorted(
+        key for key in disabled
+        if key.startswith(".local/share/agent-skills/") or key == upstream_experience
+    )
     if leaked:
         errors.append(f"disabled AI rendered agent-skill externals: {', '.join(leaked)}")
 
@@ -366,7 +371,7 @@ def validate_external_contract(root: Path) -> list[str]:
         actual = {
             key: value
             for key, value in rendered.items()
-            if key.startswith(".local/share/agent-skills/")
+            if key.startswith(".local/share/agent-skills/") or key == upstream_experience
         }
         expected = dict(EXPECTED_EXTERNALS)
         if feature == "openviking":
@@ -482,6 +487,7 @@ def validate_layout(root: Path) -> list[str]:
         canonical_root / "handoff/scripts/readonly_executable_snapshot.sh",
         canonical_root / "humanizer/readonly_SKILL.md",
         canonical_root / "humanizer/agents/readonly_openai.yaml",
+        canonical_root / "ov-experience-memory/readonly_SKILL.md",
         *(canonical_root / "chezmoi-dotfiles" / path for path in DOTFILES_SKILL_FILES),
         *(canonical_root / skill_id / name for skill_id in GIT_SKILL_IDS
           for name in ("readonly_SKILL.md", "readonly_LICENSE")),
@@ -531,6 +537,24 @@ def validate_maintainer_skill(root: Path) -> list[str]:
         r"(?:disable-model-invocation:\s*true|opencode/autoinvoke:\s*false)", header
     ):
         errors.append("chezmoi-dotfiles: normal model selection must remain enabled")
+    return errors
+
+
+def validate_experience_adapter(root: Path) -> list[str]:
+    """Check the locally adapted skill still resolves under its upstream ID."""
+    path = root / "home/dot_local/share/agent-skills/ov-experience-memory/readonly_SKILL.md"
+    text = path.read_text(encoding="utf-8")
+    match = re.match(r"\A---\n(.*?)\n---\n", text, re.DOTALL)
+    if match is None:
+        return ["ov-experience-memory: missing YAML frontmatter"]
+    header = match.group(1)
+    errors = []
+    if not re.search(r"^name: ov-experience-memory$", header, re.MULTILINE):
+        errors.append("ov-experience-memory: manifest name must match its discovery ID")
+    if not re.search(r"^description: \S", header, re.MULTILINE):
+        errors.append("ov-experience-memory: missing discovery description")
+    if re.search(r"^allowed-tools:", header, re.MULTILINE):
+        errors.append("ov-experience-memory: manifest must not pre-approve tools")
     return errors
 
 
@@ -621,6 +645,7 @@ def validate_repository(root: Path = REPO_ROOT) -> list[str]:
         validate_layout,
         validate_component_contract,
         validate_maintainer_skill,
+        validate_experience_adapter,
         validate_git_skill_manifests,
         validate_invocation_policy,
         validate_public_text,

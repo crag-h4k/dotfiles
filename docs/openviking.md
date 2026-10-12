@@ -107,6 +107,15 @@ local embeddings while a VM uses an approved remote endpoint. Updating dotfiles
 updates starter examples without replacing either host's settings. The private
 files and memory database are not synchronized between machines.
 
+All starter profiles set `server.agent_evolution.enabled=true`. This enables
+OpenViking's Experience training path for new installations, but does not create
+Experience memories by itself. Existing private `ov.conf` files are preserved
+by `openvikingctl init`; to opt in on an existing host, set
+`server.agent_evolution.enabled` to `true` in that file and restart the server.
+Check the account's Agent Evolution override as well. Experience extraction
+depends on the server's case/training pipeline and the configured model; an
+empty Experience directory after enabling is not evidence that training ran.
+
 ## Choose providers
 
 Extraction and embeddings are independent choices. Starter profiles include:
@@ -217,10 +226,14 @@ Deselecting does not delete private configuration, installed releases, or memory
 The starter sets `plugin.opencode.mcpEnabled=false`. This skips the plugin's
 bundled MCP/skill registration, which calls the unsupported `SkillEditor.source`
 API in OpenCode `2.0.24`. It does not disable automatic capture or recall.
-The OpenViking component installs the three unmodified upstream skills through
-native discovery: `openviking-memory`, `openviking-skills`, and
-`ov-experience-memory`. They use the existing canonical store and per-entry
-compatibility links.
+The OpenViking component installs `openviking-memory`, `openviking-skills`, and
+the local `ov-experience-memory` adapter through native discovery. The first
+two retain their pinned upstream text; an unmodified upstream reference stays
+under `~/.local/share/dotfiles/openviking/` rather than being discovered as a
+second skill. The adapter checks the Experience directory once per session
+before searching, skips retrieval for the session when it is absent or empty,
+and rechecks next session so new Experiences become available. They use the
+existing canonical store and per-entry compatibility links.
 
 Insert the authenticated native MCP connection, preserving unrelated JSONC
 settings and comments:

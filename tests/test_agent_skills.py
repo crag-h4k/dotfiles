@@ -90,6 +90,8 @@ class LayoutRejectionTests(unittest.TestCase):
         (canonical / "handoff/scripts/readonly_executable_snapshot.sh").touch()
         (canonical / "humanizer/readonly_SKILL.md").touch()
         (canonical / "humanizer/agents/readonly_openai.yaml").touch()
+        (canonical / "ov-experience-memory/readonly_SKILL.md").parent.mkdir()
+        (canonical / "ov-experience-memory/readonly_SKILL.md").touch()
         for skill_id in VALIDATOR.GIT_SKILL_IDS:
             package = canonical / skill_id
             package.mkdir()
@@ -103,6 +105,15 @@ class LayoutRejectionTests(unittest.TestCase):
 
     def test_accepts_canonical_first_party_layout(self) -> None:
         self.assertEqual(VALIDATOR.validate_layout(self.make_root()), [])
+
+    def test_experience_adapter_requires_its_discovery_id(self) -> None:
+        root = self.make_root()
+        adapter = root / "home/dot_local/share/agent-skills/ov-experience-memory/readonly_SKILL.md"
+        adapter.write_text("---\nname: unrelated\ndescription: Test\n---\n")
+        self.assertTrue(any(
+            "discovery ID" in error
+            for error in VALIDATOR.validate_experience_adapter(root)
+        ))
 
     def test_rejects_whole_directory_symlink_source(self) -> None:
         root = self.make_root()

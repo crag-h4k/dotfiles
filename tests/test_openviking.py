@@ -79,6 +79,7 @@ class OpenVikingTest(unittest.TestCase):
                 config = json.loads((self.ctl.EXAMPLES / (name + ".json")).read_text())
                 self.assertEqual(config["server"]["host"], "127.0.0.1")
                 self.assertEqual(config["server"]["auth_mode"], "api_key")
+                self.assertEqual(config["server"]["agent_evolution"], {"enabled": True})
                 self.assertEqual(config["storage"]["workspace"], "./data")
                 if name not in ("openai", "copilot"):
                     self.assertEqual(config["embedding"]["dense"]["dimension"], 768)
