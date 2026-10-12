@@ -57,11 +57,11 @@
     [".local/share/agent-skills/openviking-skills/SKILL.md".checksum]
         sha256 = "e48e9776960ebb9aeca5a78df3d0661e4c4fb03f722cbf0b09b832f5df9e4207"
 
-[".local/share/agent-skills/ov-experience-memory/SKILL.md"]
+[".local/share/dotfiles/openviking/ov-experience-memory-upstream.md"]
     type = "file"
     url = "https://raw.githubusercontent.com/volcengine/OpenViking/9b9ac101f1c47a62c050a7d7bb372c6f36266302/examples/opencode-plugin/skills/ov-experience-memory/SKILL.md"
     readonly = true
-    [".local/share/agent-skills/ov-experience-memory/SKILL.md".checksum]
+    [".local/share/dotfiles/openviking/ov-experience-memory-upstream.md".checksum]
         sha256 = "9490d86db2fcfa572e49bc0105f5916c1c4344f3691f74a0bc245a53045de7d8"
 {{ end -}}
 {{ if dig "components" "zsh" true . -}}

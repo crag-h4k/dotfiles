@@ -26,16 +26,20 @@ evidence; private transcripts, account configuration, and employer material are
 excluded. It installs read-only with the other canonical skills.
 
 Selecting `ai > openviking` also installs `openviking-memory`,
-`openviking-skills`, and `ov-experience-memory`. Their immutable source is
+`openviking-skills`, and the `ov-experience-memory` adapter. The upstream source is
 `volcengine/OpenViking` commit `9b9ac101f1c47a62c050a7d7bb372c6f36266302`,
 matching the published `@openviking/opencode-plugin@2026.10.7` skill bytes.
 The npm archive's SHA-512 integrity was verified, its 44 members were inspected
 for unsafe paths and links, and each selected raw file matched its package
 member. Per-file SHA-256 checksums are in the external manifest.
 
-These three instructions remain unmodified. The npm plugin declares
-Apache-2.0; the separate OpenViking server package declares the GNU Affero
-General Public License version 3.
+`openviking-memory` and `openviking-skills` remain unmodified. The Experience
+skill's unmodified pin installs under `~/.local/share/dotfiles/openviking/`,
+outside skill discovery. The local adapter probes the Experience root once per
+session before searching, so an
+absent store does not trigger repeated semantic lookups; a new session checks
+again. The npm plugin declares Apache-2.0; the separate OpenViking server
+package declares the GNU Affero General Public License version 3.
 Native discovery links point at one canonical copy per skill. They install
 only with the OpenViking component and do not configure a connection or grant
 tool permissions themselves.
