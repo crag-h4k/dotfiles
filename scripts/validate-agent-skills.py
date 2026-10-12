@@ -488,6 +488,8 @@ def validate_layout(root: Path) -> list[str]:
         canonical_root / "humanizer/readonly_SKILL.md",
         canonical_root / "humanizer/agents/readonly_openai.yaml",
         canonical_root / "ov-experience-memory/readonly_SKILL.md",
+        canonical_root / "private_caveman/.keep",
+        canonical_root / "private_caveman-review/.keep",
         *(canonical_root / "chezmoi-dotfiles" / path for path in DOTFILES_SKILL_FILES),
         *(canonical_root / skill_id / name for skill_id in GIT_SKILL_IDS
           for name in ("readonly_SKILL.md", "readonly_LICENSE")),
