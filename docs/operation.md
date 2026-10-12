@@ -625,6 +625,9 @@ forgotten when the MCP process restarts.
 
 The private TOML, keys, SSH config, and host profiles are not managed. The
 OpenCode merge adds `ssh-mcp` only when absent and never replaces a local entry.
+Chezmoi installs the public starter directory with owner-only access (`700`);
+the live host-profile configuration remains separate and unmanaged. A repeated
+apply should not loosen either directory or produce a mode-only status diff.
 To enable it, set `"disabled": false` on `mcp.servers.ssh-mcp` in your global
 `~/.config/opencode/opencode.jsonc` and reload OpenCode. Set it back to `true`
 to turn it off. Chezmoi preserves either choice on subsequent applies.
@@ -639,6 +642,8 @@ Selecting OpenCode installs the CLI, signed companions, and two upstream
 skills, and seeds its recovery MCP disabled. Its V2 plugin reads an enabled
 private route. Follow [Caveman setup and recovery](caveman.md); user-service
 activation and OC2 reload are deliberate steps, not apply side effects.
+Chezmoi keeps both upstream skill directories at `700` across repeated applies;
+the files retain their separately pinned external sources.
 
 ## Secret scanning
 

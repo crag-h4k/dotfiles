@@ -92,6 +92,10 @@ class LayoutRejectionTests(unittest.TestCase):
         (canonical / "humanizer/agents/readonly_openai.yaml").touch()
         (canonical / "ov-experience-memory/readonly_SKILL.md").parent.mkdir()
         (canonical / "ov-experience-memory/readonly_SKILL.md").touch()
+        for skill_id in VALIDATOR.CAVEMAN_SKILL_IDS:
+            private_dir = canonical / f"private_{skill_id}"
+            private_dir.mkdir()
+            (private_dir / ".keep").touch()
         for skill_id in VALIDATOR.GIT_SKILL_IDS:
             package = canonical / skill_id
             package.mkdir()

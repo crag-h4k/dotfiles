@@ -51,6 +51,10 @@ links are gated on OpenViking only. Native discovery avoids the plugin's
 unsupported skill-directory API. See [OpenViking local memory](openviking.md)
 for the separate hook and authenticated MCP connections.
 
+The Caveman skill directories are `700` on apply. Their source directories use
+chezmoi's `private_` attribute and ignored `.keep` files, so the pinned upstream
+skill files stay external without making the parent directories group-writable.
+
 ## Harness support
 
 | Harness | Discovery root | Notes |

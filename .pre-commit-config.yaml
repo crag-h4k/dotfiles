@@ -133,6 +133,13 @@ repos:
         pass_filenames: false
         files: ^(home/dot_config/opencode/plugins/caveman\.js|tests/test_caveman_plugin\.mjs)$
 
+      - id: test-private-managed-dirs
+        name: python (managed private skill and MCP directory modes)
+        entry: python3 -m unittest tests/test_private_managed_dirs.py
+        language: system
+        pass_filenames: false
+        files: ^(home/(\.chezmoi(ignore|external\.toml)|dot_local/share/(agent-skills/private_caveman(-review)?/\.keep|dotfiles/private_ssh-mcp/.*))|tests/test_private_managed_dirs\.py)$
+
       - id: test-openviking
         name: python (OpenViking private config and user services)
         entry: python3 -m unittest tests/test_openviking.py
