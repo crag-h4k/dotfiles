@@ -1,0 +1,27 @@
+#!/usr/bin/env bash
+# home/.chezmoiscripts/run_after_01-finalize-agent-skills.sh.tmpl
+# Move the old Humanizer upstream manifest only after the new instructions asset
+# and adapter are available. This prevents a failed apply from breaking the
+# installed adapter's reference path.
+
+set -euo pipefail
+
+{{ $agentSkillsEnabled := or
+     (dig "components" "ai" "claude_hooks" false .)
+     (dig "components" "ai" "codex_hooks" false .)
+     (dig "components" "ai" "statusline" false .)
+     (dig "components" "ai" "opencode" false .)
+     (dig "components" "ai" "copilot" false .)
+     (dig "components" "ai" "openviking" false .)
+     (dig "components" "ai" "codecompanion" false .) -}}
+{{ if $agentSkillsEnabled -}}
+migration="$CHEZMOI_SOURCE_DIR/../scripts/migrate-claude-skills.py"
+manifest="$HOME/.local/share/agent-skills/humanizer/upstream/SKILL.md"
+if [[ -e "$manifest" || -L "$manifest" ]]; then
+    [[ -f "$migration" ]] || {
+        printf 'dotfiles: missing Claude skill migration helper: %s\n' "$migration" >&2
+        exit 1
+    }
+    python3 "$migration" --home "$HOME" --humanizer-instructions --apply
+fi
+{{ end -}}

@@ -13,8 +13,9 @@ authoring inputs live outside it. Read `docs/architecture.md` and
   installation flags, package records, render matrix, and docs as applicable.
   An unselected component must not fetch its externals.
 - AI tools remain under the opt-in AI parent. Shared skills follow the existing
-  AI sub-feature gate without a new menu item. Use one canonical store and one
-  link per skill in each compatibility root; preserve independently added skills.
+  AI sub-feature gate without a new menu item. Use one canonical store, per-skill
+  links under `~/.agents/skills`, and the managed `~/.claude/skills` compatibility
+  link. Preserve independently added skills during its explicit migration.
 - Keep OS-specific behavior gated by both selection and OS. iTerm2 remains an
   opt-in macOS terminal feature. Use declarative profiles and a small explicit
   preference list instead of importing whole application state.

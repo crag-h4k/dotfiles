@@ -94,6 +94,26 @@ while IFS= read -r dir; do
 done < <(chezmoi managed --path-style=absolute --include=files 2>/dev/null \
          | while IFS= read -r t; do dirname "$t"; done | sort -u)
 
+# Move legacy Claude skills before the managed root becomes a symlink. The
+# migration compares every entry before moving anything and refuses a conflict.
+# Requiring an explicit opt-in prevents a normal noninteractive apply from
+# silently relocating a user's independent skills.
+claude_skills="$HOME/.claude/skills"
+if chezmoi managed --path-style=absolute --include=symlinks 2>/dev/null | grep -Fqx "$claude_skills" &&
+    [[ -d "$claude_skills" && ! -L "$claude_skills" ]]; then
+    migration="$CHEZMOI_SOURCE_DIR/../scripts/migrate-claude-skills.py"
+    [[ -f "$migration" ]] || {
+        printf 'dotfiles: missing Claude skill migration helper: %s\n' "$migration" >&2
+        exit 1
+    }
+    if [[ "${DOTFILES_MIGRATE_CLAUDE_SKILLS:-}" != true ]]; then
+        python3 "$migration" --home "$HOME"
+        printf 'dotfiles: review the Claude skill migration above, then rerun with DOTFILES_MIGRATE_CLAUDE_SKILLS=true\n' >&2
+        exit 1
+    fi
+    python3 "$migration" --home "$HOME" --apply
+fi
+
 # 3. Move aside targets whose on-disk type conflicts with what chezmoi will write.
 #    chezmoi silently overwrites a plain regular file, but hard-fails (aborting the
 #    whole apply) when a target already exists as a different filesystem TYPE: a symlink

@@ -10,7 +10,8 @@
 - [Initialize and validate](#initialize-and-validate)
 - [Start the user service](#start-the-user-service)
 - [Enable OpenCode capture](#enable-opencode-capture)
-- [Import a Codex snapshot](#import-a-codex-snapshot)
+- [Import reviewed history](#import-reviewed-history)
+- [Review and clean up memories](#review-and-clean-up-memories)
 - [OpenCode permissions](#opencode-permissions)
 - [Measure the trial](#measure-the-trial)
 - [Storage and recovery](#storage-and-recovery)
@@ -28,8 +29,8 @@ Previous environments remain available. It does not download Ollama models,
 initialize private model settings, log into providers, or start services.
 
 The OpenCode integration pins the official plugin at `2026.10.7` for hooks only.
-Native MCP and native skill discovery provide the tools and three upstream
-skills. No copy of the plugin is patched or forked.
+Native MCP and native skill discovery provide the tools, three memory skills,
+and an approval-first cleanup skill. No copy of the plugin is patched or forked.
 
 The native runtime works on macOS arm64 and Debian arm64/x86_64. Keep Ollama
 native on a Mac to use Apple GPU acceleration. Docker Desktop on macOS does not
@@ -60,7 +61,7 @@ embedding, and capture settings survive reruns. A conflicting MCP entry is left
 untouched for review.
 
 The final prompts reload the current OpenCode location and verify the official
-hooks, native MCP, and three upstream skills. Reload cancels that location's
+hooks, native MCP, three memory skills, and the cleanup skill. Reload cancels that location's
 pending permission/question forms. New clients keep capture disabled until
 registration passes and you approve automatic capture. Declining reload leaves
 setup pending; declining capture leaves recall and native MCP available. Test
@@ -109,12 +110,12 @@ files and memory database are not synchronized between machines.
 
 All starter profiles set `server.agent_evolution.enabled=true`. This enables
 OpenViking's Experience training path for new installations, but does not create
-Experience memories by itself. Existing private `ov.conf` files are preserved
-by `openvikingctl init`; to opt in on an existing host, set
-`server.agent_evolution.enabled` to `true` in that file and restart the server.
-Check the account's Agent Evolution override as well. Experience extraction
-depends on the server's case/training pipeline and the configured model; an
-empty Experience directory after enabling is not evidence that training ran.
+Experience memories by itself. `openvikingctl init` also backfills that one field
+into an existing private `ov.conf`, preserving its models, workspace, and other
+private settings. Check the account's Agent Evolution override as well.
+Experience extraction depends on the server's case/training pipeline and the
+configured model; an empty Experience directory after enabling is not evidence
+that training ran.
 
 ## Choose providers
 
@@ -226,14 +227,15 @@ Deselecting does not delete private configuration, installed releases, or memory
 The starter sets `plugin.opencode.mcpEnabled=false`. This skips the plugin's
 bundled MCP/skill registration, which calls the unsupported `SkillEditor.source`
 API in OpenCode `2.0.24`. It does not disable automatic capture or recall.
-The OpenViking component installs `openviking-memory`, `openviking-skills`, and
-the local `ov-experience-memory` adapter through native discovery. The first
-two retain their pinned upstream text; an unmodified upstream reference stays
-under `~/.local/share/dotfiles/openviking/` rather than being discovered as a
-second skill. The adapter checks the Experience directory once per session
-before searching, skips retrieval for the session when it is absent or empty,
-and rechecks next session so new Experiences become available. They use the
-existing canonical store and per-entry compatibility links.
+The OpenViking component installs `openviking-memory`, `openviking-skills`, the
+local `ov-experience-memory` adapter, and the approval-first
+`openviking-cleanup` skill through native discovery. The first two retain their
+pinned upstream text; an unmodified upstream reference stays under
+`~/.local/share/dotfiles/openviking/` rather than being discovered as a second
+skill. The adapter checks the Experience directory once per session before
+searching, skips retrieval for the session when it is absent or empty, and
+rechecks next session so new Experiences become available. They use the existing
+canonical store and compatibility links.
 
 Insert the authenticated native MCP connection, preserving unrelated JSONC
 settings and comments:
@@ -281,7 +283,7 @@ After OpenCode reloads the reviewed connection, run:
 ```
 
 The check requires an active official plugin, a connected native MCP server,
-and all three discovered skills. It deliberately fails if registrations are
+and all four discovered skills. It deliberately fails if registrations are
 missing. Registration is not proof of capture and recall; perform the synthetic
 cross-session, compaction, and restart test below too.
 
@@ -319,19 +321,71 @@ API coupling, but they cannot guarantee compatibility with an untested future
 release. Keep the last validated runtime recoverable and review plugin pin
 updates rather than loading a floating npm release.
 
-## Import a Codex snapshot
+## Import reviewed history
 
-`openvikingctl import-codex` replays a reviewed copy of Codex's `sessions/`
-directory through OpenViking's native ingest pipeline. It does not read live
-Codex history automatically. Pass `--source` and a stable `--name`; the default
-is a preview that counts eligible sessions and messages without importing them.
+`openvikingctl import-codex` and `openvikingctl import-claude` replay a reviewed
+local snapshot through OpenViking's native ingest pipeline. Neither command reads
+live history automatically. Codex snapshots retain the `sessions/` layout;
+Claude snapshots retain the `projects/<project>/<session>.jsonl` layout. Pass an
+explicit `--source` and stable `--name`. The default is an offline preview that
+counts eligible sessions and messages without contacting the server or creating
+state.
+
+Copy the source history into a private snapshot before previewing it. The source
+root and every nested directory must be user-owned mode `0700`; every session
+log must be user-owned mode `0600`; links, FIFOs, devices, group-writable paths,
+and incomplete JSONL records are rejected. Do not point an import at live Claude
+or Codex history.
+
+List session IDs and message totals without printing transcript text before
+selecting a pilot:
+
+```sh
+openvikingctl import-claude \
+  --source "$HOME/private/claude-snapshot/projects" --list-sessions
+```
+
+```sh
+openvikingctl import-claude \
+  --source "$HOME/private/claude-snapshot/projects" --name previous-workstation
+```
+
 Add `--apply` only after reviewing the snapshot, destination, and provider's
-data-handling policy. `--session`, `--since`, and `--limit` can narrow a batch.
+data-handling policy. `--session`, `--since`, and `--limit` can narrow a pilot.
+Use repeated `--exclude-session` values when continuing a different import name
+and a known terminal failure or already-reviewed session must stay out of that
+batch.
+The importer processes one session commit and extraction task at a time. This
+keeps laptop resource use bounded and makes partial failures recoverable.
 
-The import uses the private OpenViking client configuration and keeps progress
-under `~/.openviking/imports/<name>/state/`. Preserve that state and the original
-snapshot for safe retries. Neither transcripts, client credentials, nor progress
-files belong in this repository.
+Both importers retain user and assistant text with original timestamps. Claude
+imports omit sidechains, metadata, and tool-only records. Codex imports omit
+developer/system messages, tool records, and encrypted reasoning. Historical
+working directories never become peers on the receiving machine.
+
+Codex progress remains under `~/.openviking/imports/<name>/state/` for backward
+compatibility. Claude progress uses
+`~/.openviking/imports/claude-<name>/state/`. Preserve the matching state and
+original snapshot for safe retries. The importer binds the entire snapshot,
+including sessions outside a pilot filter, and rejects added, removed, changed,
+or incomplete source files. Neither transcripts, client credentials, nor
+progress files belong in this repository.
+
+A timeout can resume waiting on its existing task. Failed and cancelled
+extraction tasks are terminal with OpenViking `0.4.23`: the importer retains the
+task ID and will not re-append messages or submit a duplicate commit. Do not
+delete that session or edit its import progress to force a retry. Select a
+different unfinished session, or use a new import name after deliberately
+changing the extraction provider and reviewing possible partial memories.
+
+## Review and clean up memories
+
+Use `openviking-cleanup` after a pilot import to review stale facts, duplicate
+records, copied policies, and unscoped approvals. It reads current evidence and
+shows exact proposed edits, merges, or deletions in manageable batches. It does
+not change a memory until you approve that target. Do not use automatic memory
+compilation as a dry run because it can consolidate or delete memories without
+this review step.
 
 ## OpenCode permissions
 

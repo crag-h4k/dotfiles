@@ -22,8 +22,8 @@
 #            The retired singular "plugin" key is removed when present.
 #   SEEDED - native "permissions" are written only when the incoming file has no
 #            permission policy. The exact old seed is migrated. Existing native
-#            permissions retain their policy, except managed OpenViking allows
-#            and generic hook and Git rules
+#            permissions retain their policy, except managed OpenViking and
+#            Claude/Agent state allows plus generic hook and Git rules
 #            migrated below; private overlays and unrelated policies survive.
 #   KEPT   - copied through verbatim, comments included: every other top-level
 #            key, in its original order. That is how machine-local "instructions"
@@ -65,7 +65,8 @@ HEADER = """\
 //
 // Native "permissions" are seeded once so a new machine is not unguarded. The
 // exact retired seed is migrated automatically; customized policies are yours
-// except the managed OpenViking allows and generic hook/Git rule migrations.
+// except the managed OpenViking and Claude/Agent state allows plus generic
+// hook/Git rule migrations.
 //
 // Terminal settings and the selected theme live in cli.json."""
 
@@ -101,6 +102,20 @@ OPENVIKING_RULES_END = "// dotfiles:openviking-permissions:end"
 CAVEMAN_RULES_START = "// dotfiles:caveman-permissions:start"
 CAVEMAN_RULES_END = "// dotfiles:caveman-permissions:end"
 CAVEMAN_RULE = '{ "action": "caveman_*", "resource": "*", "effect": "allow" }'
+AGENT_STATE_RULES = (
+    '{ "action": "edit", "resource": "~/.agents/*", "effect": "allow" }',
+    '{ "action": "edit", "resource": "~/.claude/*", "effect": "allow" }',
+)
+AGENT_STATE_RULES_START = "// dotfiles:agent-state-permissions:start"
+AGENT_STATE_RULES_END = "// dotfiles:agent-state-permissions:end"
+AGENT_STATE_DENIALS = (
+    '{ "action": "edit", "resource": "*.env", "effect": "deny" }',
+    '{ "action": "edit", "resource": "*.env.*", "effect": "deny" }',
+    '{ "action": "edit", "resource": "*.pem", "effect": "deny" }',
+    '{ "action": "edit", "resource": "*.key", "effect": "deny" }',
+)
+AGENT_STATE_DENIALS_START = "// dotfiles:agent-state-secret-denials:start"
+AGENT_STATE_DENIALS_END = "// dotfiles:agent-state-secret-denials:end"
 MCP_SELECTED = {{ if dig "components" "ai" "opencode" false . }}True{{ else }}False{{ end }}
 SSH_MCP_ENTRY = r'"ssh-mcp": {"type": "local", "command": ["/bin/sh", "-c", "exec \"$HOME/.local/bin/ssh-mcp\""], "disabled": true}'
 CAVEMAN_MCP_ENTRY = r'"caveman": {"type": "local", "command": ["/bin/sh", "-c", "exec \"$HOME/.local/bin/cavemanctl\" mcp"], "codemode": false, "disabled": true}'
@@ -923,7 +938,7 @@ def merge_agents(agents_block):
 
 
 def merge_openviking_permissions(block):
-    """Append managed memory and compression allows after global catch-alls."""
+    """Append managed app-state, memory, and compression allows after catch-alls."""
     wrapped = "{\n" + block + "\n}"
     _, _, entries = scan(wrapped)
     entry = next(item for item in entries if item["name"] == "permissions")
@@ -932,7 +947,9 @@ def merge_openviking_permissions(block):
         raise ValueError("permissions is not an array")
     end = array_close(wrapped, start)
     body = wrapped[start + 1:end]
-    for first_marker, last_marker in ((CAVEMAN_RULES_START, CAVEMAN_RULES_END),
+    for first_marker, last_marker in ((AGENT_STATE_RULES_START, AGENT_STATE_RULES_END),
+                                      (AGENT_STATE_DENIALS_START, AGENT_STATE_DENIALS_END),
+                                      (CAVEMAN_RULES_START, CAVEMAN_RULES_END),
                                       (OPENVIKING_RULES_START, OPENVIKING_RULES_END)):
         if body.count(first_marker) != body.count(last_marker) or body.count(first_marker) > 1:
             raise ValueError("ambiguous managed context permissions")
@@ -945,8 +962,14 @@ def merge_openviking_permissions(block):
         position = tokens[-2].end() - 1
         body = body[:position] + "," + body[position:]
     indent = line_indent(wrapped, entry["start"]) + "  "
-    owned = [indent + CAVEMAN_RULES_START, indent + CAVEMAN_RULE + ",",
-             indent + CAVEMAN_RULES_END, indent + OPENVIKING_RULES_START]
+    owned = [indent + AGENT_STATE_RULES_START]
+    owned.extend(indent + rule + "," for rule in AGENT_STATE_RULES)
+    owned.extend([indent + AGENT_STATE_RULES_END,
+                  indent + AGENT_STATE_DENIALS_START])
+    owned.extend(indent + rule + "," for rule in AGENT_STATE_DENIALS)
+    owned.extend([indent + AGENT_STATE_DENIALS_END,
+                  indent + CAVEMAN_RULES_START, indent + CAVEMAN_RULE + ",",
+                  indent + CAVEMAN_RULES_END, indent + OPENVIKING_RULES_START])
     owned.extend(indent + rule + ("," if index < len(OPENVIKING_RULES) - 1 else "")
                  for index, rule in enumerate(OPENVIKING_RULES))
     owned.append(indent + OPENVIKING_RULES_END)

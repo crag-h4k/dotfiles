@@ -24,6 +24,11 @@ CLI, server, plugin SDK, and terminal versions when diagnosing compatibility.
   for a fix. Do not silently alter account, model, or permission selection.
   The managed shell policy allows both `prek *` and `pre-commit *` for local
   checks; it does not replace host-specific permissions.
+- The marked global permissions allow edit tools below `~/.agents/` and
+  `~/.claude/` so OC2 can maintain shared skills and Claude state. Keep that
+  scope deliberate: generic secret suffixes, cloud and SSH paths, and
+  `~/.claude.json` remain denied. Recursive shell deletion remains denied even
+  inside these roots.
 - The server plugin merge owns marked registrations, not the whole array.
   Preserve local entries and ordered controls after `dotfiles:plugins:end`, and
   preserve managed object options when changing a pin. Keep conflicts and

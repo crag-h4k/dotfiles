@@ -119,12 +119,19 @@ repos:
         pass_filenames: false
         files: ^(home/(dot_zshrc|dot_zshenv|\.chezmoiscripts/run_before_00-backup\.sh)|scripts/normalize-zshrc\.py|tests/test_zshrc_migration\.py)$
 
+      - id: test-claude-skills-migration
+        name: python (Claude skill root migration)
+        entry: python3 -m unittest tests/test_claude_skills_migration.py
+        language: system
+        pass_filenames: false
+        files: ^(home/(\.chezmoiignore|\.chezmoiscripts/run_before_00-backup\.sh|dot_claude/symlink_skills)|scripts/migrate-claude-skills\.py|tests/test_claude_skills_migration\.py)$
+
       - id: test-caveman
         name: python (Caveman private config and user services)
         entry: python3 -m unittest tests/test_caveman.py
         language: system
         pass_filenames: false
-        files: ^(home/(\.chezmoi.*|dot_local/bin/executable_cavemanctl|Library/LaunchAgents/.*caveman.*|dot_config/systemd/user/dotfiles-caveman\.service)|scripts/install-caveman\.sh|tests/test_caveman\.py)$
+        files: ^(home/(\.chezmoi.*|dot_local/bin/executable_cavemanctl|Library/LaunchAgents/.*caveman.*|dot_config/systemd/user/dotfiles-caveman\.service)|scripts/install-caveman\.sh|tests/(test_caveman\.py|caveman-launchd-smoke\.py|deployment-smoke\.sh))$
 
       - id: test-caveman-plugin
         name: node test (Caveman V2 routing and recovery)
@@ -146,6 +153,13 @@ repos:
         language: system
         pass_filenames: false
         files: ^(home/(\.chezmoi(ignore|\.toml\.tmpl)|dot_local/(bin/executable_openvikingctl|share/dotfiles/openviking/.*)|Library/LaunchAgents/.*openviking.*|dot_config/systemd/user/dotfiles-openviking\.service)|scripts/(install-openviking\.sh|benchmark-openviking\.py)|tests/(test_openviking\.py|openviking-deployment-smoke\.py|fixtures/openviking/.*))$
+
+      - id: test-openviking-import
+        name: python (OpenViking reviewed-history import)
+        entry: python3 -m unittest tests/test_openviking_import.py
+        language: system
+        pass_filenames: false
+        files: ^(home/dot_local/(bin/executable_openvikingctl|share/dotfiles/openviking/readonly_history_import\.py)|tests/test_openviking_import\.py)$
 
       - id: test-openviking-permissions
         name: node test (OpenViking permissions across agent modes)

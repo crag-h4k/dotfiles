@@ -93,15 +93,7 @@ Library/Application Support
 .local/share/agent-skills/unslop-code
 .local/share/agent-skills/unslop-text
 .local/share/agent-skills/unslop-ui
-.claude/skills/handoff
-.claude/skills/git-publish
-.claude/skills/pr-watch
-.claude/skills/git-worktree
-.claude/skills/chezmoi-dotfiles
-.claude/skills/humanizer
-.claude/skills/unslop-code
-.claude/skills/unslop-text
-.claude/skills/unslop-ui
+.claude/skills
 .agents/skills/handoff
 .agents/skills/git-publish
 .agents/skills/pr-watch
@@ -125,12 +117,11 @@ Library/Application Support
 .local/share/agent-skills/openviking-memory
 .local/share/agent-skills/openviking-skills
 .local/share/agent-skills/ov-experience-memory
+.local/share/agent-skills/openviking-cleanup
 .agents/skills/openviking-memory
 .agents/skills/openviking-skills
 .agents/skills/ov-experience-memory
-.claude/skills/openviking-memory
-.claude/skills/openviking-skills
-.claude/skills/ov-experience-memory
+.agents/skills/openviking-cleanup
 {{ end -}}
 {{ if not (dig "components" "ai" "opencode" false .) -}}
 .local/share/dotfiles/ssh-mcp
@@ -142,8 +133,6 @@ Library/Application Support
 .local/share/agent-skills/caveman-review
 .agents/skills/caveman
 .agents/skills/caveman-review
-.claude/skills/caveman
-.claude/skills/caveman-review
 {{ end -}}
 {{ if not (dig "components" "ai" "opencode" false .) -}}
 .config/opencode/plugins/caveman.js

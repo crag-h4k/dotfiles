@@ -18,7 +18,7 @@ GIT_SKILL_IDS = ("git-publish", "pr-watch", "git-worktree")
 CORE_SKILL_IDS = (
     "chezmoi-dotfiles", "handoff", "humanizer", "unslop-code", "unslop-text", "unslop-ui"
 ) + GIT_SKILL_IDS
-OPENVIKING_SKILL_IDS = ("openviking-memory", "openviking-skills", "ov-experience-memory")
+OPENVIKING_SKILL_IDS = ("openviking-memory", "openviking-skills", "ov-experience-memory", "openviking-cleanup")
 CAVEMAN_SKILL_IDS = ("caveman", "caveman-review")
 SKILL_IDS = CORE_SKILL_IDS + OPENVIKING_SKILL_IDS + CAVEMAN_SKILL_IDS
 GUIDANCE_FILES = (
@@ -66,6 +66,7 @@ PUBLIC_TEXT_FILES = (
     "home/dot_local/share/agent-skills/humanizer/readonly_SKILL.md",
     "home/dot_local/share/agent-skills/humanizer/agents/readonly_openai.yaml",
     "home/dot_local/share/agent-skills/ov-experience-memory/readonly_SKILL.md",
+    "home/dot_local/share/agent-skills/openviking-cleanup/readonly_SKILL.md",
     "home/dot_config/opencode/commands/handoff.md",
     "home/dot_config/opencode/commands/dotfiles.md",
     "home/dot_config/opencode/commands/humanize.md",
@@ -139,7 +140,7 @@ EXPECTED_EXTERNALS = {
         "https://raw.githubusercontent.com/JCarterJohnson/vibecoded-design-tells/f7c4aefc2c797a66e55b49354a93917ab60d33ac/LICENSE",
         "9ef1e40441ba739df595abddf19002d81c59fe25f4288ab0aef6c1cc3e17ea80",
     ),
-    ".local/share/agent-skills/humanizer/upstream/SKILL.md": (
+    ".local/share/agent-skills/humanizer/upstream/instructions.md": (
         "https://raw.githubusercontent.com/blader/humanizer/9862685f575c65a8247f90369951df1b3416e3d6/SKILL.md",
         "e8269e236bed06ed0fe4824c274112e54950b0cb46b0bafe5e1576ef7c9f93d5",
     ),
@@ -155,7 +156,7 @@ EXPECTED_EXTERNALS = {
 EXPECTED_GATED_TARGETS = {
     ".local/share/agent-skills/PROVENANCE.md",
     *(f".local/share/agent-skills/{skill_id}" for skill_id in CORE_SKILL_IDS),
-    *(f".claude/skills/{skill_id}" for skill_id in CORE_SKILL_IDS),
+    ".claude/skills",
     *(f".agents/skills/{skill_id}" for skill_id in CORE_SKILL_IDS),
     ".config/opencode/commands/handoff.md",
     ".config/opencode/commands/dotfiles.md",
@@ -181,7 +182,7 @@ OPENVIKING_EXTERNALS = {
 }
 OPENVIKING_GATED_TARGETS = {
     f"{prefix}/{skill_id}"
-    for prefix in (".local/share/agent-skills", ".agents/skills", ".claude/skills")
+    for prefix in (".local/share/agent-skills", ".agents/skills")
     for skill_id in OPENVIKING_SKILL_IDS
 }
 CAVEMAN_EXTERNALS = {
@@ -200,7 +201,7 @@ CAVEMAN_EXTERNALS = {
 }
 CAVEMAN_GATED_TARGETS = {
     f"{prefix}/{skill}"
-    for prefix in (".local/share/agent-skills", ".agents/skills", ".claude/skills")
+    for prefix in (".local/share/agent-skills", ".agents/skills")
     for skill in CAVEMAN_SKILL_IDS
 }
 
@@ -407,7 +408,7 @@ def validate_ignore_contract(root: Path) -> list[str]:
     if missing:
         errors.append(f"disabled AI fails to ignore: {', '.join(sorted(missing))}")
 
-    forbidden_whole_dirs = {".claude/skills", ".agents/skills"}
+    forbidden_whole_dirs = {".agents/skills"}
     if disabled & forbidden_whole_dirs:
         errors.append("AI gate ignores a whole harness skills directory")
 
@@ -430,29 +431,29 @@ def validate_ignore_contract(root: Path) -> list[str]:
 
 
 def validate_layout(root: Path) -> list[str]:
-    """Check the canonical store and per-skill compatibility links."""
+    """Check the canonical store, agent links, and Claude compatibility root."""
     errors: list[str] = []
-    expected_links = {
+    expected_agent_links = {
         root / f"home/dot_{harness}/skills/symlink_{skill_id}"
-        for harness in ("claude", "agents")
+        for harness in ("agents",)
         for skill_id in SKILL_IDS
     }
-    actual_links = {
+    actual_agent_links = {
         path
-        for harness in ("claude", "agents")
+        for harness in ("agents",)
         for path in (root / f"home/dot_{harness}/skills").glob("*")
         if path.is_file()
     }
-    if actual_links != expected_links:
-        unexpected = sorted(str(path.relative_to(root)) for path in actual_links - expected_links)
-        missing = sorted(str(path.relative_to(root)) for path in expected_links - actual_links)
+    if actual_agent_links != expected_agent_links:
+        unexpected = sorted(str(path.relative_to(root)) for path in actual_agent_links - expected_agent_links)
+        missing = sorted(str(path.relative_to(root)) for path in expected_agent_links - actual_agent_links)
         if unexpected:
             errors.append(f"unexpected harness skill source files: {', '.join(unexpected)}")
         if missing:
             errors.append(f"missing harness skill source files: {', '.join(missing)}")
 
     effective_ids: set[str] = set()
-    for link_source in expected_links & actual_links:
+    for link_source in expected_agent_links & actual_agent_links:
         skill_id = link_source.name.removeprefix("symlink_")
         expected_target = f"../../.local/share/agent-skills/{skill_id}"
         if link_source.read_text(encoding="utf-8").strip() != expected_target:
@@ -461,15 +462,21 @@ def validate_layout(root: Path) -> list[str]:
     if effective_ids != set(SKILL_IDS):
         errors.append("compatibility roots do not resolve to one effective ID per skill")
 
-    whole_directory_sources = (
-        "home/dot_claude/symlink_skills",
+    claude_root = root / "home/dot_claude/symlink_skills"
+    if not claude_root.is_file() or claude_root.read_text(encoding="utf-8").strip() != "../.agents/skills":
+        errors.append("Claude compatibility root must link to ~/.agents/skills")
+
+    forbidden_whole_directory_sources = (
         "home/dot_agents/symlink_skills",
         "home/dot_codex/symlink_skills",
         "home/dot_config/opencode/symlink_skills",
     )
-    for source in whole_directory_sources:
+    for source in forbidden_whole_directory_sources:
         if (root / source).exists():
             errors.append(f"{source}: whole-directory skill symlinks are forbidden")
+
+    if (root / "home/dot_claude/skills").exists():
+        errors.append("home/dot_claude/skills: per-skill Claude links must not coexist with the root link")
 
     unexpected_roots = (
         "home/dot_copilot/skills",
@@ -488,6 +495,7 @@ def validate_layout(root: Path) -> list[str]:
         canonical_root / "humanizer/readonly_SKILL.md",
         canonical_root / "humanizer/agents/readonly_openai.yaml",
         canonical_root / "ov-experience-memory/readonly_SKILL.md",
+        canonical_root / "openviking-cleanup/readonly_SKILL.md",
         canonical_root / "private_caveman/.keep",
         canonical_root / "private_caveman-review/.keep",
         *(canonical_root / "chezmoi-dotfiles" / path for path in DOTFILES_SKILL_FILES),

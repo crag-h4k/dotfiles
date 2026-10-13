@@ -50,6 +50,12 @@ readiness succeeds.
 Services explicitly set `DO_NOT_TRACK=1`, including hosts without managed Zsh.
 No system-wide service or lingering setting is installed.
 
+The macOS deployment smoke starts the managed LaunchAgent on an isolated
+record-mode loopback route, verifies `cavemanctl status`, then disables and
+stops it. This exercises the actual user-service lifecycle rather than only the
+raw proxy binary. The service remains a LaunchAgent because it is per-user,
+unprivileged, and owns private state under `~/.caveman/oc2`.
+
 Enable the `caveman` MCP in OpenCode's MCP settings, then reload the desired
 location. A V2 HTTP request hook routes the selected provider through the proxy
 and adds its authentication header. The request body, upstream credential,

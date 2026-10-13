@@ -74,14 +74,16 @@ class LayoutRejectionTests(unittest.TestCase):
         temp_dir = tempfile.TemporaryDirectory()
         self.addCleanup(temp_dir.cleanup)
         root = Path(temp_dir.name)
-        for harness in ("claude", "agents"):
-            skill_root = root / f"home/dot_{harness}/skills"
-            skill_root.mkdir(parents=True)
-            for skill_id in VALIDATOR.SKILL_IDS:
-                (skill_root / f"symlink_{skill_id}").write_text(
-                    f"../../.local/share/agent-skills/{skill_id}\n",
-                    encoding="utf-8",
-                )
+        skill_root = root / "home/dot_agents/skills"
+        skill_root.mkdir(parents=True)
+        for skill_id in VALIDATOR.SKILL_IDS:
+            (skill_root / f"symlink_{skill_id}").write_text(
+                f"../../.local/share/agent-skills/{skill_id}\n",
+                encoding="utf-8",
+            )
+        claude_root = root / "home/dot_claude"
+        claude_root.mkdir(parents=True)
+        (claude_root / "symlink_skills").write_text("../.agents/skills\n", encoding="utf-8")
         canonical = root / "home/dot_local/share/agent-skills"
         (canonical / "humanizer/agents").mkdir(parents=True)
         (canonical / "handoff/scripts").mkdir(parents=True)
@@ -92,6 +94,8 @@ class LayoutRejectionTests(unittest.TestCase):
         (canonical / "humanizer/agents/readonly_openai.yaml").touch()
         (canonical / "ov-experience-memory/readonly_SKILL.md").parent.mkdir()
         (canonical / "ov-experience-memory/readonly_SKILL.md").touch()
+        (canonical / "openviking-cleanup").mkdir()
+        (canonical / "openviking-cleanup/readonly_SKILL.md").touch()
         for skill_id in VALIDATOR.CAVEMAN_SKILL_IDS:
             private_dir = canonical / f"private_{skill_id}"
             private_dir.mkdir()
@@ -119,9 +123,13 @@ class LayoutRejectionTests(unittest.TestCase):
             for error in VALIDATOR.validate_experience_adapter(root)
         ))
 
-    def test_rejects_whole_directory_symlink_source(self) -> None:
+    def test_allows_the_claude_compatibility_root_link(self) -> None:
         root = self.make_root()
-        (root / "home/dot_claude/symlink_skills").touch()
+        self.assertEqual(VALIDATOR.validate_layout(root), [])
+
+    def test_rejects_other_whole_directory_symlink_sources(self) -> None:
+        root = self.make_root()
+        (root / "home/dot_agents/symlink_skills").touch()
         findings = VALIDATOR.validate_layout(root)
         self.assertTrue(any("whole-directory" in finding for finding in findings))
 
@@ -214,7 +222,7 @@ class SkillDeploymentTests(unittest.TestCase):
                     ".local/share/agent-skills/chezmoi-dotfiles/references/workflows.md",
                     ".local/share/agent-skills/chezmoi-dotfiles/references/decisions.md",
                     ".agents/skills/chezmoi-dotfiles",
-                    ".claude/skills/chezmoi-dotfiles",
+                    ".claude/skills",
                     ".config/opencode/commands/dotfiles.md",
                 ):
                     self.assertEqual(target in managed, bool(features), target)
@@ -223,7 +231,6 @@ class SkillDeploymentTests(unittest.TestCase):
                         f".local/share/agent-skills/{skill_id}/SKILL.md",
                         f".local/share/agent-skills/{skill_id}/LICENSE",
                         f".agents/skills/{skill_id}",
-                        f".claude/skills/{skill_id}",
                     ):
                         self.assertEqual(target in managed, bool(features), target)
                 for command in ("publish", "pr-watch", "worktree"):
@@ -245,8 +252,7 @@ class SkillDeploymentTests(unittest.TestCase):
         independent.write_text("Keep local skill\n")
         for skill_id in VALIDATOR.GIT_SKILL_IDS:
             canonical = self.destination / ".local/share/agent-skills" / skill_id
-            targets = [canonical, *(self.destination / f".{harness}/skills" / skill_id
-                                    for harness in ("agents", "claude"))]
+            targets = [canonical, self.destination / ".agents/skills" / skill_id]
             for target in targets:
                 target.parent.mkdir(parents=True, exist_ok=True)
             self.run_chezmoi("apply", "--", *(str(target) for target in targets))
@@ -255,9 +261,9 @@ class SkillDeploymentTests(unittest.TestCase):
                 source = REPO_ROOT / "home/dot_local/share/agent-skills" / skill_id / f"readonly_{filename}"
                 self.assertEqual(deployed.read_bytes(), source.read_bytes())
                 self.assertEqual(deployed.stat().st_mode & 0o222, 0)
-            for linked in targets[1:]:
-                self.assertTrue(linked.is_symlink())
-                self.assertEqual(linked.resolve(), canonical.resolve())
+        for linked in targets[1:]:
+            self.assertTrue(linked.is_symlink())
+            self.assertEqual(linked.resolve(), canonical.resolve())
         self.assertEqual(independent.read_text(), "Keep local skill\n")
 
     def test_archive_omits_repository_guidance(self) -> None:
@@ -329,15 +335,14 @@ class SkillDeploymentTests(unittest.TestCase):
 
     def test_apply_preserves_local_skills_and_resolves_one_canonical_copy(self) -> None:
         self.config.write_text(VALIDATOR.component_config({"opencode"}))
-        for harness in ("agents", "claude"):
-            independent = self.destination / f".{harness}/skills/local-example/SKILL.md"
-            independent.parent.mkdir(parents=True)
-            independent.write_text("Independent local skill\n")
+        independent = self.destination / ".agents/skills/local-example/SKILL.md"
+        independent.parent.mkdir(parents=True)
+        independent.write_text("Independent local skill\n")
         canonical = self.destination / ".local/share/agent-skills/chezmoi-dotfiles"
         targets = [
             canonical,
             self.destination / ".agents/skills/chezmoi-dotfiles",
-            self.destination / ".claude/skills/chezmoi-dotfiles",
+            self.destination / ".claude/skills",
             self.destination / ".config/opencode/commands/dotfiles.md",
         ]
         for target in targets:
@@ -348,13 +353,15 @@ class SkillDeploymentTests(unittest.TestCase):
             source = REPO_ROOT / "home/dot_local/share/agent-skills/chezmoi-dotfiles" / relative
             self.assertEqual(deployed.read_bytes(), source.read_bytes())
             self.assertEqual(deployed.stat().st_mode & 0o222, 0)
-        for harness in ("agents", "claude"):
-            linked = self.destination / f".{harness}/skills/chezmoi-dotfiles"
-            self.assertTrue(linked.is_symlink())
-            self.assertEqual(linked.resolve(), canonical.resolve())
-            self.assertEqual((linked / "SKILL.md").read_bytes(), (canonical / "SKILL.md").read_bytes())
-            independent = self.destination / f".{harness}/skills/local-example/SKILL.md"
-            self.assertEqual(independent.read_text(), "Independent local skill\n")
+        linked = self.destination / ".agents/skills/chezmoi-dotfiles"
+        self.assertTrue(linked.is_symlink())
+        self.assertEqual(linked.resolve(), canonical.resolve())
+        self.assertEqual((linked / "SKILL.md").read_bytes(), (canonical / "SKILL.md").read_bytes())
+        claude_root = self.destination / ".claude/skills"
+        self.assertTrue(claude_root.is_symlink())
+        self.assertEqual(claude_root.resolve(), (self.destination / ".agents/skills").resolve())
+        self.assertEqual((claude_root / "chezmoi-dotfiles/SKILL.md").read_bytes(), (canonical / "SKILL.md").read_bytes())
+        self.assertEqual(independent.read_text(), "Independent local skill\n")
 
 
 if __name__ == "__main__":
