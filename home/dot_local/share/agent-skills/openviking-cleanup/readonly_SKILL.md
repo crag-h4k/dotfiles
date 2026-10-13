@@ -1,6 +1,6 @@
 ---
 name: openviking-cleanup
-description: Review OpenViking memories for stale facts, duplicates, copied policies, and unscoped approvals. Use when the user asks to audit, clean up, or consolidate memories; propose decisions in batches and apply only approved changes.
+description: Review OpenViking memories for stale facts, duplicates, copied policies, and unscoped approvals, optionally reconciling them with a file-based memory directory the user names. Use when the user asks to audit, clean up, consolidate, or reconcile memories; propose decisions in batches and apply only approved changes.
 ---
 
 # OpenViking memory cleanup
@@ -38,6 +38,29 @@ just because services moved. Keep unique preferences and meaningful decisions;
 do not delete them merely because a related project guideline exists. If a
 source instruction is stale, flag it separately instead of changing it as a
 side effect of memory cleanup. Never display secret values in a finding.
+
+## Compare with file memory
+
+Run this step only when the user names a file-based memory directory for the
+review. Read it without changing it, and honor any files the user excludes.
+Cleanup never edits, moves, or deletes those files; regenerating them from
+OpenViking is a separate export.
+
+Match each file to OpenViking before judging it. First look for a stored copy
+with the same file name whose content matches after trailing newlines, then
+search on the file's title and description. Classify each file:
+
+- Copied unchanged: no action.
+- Copied but the file is newer and different: show the difference and propose
+  replacing the OpenViking copy with the file content.
+- Missing from OpenViking: propose a create-only copy in the matching memory
+  category. Flag personal, sensitive, stale, or superseded files instead of
+  proposing them.
+- Duplicated by an extracted memory: propose keeping the more complete record
+  and deleting the other, listing both URIs.
+- Contradicted by OpenViking: show both claims, their dates, and current
+  evidence. OpenViking wins unless the file is newer. Report a stale file
+  separately.
 
 ## Batched decisions
 

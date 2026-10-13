@@ -1,0 +1,52 @@
+#!/usr/bin/env python3
+"""Merge portable OpenCode rules without replacing private global instructions."""
+
+import sys
+
+QUESTION_START = "<!-- dotfiles:question-tool:start -->"
+QUESTION_END = "<!-- dotfiles:question-tool:end -->"
+QUESTION = """\
+When asking me how to proceed or how to evaluate options, use OpenCode's
+`question` tool to present the choices instead of asking only in plain chat.
+Before any mutating Git operation (including add, commit, push, rm, reset,
+clean, checkout, restore, and worktree changes), use `question` to get my
+explicit authorization for that operation. Read-only Git operations are fine.
+Before a commit, present at least two candidate commit messages that follow
+this repo's Release Please Conventional Commit conventions, then ask me to
+choose one with `question`. Permission prompts do not replace this decision."""
+
+MEMORY_START = "<!-- dotfiles:openviking-memory:start -->"
+MEMORY_END = "<!-- dotfiles:openviking-memory:end -->"
+MEMORY = """\
+When the OpenViking tools are available and its service is ready, OpenViking is
+my canonical memory store. Do not also write the same fact to a file-based
+memory. If OpenViking recall conflicts with another memory source, check the
+primary evidence; OpenViking wins unless the other source is newer. Without
+OpenViking, follow my file-based memory rules, and let a later
+`openviking-cleanup` review reconcile them."""
+OPENVIKING = {{ if dig "components" "ai" "openviking" false . }}True{{ else }}False{{ end }}
+
+
+def merge(text, start, end, body):
+    """Replace or append one managed block, or remove it when body is None."""
+    if start in text or end in text:
+        if text.count(start) != 1 or text.count(end) != 1:
+            sys.exit(f"Ambiguous managed block {start} in global AGENTS.md")
+        first = text.index(start)
+        last = text.index(end) + len(end)
+        if first >= last:
+            sys.exit(f"Out-of-order managed block {start} in global AGENTS.md")
+        if body is None:
+            before = text[:first].rstrip("\n")
+            after = text[last:].lstrip("\n")
+            return before + ("\n\n" if before and after else "\n" if before else "") + after
+        return text[:first] + start + "\n" + body + "\n" + end + text[last:]
+    if body is None:
+        return text
+    return text.rstrip("\n") + ("\n\n" if text else "") + start + "\n" + body + "\n" + end + "\n"
+
+
+existing = sys.stdin.read()
+merged = merge(existing, QUESTION_START, QUESTION_END, QUESTION)
+merged = merge(merged, MEMORY_START, MEMORY_END, MEMORY if OPENVIKING else None)
+sys.stdout.write(merged)

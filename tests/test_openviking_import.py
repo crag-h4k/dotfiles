@@ -42,6 +42,17 @@ class ImportTest(ImportFixture):
         self.assertEqual(path.stat().st_mode & 0o777, 0o600)
         self.assertEqual(list(self.root.iterdir()), [path])
 
+    def test_other_import_states_are_scanned_read_only_and_own_state_is_ignored(self):
+        imports = self.root / "imports"
+        for name, sid in (("claude-earlier", "shared"), ("claude-current", "own")):
+            (imports / name / "state").mkdir(parents=True)
+            self.importer.save(imports / name / "state/progress.json", {"files": {sid: {"complete": True}}})
+        own = imports / "claude-current/state/progress.json"
+        before = {path: path.read_bytes() for path in imports.rglob("progress.json")}
+        self.assertEqual(self.importer.imported_elsewhere(imports, own), {"shared": "claude-earlier"})
+        self.assertEqual({path: path.read_bytes() for path in imports.rglob("progress.json")}, before)
+        self.assertEqual(self.importer.imported_elsewhere(self.root / "absent", own), {})
+
     def test_configuration_override_preserves_file_and_never_stores_key(self):
         path = self.root / "client.json"
         original = {"url": "http://container:1933", "api_key": "fixture-secret", "plugin": {"autoCapture": True}}
@@ -133,6 +144,13 @@ class ImportTest(ImportFixture):
             asyncio.run(self.importer.finish_commit(client, "session", record, lambda: None, 10))
         self.assertEqual(record["task_id"], "task")
         self.assertNotIn("complete", record)
+
+    def test_failed_task_is_classified_as_terminal(self):
+        client = AsyncMock()
+        client.get_task.return_value = {"status": "failed", "task_type": "session_commit", "resource_id": "session"}
+        with self.assertRaises(self.importer.TerminalExtractionFailure) as error:
+            asyncio.run(self.importer.wait_for_task(client, "task", 1, session_id="session"))
+        self.assertEqual(error.exception.status, "failed")
 
     def test_timeout_resumes_waiting_without_resubmitting_commit(self):
         client = AsyncMock()
@@ -312,6 +330,39 @@ class NativeImportTest(ImportFixture):
             self.run_replay()
         self.client.batch_add_messages.assert_awaited_once()
         self.client.commit_session.assert_awaited_once()
+
+    def test_terminal_failure_can_be_skipped_when_continuing_a_batch(self):
+        self.client.get_task.return_value = {
+            "status": "failed", "task_type": "session_commit",
+            "resource_id": "fixture__codex__example",
+        }
+        with contextlib.redirect_stdout(io.StringIO()):
+            skipped = asyncio.run(self.importer.replay(
+                self.source, self.importer.inventory(self.source, self.state)[0], self.state,
+                lambda: self.importer.save(self.progress, self.state), self.store, self.client,
+                "fixture", 1, continue_terminal=True,
+            ))
+        self.assertEqual(skipped, 1)
+        self.assertEqual(self.state["files"]["example"]["terminal_failure"]["status"], "failed")
+        selected, _ = self.importer.inventory(self.source, self.state, continue_terminal=True)
+        self.assertEqual(selected, [])
+        selected, _ = self.importer.inventory(self.source, self.state)
+        self.assertEqual([ref.native_session_id for ref, _ in selected], ["example"])
+
+    def test_session_attempted_under_another_name_is_skipped_and_cannot_be_requested(self):
+        self.second_rollout()
+        elsewhere = {"example": "codex-earlier"}
+        selected, complete = self.importer.inventory(self.source, self.state, elsewhere=elsewhere)
+        self.assertEqual(complete, 0)
+        self.assertEqual([ref.native_session_id for ref, _ in selected], ["other"])
+        self.assertEqual(self.importer.skipped_elsewhere(self.state, elsewhere, None), 1)
+        with self.assertRaisesRegex(ValueError, "--allow-reimport"):
+            self.importer.inventory(self.source, {"files": {}}, sessions=["example"], elsewhere=elsewhere)
+
+    def test_own_progress_takes_precedence_over_another_import_name(self):
+        self.run_replay()
+        selected, complete = self.importer.inventory(self.source, self.state, elsewhere={"example": "codex-earlier"})
+        self.assertEqual((selected, complete), ([], 1))
 
     def test_replaced_identical_snapshot_resumes_without_duplicate_append(self):
         self.client.commit_session.side_effect = RuntimeError("connection lost")
@@ -577,7 +628,8 @@ class NativeImportTest(ImportFixture):
             return await normal(sid, messages)
         self.client.batch_add_messages.side_effect = check_manifest
         args = SimpleNamespace(source=self.source_dir, client_config=config, url=None,
-                               since=None, limit=1, session=None, name="fixture", wait_timeout=1)
+                               since=None, limit=1, session=None, exclude_session=None,
+                               continue_on_extraction_failure=False, name="fixture", wait_timeout=1)
         with patch.object(self.importer, "create_client", return_value=self.client):
             with contextlib.redirect_stdout(io.StringIO()):
                 asyncio.run(self.importer.apply(self.source, args, progress))

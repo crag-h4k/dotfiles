@@ -36,7 +36,7 @@ authoring inputs live outside it. Read `docs/architecture.md` and
   caches, transcripts, and authentication unmanaged. Chezmoi declares desired
   configuration; application/package managers own their local runtime state.
 - `AGENTS.md` files in this tree are repository guidance. The one exception is
-  `modify_private_AGENTS.md` for OpenCode's global instructions; preserve local content
+  `modify_private_AGENTS.md.tmpl` for OpenCode's global instructions; preserve local content
   and gate it on `ai > opencode`. Keep other guidance excluded from target homes.
 
 ## Rendering

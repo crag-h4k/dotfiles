@@ -103,6 +103,12 @@ SOURCES = {
 }
 
 
+class TerminalExtractionFailure(ValueError):
+    def __init__(self, status):
+        super().__init__("import extraction " + status + "; inspect the private task before recovery")
+        self.status = status
+
+
 def harness_for(source):
     return source._dotfiles_harness
 
@@ -147,7 +153,8 @@ def source_for(root, harness="codex"):
     return source
 
 
-def inventory(source, state, since=None, limit=None, sessions=None, excluded_sessions=None):
+def inventory(source, state, since=None, limit=None, sessions=None, excluded_sessions=None,
+              continue_terminal=False, elsewhere=None):
     if state.get("invalid"):
         raise ValueError("import state is invalid; inspect the server and restore matching state before recovery")
     refs = list(source.discover_sessions())
@@ -156,6 +163,7 @@ def inventory(source, state, since=None, limit=None, sessions=None, excluded_ses
     snapshot = {}
     requested = set(sessions or [])
     excluded = set(excluded_sessions or [])
+    elsewhere = elsewhere or {}
     if requested - {ref.native_session_id for ref in refs}:
         raise ValueError("a requested session is absent from the snapshot")
     if excluded - {ref.native_session_id for ref in refs}:
@@ -190,12 +198,36 @@ def inventory(source, state, since=None, limit=None, sessions=None, excluded_ses
         previous = state.get("files", {}).get(sid, {})
         if previous and any(previous[key] != expected[key] for key in ("sha256", "path")):
             raise ValueError("a previously imported rollout changed; retain the original snapshot and state")
+        if not previous and sid in elsewhere:
+            if sid in requested:
+                raise ValueError("a requested session was imported under another name; use --allow-reimport to repeat it")
+            continue
+        # Without the opt-in, a recorded failure is re-polled through the guarded path.
+        if previous.get("terminal_failure") and continue_terminal:
+            continue
         if previous.get("complete"):
             complete += 1
             continue
         if limit is None or len(selected) < limit:
             selected.append((ref, expected["sha256"]))
     return selected, complete
+
+
+def imported_elsewhere(imports_root, state_path):
+    """Map native session IDs to the first other import name that attempted them."""
+    seen = {}
+    if not imports_root.is_dir():
+        return seen
+    for other in sorted(imports_root.glob("*/state/progress.json")):
+        if other == state_path:
+            continue
+        for sid in read_private(other).get("files", {}):
+            seen.setdefault(sid, other.parents[1].name)
+    return seen
+
+
+def skipped_elsewhere(state, elsewhere, excluded):
+    return len(set(elsewhere) & set(state.get("snapshot", {})) - set(state.get("files", {})) - set(excluded or []))
 
 
 def count_messages(source, ref):
@@ -367,7 +399,7 @@ async def wait_for_task(client, task_id, timeout, session_id=None):
                 raise ValueError("extraction skipped memory operations; inspect the private task before continuing")
             return result.get("memories_extracted")
         if status in ("failed", "cancelled"):
-            raise ValueError("import extraction " + status + "; inspect the private task before recovery")
+            raise TerminalExtractionFailure(status)
         if time.monotonic() >= deadline:
             raise TimeoutError("extraction is still pending; rerun the same import to resume waiting")
         await asyncio.sleep(2)
@@ -394,13 +426,14 @@ async def finish_commit(client, sid, record, persist, timeout):
     record["memories_extracted"] = await wait_for_task(client, record["task_id"], timeout, session_id=sid)
 
 
-async def replay(source, selected, state, persist, store, client, prefix, timeout):
+async def replay(source, selected, state, persist, store, client, prefix, timeout, continue_terminal=False):
     from openviking.ingest.models import Cursor
     from openviking.ingest.replay import ConversationReplayClient, SessionReplayer
     from openviking_cli.exceptions import NotFoundError
 
     harness = harness_for(source)
     replayer = SessionReplayer(ConversationReplayClient(client), store, session_id_prefix=prefix)
+    terminal_skipped = 0
     for index, (ref, fingerprint) in enumerate(selected, 1):
         if state.get("invalid"):
             raise ValueError("import state is invalid; explicit recovery is required")
@@ -457,17 +490,27 @@ async def replay(source, selected, state, persist, store, client, prefix, timeou
         progress = store.get(harness, native_id)
         if record.get("commit_started"):
             guard_committed_progress(source, ref, sid, progress, state, persist)
-        if progress and progress.last_appended_count:
-            await finish_commit(client, sid, record, persist, timeout)
+        try:
+            if progress and progress.last_appended_count:
+                await finish_commit(client, sid, record, persist, timeout)
+        except TerminalExtractionFailure as error:
+            record["terminal_failure"] = {"status": error.status, "task_id": record.get("task_id")}
+            persist()
+            if not continue_terminal:
+                raise
+            terminal_skipped += 1
+            print(f"Skipped terminal extraction failure: {sid}", flush=True)
+            continue
         store.mark_committed(harness, native_id)
         record["complete"] = True
         record["messages"] = progress.last_appended_count if progress else 0
         persist()
         status = "extraction verified" if record["messages"] else "empty conversation"
         print(f"Completed: {record['messages']} messages; {status}", flush=True)
+    return terminal_skipped
 
 
-async def apply(source, args, state_path):
+async def apply(source, args, state_path, elsewhere=None):
     from openviking.ingest.cursor_store import CursorStore, SingleInstanceLock
 
     state_path.parent.mkdir(parents=True, exist_ok=True, mode=0o700)
@@ -479,7 +522,8 @@ async def apply(source, args, state_path):
         identity = {"source": str(args.source), "target": binding}
         if state.get("identity", identity) != identity:
             raise ValueError("import source or destination changed; review existing state before continuing")
-        selected, complete = inventory(source, state, args.since, args.limit, args.session, args.exclude_session)
+        selected, complete = inventory(source, state, args.since, args.limit, args.session,
+                                       args.exclude_session, args.continue_on_extraction_failure, elsewhere)
         state["identity"] = identity
         if state["files"] and not (state_path.parent / "state.db").exists():
             raise ValueError("import cursor database is missing; restore it alongside progress.json")
@@ -490,12 +534,15 @@ async def apply(source, args, state_path):
             # An authenticated data read also rejects ROOT credentials.
             await client.ls("viking://~")
             save(state_path, state)
-            await replay(source, selected, state, lambda: save(state_path, state),
-                          store, client, harness_for(source) + "-" + args.name, args.wait_timeout)
+            terminal_skipped = await replay(source, selected, state, lambda: save(state_path, state),
+                                            store, client, harness_for(source) + "-" + args.name,
+                                            args.wait_timeout, args.continue_on_extraction_failure)
         finally:
             await client.close()
             store.close()
-        print(json.dumps({"completed": len(selected), "already_complete": complete}))
+        print(json.dumps({"completed": len(selected) - terminal_skipped,
+                          "already_complete": complete, "terminal_skipped": terminal_skipped,
+                          "imported_elsewhere": skipped_elsewhere(state, elsewhere or {}, args.exclude_session)}))
 
 
 def main(argv=None):
@@ -509,6 +556,10 @@ def main(argv=None):
     parser.add_argument("--limit", type=int, help="maximum unfinished sessions in this run")
     parser.add_argument("--session", action="append", help="select a native session id; repeat for multiple sessions")
     parser.add_argument("--exclude-session", action="append", help="skip a native session id; repeat for multiple sessions")
+    parser.add_argument("--continue-on-extraction-failure", action="store_true",
+                        help="record and skip terminal extraction failures while continuing other sessions")
+    parser.add_argument("--allow-reimport", action="store_true",
+                        help="import sessions that another import name already attempted")
     parser.add_argument("--since", help="include sessions starting on/after YYYY-MM-DD")
     parser.add_argument("--client-config", type=Path, default=Path.home() / ".openviking/ovcli.conf")
     parser.add_argument("--url", help="override the endpoint without modifying private configuration")
@@ -518,7 +569,8 @@ def main(argv=None):
         parser.error("--name is required unless --list-sessions is used")
     if args.name and not re.fullmatch(r"[a-zA-Z0-9][a-zA-Z0-9_-]{0,63}", args.name):
         parser.error("name must be 1-64 letters, digits, underscores, or hyphens")
-    if args.list_sessions and (args.apply or args.limit is not None or args.session or args.exclude_session or args.since):
+    if args.list_sessions and (args.apply or args.limit is not None or args.session or args.exclude_session or
+                               args.continue_on_extraction_failure or args.allow_reimport or args.since):
         parser.error("--list-sessions cannot be combined with import selection or --apply")
     if (args.limit is not None and args.limit < 1) or args.wait_timeout < 1:
         parser.error("limit and wait-timeout must be positive")
@@ -533,14 +585,18 @@ def main(argv=None):
         print(json.dumps({"mode": "sessions", "sessions": list_sessions(source)}))
         return
     state_name = args.name if args.harness == "codex" else args.harness + "-" + args.name
-    state_path = Path.home() / ".openviking/imports" / state_name / "state/progress.json"
+    imports_root = Path.home() / ".openviking/imports"
+    state_path = imports_root / state_name / "state/progress.json"
+    elsewhere = {} if args.allow_reimport else imported_elsewhere(imports_root, state_path)
     if args.apply:
-        asyncio.run(apply(source, args, state_path))
+        asyncio.run(apply(source, args, state_path, elsewhere))
     else:
         state = read_private(state_path) if state_path.exists() else {}
-        selected, complete = inventory(source, state, args.since, args.limit, args.session, args.exclude_session)
+        selected, complete = inventory(source, state, args.since, args.limit, args.session,
+                                       args.exclude_session, args.continue_on_extraction_failure, elsewhere)
         totals = [count_messages(source, ref) for ref, _ in selected]
         print(json.dumps({"mode": "preview", "selected": len(selected), "already_complete": complete,
+                          "imported_elsewhere": skipped_elsewhere(state, elsewhere, args.exclude_session),
                           "messages": sum(n for n, _ in totals), "characters": sum(n for _, n in totals)}))
 
 

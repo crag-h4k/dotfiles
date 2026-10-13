@@ -317,6 +317,27 @@ class SkillDeploymentTests(unittest.TestCase):
         self.run_chezmoi("apply", "--", str(target))
         self.assertEqual(target.read_text(), first)
 
+    def test_openviking_memory_rule_follows_selection_and_removes_cleanly(self) -> None:
+        target = self.destination / ".config/opencode/AGENTS.md"
+        target.parent.mkdir(parents=True)
+        target.write_text("# Local rules\n\nKeep my custom rule.\n")
+        target.chmod(0o600)
+        marker = "<!-- dotfiles:openviking-memory:start -->"
+        self.config.write_text(VALIDATOR.component_config({"opencode"}))
+        self.run_chezmoi("apply", "--", str(target))
+        without = target.read_text()
+        self.assertNotIn(marker, without)
+        self.config.write_text(VALIDATOR.component_config({"opencode", "openviking"}))
+        self.run_chezmoi("apply", "--", str(target))
+        selected = target.read_text()
+        self.assertIn("Keep my custom rule.", selected)
+        self.assertEqual(selected.count(marker), 1)
+        self.run_chezmoi("apply", "--", str(target))
+        self.assertEqual(target.read_text(), selected)
+        self.config.write_text(VALIDATOR.component_config({"opencode"}))
+        self.run_chezmoi("apply", "--", str(target))
+        self.assertEqual(target.read_text(), without)
+
     def test_handoff_snapshot_is_readonly_and_directly_executable(self) -> None:
         self.config.write_text(VALIDATOR.component_config({"opencode"}))
         target = self.destination / ".local/share/agent-skills/handoff/scripts/snapshot.sh"

@@ -9,6 +9,11 @@ plans `@caveman-ai/cli@2.1.0` and Node.js; the CLI installs its pinned
 `bin-v2.1.0` companion bundle after checking the signed manifest and checksums.
 Installation does not start the proxy or change provider routing.
 
+Every apply ends with a read-only check. With OpenCode selected and no private
+route, it prints a red reminder naming `cavemanctl init` and this page. It also
+warns when routing is enabled but the proxy does not answer its readiness check.
+A route you disabled with `cavemanctl disable` is left alone.
+
 The component installs two pinned upstream skills, `caveman` and
 `caveman-review`, with canonical copies and per-skill discovery links. Use
 `@caveman` for concise replies and `stop caveman` to stop using that style.

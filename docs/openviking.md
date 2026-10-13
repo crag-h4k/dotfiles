@@ -28,6 +28,11 @@ native engine and required imports, then switches the stable runtime pointer.
 Previous environments remain available. It does not download Ollama models,
 initialize private model settings, log into providers, or start services.
 
+Every apply ends with a read-only check. While `ai > openviking` is selected and
+the private configs are missing or the service does not answer `/ready`, it
+prints a red reminder naming `openvikingctl setup` or `openvikingctl enable` and
+this page. A ready service prints nothing.
+
 The OpenCode integration pins the official plugin at `2026.10.7` for hooks only.
 Native MCP and native skill discovery provide the tools, three memory skills,
 and an approval-first cleanup skill. No copy of the plugin is patched or forked.
@@ -352,9 +357,15 @@ openvikingctl import-claude \
 
 Add `--apply` only after reviewing the snapshot, destination, and provider's
 data-handling policy. `--session`, `--since`, and `--limit` can narrow a pilot.
-Use repeated `--exclude-session` values when continuing a different import name
-and a known terminal failure or already-reviewed session must stay out of that
-batch.
+Repeat `--exclude-session` to keep a known session out of a batch.
+
+Sessions already attempted under another import name are skipped automatically.
+The importer reads the other `~/.openviking/imports/*/state/progress.json` files
+before selecting anything and reports the count as `imported_elsewhere`.
+Requesting such a session with `--session` fails instead of quietly importing it
+twice. Pass `--allow-reimport` only when a repeat is deliberate, such as after
+changing the extraction provider.
+
 The importer processes one session commit and extraction task at a time. This
 keeps laptop resource use bounded and makes partial failures recoverable.
 
@@ -373,10 +384,18 @@ progress files belong in this repository.
 
 A timeout can resume waiting on its existing task. Failed and cancelled
 extraction tasks are terminal with OpenViking `0.4.23`: the importer retains the
-task ID and will not re-append messages or submit a duplicate commit. Do not
-delete that session or edit its import progress to force a retry. Select a
-different unfinished session, or use a new import name after deliberately
-changing the extraction provider and reviewing possible partial memories.
+task ID and will not re-append messages or submit a duplicate commit. A rerun
+re-checks the cursor and source guards, then polls the same failed task again.
+Do not delete that session or edit its import progress to force a retry. Select
+a different unfinished session, or pass `--allow-reimport` with a new import name
+after deliberately changing the extraction provider and reviewing possible
+partial memories.
+
+For a reviewed bulk import where provider-policy rejections must not stop later
+sessions, add `--continue-on-extraction-failure`. It records each terminal task
+in progress, skips it on this and later runs that pass the flag, and continues
+serially. It does not suppress source, cursor, network, or other transport and
+integrity failures.
 
 ## Review and clean up memories
 
@@ -386,6 +405,19 @@ shows exact proposed edits, merges, or deletions in manageable batches. It does
 not change a memory until you approve that target. Do not use automatic memory
 compilation as a dry run because it can consolidate or delete memories without
 this review step.
+
+To reconcile a file-based memory directory, name it when you ask for the review.
+The skill compares each file with OpenViking without changing the files.
+Unchanged copies need nothing. Newer files and missing facts become proposed
+create-only or replacement writes. Contradictions show both claims with their
+dates. Files you exclude, and personal or stale files, are flagged rather than
+proposed.
+
+Selecting OpenViking also adds a short memory block to the managed OpenCode
+global instructions. While the OpenViking tools and service are ready, it is the
+canonical store, and a fact is not written to a second memory store. Conflicts
+go back to the primary evidence; OpenViking wins unless the other source is
+newer. The next apply after deselecting OpenViking removes the block.
 
 ## OpenCode permissions
 
@@ -468,6 +500,13 @@ If a new Python environment fails import checks, the old runtime pointer remains
 unchanged. A previous release can be selected again after stopping the service.
 Back up the workspace before upgrades that might change its data format; an old
 Python environment alone does not reverse a database migration.
+
+Each server start logs warnings that `agfs.path` and `vectordb.path` are
+deprecated. They come from OpenViking `0.4.23` and `0.5.0` themselves: the
+storage validator fills both paths from `storage.workspace`, then the runtime
+config rebuild validates them again. The managed starters set only `workspace`
+and the backends, so leave `ov.conf` alone. Upstream `main` has dropped these
+warnings, but no release includes that fix yet.
 
 References:
 
