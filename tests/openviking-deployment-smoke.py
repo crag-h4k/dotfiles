@@ -85,6 +85,30 @@ def main():
                 with urllib.request.urlopen(request, timeout=10) as response:
                     if json.load(response)["status"] != "ok":
                         raise ValueError("authenticated USER data access failed")
+                # The importer only accepts private snapshots, regardless of umask.
+                snapshot = temporary / "claude-snapshot/project"
+                snapshot.mkdir(parents=True)
+                for directory in (snapshot.parent, snapshot):
+                    directory.chmod(0o700)
+                records = [
+                    {"type": "user", "timestamp": "2026-01-01T00:00:00Z",
+                     "message": {"role": "user", "content": "synthetic user"}},
+                    {"type": "assistant", "timestamp": "2026-01-01T00:00:01Z",
+                     "message": {"role": "assistant", "content": "synthetic assistant"}},
+                ]
+                fixture = snapshot / "fixture.jsonl"
+                fixture.write_text("".join(json.dumps(record) + "\n" for record in records))
+                fixture.chmod(0o600)
+                preview = subprocess.run(
+                    [*controller, "import-claude", "--source", str(snapshot.parent), "--name", "smoke"],
+                    env=env, check=False, capture_output=True, text=True, timeout=30,
+                )
+                if preview.returncode:
+                    raise ValueError("Claude history preview failed: " + preview.stderr.strip())
+                result = json.loads(preview.stdout)
+                if result != {"mode": "preview", "selected": 1, "already_complete": 0, "imported_elsewhere": 0,
+                              "messages": 2, "characters": len("synthetic user") + len("synthetic assistant")}:
+                    raise ValueError("Claude history preview did not preserve the expected conversation")
             finally:
                 process.terminate()
                 try:
@@ -92,7 +116,7 @@ def main():
                 except subprocess.TimeoutExpired:
                     process.kill()
                     process.wait(timeout=5)
-        print("OpenViking native runtime smoke passed: loopback readiness, API-key enforcement, and USER access")
+        print("OpenViking native runtime smoke passed: loopback readiness, API-key enforcement, USER access, and Claude preview")
 
 
 if __name__ == "__main__":

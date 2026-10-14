@@ -39,17 +39,31 @@ The only canonical copies live under `~/.local/share/agent-skills/`:
 └── unslop-ui/
 ```
 
-Chezmoi creates one relative symlink per skill under both `~/.claude/skills/`
-and `~/.agents/skills/`. It never replaces either skills directory. Existing
-and future skills beside these nine remain untouched.
+Chezmoi creates one relative symlink per managed skill under `~/.agents/skills/`.
+`~/.claude/skills` is one compatibility symlink to that root, so Claude Code,
+Codex, and OpenCode V2 read the same physical skill entries. On a host with an
+existing real Claude skills directory, apply previews the move and stops until
+you explicitly approve it:
+
+```sh
+DOTFILES_MIGRATE_CLAUDE_SKILLS=true chezmoi apply
+```
+
+The migration moves unique local and synced skills into `~/.agents/skills`,
+collapses byte-identical duplicates, and refuses conflicting same-name entries.
+It does not replace or delete an independently added Agent Skills entry.
+An interrupted migration leaves an owner-only journal at
+`~/.local/state/dotfiles/claude-skills-migration.json`; later applies stop until
+that state is reviewed instead of guessing how to continue.
 
 Selecting `ai > openviking` adds two unmodified upstream instruction skills,
 `openviking-memory` and `openviking-skills`, plus a local `ov-experience-memory`
-adapter with its pinned upstream text kept outside skill discovery. They follow
-the same canonical-store and per-entry-link pattern, but their downloads and
-links are gated on OpenViking only. Native discovery avoids the plugin's
-unsupported skill-directory API. See [OpenViking local memory](openviking.md)
-for the separate hook and authenticated MCP connections.
+adapter and approval-first `openviking-cleanup` skill. The adapter's pinned
+upstream text stays outside skill discovery. These entries follow the same
+canonical-store and Agent Skills link pattern, but their downloads and links are
+gated on OpenViking only. Native discovery avoids the plugin's unsupported
+skill-directory API. See [OpenViking local memory](openviking.md) for the
+separate hook and authenticated MCP connections.
 
 The Caveman skill directories are `700` on apply. Their source directories use
 chezmoi's `private_` attribute and ignored `.keep` files, so the pinned upstream
@@ -59,10 +73,10 @@ skill files stay external without making the parent directories group-writable.
 
 | Harness | Discovery root | Notes |
 | --- | --- | --- |
-| Claude Code | `~/.claude/skills` | Native skill discovery; Humanizer uses `disable-model-invocation: true` |
-| CodeCompanion | `~/.claude/skills` | Uses the Claude-compatible skill root |
+| Claude Code | `~/.claude/skills` -> `~/.agents/skills` | Native skill discovery through the managed compatibility link; Humanizer uses `disable-model-invocation: true` |
+| CodeCompanion | `~/.claude/skills` -> `~/.agents/skills` | Uses the Claude-compatible compatibility link |
 | Codex | `~/.agents/skills` | Native skill discovery; Humanizer's `agents/openai.yaml` disables implicit invocation |
-| OpenCode V2 | `~/.agents/skills` | Native compatibility root; also sees `.claude`, but both links resolve to the same canonical directory and one effective ID |
+| OpenCode V2 | `~/.agents/skills` | Native compatibility root; it also discovers the Claude link, then selects the later Agent Skills definition for a matching ID |
 | GitHub Copilot | `~/.agents/skills` | Native personal skill discovery; Humanizer uses explicit-only frontmatter |
 
 OpenCode commands live at `~/.config/opencode/commands/dotfiles.md`,
@@ -243,10 +257,11 @@ the full archives. Every external has a fixed SHA-256 in
 read-only. This avoids copying the research corpora or marketplace metadata into
 the local cache.
 
-Humanizer's original `SKILL.md`, `agents/openai.yaml`, and `LICENSE` remain
-unchanged under `humanizer/upstream/`. The public adapter sits beside that
-directory and owns only invocation, input handling, file-edit, and final-pass
-policy.
+Humanizer's original instructions, `agents/openai.yaml`, and `LICENSE` remain
+unchanged under `humanizer/upstream/`. The instructions deploy as
+`upstream/instructions.md`, not `SKILL.md`, so OpenCode does not register them
+as a second Humanizer skill. The public adapter sits beside that directory and
+owns only invocation, input handling, file-edit, and final-pass policy.
 
 ### License boundaries
 

@@ -120,13 +120,14 @@ also requires explicit private proxy setup; see [Caveman](caveman.md).
 Selecting any `ai` sub-feature also installs `chezmoi-dotfiles`, `handoff`,
 `unslop-code`, `unslop-text`, `unslop-ui`, and the explicit-only `humanizer`.
 There is no separate submenu choice. A single canonical store under
-`~/.local/share/agent-skills` feeds per-skill links in both `~/.claude/skills`
-and `~/.agents/skills`.
+`~/.local/share/agent-skills` feeds per-skill links in `~/.agents/skills`.
+`~/.claude/skills` is a compatibility symlink to that root. A legacy real
+Claude skills directory is migrated only with explicit approval during apply.
 
-Claude Code and CodeCompanion use the Claude root. Codex, OpenCode V2, and
-GitHub Copilot use the Agent Skills root. OpenCode may discover both roots, but
-both links point to the same canonical directories and resolve to one effective
-ID per skill.
+Claude Code and CodeCompanion use the Claude compatibility root. Codex,
+OpenCode V2, and GitHub Copilot use the Agent Skills root. OpenCode may discover
+both roots, but both paths resolve to the same entries and one effective ID per
+skill.
 
 Humanizer never runs implicitly. An explicit humanization applies Humanizer
 first and `unslop-text` second. OpenCode also receives prompt-only `/dotfiles`,

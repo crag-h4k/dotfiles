@@ -13,8 +13,9 @@ authoring inputs live outside it. Read `docs/architecture.md` and
   installation flags, package records, render matrix, and docs as applicable.
   An unselected component must not fetch its externals.
 - AI tools remain under the opt-in AI parent. Shared skills follow the existing
-  AI sub-feature gate without a new menu item. Use one canonical store and one
-  link per skill in each compatibility root; preserve independently added skills.
+  AI sub-feature gate without a new menu item. Use one canonical store, per-skill
+  links under `~/.agents/skills`, and the managed `~/.claude/skills` compatibility
+  link. Preserve independently added skills during its explicit migration.
 - Keep OS-specific behavior gated by both selection and OS. iTerm2 remains an
   opt-in macOS terminal feature. Use declarative profiles and a small explicit
   preference list instead of importing whole application state.
@@ -35,7 +36,7 @@ authoring inputs live outside it. Read `docs/architecture.md` and
   caches, transcripts, and authentication unmanaged. Chezmoi declares desired
   configuration; application/package managers own their local runtime state.
 - `AGENTS.md` files in this tree are repository guidance. The one exception is
-  `modify_private_AGENTS.md` for OpenCode's global instructions; preserve local content
+  `modify_private_AGENTS.md.tmpl` for OpenCode's global instructions; preserve local content
   and gate it on `ai > opencode`. Keep other guidance excluded from target homes.
 
 ## Rendering

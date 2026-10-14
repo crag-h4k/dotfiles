@@ -208,7 +208,7 @@
 
 # Humanizer's upstream skill and Codex metadata are preserved under upstream/.
 # The adjacent managed adapter owns explicit-only invocation policy.
-[".local/share/agent-skills/humanizer/upstream/SKILL.md"]
+[".local/share/agent-skills/humanizer/upstream/instructions.md"]
     type = "file"
     url = "https://raw.githubusercontent.com/blader/humanizer/9862685f575c65a8247f90369951df1b3416e3d6/SKILL.md"
     readonly = true

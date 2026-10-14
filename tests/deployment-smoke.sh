@@ -29,6 +29,10 @@ python3 "$script_dir/openviking-deployment-smoke.py" ||
     fail "OpenViking native runtime smoke failed"
 python3 "$script_dir/caveman-deployment-smoke.py" ||
     fail "Caveman native runtime smoke failed"
+if [[ "$(uname -s)" == Darwin ]]; then
+    python3 "$script_dir/caveman-launchd-smoke.py" ||
+        fail "Caveman launchd smoke failed"
+fi
 
 [[ "$(git config --global --get init.defaultBranch)" == main ]] ||
     fail "Git default branch is not main"

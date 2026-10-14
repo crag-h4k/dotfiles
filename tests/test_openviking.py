@@ -73,6 +73,21 @@ class OpenVikingTest(unittest.TestCase):
         self.init("openai")
         self.assertEqual(before, (server.read_bytes(), client.read_bytes()))
 
+    def test_init_backfills_agent_evolution_without_changing_other_private_settings(self):
+        self.init()
+        server = self.ctl.PRIVATE / "ov.conf"
+        config = self.ctl.private_json(server)
+        config["server"].pop("agent_evolution")
+        config["vlm"]["model"] = "local/keep-this-model"
+        self.ctl.write_private(server, config, replace=True)
+
+        out = self.init("openai")
+        updated = self.ctl.private_json(server)
+
+        self.assertIn("Enabled Agent Evolution", out)
+        self.assertTrue(updated["server"]["agent_evolution"]["enabled"])
+        self.assertEqual(updated["vlm"]["model"], "local/keep-this-model")
+
     def test_starter_profiles_have_local_storage_and_explicit_auth(self):
         for name in ("copilot", "copilot-ollama", "ollama", "openai", "codex-ollama"):
             with self.subTest(name=name):
@@ -225,12 +240,12 @@ class OpenVikingTest(unittest.TestCase):
                     self.ctl.check_opencode()
         self.assertNotIn("fixture private body", out.getvalue())
 
-    def test_registration_check_accepts_active_hooks_native_mcp_and_three_skills(self):
+    def test_registration_check_accepts_active_hooks_native_mcp_and_four_skills(self):
         self.init()
         responses = [
             {"data": [{"source": {"type": "package", "target": "@openviking/opencode-plugin@2026.10.7"}, "state": {"status": "active"}}]},
             {"data": [{"name": "openviking", "status": {"status": "connected"}}]},
-            {"data": [{"id": name, "content": "fixture private body " * 20000} for name in ("openviking-memory", "openviking-skills", "ov-experience-memory")]},
+            {"data": [{"id": name, "content": "fixture private body " * 20000} for name in ("openviking-memory", "openviking-skills", "ov-experience-memory", "openviking-cleanup")]},
         ]
         with patch.object(self.ctl.subprocess, "run") as run:
             pending = iter(responses)
@@ -250,7 +265,7 @@ class OpenVikingTest(unittest.TestCase):
         responses = iter([
             {"data": [{"source": {"type": "package", "target": "@openviking/opencode-plugin@2026.10.7"}, "state": {"status": "failed"}}]},
             {"data": [{"name": "openviking", "status": {"status": "connected"}}]},
-            {"data": [{"id": name} for name in ("openviking-memory", "openviking-skills", "ov-experience-memory")]},
+            {"data": [{"id": name} for name in ("openviking-memory", "openviking-skills", "ov-experience-memory", "openviking-cleanup")]},
         ])
 
         def reply(*args, **kwargs):
@@ -273,6 +288,21 @@ class OpenVikingTest(unittest.TestCase):
                     self.ctl.main()
         environment.assert_not_called()
         check.assert_called_once_with()
+
+    def test_history_import_dispatches_the_requested_harness_without_echoing_arguments(self):
+        secret = "synthetic-placeholder"
+        argv = [str(CONTROLLER), "import-claude", "--source", "snapshot", "--name", "fixture", "--url", "https://fixture:" + secret + "@example.invalid"]
+        with patch.object(self.ctl, "load_environment") as environment, \
+                patch.object(self.ctl, "runtime", return_value=self.home / "runtime"), \
+                patch.object(self.ctl, "command", return_value=subprocess.CompletedProcess(argv, 17)) as command:
+            with patch.object(self.ctl.sys, "argv", argv), contextlib.redirect_stderr(io.StringIO()) as output:
+                with self.assertRaises(SystemExit) as error:
+                    self.ctl.main()
+        self.assertEqual(error.exception.code, 17)
+        environment.assert_called_once_with()
+        self.assertEqual(command.call_args.args[0][3:5], ["--harness", "claude"])
+        self.assertFalse(command.call_args.kwargs["check"])
+        self.assertNotIn(secret, output.getvalue())
 
     def test_run_enforces_loopback_and_private_working_directory(self):
         self.init()

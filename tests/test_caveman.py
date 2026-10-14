@@ -104,14 +104,58 @@ class CavemanTest(unittest.TestCase):
         self.assertEqual(argv, [str(self.home / ".caveman/bin/caveman-mcp")])
         self.assertEqual(env["CAVEMAN_CCR_DB"], str(self.ctl.PRIVATE / "ccr.db"))
 
-    def test_user_service_lifecycle_uses_platform_native_commands(self):
-        for system in ["Linux", "Darwin"]:
-            with self.subTest(system=system), patch.object(self.ctl.platform, "system", return_value=system), \
-                    patch.object(self.ctl.subprocess, "run", return_value=types.SimpleNamespace(returncode=1)) as run:
-                self.ctl.service("enable")
-                commands = [c.args[0] for c in run.call_args_list]
-                self.assertTrue(all(c[0] == ("systemctl" if system == "Linux" else "launchctl") for c in commands))
-                self.assertNotIn("sudo", str(commands))
+    def test_linux_service_lifecycle_uses_the_user_manager(self):
+        with patch.object(self.ctl.platform, "system", return_value="Linux"), \
+                patch.object(self.ctl.subprocess, "run") as run:
+            self.ctl.service("enable")
+        self.assertEqual([call.args[0] for call in run.call_args_list], [
+            ["systemctl", "--user", "daemon-reload"],
+            ["systemctl", "--user", "enable", "--now", self.ctl.UNIT],
+        ])
+
+    def test_macos_enable_bootstraps_an_unloaded_agent_after_enabling_it(self):
+        domain = "gui/" + str(os.getuid())
+        target = domain + "/" + self.ctl.LABEL
+        plist = self.home / "Library/LaunchAgents" / (self.ctl.LABEL + ".plist")
+        with patch.object(self.ctl.platform, "system", return_value="Darwin"), \
+                patch.object(self.ctl.subprocess, "run", side_effect=[
+                    types.SimpleNamespace(returncode=0),
+                    types.SimpleNamespace(returncode=1),
+                    types.SimpleNamespace(returncode=0),
+                ]) as run:
+            self.ctl.service("enable")
+        self.assertEqual([call.args[0] for call in run.call_args_list], [
+            ["launchctl", "enable", target],
+            ["launchctl", "print", target],
+            ["launchctl", "bootstrap", domain, str(plist)],
+        ])
+        self.assertTrue(run.call_args_list[1].kwargs["capture_output"])
+
+    def test_macos_enable_restarts_an_existing_agent(self):
+        domain = "gui/" + str(os.getuid())
+        target = domain + "/" + self.ctl.LABEL
+        with patch.object(self.ctl.platform, "system", return_value="Darwin"), \
+                patch.object(self.ctl.subprocess, "run", side_effect=[
+                    types.SimpleNamespace(returncode=0),
+                    types.SimpleNamespace(returncode=0),
+                    types.SimpleNamespace(returncode=0),
+                ]) as run:
+            self.ctl.service("enable")
+        self.assertEqual(run.call_args_list[-1].args[0], ["launchctl", "kickstart", "-k", target])
+
+    def test_macos_stop_disables_before_bootout_without_sudo(self):
+        domain = "gui/" + str(os.getuid())
+        target = domain + "/" + self.ctl.LABEL
+        plist = self.home / "Library/LaunchAgents" / (self.ctl.LABEL + ".plist")
+        with patch.object(self.ctl.platform, "system", return_value="Darwin"), \
+                patch.object(self.ctl.subprocess, "run") as run:
+            self.ctl.service("stop")
+        commands = [call.args[0] for call in run.call_args_list]
+        self.assertEqual(commands, [
+            ["launchctl", "disable", target],
+            ["launchctl", "bootout", domain, str(plist)],
+        ])
+        self.assertNotIn("sudo", str(commands))
 
     def test_compose_backend_never_starts_a_user_service(self):
         self.args.backend = "compose"
