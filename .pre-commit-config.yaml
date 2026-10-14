@@ -296,6 +296,13 @@ repos:
         pass_filenames: false
         files: ^(home/dot_config/opencode/modify_opencode\.jsonc\.tmpl|tests/test_merge_opencode_config\.py)$
 
+      - id: pytest-merge-opencode-cli
+        name: pytest opencode cli.json (modify_private_cli.json.tmpl)
+        entry: uv run --with pytest pytest tests/test_merge_opencode_cli.py -v
+        language: system
+        pass_filenames: false
+        files: ^(home/dot_config/opencode/modify_private_cli\.json\.tmpl|tests/test_merge_opencode_cli\.py)$
+
       - id: pytest-statusline-tokens
         name: pytest statusline (statusline-tokens.py)
         entry: uv run --with pytest pytest tests/test_statusline_tokens.py -v

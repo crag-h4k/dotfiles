@@ -49,9 +49,11 @@ for palette in $(yq '.paletteOrder[]' "$SOURCE_DIR/.chezmoidata/palettes.yaml");
     [[ -n "$foreground_spinner" && -n "$background_spinner" ]]
     [[ "$foreground_spinner" != "$background_spinner" ]]
 
-    render dot_config/opencode/private_cli.json.tmpl > "$TMP_DIR/opencode-cli.json"
+    printf '{}' | python3 "$SOURCE_DIR/dot_config/opencode/modify_private_cli.json.tmpl" > "$TMP_DIR/opencode-cli.json"
     jq -e '.theme.name == "gud-lucent"
-      and .tabs.enabled
+      and .tabs.mode == "on"
+      and .attention.notifications == false
+      and .attention.sound == false
       and .keybinds.leader == "ctrl+g"
       and .keybinds["session.tab.previous"] == "<leader>h"
       and .keybinds["session.tab.next"] == "<leader>l"

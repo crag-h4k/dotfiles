@@ -204,9 +204,10 @@ Library/LaunchAgents/io.github.crag-h4k.dotfiles.openviking.plist
 {{ end -}}
 {{/* OpenCode V2 config, native notifier plugin, and managed
      wrapper install only when ai > opencode is selected.
-     opencode.jsonc is MERGE-managed via modify_opencode.jsonc.tmpl: chezmoi
-     asserts its V2-owned keys and preserves every unknown top-level key and
-     comment. Unmanaged local configuration remains outside this repo. */}}
+     opencode.jsonc and cli.json are MERGE-managed via modify_opencode.jsonc.tmpl
+     and modify_private_cli.json.tmpl: chezmoi asserts their owned keys and
+     preserves every unknown key, so the TUI's Open settings edits survive.
+     Unmanaged local configuration remains outside this repo. */}}
 {{ if not (dig "components" "ai" "opencode" false .) -}}
 .config/opencode/opencode.jsonc
 .config/opencode/cli.json

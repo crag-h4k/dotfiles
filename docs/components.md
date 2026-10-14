@@ -235,6 +235,9 @@ two Release Please Conventional Commit message candidates and a user selection.
 Credential files and recursive removal commands remain denied.
 
 `cli.json` enables session tabs and uses `Ctrl+G` as a 1500 ms leader.
+Chezmoi merge-manages it, so settings changed with **Open settings** persist;
+see [OpenCode terminal settings](operation.md#opencode-terminal-settings) for
+the enforced and seeded keys.
 `<leader>h` / `<leader>l` move between tabs. The
 session-workflow CLI plugin uses Shift+Tab to cycle Build → Plan → Auto → Build
 for the current session. Before a session exists, the plugin yields Shift+Tab
