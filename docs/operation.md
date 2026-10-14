@@ -10,6 +10,7 @@
 - [OpenCode updates](#opencode-updates)
 - [Local overrides](#local-overrides)
   - [Shell PATH additions](#shell-path-additions)
+  - [OpenCode terminal settings](#opencode-terminal-settings)
   - [OpenCode server plugins](#opencode-server-plugins)
 - [Terminal (tmux) behavior](#terminal-tmux-behavior)
   - [Status bar](#status-bar)
@@ -240,6 +241,9 @@ The OpenCode wrapper passes `cli.override.json` to the native
 precedence over the file. Use this local JSON file for terminal preferences
 and extra CLI plugins. Keep private plugins under
 `~/.config/opencode/v2-plugins/local/`, which is also ignored by chezmoi.
+Ordinary preferences belong in `cli.json` through **Open settings**; see
+[OpenCode terminal settings](#opencode-terminal-settings) for what chezmoi
+keeps and what it resets.
 
 The wrapper sources `override.zsh` after resolving its isolated `binary` and
 classifying `interactive` and `explicit_server`, before choosing standalone
@@ -360,6 +364,49 @@ Disabling a plugin prevents it from starting in a fresh tmux server. Reloading
 `~/.tmux.conf` in an existing server does not undo options, hooks, or bindings
 that the plugin already installed. End the existing server and start a new one
 for a disable to take full effect.
+
+### OpenCode terminal settings
+
+OpenCode V2 stores terminal settings in `~/.config/opencode/cli.json`, and
+**Open settings** (`Ctrl+P`) writes to that file. Chezmoi merges into it through
+`modify_private_cli.json.tmpl` instead of replacing it, so a settings change
+survives `chezmoi init --apply` without a "changed since chezmoi last wrote it"
+prompt. The target stays valid JSON with mode `0600`.
+
+| Class | Keys | On every apply |
+| --- | --- | --- |
+| Enforced | `$schema`, `attention.notifications`, `attention.sound`, `keybinds.leader`, `leader.timeout`, the managed `plugins` entries | Reset to the managed value |
+| Seeded | Theme, tabs, the other keybinds, session, animations, diffs, terminal | Added only when that key is absent; an existing value is never changed |
+| Kept | Everything else | Untouched, including keys that newer OpenCode releases add |
+
+The enforced keys protect integrations. `attention.notifications` and
+`attention.sound` are OpenCode's own OS banners and sounds. The tmux notifier
+tints the pane and window tab instead and deliberately raises no popups, so a
+settings toggle that turned the native alerts on would double every signal. The
+leader and its timeout are fixed because the session-workflow plugin and the
+tab bindings assume `Ctrl+G`. The `plugins` array turns off the stock footer
+and Copilot quota renderer and loads the local statusline and agent catalog.
+
+Seeding is per key. A default added to the repository later reaches existing
+hosts, and a value you changed is never touched. The cost is that a seeded key
+you delete comes back on the next apply; set it to the value you want instead.
+`tabs.enabled` is the legacy form of `tabs.mode` and loses to it, so the merge
+does not seed `tabs.mode` next to an existing `tabs.enabled`.
+
+The merge appends any missing managed `plugins` entry and leaves your own
+entries, their order, and later `-id` controls alone. To turn off a managed
+plugin, append its control, for example `-dotfiles.agent-catalog`.
+
+`cli.override.json` is separate and wins at runtime. Nested objects merge over
+`cli.json`, but arrays and scalars replace it, with two consequences:
+
+| Override | Effect |
+| --- | --- |
+| `{"attention":{"notifications":true}}` | Turns native banners on for that host, even though chezmoi keeps `cli.json` at `false` |
+| `{"plugins":["./v2-plugins/local/x"]}` | Replaces the whole array, so the managed statusline and agent catalog stop loading unless the override restates them |
+
+If `cli.json` is not a JSON object, the merge leaves it unchanged and prints a
+warning, so a hand edit is never destroyed.
 
 ### OpenCode server plugins
 

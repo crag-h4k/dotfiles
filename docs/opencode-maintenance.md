@@ -24,6 +24,15 @@ CLI, server, plugin SDK, and terminal versions when diagnosing compatibility.
   for a fix. Do not silently alter account, model, or permission selection.
   The managed shell policy allows both `prek *` and `pre-commit *` for local
   checks; it does not replace host-specific permissions.
+- `cli.json` is merge-managed by `modify_private_cli.json.tmpl` because V2's
+  **Open settings** writes it. Keep the enforced set small: only keys that
+  protect a dotfiles integration (`attention.*` so tmux stays the single alert
+  channel, the leader, the managed `plugins`). Seed every other default per leaf
+  and never overwrite it. Check the live schema at `opencode.ai/v2/cli.json`
+  before adding a key, because the TUI rejects unknown settings, and keep
+  `tabs.enabled` and `tabs.mode` from coexisting. Inline `cli.override.json`
+  replaces arrays rather than merging them; do not move the managed `plugins`
+  there. Extend `tests/test_merge_opencode_cli.py` with any ownership change.
 - The marked global permissions allow edit tools below `~/.agents/` and
   `~/.claude/` so OC2 can maintain shared skills and Claude state. Keep that
   scope deliberate: generic secret suffixes, cloud and SSH paths, and

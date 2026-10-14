@@ -1,0 +1,151 @@
+#!/usr/bin/env python3
+# home/dot_config/opencode/modify_private_cli.json.tmpl
+# chezmoi modify_ script for ~/.config/opencode/cli.json (OpenCode V2 terminal
+# client settings). chezmoi runs it with the current file on stdin and writes
+# what it prints to stdout. Merge-only and idempotent across `chezmoi apply`.
+#
+# Why a merge: V2's Open settings dialog writes this same file. A plain managed
+# file makes the next `chezmoi init --apply` warn that the target changed since
+# chezmoi last wrote it. A merge keeps whatever the TUI wrote.
+#
+# Ownership boundary:
+#   OWNED  - re-asserted on every apply, so the TUI cannot silently turn off a
+#            dotfiles integration:
+#              "$schema"; attention.notifications / attention.sound = false
+#              (OpenCode's own OS banners and sounds; the tmux notifier in
+#              plugin/notify.ts is the single attention channel: visual,
+#              tmux-only, never popups); keybinds.leader and leader.timeout
+#              (the session-workflow plugin and tab bindings assume Ctrl+G);
+#              and the managed "plugins" directives below.
+#   SEEDED - written only when the leaf key is absent, one key at a time. A new
+#            dotfiles default reaches existing hosts; a value the TUI or the user
+#            set is never touched. Trade-off: a seeded key that is deleted comes
+#            back on the next apply. Set it explicitly to keep it.
+#   KEPT   - everything else, in its original order, including keys this script
+#            has never heard of (newer OpenCode releases add settings).
+#
+# "plugins" is an ordered array of enablement directives and package
+# declarations. The merge appends any missing managed entry in managed order and
+# leaves every other entry, and the order of the existing ones, alone. Local
+# entries and later "-id" controls therefore survive. To opt out of a managed
+# plugin, append its "-id" control to this array.
+#
+# ~/.config/opencode/cli.override.json is separate and wins at runtime: the
+# opencode2 wrapper exports it as OPENCODE_CLI_CONFIG_CONTENT. Nested objects
+# merge over this file, but arrays and scalars REPLACE it, so an override that
+# sets "plugins" drops every managed plugin unless it restates them.
+#
+# Safety: if the incoming file is non-empty but is not a JSON object, it is
+# emitted unchanged and a warning goes to stderr. Never destroy a hand-edited
+# target, never block the rest of the apply.
+#
+# The file is gated wholesale in home/.chezmoiignore under ai > opencode. It is
+# a .tmpl so the check-json hook skips it; it uses no template syntax.
+import json
+import sys
+
+OWNED = "owned"
+SEEDED = "seeded"
+ENSURED = "ensured"
+
+MANAGED_PLUGINS = (
+    "-opencode.prompt.footer",
+    "-opencode-copilot-statusline.tui",
+    "./v2-plugins/statusline",
+    "./v2-plugins/agent-catalog",
+)
+
+# (path, value, ownership), applied in order so a first install lists keys in
+# this order. tabs.enabled is the legacy form of tabs.mode and loses to it, so
+# tabs.mode is not seeded beside an existing tabs.enabled.
+SETTINGS = (
+    (("$schema",), "https://opencode.ai/v2/cli.json", OWNED),
+    (("theme", "name"), "gud-lucent", SEEDED),
+    (("theme", "mode"), "system", SEEDED),
+    (("tabs", "mode"), "on", SEEDED),
+    (("tabs", "scope"), "cwd", SEEDED),
+    (("tabs", "layout"), "horizontal", SEEDED),
+    (("tabs", "indicators"), "status", SEEDED),
+    (("keybinds", "leader"), "ctrl+g", OWNED),
+    (("keybinds", "session.tab.previous"), "<leader>h", SEEDED),
+    (("keybinds", "session.tab.next"), "<leader>l", SEEDED),
+    (("keybinds", "session.list"), "<leader>t", SEEDED),
+    (("keybinds", "session.first"), "home", SEEDED),
+    (("keybinds", "theme.switch"), "none", SEEDED),
+    (("leader", "timeout"), 1500, OWNED),
+    (("attention", "notifications"), False, OWNED),
+    (("attention", "sound"), False, OWNED),
+    (("plugins",), MANAGED_PLUGINS, ENSURED),
+    (("session", "sidebar"), "hide", SEEDED),
+    (("session", "permissions"), "prompt", SEEDED),
+    (("session", "verbosity"), "high", SEEDED),
+    (("session", "new_location"), "inherit", SEEDED),
+    (("session", "thinking"), "show", SEEDED),
+    (("animations",), True, SEEDED),
+    (("diffs", "wrap"), "word", SEEDED),
+    (("terminal", "title"), True, SEEDED),
+)
+SEED_UNLESS = {("tabs", "mode"): (("tabs", "enabled"),)}
+
+
+def lookup(data, path):
+    node = data
+    for key in path:
+        if not isinstance(node, dict) or key not in node:
+            return False
+        node = node[key]
+    return True
+
+
+def group(data, path):
+    node = data
+    for key in path:
+        if not isinstance(node.get(key), dict):
+            node[key] = {}
+        node = node[key]
+    return node
+
+
+def plugin_name(entry):
+    if isinstance(entry, dict):
+        return entry.get("package")
+    return entry
+
+
+def ensure_plugins(data, key, wanted):
+    current = data.get(key)
+    entries = current if isinstance(current, list) else []
+    present = {plugin_name(entry) for entry in entries}
+    entries.extend(name for name in wanted if name not in present)
+    data[key] = entries
+
+
+def merge(data):
+    for path, value, ownership in SETTINGS:
+        if ownership == ENSURED:
+            ensure_plugins(data, path[-1], value)
+        elif ownership == OWNED:
+            group(data, path[:-1])[path[-1]] = value
+        elif not lookup(data, path) and not any(
+            lookup(data, alias) for alias in SEED_UNLESS.get(path, ())
+        ):
+            group(data, path[:-1])[path[-1]] = value
+    if next(iter(data)) != "$schema":
+        data = {"$schema": data.pop("$schema"), **data}
+    return data
+
+
+def main():
+    raw = sys.stdin.read()
+    try:
+        data = json.loads(raw) if raw.strip() else {}
+        if not isinstance(data, dict):
+            raise ValueError("root is not a JSON object")
+    except ValueError as error:
+        print(f"modify_private_cli.json: leaving cli.json unchanged: {error}", file=sys.stderr)
+        sys.stdout.write(raw)
+        return
+    sys.stdout.write(json.dumps(merge(data), indent=2, ensure_ascii=False) + "\n")
+
+
+main()
