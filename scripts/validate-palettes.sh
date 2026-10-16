@@ -32,10 +32,13 @@ for palette in $(yq '.paletteOrder[]' "$SOURCE_DIR/.chezmoidata/palettes.yaml");
     render dot_config/notify/notify.yaml.tmpl > "$TMP_DIR/notify.yaml"
     yq '.' "$TMP_DIR/notify.yaml" >/dev/null
 
-    # The OpenCode V2 theme keeps its three backgrounds transparent so terminal
-    # opacity shows through.
+    # The OpenCode V2 theme is a native V2 document (no V1 "theme" key) and keeps
+    # its backgrounds transparent so terminal opacity shows through.
+    # tests/test_opencode_theme.py checks its resolved colors against the palette.
     render dot_config/opencode/themes/gud-lucent.json.tmpl > "$TMP_DIR/opencode-gud-lucent.json"
-    jq -e '.theme.syntaxKeyword.dark and (.theme.background.dark == "none") and (.theme.backgroundPanel.dark == "none")' "$TMP_DIR/opencode-gud-lucent.json" >/dev/null
+    jq -e '(has("theme") | not) and .base.syntax.keyword and (.dark // .light).hue.neutral
+      and (.base.background.base == "transparent")
+      and (.base.background.raised.base == "transparent")' "$TMP_DIR/opencode-gud-lucent.json" >/dev/null
 
     render dot_config/opencode/v2-plugins/statusline/tui.tsx.tmpl > "$TMP_DIR/opencode-statusline.tsx"
     grep -q '^  surface: "#[0-9a-fA-F]\{6\}",$' "$TMP_DIR/opencode-statusline.tsx"

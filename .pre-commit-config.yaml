@@ -217,7 +217,32 @@ repos:
         entry: scripts/validate-palettes.sh
         language: script
         pass_filenames: false
-        files: ^home/(\.chezmoidata/palettes\.yaml|dot_(config/(ghostty|iterm2|notify|nvim|opencode|statusline)|tmux/conf\.d|codex/themes|zsh/theme).*)$
+        files: ^home/(\.chezmoidata/(palettes|opencode-theme)\.yaml|dot_(config/(ghostty|iterm2|notify|nvim|opencode|statusline)|tmux/conf\.d|codex/themes|zsh/theme).*)$
+
+      # Authoring generator drift gate. Unlike build-palettes-check it reads the
+      # committed catalog, not the submodule, so it never skips.
+      - id: build-opencode-theme-check
+        name: OpenCode theme hue data matches the palette catalog
+        entry: python3 scripts/build-opencode-theme.py --check
+        language: system
+        pass_filenames: false
+        files: ^(scripts/build-opencode-theme\.py|home/\.chezmoidata/(palettes|opencode-theme)\.yaml)$
+
+      - id: test-opencode-theme
+        name: python (OpenCode V2 theme resolves to the palette)
+        entry: python3 -m unittest tests/test_opencode_theme.py
+        language: system
+        pass_filenames: false
+        files: ^(home/(\.chezmoidata/(palettes|opencode-theme)\.yaml|dot_config/opencode/themes/.*)|scripts/build-opencode-theme\.py|tests/test_opencode_theme\.py)$
+
+      # Resolves through the real @opencode/theme package when
+      # OPENCODE_THEME_MODULE names one; otherwise it reports a named skip.
+      - id: test-opencode-theme-resolve
+        name: node test (OpenCode V2 theme through @opencode/theme)
+        entry: node --test tests/test_opencode_theme.mjs
+        language: system
+        pass_filenames: false
+        files: ^(home/(\.chezmoidata/(palettes|opencode-theme)\.yaml|dot_config/opencode/themes/.*)|tests/test_opencode_theme\.mjs)$
 
       - id: test-opencode-statusline
         name: node test (opencode v2 statusline)
