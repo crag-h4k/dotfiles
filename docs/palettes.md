@@ -2,8 +2,8 @@
 # Palette catalog
 
 One palette selection drives Ghostty, iTerm2, tmux, notifications, Claude,
-Codex, and Neovim. The point is to change the colors once and avoid seven
-nearly-matching copies.
+Codex, OpenCode, and Neovim. The point is to change the colors once and avoid
+eight nearly-matching copies.
 
 ## Table of Contents
 
@@ -11,6 +11,7 @@ nearly-matching copies.
 - [What determines the palettes](#what-determines-the-palettes)
 - [When to run the generator](#when-to-run-the-generator)
 - [base16 to semantic mapping](#base16-to-semantic-mapping)
+- [OpenCode V2 theme](#opencode-v2-theme)
 - [Add a scheme](#add-a-scheme)
 - [Command line](#command-line)
 - [Submodule setup](#submodule-setup)
@@ -57,6 +58,10 @@ There is no regeneration schedule. CI runs `build-palettes.py --check` and
 fails when the committed catalog differs from fresh output. The same check runs
 in prek and skips itself if the submodule is not initialized.
 
+Run `scripts/build-opencode-theme.py` after every catalog regeneration. It
+reads the committed `palettes.yaml`, not the submodule, so its `--check` never
+skips. See [OpenCode V2 theme](#opencode-v2-theme).
+
 ## base16 to semantic mapping
 
 | Semantic key | base16 source | Notes |
@@ -81,15 +86,61 @@ normal colors are lightened by about 12% in HLS.
 Notification tints blend each accent toward base00, then darken until the
 accent reaches roughly 3:1 contrast against the tint.
 
+## OpenCode V2 theme
+
+`~/.config/opencode/themes/gud-lucent.json` is a native OpenCode V2 theme
+document. OpenCode 2.0.29 migrates any theme file with a top-level `theme` key
+as V1 and parses everything else as V2. The V1 migration guessed hue names from
+color angles, so `hue.yellow` could be missing or point at another palette
+color (palette green on Gruvbox). Plugins that read `context.theme` saw those
+guesses. The V2 document names each hue after its palette key instead.
+
+Hue scales need OKLCH math that a chezmoi template cannot do.
+`scripts/build-opencode-theme.py` precomputes them from the committed catalog
+into `home/.chezmoidata/opencode-theme.yaml`, and the template picks one entry
+through `data.palette`.
+
+| Theme hue | Step 200 | Other steps |
+| --- | --- | --- |
+| `red`, `orange`, `yellow`, `green`, `cyan`, `blue`, `purple`, `pink` | Palette color of the same name | OpenCode's own OKLCH ramp, lighter at 100 and darker toward 900 |
+| `gray`, aliased as `neutral` | `foreground` | 400 `comment`, 600 `selection`, 700 `surface`, 800 `background`; the rest interpolate |
+| `accent` | Alias of `pink` | Same as `pink` |
+| `interactive` | Alias of `purple` | Same as `purple` |
+
+The semantic tokens keep the look of the old V1 file. Text is `foreground`,
+muted text is `comment`, and feedback error, warning, success, and info are
+red, orange, green, and blue. `diff.background.context` is `surface`; added and
+removed diff backgrounds use the notification tints. The base background and
+every raised surface are `transparent`, so terminal opacity still shows
+through. Agents without their own color cycle through cyan, pink, green,
+orange, purple, red, and blue, skipping any hue whose color repeats an earlier
+one.
+
+The document defines only the palette's own mode, which is dark for every
+current scheme. OpenCode falls back to it when light mode is requested.
+
+`tests/test_opencode_theme.py` renders every palette and checks the resolved
+tokens with a small stdlib resolver; it runs in prek and CI.
+`tests/test_opencode_theme.mjs` resolves the same documents through
+`@opencode/theme`. The package is not a repository dependency, so the suite
+skips unless `OPENCODE_THEME_MODULE` names an installed copy:
+
+```sh
+OPENCODE_THEME_MODULE=/path/to/node_modules/@opencode/theme \
+  node --test tests/test_opencode_theme.mjs
+```
+
 ## Add a scheme
 
 1. Find the scheme id under `vendor/tinted-schemes/base16/` or `base24/`.
 2. Add a row to `CURATED` in `scripts/build-palettes.py`.
-3. Regenerate, then commit the changed `home/.chezmoidata/palettes.yaml` and
-   `home/.chezmoi.toml.tmpl`:
+3. Regenerate both outputs, then commit the changed
+   `home/.chezmoidata/palettes.yaml`, `home/.chezmoidata/opencode-theme.yaml`,
+   and `home/.chezmoi.toml.tmpl`:
 
    ```sh
    python3 scripts/build-palettes.py
+   python3 scripts/build-opencode-theme.py
    ```
 
 Removing a scheme is the same edit in reverse. `validate-palettes.sh` renders every
@@ -106,10 +157,17 @@ python3 scripts/build-palettes.py --check
 
 # generate from a checkout outside the submodule path
 python3 scripts/build-palettes.py --schemes-dir /path/to/tinted-theming-schemes
+
+# regenerate the OpenCode hue scales from the committed catalog
+python3 scripts/build-opencode-theme.py
+
+# their drift gate (runs without the submodule)
+python3 scripts/build-opencode-theme.py --check
 ```
 
 `--out` and `--toml` override the catalog and the config template the picker list is
-written into. `python3 scripts/build-palettes.py --help` prints the same examples.
+written into. `build-opencode-theme.py` takes `--palettes` and `--out`. Both
+scripts print these examples with `--help`.
 
 ## Submodule setup
 

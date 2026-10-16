@@ -755,8 +755,9 @@ scheme pre-selected; leaving it unchecked keeps the current palette. Or edit the
 ```
 
 Valid ids are the `paletteOrder` keys in `home/.chezmoidata/palettes.yaml`. To add a scheme, add it to
-`CURATED` in `scripts/build-palettes.py`, run `python3 scripts/build-palettes.py`, and commit the
-regenerated catalog (CI's `build-palettes.py --check` fails if the commit is stale).
+`CURATED` in `scripts/build-palettes.py`, run `python3 scripts/build-palettes.py` and
+`python3 scripts/build-opencode-theme.py`, and commit both regenerated data files (CI's `--check`
+gates fail if either is stale). See [Add a scheme](palettes.md#add-a-scheme).
 
 ### Changing the Zsh prompt
 
