@@ -7,6 +7,10 @@ the available hooks. Use the existing test style and fixtures for each subsystem
   directories, and package-manager stubs. Do not install packages into the real
   account, refresh its sources, modify live overrides, or remove an existing
   home-directory test tree.
+- Clear inherited Git repository environment variables before fixture subprocesses,
+  including indirect Git calls from `chezmoi init`. A temporary cwd or `git -C`
+  does not override `GIT_DIR`, `GIT_COMMON_DIR`, or `GIT_INDEX_FILE` from a commit
+  hook. Cover this with a disposable linked-worktree regression when testing init.
 - Package-mode deployment tests are a separate, explicit operation in their
   controlled CI environments. Preserve fully unattended execution and run the
   installation as the fixture's non-root user.
