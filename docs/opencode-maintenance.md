@@ -65,6 +65,8 @@ CLI, server, plugin SDK, and terminal versions when diagnosing compatibility.
   Build, Plan, and Auto. It does not reorder native tabs. Auto is a primary
   agent; the terminal plugin replies once to its permission asks while
   connected, never to question forms. Configured denials create no request.
+  That handler also owns Auto approval-failure notifications. Do not infer a
+  failed approval from a timer in a second event subscriber.
   Keep the native agent picker available if the plugin fails to load.
   Before the first prompt creates a session, Shift+Tab falls through to the
   native home-screen agent cycle. Do not create or query a session merely to
