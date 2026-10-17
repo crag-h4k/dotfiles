@@ -66,9 +66,11 @@ SOURCE_ROOT="$REPO_ROOT/home"
 }
 
 @test "OpenCode CLI leaves native agent cycling available on the home screen" {
-  local output
-  run bash -c 'printf "{}" | python3 "$1"' _ \
-    "$SOURCE_ROOT/dot_config/opencode/modify_private_cli.json.tmpl"
+  local config="${BATS_TEST_TMPDIR}/chezmoi.toml" script="${BATS_TEST_TMPDIR}/merge-cli.py" output
+  printf '[data]\n' > "$config"
+  chezmoi execute-template --source "$REPO_ROOT" --config "$config" \
+    < "$SOURCE_ROOT/dot_config/opencode/modify_private_cli.json.tmpl" > "$script"
+  run bash -c 'printf "{}" | python3 "$1"' _ "$script"
   [ "$status" -eq 0 ]
   output="$(printf '%s' "$output" | jq -r '.keybinds["agent.cycle"] // "native"')"
   [ "$output" = native ]

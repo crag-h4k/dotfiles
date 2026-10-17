@@ -13,7 +13,6 @@
 
 const fs = require("node:fs")
 const path = require("node:path")
-const { execFileSync } = require("node:child_process")
 const ts = require("typescript")
 const { verifyNotifyPlugin } = require("../tests/test_opencode_notify_plugin.js")
 
@@ -25,20 +24,13 @@ async function main() {
     let text
     try {
       text = fs.readFileSync(file, "utf8")
-      if (file.endsWith(".tmpl")) {
-        const source = path.resolve(__dirname, "..")
-        text = execFileSync("chezmoi", ["execute-template", "--source", source], {
-          input: text,
-          encoding: "utf8",
-        })
-      }
     } catch (err) {
       console.error(`ts-syntax: cannot read ${file}: ${err.message}`)
       failed = 1
       continue
     }
 
-    const kind = file.endsWith(".tsx") || file.endsWith(".tsx.tmpl") ? ts.ScriptKind.TSX : ts.ScriptKind.TS
+    const kind = file.endsWith(".tsx") ? ts.ScriptKind.TSX : ts.ScriptKind.TS
     const source = ts.createSourceFile(file, text, ts.ScriptTarget.Latest, false, kind)
     // parseDiagnostics is not on the public type but is present on the node and is
     // the only way to get parser errors without a full Program.

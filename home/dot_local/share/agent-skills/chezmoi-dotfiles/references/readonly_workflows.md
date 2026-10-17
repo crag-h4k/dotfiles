@@ -61,7 +61,8 @@ target ownership when another account uses a shared source checkout.
 Record the chain: terminal/client, SSH, tmux or direct session, application, and
 versions. Compare the failing chain with a working path. Check glyph width,
 truecolor, capability probes, raw reply bytes, bindings, and parser availability.
-Use OpenCode's existing `/demo diagnostics` for footer display; preserve its
+For the OpenCode footer, reproduce display issues against the pinned
+`opencode-pillbox-statusline` release and its render tests; keep `/demo` to its
 minimal model usage. Font changes alone do not settle rendering failures.
 
 For tmux, test a separate socket and verify fresh-server configuration loading,

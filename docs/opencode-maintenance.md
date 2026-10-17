@@ -49,18 +49,22 @@ CLI, server, plugin SDK, and terminal versions when diagnosing compatibility.
   Resolve OpenTUI and Solid.js against the selected SDK's declared peers through
   `npm-candidate.sh`. Runtime aging exceptions cover `@opencode/*` and
   `@opentui/*`, not all npm packages. Metadata failure must not start installation.
-- Keep the managed footer on the shared palette and native V2 rendering API.
-  Provider usage belongs at the far right. Preserve monthly Copilot and weekly
-  quota coverage for direct logins and compatible gateways when available.
-  Distinguish unavailable quota data from a measured zero; keep refreshes off the
-  render path and do not expose credentials in diagnostics.
+- The footer is the `opencode-pillbox-statusline` package. Dotfiles owns its
+  exact pin in both config files, the `opencode.jsonc` audit comment, and the
+  seeded `cli.json` color options; pill behavior, quota sources, and their
+  tests belong upstream. Re-audit the package before every pin bump, and keep
+  Copilot tiers opt-in. Keep color overrides as theme tokens with a fallback,
+  not palette hex values; `tests/test_opencode_theme.py` proves the hues.
+  Retire a removed managed entry through `RETIRED_PLUGINS` in the `cli.json`
+  merge and its files through `home/.chezmoiremove`.
 - Diagnose glyph widths, capability probes, RGB backgrounds, and tmux differences
   in the actual terminal chain. The project supports Ghostty over SSH and tmux,
   and has regression history with Termius. Changing the font alone is insufficient
-  evidence. Use the existing demo diagnostics and automated footer tests.
-- Preserve the inexpensive `/demo` path. A showcase should not require extra
-  model calls or filesystem changes. Maintenance command routers are prompt-only,
-  treat arguments as task data, and grant no additional tool permissions.
+  evidence. Pillbox's `nerd-bmp` icon set avoids glyphs above U+FFFF.
+- Preserve the inexpensive `/demo` path in `v2-plugins/demo`. A showcase should
+  not require extra model calls or filesystem changes. Maintenance command
+  routers are prompt-only, treat arguments as task data, and grant no additional
+  tool permissions.
 - The terminal session-workflow plugin switches the current session among
   Build, Plan, and Auto. It does not reorder native tabs. Auto is a primary
   agent; the terminal plugin replies once to its permission asks while

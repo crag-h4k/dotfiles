@@ -25,10 +25,24 @@
 #            has never heard of (newer OpenCode releases add settings).
 #
 # "plugins" is an ordered array of enablement directives and package
-# declarations. The merge appends any missing managed entry in managed order and
-# leaves every other entry, and the order of the existing ones, alone. Local
+# declarations. The merge drops RETIRED_PLUGINS, which name files or packages
+# dotfiles no longer ships, then appends any missing managed entry in managed
+# order. Every other entry, and the order of the existing ones, stays put. Local
 # entries and later "-id" controls therefore survive. To opt out of a managed
 # plugin, append its "-id" control to this array.
+#
+# An npm entry matches by package name, whatever version it pins. The managed
+# pin is OWNED, so a version bump rewrites the existing entry's "package"
+# instead of appending a second one. Its "options" are SEEDED per leaf: options
+# you edit in this file survive, and a new dotfiles option still arrives. The
+# one exception is pills.tier.ramp, which is OWNED by the tierIcons data key so
+# changing that key keeps working after the first apply.
+#
+# opencode-pillbox-statusline draws the footer. Its server half loads from
+# opencode.jsonc; the entry here configures the TUI half. The seeded options
+# pin the yellow and cyan pills to the palette hues that gud-lucent defines,
+# with theme fallbacks for other themes. Full option reference: the package
+# README and schema.json.
 #
 # ~/.config/opencode/cli.override.json is separate and wins at runtime: the
 # opencode2 wrapper exports it as OPENCODE_CLI_CONFIG_CONTENT. Nested objects
@@ -40,20 +54,46 @@
 # target, never block the rest of the apply.
 #
 # The file is gated wholesale in home/.chezmoiignore under ai > opencode. It is
-# a .tmpl so the check-json hook skips it; it uses no template syntax.
+# a .tmpl so the check-json hook skips it; its only template value is the
+# tierIcons data key ("value" or "heat"), which sets the tier pill's icon ramp.
+import copy
 import json
+import re
 import sys
 
 OWNED = "owned"
 SEEDED = "seeded"
 ENSURED = "ensured"
 
+YELLOW = ["hue.yellow", "feedback.warning"]
+CYAN = ["hue.cyan", "hue.accent"]
+PILLBOX_OPTIONS = {
+    "pills": {
+        "git": {"dirtyAccent": YELLOW},
+        "identity": {"effortColor": YELLOW},
+        "provider": {"warning": YELLOW},
+        "spinner": {"accent": CYAN},
+        "elapsed": {"accent": CYAN},
+        "context": {"accent": CYAN},
+        "tier": {"ramp": {{ dig "tierIcons" "value" . | toJson }}},
+    },
+}
+
 MANAGED_PLUGINS = (
     "-opencode.prompt.footer",
+    "./v2-plugins/agent-catalog",
+    "./v2-plugins/demo",
+    {"package": "opencode-pillbox-statusline@0.1.0", "options": PILLBOX_OPTIONS},
+)
+# The local footer and the stock TUI half it replaced. A stale local path
+# fails to load, so the merge removes these instead of leaving them behind.
+RETIRED_PLUGINS = (
     "-opencode-copilot-statusline.tui",
     "./v2-plugins/statusline",
-    "./v2-plugins/agent-catalog",
 )
+NPM_SPEC = re.compile(r"(@[a-z0-9._-]+/[a-z0-9._-]+|[a-z0-9._-]+)@[^/\s]+")
+# Option paths re-asserted from the managed entry on every apply.
+OWNED_OPTIONS = (("pills", "tier", "ramp"),)
 
 # (path, value, ownership), applied in order so a first install lists keys in
 # this order. tabs.enabled is the legacy form of tabs.mode and loses to it, so
@@ -106,17 +146,65 @@ def group(data, path):
     return node
 
 
-def plugin_name(entry):
-    if isinstance(entry, dict):
-        return entry.get("package")
+def plugin_key(entry):
+    """Name an entry; an npm spec matches whatever version it pins."""
+    name = entry.get("package") if isinstance(entry, dict) else entry
+    if not isinstance(name, str):
+        return None
+    match = NPM_SPEC.fullmatch(name)
+    return match.group(1) if match else name
+
+
+def seed(target, defaults):
+    for key, value in defaults.items():
+        if key not in target:
+            target[key] = copy.deepcopy(value)
+        elif isinstance(target[key], dict) and isinstance(value, dict):
+            seed(target[key], value)
+
+
+def own(options, managed):
+    """Re-assert OWNED_OPTIONS from the managed options onto the entry's options."""
+    if not isinstance(options, dict) or not isinstance(managed, dict):
+        return
+    for path in OWNED_OPTIONS:
+        value = managed
+        for key in path:
+            value = value.get(key) if isinstance(value, dict) else None
+        if value is None:
+            continue
+        node = options
+        for key in path[:-1]:
+            if not isinstance(node.get(key), dict):
+                node[key] = {}
+            node = node[key]
+        node[path[-1]] = copy.deepcopy(value)
+
+
+def pin(entry, managed):
+    """Own a present entry's package spec; seed its options per leaf."""
+    if not isinstance(entry, dict):
+        return copy.deepcopy(managed)
+    if isinstance(managed, dict):
+        entry["package"] = managed["package"]
+        seed(entry, {key: value for key, value in managed.items() if key != "package"})
+        own(entry.get("options"), managed.get("options"))
+    else:
+        entry["package"] = managed
     return entry
 
 
 def ensure_plugins(data, key, wanted):
     current = data.get(key)
-    entries = current if isinstance(current, list) else []
-    present = {plugin_name(entry) for entry in entries}
-    entries.extend(name for name in wanted if name not in present)
+    retired = {plugin_key(entry) for entry in RETIRED_PLUGINS}
+    entries = [entry for entry in (current if isinstance(current, list) else [])
+               if plugin_key(entry) not in retired]
+    for managed in wanted:
+        matches = [i for i, entry in enumerate(entries) if plugin_key(entry) == plugin_key(managed)]
+        for i in matches:
+            entries[i] = pin(entries[i], managed)
+        if not matches:
+            entries.append(copy.deepcopy(managed))
     data[key] = entries
 
 

@@ -375,8 +375,8 @@ prompt. The target stays valid JSON with mode `0600`.
 
 | Class | Keys | On every apply |
 | --- | --- | --- |
-| Enforced | `$schema`, `attention.notifications`, `attention.sound`, `keybinds.leader`, `leader.timeout`, the managed `plugins` entries | Reset to the managed value |
-| Seeded | Theme, tabs, the other keybinds, session, animations, diffs, terminal | Added only when that key is absent; an existing value is never changed |
+| Enforced | `$schema`, `attention.notifications`, `attention.sound`, `keybinds.leader`, `leader.timeout`, the managed `plugins` entries and their npm pins | Reset to the managed value |
+| Seeded | Theme, tabs, the other keybinds, session, animations, diffs, terminal, managed plugin `options` | Added only when that key is absent; an existing value is never changed |
 | Kept | Everything else | Untouched, including keys that newer OpenCode releases add |
 
 The enforced keys protect integrations. `attention.notifications` and
@@ -385,7 +385,7 @@ tints the pane and window tab instead and deliberately raises no popups, so a
 settings toggle that turned the native alerts on would double every signal. The
 leader and its timeout are fixed because the session-workflow plugin and the
 tab bindings assume `Ctrl+G`. The `plugins` array turns off the stock footer
-and Copilot quota renderer and loads the local statusline and agent catalog.
+and loads the pillbox footer's terminal half, the agent catalog, and `/demo`.
 
 Seeding is per key. A default added to the repository later reaches existing
 hosts, and a value you changed is never touched. The cost is that a seeded key
@@ -393,9 +393,13 @@ you delete comes back on the next apply; set it to the value you want instead.
 `tabs.enabled` is the legacy form of `tabs.mode` and loses to it, so the merge
 does not seed `tabs.mode` next to an existing `tabs.enabled`.
 
-The merge appends any missing managed `plugins` entry and leaves your own
-entries, their order, and later `-id` controls alone. To turn off a managed
-plugin, append its control, for example `-dotfiles.agent-catalog`.
+The merge removes retired dotfiles entries, such as the old
+`./v2-plugins/statusline` path, then appends any missing managed `plugins`
+entry. It leaves your own entries, their order, and later `-id` controls alone.
+An npm entry matches by package name whatever its version, so a pin bump
+rewrites `package` in place and keeps the entry's options, which are seeded per
+key like the settings above. To turn off a managed plugin, append its control,
+for example `-dotfiles.agent-catalog`.
 
 `cli.override.json` is separate and wins at runtime. Nested objects merge over
 `cli.json`, but arrays and scalars replace it, with two consequences:
@@ -403,7 +407,7 @@ plugin, append its control, for example `-dotfiles.agent-catalog`.
 | Override | Effect |
 | --- | --- |
 | `{"attention":{"notifications":true}}` | Turns native banners on for that host, even though chezmoi keeps `cli.json` at `false` |
-| `{"plugins":["./v2-plugins/local/x"]}` | Replaces the whole array, so the managed statusline and agent catalog stop loading unless the override restates them |
+| `{"plugins":["./v2-plugins/local/x"]}` | Replaces the whole array, so the managed footer, agent catalog, and `/demo` stop loading unless the override restates them |
 
 If `cli.json` is not a JSON object, the merge leaves it unchanged and prints a
 warning, so a hand edit is never destroyed.
@@ -432,20 +436,20 @@ This example omits the generated audit comments:
   "$schema": "https://opencode.ai/config.json",
   "plugins": [
     // dotfiles:plugins:start
-    "opencode-copilot-statusline@1.0.0",
+    "opencode-pillbox-statusline@0.1.0",
     // dotfiles:plugins:end
     {
       "package": "@example/reviewer@1.2.3",
       "options": { "strict": true }
     },
     "./v2-plugins/local/reviewer",
-    "-opencode-copilot-statusline"
+    "-pillbox"
   ]
 }
 ```
 
-OpenCode processes controls in order. A local `-opencode-copilot-statusline`
-after the managed section disables the quota plugin. Wildcard controls are also
+OpenCode processes controls in order. A local `-pillbox` control after the
+managed section disables the plugin with that id, pillbox's server half. Wildcard controls are also
 preserved, without sorting or deduplication. See the
 [V2 plugin guide](https://opencode.ai/v2/docs/plugins/#control).
 CLI-only plugins still belong in `cli.override.json`; this merge does not change
@@ -457,8 +461,8 @@ options and their comments survive pin updates. When a later dotfiles revision
 retires a managed registration, it removes that registration only. It does not
 delete independently added entries, plugin installations, or runtime data.
 
-The first apply adopts a single exact existing
-`opencode-copilot-statusline@1.0.0` registration, including the object form.
+The first apply adopts a single exact existing registration of a managed pin,
+such as `opencode-pillbox-statusline@0.1.0`, including the object form.
 Other unmarked V2 entries remain local. A competing version, duplicate
 registration, malformed JSONC, or ambiguous marker pair produces a warning and
 leaves the entire target unchanged. The rest of the apply can continue.

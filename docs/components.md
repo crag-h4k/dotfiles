@@ -269,90 +269,67 @@ provider authentication, loopback-only service activation, and trial measurement
 
 ### OpenCode V2 footer
 
-OpenCode V2 loads a local CLI plugin from
-`~/.config/opencode/v2-plugins/statusline/tui.tsx`. `cli.json` names its parent
-package directory explicitly, which keeps it outside automatic server-plugin
-discovery. It disables the stock `opencode.prompt.footer` and
-`opencode-copilot-statusline.tui` renderers, then replaces
-`prompt.footer.status`. This removes the command-palette hint and idle working
-directory while keeping editor-file context in `prompt.footer.file`.
+The footer comes from the
+[opencode-pillbox-statusline](https://github.com/crag-h4k/opencode-pillbox-statusline)
+npm package, exact-pinned at `0.1.0`. It draws a row of pills: project, Git,
+agent and model, elapsed time, subagents, context, session cost, model tier,
+and provider quota at the right edge. As the terminal narrows, lower-priority
+pills shrink and then drop. Colors come from the active OpenCode theme, so
+`gud-lucent` keeps the footer on the shared palette.
 
-V2's local-path loader does not provide the `@opencode/plugin` and OpenTUI peer
-packages advertised by its documentation. Package mode installs a matching,
-unlocked runtime under `~/.local/share/opencode2/plugin-runtime` and links its
-`node_modules` into `~/.config/opencode`. Chezmoi does not track the runtime,
-manifest, lockfile, or dependency tree.
+OpenCode passes `opencode.jsonc` options only to a plugin's server half, so
+dotfiles registers the package twice:
 
-The local renderer reproduces context usage and aggregate session cost. Its
-provider pill follows the active session model automatically. GitHub Copilot
-uses the `opencode-copilot-statusline@1.0.0` server RPC for monthly used
-percentage. OpenAI with ChatGPT OAuth uses the local `plugin/codex-quota.ts`
-RPC for weekly remaining percentage, shown as `Codex 63% left`. API-key OpenAI
-has no subscription quota pill. If OAuth quota is unavailable, the pill says
-`Codex unavailable`. The Codex RPC queries an undocumented ChatGPT usage
-endpoint with the active OpenCode credential and returns only quota data.
+- `opencode.jsonc` loads the server half, which fetches provider quota. The
+  managed entry carries the audit comment for the pinned version.
+- `cli.json` loads the terminal half with the dotfiles options, after
+  `-opencode.prompt.footer` disables the stock footer and its command-palette
+  hint.
 
-The existing `plugin/provider-usage.ts` RPC supplies Claude and gateway
-subscription limits. Available windows show labels such as
-`5h 12% · week 34%`, with missing windows omitted. Codex windows are classified
-by their reported duration, including accounts whose primary window is weekly.
-Providers without a quota source have no pill. There is no separate Gum
-component or quota configuration switch.
-Provider usage sits at the far right, after the model tier. When quota data
-is available, the footer reserves 50 columns for it and delays less essential
-pills. It appears from 125 columns with Git or 95 without Git, so a 151-column
-iPad terminal can show the quota and context together. Context and cost remain
-separate left-aligned pills. Reset countdowns are omitted.
+The managed options color the dirty-Git, effort, and quota-warning pills
+`hue.yellow`, and the spinner, elapsed, and context pills `hue.cyan`. The native
+`gud-lucent` theme maps both hues to the exact palette colors; other themes
+fall back to `feedback.warning` and `hue.accent`. The `tierIcons` chezmoi data
+key (`value` or `heat`) sets the tier pill's icon ramp on every apply.
 
-Gateways can publish sanitized quota figures in
-`~/.cache/opencode/provider-usage/usage.json`, or override the path with
-`OPENCODE_PROVIDER_USAGE_FILE` in the server environment. The file contains a
-`providers` object keyed by the configured provider ID, with `updatedAt` as Unix
-milliseconds and `windows` entries containing `period` (`5h` or `week`) and
-`usedPercent`. The server strips other fields before returning RPC data. Brain's
-collector supplies `household` this way; upstream credentials stay in the
-gateway's private storage. Figures expire after five minutes, and direct-account
-switches clear the previous account's cache.
+Change options in the pillbox entry of `~/.config/opencode/cli.json`. The merge
+owns the version pin and the tier ramp, and seeds the other options one key at
+a time, so your edits survive `chezmoi apply`. Change the ramp through
+`tierIcons` instead. A managed option you delete comes back on the next apply;
+set it to the value you want instead. The pillbox README covers every option,
+the layout rules, and each quota endpoint.
 
-```text
-󰉋 project   main •2 +14 -3  ⠋ 󰚩 build · gpt-5.6-sol · xhigh  󰥔 12m  O 1 run  󰍛 43.9K (4%)  ≈ $23.79  󰊤 GitHub Copilot 52%
+Copilot model tiers stay off. Without them the tier pill bands models by
+catalog price and makes no network call. Turning them on sends Copilot `/models`
+requests that identify as VS Code Copilot Chat; read the README's data and
+privacy section first. To opt in, replace the managed string in
+`opencode.jsonc` with the object form below. The merge keeps its options when it
+bumps the pin.
+
+```jsonc
+{ "package": "opencode-pillbox-statusline@0.1.0", "options": { "tiers": true } }
 ```
 
-| Pill | Data | Display rule |
-| --- | --- | --- |
-| Project | Project name, falling back to the working-directory basename | Always visible as the compact baseline |
-| Git | Branch plus dirty-file count; additions and deletions when expanded | Hidden outside a repository |
-| Identity | Active agent, shortened model ID, and effort variant | From 85 columns without Git or 125 columns with Git |
-| Foreground spinner | Cyan single-cell animation before the identity pill | While the active session runs model or tool work; hidden while idle, waiting for input, or in shell mode |
-| Elapsed | Wall-clock age since session creation | From 115 columns without Git or 150 columns with Git |
-| Subagents | Running child sessions and queued child prompts | Orange single-cell animation while children run; static icon for queued-only work; hidden without child work |
-| Context | Latest post-compaction context usage | Left-aligned pill; survives longest among usage pills |
-| Estimated cost | Aggregate session-family cost | Left-aligned pill; hidden before context at narrow widths |
-| Provider limit | Copilot monthly used percentage, OpenAI weekly remaining percentage, or available Claude/gateway subscription windows | Follows the active provider; visible from 125 columns with Git or 95 without; reserves space before identity, elapsed time and cost; no reset countdown |
+On existing hosts, `home/.chezmoiremove` deletes the old local footer
+(`v2-plugins/statusline`) and its `plugin/` quota helpers, and the `cli.json`
+merge drops their registrations.
 
-The plugin refreshes Git status after filesystem and branch events with a 250
-ms debounce, and refreshes provider limits every 60 seconds. During execution
-the configured interrupt shortcut precedes the pills while the latest usage
-values remain visible when width permits. Shell mode shows its exit guidance. Its colors
-render from `.chezmoidata/palettes.yaml`, so changing `data.palette` keeps the
-pills aligned with `gud-lucent`, tmux, Ghostty, and the rest of the rice.
-
-The spinner clock exists only while a visible foreground spinner or running
-child needs it. Both animations can appear together. Foreground and subagent
-frames update only their single-cell glyphs, leaving Git, context, cost, and
-quota calculations off the animation path.
+The local CLI plugins (the agent catalog and `/demo`) import `@opencode/plugin`,
+OpenTUI, and Solid. `sync-runtime.sh` installs versions matching the CLI into
+`~/.config/opencode/node_modules`. Package mode runs it, and the `opencode2`
+wrapper reruns it at launch, where it exits early once the versions match.
+Chezmoi does not track that tree.
 
 Selecting `ai.opencode` includes this footer. The separate `ai.statusline`
 selection controls Claude's statusline and Codex's theme.
 
-`/demo` opens a fresh session using the selected provider and model, with the
-lowest supported reasoning variant. Its dedicated agent reads one small bundled
-file and answers in at most 60 words, with a two-step limit. It cannot edit files,
-run shell commands, or launch subagents. The completion toast reports actual
-usage; normal system and tool instructions still consume input tokens.
-`/demo diagnostics` opens a local glyph comparison and renderer-capability view
-without making a model request. Compare it inside and outside tmux when icons
-fail in a terminal client.
+`/demo` comes from a small dotfiles CLI plugin in `v2-plugins/demo`. It opens a
+fresh session using the selected provider and model, with the lowest supported
+reasoning variant. Its dedicated agent reads one small bundled file and answers
+in at most 60 words, with a two-step limit. It cannot edit files, run shell
+commands, or launch subagents. The completion toast reports actual usage;
+normal system and tool instructions still consume input tokens. `/demo` takes
+no arguments, and an argument never starts a model request.
 
 The same palette overrides the built-in prompt metadata colors through
 `agents.build.color` and `agents.plan.color`. Build renders in palette green;
