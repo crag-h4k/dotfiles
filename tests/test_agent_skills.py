@@ -302,6 +302,11 @@ class SkillDeploymentTests(unittest.TestCase):
         self.assertIn("Before any mutating Git operation", first)
         self.assertIn("at least two candidate commit messages", first)
         self.assertIn("Release Please Conventional Commit", first)
+        search_start = "<!-- dotfiles:shell-search:start -->"
+        search_end = "<!-- dotfiles:shell-search:end -->"
+        self.assertEqual(first.count(search_start), 1)
+        search_body = first.split(search_start)[1].split(search_end)[0]
+        self.assertIn("`rg`", search_body)
         self.run_chezmoi("apply", "--", str(target))
         self.assertEqual(target.read_text(), first)
         old = first.replace(
@@ -313,7 +318,7 @@ class SkillDeploymentTests(unittest.TestCase):
             "choose one with `question`. Permission prompts do not replace this decision.\n",
             "",
         )
-        target.write_text(old)
+        target.write_text(old.replace(search_body, "\nOutdated search rule.\n"))
         self.run_chezmoi("apply", "--", str(target))
         self.assertEqual(target.read_text(), first)
 
@@ -327,11 +332,19 @@ class SkillDeploymentTests(unittest.TestCase):
         self.run_chezmoi("apply", "--", str(target))
         without = target.read_text()
         self.assertNotIn(marker, without)
+        self.assertNotIn("openviking_find", without)
         self.config.write_text(VALIDATOR.component_config({"opencode", "openviking"}))
         self.run_chezmoi("apply", "--", str(target))
         selected = target.read_text()
         self.assertIn("Keep my custom rule.", selected)
         self.assertEqual(selected.count(marker), 1)
+        memory_end = "<!-- dotfiles:openviking-memory:end -->"
+        memory_body = selected.split(marker)[1].split(memory_end)[0]
+        self.assertIn("openviking_find", memory_body)
+        self.assertIn('context_type=["skill"]', memory_body)
+        self.run_chezmoi("apply", "--", str(target))
+        self.assertEqual(target.read_text(), selected)
+        target.write_text(selected.replace(memory_body, "\nOld memory rule.\n"))
         self.run_chezmoi("apply", "--", str(target))
         self.assertEqual(target.read_text(), selected)
         self.config.write_text(VALIDATOR.component_config({"opencode"}))

@@ -214,9 +214,15 @@ settings in these files, and `chezmoi update` keeps working:
 - OpenCode CLI settings: `~/.config/opencode/cli.override.json`
 - OpenCode launch behavior: `~/.config/opencode/override.zsh`
 
-With `ai > opencode` selected, chezmoi also merges a portable preference into
-`~/.config/opencode/AGENTS.md`: use the `question` tool when asking how to
-proceed or how to evaluate options. Existing local instructions stay intact.
+With `ai > opencode` selected, chezmoi also merges portable preferences into
+`~/.config/opencode/AGENTS.md`: use the `question` tool for decisions and Git
+write approvals, and use `rg` instead of `grep` for shell searches, including
+SSH commands and pipeline filters. Dedicated search tools remain preferred.
+Selecting OpenViking adds find-before-local-loaders guidance; see
+[OpenViking memory](openviking.md#review-and-clean-up-memories).
+Existing local instructions stay intact. These are agent instructions, not
+shell aliases or a change to third-party scripts. A normal apply updates them;
+source edits alone do not change an already installed configuration.
 Its OpenCode config merge adds Plan handoff access for the two documented roots
 without replacing unrelated local Plan rules. Host-specific roots still need a
 private permission overlay.

@@ -417,7 +417,14 @@ Selecting OpenViking also adds a short memory block to the managed OpenCode
 global instructions. While the OpenViking tools and service are ready, it is the
 canonical store, and a fact is not written to a second memory store. Conflicts
 go back to the primary evidence; OpenViking wins unless the other source is
-newer. The next apply after deselecting OpenViking removes the block.
+newer. Before local skill loaders or file-memory searches, the agent queries
+the runtime's registered find tool (`openviking_find` or `ov_find`), even when
+the local catalog already lists a matching skill. Skill discovery uses
+`context_type=["skill"]`; returned manifests are read through OpenViking before
+loading applicable local skills. Local-skill precedence stays intact. Missing
+tools, failed searches, and irrelevant results fall back to local guidance with
+the limitation reported. Retrieval does not authorize skill installation.
+The next apply after deselecting OpenViking removes the block.
 
 ## OpenCode permissions
 

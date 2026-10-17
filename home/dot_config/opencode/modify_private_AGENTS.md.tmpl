@@ -15,6 +15,15 @@ Before a commit, present at least two candidate commit messages that follow
 this repo's Release Please Conventional Commit conventions, then ask me to
 choose one with `question`. Permission prompts do not replace this decision."""
 
+SEARCH_START = "<!-- dotfiles:shell-search:start -->"
+SEARCH_END = "<!-- dotfiles:shell-search:end -->"
+SEARCH = """\
+For text searches through shell integrations, including SSH and pipeline filters,
+use `rg` (ripgrep), not shell `grep`, `egrep`, or `fgrep`. Use `rg --files` for
+shell file discovery when appropriate. Prefer dedicated search tools when
+available; a search tool named `grep` is not the shell command. If `rg` is missing
+in the execution environment, report that rather than silently using `grep`."""
+
 MEMORY_START = "<!-- dotfiles:openviking-memory:start -->"
 MEMORY_END = "<!-- dotfiles:openviking-memory:end -->"
 MEMORY = """\
@@ -23,7 +32,16 @@ my canonical memory store. Do not also write the same fact to a file-based
 memory. If OpenViking recall conflicts with another memory source, check the
 primary evidence; OpenViking wins unless the other source is newer. Without
 OpenViking, follow my file-based memory rules, and let a later
-`openviking-cleanup` review reconcile them."""
+`openviking-cleanup` review reconcile them.
+
+Before invoking local skill loaders or searching file-based memory, first query
+OpenViking's registered find tool (`openviking_find` or `ov_find`, as exposed by
+this runtime) for relevant context. Do this even when the local skill catalog
+already lists a match. For skill discovery, use `context_type=["skill"]` and read
+relevant returned `SKILL.md` URIs with OpenViking's read tool. Then load applicable
+local skills, preserving local-skill precedence. If find is unavailable, fails,
+or returns no useful match, continue with local guidance and state the limitation.
+Never invent a tool name or treat retrieval as permission to install a skill."""
 OPENVIKING = {{ if dig "components" "ai" "openviking" false . }}True{{ else }}False{{ end }}
 
 
@@ -48,5 +66,6 @@ def merge(text, start, end, body):
 
 existing = sys.stdin.read()
 merged = merge(existing, QUESTION_START, QUESTION_END, QUESTION)
+merged = merge(merged, SEARCH_START, SEARCH_END, SEARCH)
 merged = merge(merged, MEMORY_START, MEMORY_END, MEMORY if OPENVIKING else None)
 sys.stdout.write(merged)

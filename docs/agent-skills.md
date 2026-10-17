@@ -192,6 +192,14 @@ tree only with available host support. Independent feature work does not reuse
 another task's worktree. Branches and trees remain after merge unless cleanup
 is separately authorized.
 
+The maintenance, worktree, and publishing skills probe `--is-bare-repository`
+and `--is-inside-work-tree` before checkout-only checks. `~/dotfiles` can point
+to a bare chezmoi repository even when source files sit beside `.git`.
+Worktree creation uses the discovered Git directory; status, staging, and
+publishing use the verified task checkout. Existing source edits stay in place.
+The skills do not change `core.bare` or `core.worktree` to suppress
+`fatal: this operation must be run in a work tree`.
+
 The source revision, selected-file hashes, and adaptation boundaries are in
 `~/.local/share/agent-skills/PROVENANCE.md`. Each package includes the original
 MIT license. Updates are reviewed source changes, not floating downloads.
