@@ -144,7 +144,8 @@ NEW_AGENTS = """\
   }""" % (BUILD_COLOR, PLAN_COLOR, plan_handoff_rules("        "))
 
 MANAGED_PLUGINS = (
-    "opencode-copilot-statusline@1.0.0",
+    "opencode-pillbox-statusline@0.1.0",
+    "opencode-sidequest@0.1.0",
 {{ if dig "components" "ai" "openviking" false . }}
     "@openviking/opencode-plugin@2026.10.7",
 {{ end }}
@@ -154,12 +155,22 @@ PLUGINS_END = "// dotfiles:plugins:end"
 PLUGIN_AUDIT = """\
     // Managed OpenCode V2 plugins, EXACT-pinned. Review every version bump:
     // each plugin runs arbitrary code at startup.
-    // opencode-copilot-statusline supplies monthly Copilot quota over RPC.
-    // Audited @1.0.0: resolves the existing github-copilot credential and sends
-    // it only to GitHub's undocumented Copilot quota API. No telemetry or
-    // install-time scripts. cli.json disables its stock TUI half; the local
-    // footer displays the quota after session cost, without a reset countdown.
-    // A GitHub API change can make the quota unavailable.
+    // opencode-pillbox-statusline draws the footer. This entry loads its server
+    // half; cli.json registers the TUI half with the dotfiles color options.
+    // Audited @0.1.0: resolves existing provider logins and sends each only to
+    // its quota endpoint: api.github.com or the Enterprise API host
+    // (/copilot_internal/user), chatgpt.com (wham/usage), and api.anthropic.com
+    // (oauth/usage). Reads an optional local gateway quota file. Returns only
+    // quota figures, never credentials. The Copilot /models request, sent with
+    // VS Code Copilot Chat integration headers, runs only with "tiers": true;
+    // this plain pin leaves it off. No install-time scripts or runtime npm
+    // dependencies. An undocumented endpoint change makes a quota unavailable.
+    // opencode-sidequest runs explicit DAG requests in child sessions and adds
+    // a terminal side panel. Reviewed source for @0.1.0: prompts go through the
+    // configured OpenCode providers; run state and bounded outputs are stored
+    // locally. The panel can read and message each step. Host permissions still
+    // apply. No direct provider HTTP calls, install-time scripts, or runtime npm
+    // dependencies. Verify the published tarball before the first deployment.
 {{ if dig "components" "ai" "openviking" false . }}
     // OpenViking: upstream V2 hooks provide automatic recall and capture.
     // Audited @2026.10.7: captures user/assistant messages and tool output,
@@ -169,6 +180,15 @@ PLUGIN_AUDIT = """\
     // No install-time scripts or runtime npm dependencies. Configure the private
     // client and validate its server before enabling capture in a live session.
 {{ end }}"""
+# Retained only to recognize audit lines from retired pins. Without this, the
+# merge keeps them as local comments inside the managed section.
+RETIRED_AUDIT = """\
+    // opencode-copilot-statusline supplies monthly Copilot quota over RPC.
+    // Audited @1.0.0: resolves the existing github-copilot credential and sends
+    // it only to GitHub's undocumented Copilot quota API. No telemetry or
+    // install-time scripts. cli.json disables its stock TUI half; the local
+    // footer displays the quota after session cost, without a reset countdown.
+    // A GitHub API change can make the quota unavailable."""
 
 # Retained byte-for-byte only to recognize and migrate the old generated seed.
 LEGACY_SEED_PERMISSION = """\
@@ -814,7 +834,7 @@ def merge_plugins(block):
         head = source[1:source.rfind("\n", 0, first.start()) + 1]
         tail = source[last.end():-1]
         local = [entry for entry in entries if entry not in owned]
-        audit = {line.strip() for line in PLUGIN_AUDIT.split("\n")}
+        audit = {line.strip() for line in (PLUGIN_AUDIT + "\n" + RETIRED_AUDIT).split("\n")}
         for token in JSONC_TOKEN.finditer(source, first.end(), last.start()):
             if (token.group().startswith(("//", "/*")) and token.group().strip() not in audit and
                     not any(entry["start"] <= token.start() < entry["end"] for entry in owned)):

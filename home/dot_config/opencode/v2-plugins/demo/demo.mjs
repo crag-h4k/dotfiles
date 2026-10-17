@@ -1,5 +1,4 @@
-import { homedir } from "node:os"
-import { join } from "node:path"
+// ~/.config/opencode/v2-plugins/demo/demo.mjs
 
 export function demoModel(current, variants) {
   const variant = ["none", "minimal", "low", "medium", "high", "xhigh", "max"].find(
@@ -8,14 +7,10 @@ export function demoModel(current, variants) {
   return { providerID: current.providerID, id: current.modelID, ...(variant ? { variant } : {}) }
 }
 
-export async function runDemo(context, input, showDiagnostics, directory) {
+export async function runDemo(context, input, directory) {
   const argument = (input ?? "").trim().replace(/^\/?demo(?:\s+|$)/, "").trim()
-  if (argument === "diagnostics") {
-    showDiagnostics(context)
-    return
-  }
   if (argument) {
-    context.ui.toast.show({ message: "Use /demo or /demo diagnostics", variant: "warning" })
+    context.ui.toast.show({ message: "Use /demo without arguments", variant: "warning" })
     return
   }
   const current = context.ui.model.current()
@@ -57,38 +52,4 @@ export async function runDemo(context, input, showDiagnostics, directory) {
     sessionID: session.id,
     duration: 10_000,
   })
-}
-
-export function registerDemo(context, showDiagnostics) {
-  const directory = join(homedir(), ".config/opencode/demo")
-  let running = false
-  context.keymap.layer(() => ({
-    mode: "global",
-    commands: [{
-      id: "dotfiles.demo",
-      title: "Demo: a small live task or terminal diagnostics",
-      group: "OpenCode setup",
-      palette: true,
-      slash: { name: "demo", arguments: true },
-      async run(input) {
-        if (running && !/\bdiagnostics\s*$/.test(input ?? "")) {
-          context.ui.toast.show({ message: "The demo is already running", variant: "info" })
-          return
-        }
-        const live = !/\bdiagnostics\s*$/.test(input ?? "")
-        if (live) running = true
-        try {
-          await runDemo(context, input, showDiagnostics, directory)
-        } catch (error) {
-          context.ui.toast.show({
-            title: "Demo failed",
-            message: error instanceof Error ? error.message : String(error),
-            variant: "error",
-          })
-        } finally {
-          if (live) running = false
-        }
-      },
-    }],
-  }))
 }

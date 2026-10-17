@@ -381,8 +381,9 @@ prompt. The target stays valid JSON with mode `0600`.
 
 | Class | Keys | On every apply |
 | --- | --- | --- |
-| Enforced | `$schema`, `attention.notifications`, `attention.sound`, `keybinds.leader`, `leader.timeout`, the managed `plugins` entries | Reset to the managed value |
-| Seeded | Theme, tabs, the other keybinds, session, animations, diffs, terminal | Added only when that key is absent; an existing value is never changed |
+| Enforced | `$schema`, `attention.notifications`, `attention.sound`, `keybinds.leader`, `leader.timeout`, the managed `plugins` entries and their npm pins | Reset to the managed value |
+| Seeded | Theme, tabs, the other keybinds, session, animations, diffs, terminal, managed plugin `options` | Added only when that key is absent; an existing value is never changed |
+| Migrated | The stock `session.sidebar.toggle` binding `<leader>b`, as a string or one-item list | Set to `none` to free Sidequest's panel toggle; custom bindings survive |
 | Kept | Everything else | Untouched, including keys that newer OpenCode releases add |
 
 The enforced keys protect integrations. `attention.notifications` and
@@ -391,7 +392,14 @@ tints the pane and window tab instead and deliberately raises no popups, so a
 settings toggle that turned the native alerts on would double every signal. The
 leader and its timeout are fixed because the session-workflow plugin and the
 tab bindings assume `Ctrl+G`. The `plugins` array turns off the stock footer
-and Copilot quota renderer and loads the local statusline and agent catalog.
+and configures the Pillbox and Sidequest terminal halves, the agent catalog,
+and `/demo`.
+
+Sidequest's `options.focusKey` is seeded to `<leader>p`, so `Ctrl+G`, then `P`
+focuses its panel without taking over the leader. Change it in the Sidequest
+entry's `options`; OC2's `keybinds` object does not accept plugin command IDs.
+Keep the exact Sidequest package reference the same in `opencode.jsonc` and
+`cli.json` so OpenCode loads one terminal instance with the terminal options.
 
 Seeding is per key. A default added to the repository later reaches existing
 hosts, and a value you changed is never touched. The cost is that a seeded key
@@ -399,9 +407,13 @@ you delete comes back on the next apply; set it to the value you want instead.
 `tabs.enabled` is the legacy form of `tabs.mode` and loses to it, so the merge
 does not seed `tabs.mode` next to an existing `tabs.enabled`.
 
-The merge appends any missing managed `plugins` entry and leaves your own
-entries, their order, and later `-id` controls alone. To turn off a managed
-plugin, append its control, for example `-dotfiles.agent-catalog`.
+The merge removes retired dotfiles entries, such as the old
+`./v2-plugins/statusline` path, then appends any missing managed `plugins`
+entry. It leaves your own entries, their order, and later `-id` controls alone.
+An npm entry matches by package name whatever its version, so a pin bump
+rewrites `package` in place and keeps the entry's options, which are seeded per
+key like the settings above. To turn off a managed plugin, append its control,
+for example `-dotfiles.agent-catalog`.
 
 `cli.override.json` is separate and wins at runtime. Nested objects merge over
 `cli.json`, but arrays and scalars replace it, with two consequences:
@@ -409,7 +421,7 @@ plugin, append its control, for example `-dotfiles.agent-catalog`.
 | Override | Effect |
 | --- | --- |
 | `{"attention":{"notifications":true}}` | Turns native banners on for that host, even though chezmoi keeps `cli.json` at `false` |
-| `{"plugins":["./v2-plugins/local/x"]}` | Replaces the whole array, so the managed statusline and agent catalog stop loading unless the override restates them |
+| `{"plugins":["./v2-plugins/local/x"]}` | Replaces the whole array, removing the managed footer/Sidequest options, agent catalog, and `/demo` declarations unless the override restates them; server-registered TUI plugins may still load with their defaults |
 
 If `cli.json` is not a JSON object, the merge leaves it unchanged and prints a
 warning, so a hand edit is never destroyed.
@@ -438,24 +450,29 @@ This example omits the generated audit comments:
   "$schema": "https://opencode.ai/config.json",
   "plugins": [
     // dotfiles:plugins:start
-    "opencode-copilot-statusline@1.0.0",
+    "opencode-pillbox-statusline@0.1.0",
+    "opencode-sidequest@0.1.0",
     // dotfiles:plugins:end
     {
       "package": "@example/reviewer@1.2.3",
       "options": { "strict": true }
     },
     "./v2-plugins/local/reviewer",
-    "-opencode-copilot-statusline"
+    "-pillbox"
   ]
 }
 ```
 
-OpenCode processes controls in order. A local `-opencode-copilot-statusline`
-after the managed section disables the quota plugin. Wildcard controls are also
+OpenCode processes controls in order. A local `-pillbox` control after the
+managed section disables the plugin with that id, pillbox's server half. Wildcard controls are also
 preserved, without sorting or deduplication. See the
 [V2 plugin guide](https://opencode.ai/v2/docs/plugins/#control).
 CLI-only plugins still belong in `cli.override.json`; this merge does not change
 their ownership.
+
+Sidequest's server id is `sidequest`; its terminal id is `sidequest.tui`. Disable
+the server with `-sidequest` after the managed section and the terminal half
+with `-sidequest.tui` in `cli.json.plugins` when turning off the whole plugin.
 
 You can change a managed string registration to an object with `package` and
 `options` inside the marked section. Dotfiles owns its package version; local
@@ -463,8 +480,8 @@ options and their comments survive pin updates. When a later dotfiles revision
 retires a managed registration, it removes that registration only. It does not
 delete independently added entries, plugin installations, or runtime data.
 
-The first apply adopts a single exact existing
-`opencode-copilot-statusline@1.0.0` registration, including the object form.
+The first apply adopts a single exact existing registration of a managed pin,
+such as `opencode-pillbox-statusline@0.1.0`, including the object form.
 Other unmarked V2 entries remain local. A competing version, duplicate
 registration, malformed JSONC, or ambiguous marker pair produces a warning and
 leaves the entire target unchanged. The rest of the apply can continue.

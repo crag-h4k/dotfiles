@@ -40,19 +40,15 @@ for palette in $(yq '.paletteOrder[]' "$SOURCE_DIR/.chezmoidata/palettes.yaml");
       and (.base.background.base == "transparent")
       and (.base.background.raised.base == "transparent")' "$TMP_DIR/opencode-gud-lucent.json" >/dev/null
 
-    render dot_config/opencode/v2-plugins/statusline/tui.tsx.tmpl > "$TMP_DIR/opencode-statusline.tsx"
-    grep -q '^  surface: "#[0-9a-fA-F]\{6\}",$' "$TMP_DIR/opencode-statusline.tsx"
     red=$(PALETTE="$palette" yq -r '.palettes[strenv(PALETTE)].colors.red' "$SOURCE_DIR/.chezmoidata/palettes.yaml")
-    grep -Fq "  auto: \"$red\"," "$TMP_DIR/opencode-statusline.tsx"
     render dot_config/opencode/agents/auto.md.tmpl > "$TMP_DIR/opencode-auto-agent.md"
     grep -q '^mode: primary$' "$TMP_DIR/opencode-auto-agent.md"
     grep -Fq "color: \"$red\"" "$TMP_DIR/opencode-auto-agent.md"
-    foreground_spinner=$(sed -n 's/^  foregroundSpinner: "\(#[0-9a-fA-F]\{6\}\)",$/\1/p' "$TMP_DIR/opencode-statusline.tsx")
-    background_spinner=$(sed -n 's/^  subagents: "\(#[0-9a-fA-F]\{6\}\)",$/\1/p' "$TMP_DIR/opencode-statusline.tsx")
-    [[ -n "$foreground_spinner" && -n "$background_spinner" ]]
-    [[ "$foreground_spinner" != "$background_spinner" ]]
 
-    printf '{}' | python3 "$SOURCE_DIR/dot_config/opencode/modify_private_cli.json.tmpl" > "$TMP_DIR/opencode-cli.json"
+    # The footer comes from opencode-pillbox-statusline and inherits gud-lucent,
+    # so cli.json carries theme tokens rather than palette values.
+    render dot_config/opencode/modify_private_cli.json.tmpl > "$TMP_DIR/opencode-cli-merge.py"
+    printf '{}' | python3 "$TMP_DIR/opencode-cli-merge.py" > "$TMP_DIR/opencode-cli.json"
     jq -e '.theme.name == "gud-lucent"
       and .tabs.mode == "on"
       and .attention.notifications == false
@@ -67,7 +63,10 @@ for palette in $(yq '.paletteOrder[]' "$SOURCE_DIR/.chezmoidata/palettes.yaml");
        and .leader.timeout == 1500
         and .session.sidebar == "hide"
         and .session.permissions == "prompt"
-        and (.plugins == ["-opencode.prompt.footer", "-opencode-copilot-statusline.tui", "./v2-plugins/statusline", "./v2-plugins/agent-catalog"])' "$TMP_DIR/opencode-cli.json" >/dev/null
+        and (.plugins[:3] == ["-opencode.prompt.footer", "./v2-plugins/agent-catalog", "./v2-plugins/demo"])
+        and (.plugins[3].package | startswith("opencode-pillbox-statusline@"))
+        and (.plugins[3].options.pills.git.dirtyAccent == ["hue.yellow", "feedback.warning"])
+        and (.plugins[3].options.pills.spinner.accent == ["hue.cyan", "hue.accent"])' "$TMP_DIR/opencode-cli.json" >/dev/null
 
     render dot_config/iterm2/dotfiles.json.tmpl > "$TMP_DIR/iterm2.json"
     jq -e '.Profiles | length == 2' "$TMP_DIR/iterm2.json" >/dev/null

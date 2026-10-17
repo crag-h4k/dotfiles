@@ -5,3 +5,10 @@
 .config/ghostty/themes/gud-theme.conf
 .config/statusline/gud-palette.sh
 .codex/themes/gud.tmTheme
+{{/* opencode-pillbox-statusline replaced the local OpenCode V2 footer and its
+     server plugins. Left behind, the plugin/ files keep auto-loading and serving
+     quota RPCs, including the Copilot /models call that pillbox makes opt-in. */}}
+.config/opencode/v2-plugins/statusline
+.config/opencode/plugin/copilot-tiers.ts
+.config/opencode/plugin/codex-quota.ts
+.config/opencode/plugin/provider-usage.ts

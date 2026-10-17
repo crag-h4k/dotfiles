@@ -215,9 +215,6 @@ Library/LaunchAgents/io.github.crag-h4k.dotfiles.openviking.plist
 .config/opencode/plugin/notify.ts
 .config/opencode/plugin/notify-filter.mjs
 .config/opencode/plugin/notify-shim.mjs
-.config/opencode/plugin/copilot-tiers.ts
-.config/opencode/plugin/codex-quota.ts
-.config/opencode/plugin/provider-usage.ts
 .config/opencode/sync-runtime.sh
 .config/opencode/v2-plugins
 .config/opencode/plugins/session-workflow
