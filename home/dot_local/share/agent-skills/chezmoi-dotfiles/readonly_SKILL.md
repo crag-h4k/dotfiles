@@ -11,10 +11,17 @@ It does not grant permission to deploy, run privileged commands, or publish.
 
 ## Locate the work
 
-If already in the requested checkout, use its Git root. Otherwise resolve the
-configured chezmoi source and its enclosing Git root. `~/dotfiles` may be a
-symlink and `.chezmoiroot` selects `home/`. Pass the repository root as
-`--source`. If multiple active checkouts could be the target, ask before editing.
+Resolve the candidate directory from the requested checkout or configured
+chezmoi source. `~/dotfiles` may be a symlink to a repository with `core.bare=true`
+and source files beside `.git`. Probe `rev-parse --is-bare-repository` and
+`rev-parse --is-inside-work-tree` there before `--show-toplevel`, status, or diffs.
+If outside a worktree, use `git-worktree` and `worktree list --porcelain` to
+locate the task's checkout or propose approved isolation. Do not change Git
+configuration or assume files beside a bare repository form a normal checkout.
+If multiple active checkouts could be the target, ask before editing.
+
+Inside the selected checkout, resolve its Git root. `.chezmoiroot` selects
+`home/`; pass the repository root as `--source`.
 
 Identify the execution host, branch, dirty/staged files, and active worktrees.
 An OpenCode2 client attached to a server can execute in another filesystem.
