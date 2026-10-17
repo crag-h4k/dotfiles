@@ -28,6 +28,7 @@ import pytest
 
 REPO = Path(__file__).parent.parent
 TMPL = REPO / "home" / "dot_config" / "opencode" / "modify_opencode.jsonc.tmpl"
+MANAGED_PLUGINS = ["opencode-pillbox-statusline@0.1.0", "opencode-sidequest@0.1.0"]
 
 pytestmark = pytest.mark.skipif(
     shutil.which("chezmoi") is None, reason="chezmoi not installed"
@@ -313,7 +314,7 @@ def test_empty_stdin_seeds_a_complete_generic_file(script):
             assert permission_effect(effective_rules, "edit", root + "Dotfiles/" + name) == "deny"
     assert permission_effect(plan_rules, "edit", "/opt/other/project.md") == "ask"
     assert permission_effect(plan_rules, "external_directory", "$HOME/.local/share/agent-skills/handoff/scripts/*") == "allow"
-    assert d["plugins"] == ["opencode-pillbox-statusline@0.1.0"]
+    assert d["plugins"] == MANAGED_PLUGINS
     # A fresh host must not come up unguarded.
     assert d["permissions"][0] == {
         "action": "*", "resource": "*", "effect": "ask",
@@ -335,9 +336,7 @@ def test_existing_v1_retirement_is_unchanged_but_local_v2_plugins_survive(script
     out, _ = merge(script, WORK)
     assert "stale@0.0.1" not in out
     assert "plugin" not in parse(out)
-    assert parse(out)["plugins"] == [
-        "opencode-pillbox-statusline@0.1.0", "stale-v2@0.0.1"
-    ]
+    assert parse(out)["plugins"] == MANAGED_PLUGINS + ["stale-v2@0.0.1"]
 
 
 # The managed section exactly as the previous dotfiles release wrote it.
@@ -365,9 +364,7 @@ def test_retired_quota_pin_and_its_audit_are_replaced_by_pillbox(script):
     src = '{\n' + RETIRED_COPILOT_SECTION + '}\n'
     out, err = merge(script, src)
     assert err == ""
-    assert parse(out)["plugins"] == [
-        "opencode-pillbox-statusline@0.1.0", "local-plugin@1.2.3", "-opencode-copilot-statusline"
-    ]
+    assert parse(out)["plugins"] == MANAGED_PLUGINS + ["local-plugin@1.2.3", "-opencode-copilot-statusline"]
     assert "opencode-copilot-statusline supplies" not in out
     assert "Audited @1.0.0" not in out
     assert "/* Keep this local note. */" in out
@@ -416,7 +413,8 @@ def test_local_plugin_bytes_options_and_order_survive(script):
     assert err == ""
     assert local in out
     assert '// Keep the local array comment.' in out
-    assert parse(out)["plugins"][1:] == parse('{"plugins": [' + local + ']}')["plugins"]
+    assert parse(out)["plugins"][:len(MANAGED_PLUGINS)] == MANAGED_PLUGINS
+    assert parse(out)["plugins"][len(MANAGED_PLUGINS):] == parse('{"plugins": [' + local + ']}')["plugins"]
     assert out.index('// dotfiles:plugins:end') < out.index('"-opencode-pillbox-statusline"')
     assert merge(script, out)[0] == out
 
@@ -430,19 +428,20 @@ def test_disable_and_reenable_controls_keep_their_order_and_duplicates(script, c
     src = '{\n  "plugins": ' + json.dumps(controls) + '\n}\n'
     out, err = merge(script, src)
     assert err == ""
-    assert parse(out)["plugins"] == ["opencode-pillbox-statusline@0.1.0"] + controls
+    assert parse(out)["plugins"] == MANAGED_PLUGINS + controls
     assert merge(script, out)[0] == out
 
 
 @pytest.mark.parametrize("position", [0, 1, 2])
-def test_exact_old_generated_entry_is_adopted_once(script, position):
+@pytest.mark.parametrize("package", MANAGED_PLUGINS)
+def test_exact_old_generated_entry_is_adopted_once(script, position, package):
     entries = ['"before@1"', '"after@2"']
-    entries.insert(position, '"opencode-pillbox-statusline@0.1.0"')
+    entries.insert(position, json.dumps(package))
     src = '{\n  "plugins": [' + ', '.join(entries) + ']\n}\n'
     out, err = merge(script, src)
     assert err == ""
-    assert parse(out)["plugins"] == ["opencode-pillbox-statusline@0.1.0", "before@1", "after@2"]
-    assert out.count('"opencode-pillbox-statusline@0.1.0"') == 1
+    assert parse(out)["plugins"] == MANAGED_PLUGINS + ["before@1", "after@2"]
+    assert out.count(json.dumps(package)) == 1
     assert out.count('// dotfiles:plugins:start') == 1
     assert merge(script, out)[0] == out
 
@@ -501,17 +500,17 @@ def test_cli_style_local_addition_survives_repeated_applies(script):
     initial, _ = merge(script, "")
     # Match the CLI's effect on the global config without installing a plugin.
     src = initial.replace('    // dotfiles:plugins:end', '    // dotfiles:plugins:end\n    "cli-added-plugin@latest",')
-    src = src.replace('    "opencode-pillbox-statusline@0.1.0"\n', '    "opencode-pillbox-statusline@0.1.0",\n')
+    src = src.replace('    "opencode-sidequest@0.1.0"\n', '    "opencode-sidequest@0.1.0",\n')
     out, err = merge(script, src)
     assert err == ""
-    assert parse(out)["plugins"] == ["opencode-pillbox-statusline@0.1.0", "cli-added-plugin@latest"]
+    assert parse(out)["plugins"] == MANAGED_PLUGINS + ["cli-added-plugin@latest"]
     assert merge(script, out)[0] == out
 
 
 def test_managed_entry_comments_survive_pin_updates(script, tmp_path):
     initial, _ = merge(script, "")
-    src = initial.replace('    "opencode-pillbox-statusline@0.1.0"',
-                          '    /* Local quota rationale. */\n    "opencode-pillbox-statusline@0.1.0" // Local inline rationale.')
+    src = initial.replace('    "opencode-pillbox-statusline@0.1.0",',
+                          '    /* Local quota rationale. */\n    "opencode-pillbox-statusline@0.1.0", // Local inline rationale.')
     bumped = managed_script(script, tmp_path, ["opencode-pillbox-statusline@2.0.0"])
     out, err = merge(bumped, src)
     assert err == ""
@@ -529,7 +528,9 @@ def test_managed_entry_comments_survive_pin_updates(script, tmp_path):
     '{"package": "opencode-pillbox-statusline", "options": {"keep": true}}',
     '"opencode-pillbox-statusline@0.1.0", "opencode-pillbox-statusline@0.1.0"',
 ])
-def test_ambiguous_unmarked_ownership_leaves_target_unchanged(script, entry):
+@pytest.mark.parametrize("package", ["opencode-pillbox-statusline", "opencode-sidequest"])
+def test_ambiguous_unmarked_ownership_leaves_target_unchanged(script, entry, package):
+    entry = entry.replace("opencode-pillbox-statusline", package)
     src = '{\n  "plugins": [' + entry + '],\n  "instructions": ["local.md"]\n}\n'
     out, err = merge(script, src)
     assert out == src
@@ -539,7 +540,7 @@ def test_ambiguous_unmarked_ownership_leaves_target_unchanged(script, entry):
 def test_competing_local_registration_after_managed_section_is_not_overwritten(script):
     initial, _ = merge(script, "")
     src = initial.replace('    // dotfiles:plugins:end', '    // dotfiles:plugins:end\n    "opencode-pillbox-statusline@9.0.0",')
-    src = src.replace('    "opencode-pillbox-statusline@0.1.0"\n', '    "opencode-pillbox-statusline@0.1.0",\n')
+    src = src.replace('    "opencode-sidequest@0.1.0"\n', '    "opencode-sidequest@0.1.0",\n')
     out, err = merge(script, src)
     assert out == src
     assert 'local registration conflicts' in err

@@ -106,12 +106,21 @@ verb and a group name.
 Unlike Claude and Codex, OpenCode splits attention into three groups, so the
 pane color says what it is waiting for:
 
-- `opencode` fires when a turn finishes, on `session.execution.succeeded`.
-- `opencode_permission` fires when a tool is blocked on approval, on
-  `permission.asked`.
+- `opencode` fires when the interactive session finishes, on
+  `session.execution.succeeded`. Child-session completions do not flag its pane.
+- `opencode_permission` fires when a tool is blocked on manual approval, on
+  `permission.asked`. Auto's terminal session-workflow plugin owns its approval
+  attempts and notifies only after an attempt fails and the request still needs
+  an answer. Slow successful approvals stay silent. A failed request in another
+  session does not flag the current pane.
 - `opencode_question` fires when the agent asks a question and cannot continue
   until you answer, on `form.created`. Integration auth forms reuse the
   same event and also block, so they notify too.
+
+An older asynchronous notification check cannot replace a newer attention cue.
+Auto permission alerts require the managed session-workflow terminal plugin to
+be loaded. Custom shared-service notification bridges must also skip automatic
+permission asks; their independent event handlers are not managed here.
 
 Every one of those names was confirmed by subscribing a probe plugin to a live
 session. Do not add events from the SDK type union without observing them first.

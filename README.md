@@ -13,6 +13,7 @@ Gum picks the loadout; headless macOS/Trixie runners make sure nothing shits the
 - [Quick start](#quick-start)
 - [Who owns what](#who-owns-what)
 - [Documentation](#documentation)
+- [Related projects](#related-projects)
 
 ## What this thing does
 
@@ -132,6 +133,19 @@ checkout dirty.
 | [CI](docs/ci.md) | PR metadata, prek, and parallel macOS/Trixie deployments |
 | [Releases](docs/releases.md) | Conventional titles, Release Please, SemVer, and deliberate publishing |
 | [Contributing](CONTRIBUTING.md) | Branches, worktrees, tests, and squash-merge rules |
+
+## Related projects
+
+The OpenCode toys have their own repos. You can use either plugin without
+adopting this entire workstation's personality:
+
+- [opencode-pillbox-statusline](https://github.com/crag-h4k/opencode-pillbox-statusline):
+  configurable footer pills for project, Git, model, context, cost, and provider quota.
+- [opencode-sidequest](https://github.com/crag-h4k/opencode-sidequest):
+  dependency-aware sub-agent runs with a live graph and step conversations in a side panel.
+
+Both are currently unpublished; follow their READMEs to load them from a checkout.
+The pinned dotfiles integration requires both first npm releases before deployment.
 
 <!--
 command -v gum >/dev/null || { sudo apt-get update && sudo apt-get install -y gum; } && sh -c "$(curl -fsLS get.chezmoi.io)" -- init --apply crag-h4k # trixie oneliner

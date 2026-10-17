@@ -64,6 +64,9 @@ truecolor, capability probes, raw reply bytes, bindings, and parser availability
 For the OpenCode footer, reproduce display issues against the pinned
 `opencode-pillbox-statusline` release and its render tests; keep `/demo` to its
 minimal model usage. Font changes alone do not settle rendering failures.
+For Sidequest, compare the identical server/TUI pins and its `focusKey` terminal
+option before changing host keybindings. Dotfiles seeds `<leader>p` and keeps
+`Ctrl+G` as the leader; panel behavior is maintained in the Sidequest repository.
 
 For tmux, test a separate socket and verify fresh-server configuration loading,
 scrolling, selection, notification firing, and clearing. Preserve active sessions.

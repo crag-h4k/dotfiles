@@ -31,6 +31,7 @@ pytestmark = pytest.mark.skipif(
 )
 
 PILLBOX_PIN = "opencode-pillbox-statusline@0.1.0"
+SIDEQUEST_PIN = "opencode-sidequest@0.1.0"
 YELLOW = ["hue.yellow", "feedback.warning"]
 CYAN = ["hue.cyan", "hue.accent"]
 PILLBOX = {
@@ -48,11 +49,14 @@ PILLBOX = {
     },
 }
 
+SIDEQUEST = {"package": SIDEQUEST_PIN, "options": {"focusKey": "<leader>p"}}
+
 MANAGED_PLUGINS = [
     "-opencode.prompt.footer",
     "./v2-plugins/agent-catalog",
     "./v2-plugins/demo",
     PILLBOX,
+    SIDEQUEST,
 ]
 
 # What the previous dotfiles release wrote for a fresh host.
@@ -73,6 +77,7 @@ BASELINE = {
         "session.tab.next": "<leader>l",
         "session.list": "<leader>t",
         "session.first": "home",
+        "session.sidebar.toggle": "none",
         "theme.switch": "none",
     },
     "leader": {"timeout": 1500},
@@ -170,6 +175,30 @@ def test_tui_changes_to_unowned_keys_survive(script):
     current["diffs"]["wrap"] = "none"
     merged = merge(script, current)
     assert merged == current
+
+
+@pytest.mark.parametrize("binding,expected", [
+    ("<leader>b", "none"),
+    (["<leader>b"], "none"),
+    ("alt+b", "alt+b"),
+    (["alt+b", "ctrl+b"], ["alt+b", "ctrl+b"]),
+    (False, False),
+    ("none", "none"),
+])
+def test_sidequest_frees_only_the_stock_sidebar_binding(script, binding, expected):
+    current = {"keybinds": {
+        "session.sidebar.toggle": binding,
+        "session.child.next": "right",
+        "session.tab.previous": "alt+h",
+    }}
+    once = merge(script, current)
+    keys = once["keybinds"]
+    assert keys["session.sidebar.toggle"] == expected
+    assert keys["leader"] == "ctrl+g"
+    assert keys["session.child.next"] == "right"
+    assert keys["session.tab.previous"] == "alt+h"
+    assert "sidequest.dag.focus" not in keys
+    assert merge(script, once) == once
 
 
 def test_unknown_keys_and_groups_survive_in_place(script):
@@ -305,6 +334,7 @@ def test_plugin_directives_and_local_entries_are_preserved_in_order(script):
         "-opencode.prompt.footer",
         "./v2-plugins/agent-catalog",
         PILLBOX,
+        SIDEQUEST,
     ]
     assert plugins[3] is not local and plugins[3] == local
 
@@ -317,6 +347,7 @@ def test_removed_managed_plugin_is_added_back_at_the_end(script):
         "-opencode.prompt.footer",
         "./v2-plugins/agent-catalog",
         PILLBOX,
+        SIDEQUEST,
     ]
 
 
@@ -324,7 +355,7 @@ def test_object_form_managed_plugin_counts_as_present_and_keeps_options(script):
     entry = {"package": "./v2-plugins/agent-catalog", "options": {"compact": True}}
     plugins = merge(script, {"plugins": [entry]})["plugins"]
     assert plugins.count(entry) == 1
-    assert plugins == [entry, "-opencode.prompt.footer", "./v2-plugins/demo", PILLBOX]
+    assert plugins == [entry, "-opencode.prompt.footer", "./v2-plugins/demo", PILLBOX, SIDEQUEST]
 
 
 def test_plugins_are_not_duplicated_on_reapply(script):
@@ -349,6 +380,7 @@ def test_retired_footer_entries_are_stripped_from_an_existing_host(script):
         "-dotfiles.statusline",
         "./v2-plugins/demo",
         PILLBOX,
+        SIDEQUEST,
     ]
     assert merge(script, once) == once
 
@@ -399,6 +431,40 @@ def test_any_version_of_pillbox_becomes_the_single_managed_entry(script, existin
     plugins = merge(script, {"plugins": ["./v2-plugins/local/x", existing]})["plugins"]
     assert plugins[:2] == ["./v2-plugins/local/x", PILLBOX]
     assert len(pillbox_entries(plugins)) == 1
+
+
+@pytest.mark.parametrize("existing", [
+    "opencode-sidequest",
+    "opencode-sidequest@0.0.9",
+    {"package": "opencode-sidequest@latest", "options": {"futureOption": True}},
+])
+def test_sidequest_pin_and_focus_option_converge_without_duplicate_entries(script, existing):
+    current = {"plugins": [existing, "-sidequest.tui"]}
+    once = merge(script, current)
+    entry = once["plugins"][0]
+    assert entry["package"] == SIDEQUEST_PIN
+    assert entry["options"]["focusKey"] == "<leader>p"
+    if isinstance(existing, dict):
+        assert entry["options"]["futureOption"] is True
+    assert once["plugins"][1] == "-sidequest.tui"
+    assert sum(p.get("package") == SIDEQUEST_PIN for p in once["plugins"] if isinstance(p, dict)) == 1
+    assert merge(script, once) == once
+
+
+def test_sidequest_pin_bump_preserves_custom_focus_and_other_options(script, tmp_path):
+    current = {"plugins": [{
+        "package": SIDEQUEST_PIN,
+        "options": {"focusKey": "alt+p", "futureOption": {"keep": True}},
+    }, "-sidequest.tui"]}
+    bumped = tmp_path / "bumped.py"
+    bumped.write_text(Path(script).read_text().replace(SIDEQUEST_PIN, "opencode-sidequest@0.2.0"))
+    once = merge(bumped, current)
+    assert once["plugins"][0] == {
+        "package": "opencode-sidequest@0.2.0",
+        "options": {"focusKey": "alt+p", "futureOption": {"keep": True}},
+    }
+    assert once["plugins"][1] == "-sidequest.tui"
+    assert merge(bumped, once) == once
 
 
 def test_pillbox_lookalikes_and_controls_are_local_entries(script):

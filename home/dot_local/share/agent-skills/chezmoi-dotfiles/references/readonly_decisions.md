@@ -28,6 +28,7 @@ explicit user corrections. Recheck behavior in the checkout being changed.
 | User requests, 2026-10-02; `b2a055c` | Keep install logs accessible and demos inexpensive; investigate Termius display failures | Preserve log interface, local demo/diagnostics, and terminal-chain regression tests |
 | User choices for this guidance, 2026-10-02 | Repository-only guidance, shared skill primarily for OpenCode2, lean entrypoints, upkeep with changes | Exclude AGENTS from deployment; keep installed assets untouched during source-only work |
 | User decisions, 2026-10-15 through 2026-10-16 | Move the OpenCode V2 footer into the standalone, config-driven `opencode-pillbox-statusline` package | Exact-pin it in both config files; seed theme-token color options in `cli.json`; keep Copilot tiers opt-in; keep `/demo` as a small local plugin without diagnostics |
+| User decisions, 2026-10-17 | Integrate Sidequest alongside Pillbox while retaining the dotfiles leader | Match server/TUI pins, seed Sidequest's `focusKey` to `<leader>p`, and preserve custom options; verify both first npm releases before deployment |
 
 ## Defaults that can be changed
 

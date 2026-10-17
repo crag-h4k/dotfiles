@@ -13,6 +13,7 @@ CHEZMOI_DIR="$(cd "${BATS_TEST_DIRNAME}/.." && pwd)"
 SHIM_SRC="${CHEZMOI_DIR}/home/dot_config/notify/executable_opencode-events.sh"
 LIB_SRC="${CHEZMOI_DIR}/home/dot_config/notify/lib.sh"
 PLUGIN_SRC="${CHEZMOI_DIR}/home/dot_config/opencode/plugin/notify.ts"
+LAUNCH_SRC="${CHEZMOI_DIR}/home/dot_config/opencode/plugin/notify-shim.mjs"
 FIXTURES="${BATS_TEST_DIRNAME}/fixtures"
 
 setup() {
@@ -87,12 +88,10 @@ run_shim() {
 }
 
 @test "plugin keeps detached launch while stale recovery logs without debug" {
-  grep -Fq 'detached: true, stdio: "ignore"' "$PLUGIN_SRC"
-  grep -Fq 'child.unref()' "$PLUGIN_SRC"
+  grep -Fq 'detached: true, stdio: "ignore"' "$LAUNCH_SRC"
+  grep -Fq 'child.unref()' "$LAUNCH_SRC"
   grep -Fq 'process.argv.includes("--service")' "$PLUGIN_SRC"
-  grep -Fq '["session.execution.succeeded", "opencode"]' "$PLUGIN_SRC"
-  grep -Fq '["permission.asked", "opencode_permission"]' "$PLUGIN_SRC"
-  grep -Fq '["form.created", "opencode_question"]' "$PLUGIN_SRC"
+  grep -Fq 'notificationGroup(event,' "$PLUGIN_SRC"
 
   SHIM_DEBUG=0 PANE_VAL='%34' run_shim fire opencode_permission
   [ "$status" -eq 0 ]

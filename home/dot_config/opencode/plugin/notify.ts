@@ -25,65 +25,32 @@
 // a separate, unmanaged local plugin (work.ts). This file stays generic.
 
 import { Plugin } from "@opencode/plugin"
+import { notificationGroup } from "./notify-filter.mjs"
+import { fire } from "./notify-shim.mjs"
 
-const NOTIFY_SHIM = `${process.env.HOME ?? ""}/.config/notify/opencode-events.sh`
 const IS_SHARED_SERVICE = process.argv.includes("--service")
 
-// Event -> notify group. The group decides the pane color and sound, so the three
-// kinds of attention are told apart at a glance; appearance lives in
-// ~/.config/notify/notify.yaml under `integrations:`.
+// notify-filter.mjs maps attention events to groups after checking whether a
+// session finished or a permission needs manual approval. Auto's TUI handler
+// notifies after failed approvals through the same detached shim. The
+// group selects its color and sound from ~/.config/notify/notify.yaml.
 //
 // Every name below was verified against OpenCode V2 by
 // subscribing a probe plugin and driving a real session. Do not add names from
 // the SDK type union without observing them: the union lists events this build
 // never emits, which is how the question case stayed broken.
 //
-//   session.execution.succeeded  v2 turn finished. This, not session.idle, is the
-//                                real v2 completion event.
+//   session.execution.succeeded  v2 turn finished. Child sessions are not a
+//                                completion of the interactive root session.
 //   permission.asked             v2 name for the same. Observed.
-//   form.created                 v2. The question tool does NOT emit a question.*
-//                                event; it opens a form, and the event carries
-//                                metadata.kind === "question". Auth forms reuse
-//                                this and also block on the user, so both notify.
+//   form.created                 v2. The question tool opens a form rather than
+//                                emitting question.*. Auth forms also block.
 //
 // REMOVED because they do not exist on this build and never fired:
 // question.asked, question.v2.asked, permission.v2.asked.
 //
-// Deliberately NOT *.replied / *.rejected / form.cancelled: those fire when the
-// user has just answered, so firing on them would fight the keypress-clear.
-const GROUPS: ReadonlyMap<string, string> = new Map([
-  ["session.execution.succeeded", "opencode"],
-  ["permission.asked", "opencode_permission"],
-  ["form.created", "opencode_question"],
-])
-
-// Fire the tmux notifier through the shared shim. Best-effort: gate on tmux and
-// swallow every error so a notifier hiccup never disrupts the session. The shim
-// reads TMUX_PANE from the inherited environment and self-guards, so no args are
-// needed beyond the "fire" verb. Invoked via bash so it works even without the
-// exec bit. The
-// group argument selects the appearance, so the pane color says what OpenCode is
-// waiting for.
-//
-// DETACHED ON PURPOSE, do not "simplify" this back to an awaited execFile. The
-// attention events fire at the instant OpenCode tears down the execution, and a
-// child left in OpenCode's process group is reaped along with it: the awaited
-// execFile() died on SIGTERM (code=null, killed=false, empty stdout/stderr)
-// before the shim ever reached tmux, so the pane never flagged. detached:true
-// puts the shim in its own process group where the teardown cannot signal it,
-// and unref() stops it holding the event loop open. The shim finishes in ~230ms,
-// so this is fire-and-forget: nothing is awaited and no timeout is needed.
-async function fire(group: string): Promise<void> {
-  if (IS_SHARED_SERVICE || !process.env.TMUX || !process.env.TMUX_PANE) return
-  try {
-    const { spawn } = await import("node:child_process")
-    const child = spawn("bash", [NOTIFY_SHIM, "fire", group], { detached: true, stdio: "ignore" })
-    child.on("error", () => {})
-    child.unref()
-  } catch {
-    /* notifier is best-effort */
-  }
-}
+// Permission replies cancel only the matching request's in-flight check.
+const EVENTS = new Set(["session.execution.succeeded", "permission.asked", "form.created"])
 
 export default Plugin.define({
   id: "notify",
@@ -98,6 +65,10 @@ export default Plugin.define({
   // stream that stayed healthy for a while, so only rapid repeated failures give up.
   async setup(ctx): Promise<void | (() => void)> {
     const controller = new AbortController()
+    let sequence = 0
+    let notified = 0
+    const permissions = new Map<string, number>()
+    const completions = new Map<string, { obsolete: boolean }>()
     void (async () => {
       const MAX_RETRIES = 5
       let attempt = 0
@@ -105,8 +76,35 @@ export default Plugin.define({
         const startedAt = Date.now()
         try {
           for await (const event of ctx.event.subscribe({ signal: controller.signal })) {
-            const group = event && GROUPS.get(event.type)
-            if (group) await fire(group)
+            if (event?.type === "permission.replied") {
+              permissions.delete(`${event.data.sessionID}:${event.data.requestID}`)
+              continue
+            }
+            if (!event || !EVENTS.has(event.type)) continue
+            const current = ++sequence
+            const sessionID = event.data?.sessionID ?? event.data?.form?.sessionID
+            const completion = event.type === "session.execution.succeeded" ? { obsolete: false } : undefined
+            const previous = completions.get(sessionID)
+            if (previous) previous.obsolete = true
+            if (completion) completions.set(sessionID, completion)
+            const key = event.type === "permission.asked" ? `${event.data.sessionID}:${event.data.id}` : undefined
+            if (key) permissions.set(key, current)
+            const notify = (group: string | undefined) => {
+              if (!group || controller.signal.aborted || current < notified || IS_SHARED_SERVICE) return
+              if (key && permissions.get(key) !== current) return
+              if (completion?.obsolete) return
+              notified = current
+              fire(group)
+            }
+            void notificationGroup(event, {
+              getSession: (input) => ctx.session.get(input),
+            }).then(notify).catch((err) => {
+              if (!controller.signal.aborted) console.error("[notify] attention check failed:", err)
+              if (event.type === "permission.asked") notify("opencode_permission")
+            }).finally(() => {
+              if (key && permissions.get(key) === current) permissions.delete(key)
+              if (completion && completions.get(sessionID) === completion) completions.delete(sessionID)
+            })
           }
           if (controller.signal.aborted) break
           console.error("[notify] event stream ended; reconnecting")

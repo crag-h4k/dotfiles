@@ -21,6 +21,8 @@
 #            dotfiles default reaches existing hosts; a value the TUI or the user
 #            set is never touched. Trade-off: a seeded key that is deleted comes
 #            back on the next apply. Set it explicitly to keep it.
+#            The stock sidebar toggle is migrated to "none" for Sidequest;
+#            custom sidebar bindings are preserved.
 #   KEPT   - everything else, in its original order, including keys this script
 #            has never heard of (newer OpenCode releases add settings).
 #
@@ -43,6 +45,8 @@
 # pin the yellow and cyan pills to the palette hues that gud-lucent defines,
 # with theme fallbacks for other themes. Full option reference: the package
 # README and schema.json.
+# Sidequest uses the same server/TUI package pin. Its focusKey option avoids
+# colliding with the Ctrl+G leader and is seeded without replacing local choices.
 #
 # ~/.config/opencode/cli.override.json is separate and wins at runtime: the
 # opencode2 wrapper exports it as OPENCODE_CLI_CONFIG_CONTENT. Nested objects
@@ -84,6 +88,7 @@ MANAGED_PLUGINS = (
     "./v2-plugins/agent-catalog",
     "./v2-plugins/demo",
     {"package": "opencode-pillbox-statusline@0.1.0", "options": PILLBOX_OPTIONS},
+    {"package": "opencode-sidequest@0.1.0", "options": {"focusKey": "<leader>p"}},
 )
 # The local footer and the stock TUI half it replaced. A stale local path
 # fails to load, so the merge removes these instead of leaving them behind.
@@ -111,6 +116,7 @@ SETTINGS = (
     (("keybinds", "session.tab.next"), "<leader>l", SEEDED),
     (("keybinds", "session.list"), "<leader>t", SEEDED),
     (("keybinds", "session.first"), "home", SEEDED),
+    (("keybinds", "session.sidebar.toggle"), "none", SEEDED),
     (("keybinds", "theme.switch"), "none", SEEDED),
     (("leader", "timeout"), 1500, OWNED),
     (("attention", "notifications"), False, OWNED),
@@ -209,6 +215,10 @@ def ensure_plugins(data, key, wanted):
 
 
 def merge(data):
+    keybinds = data.get("keybinds")
+    # Free the stock sidebar key for Sidequest; keep custom sidebar shortcuts.
+    if isinstance(keybinds, dict) and keybinds.get("session.sidebar.toggle") in ("<leader>b", ["<leader>b"]):
+        keybinds["session.sidebar.toggle"] = "none"
     for path, value, ownership in SETTINGS:
         if ownership == ENSURED:
             ensure_plugins(data, path[-1], value)

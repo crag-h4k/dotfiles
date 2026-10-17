@@ -34,8 +34,11 @@ After the stable `CI` gate passes on a push to `main`, the Release Please action
 1. creates or updates its pending release PR;
 1. updates `CHANGELOG.md` and the version manifest in that PR.
 
-The action uses the dedicated `RELEASE_PLEASE_TOKEN`. A fine-grained token lets
-the generated PR trigger the same required CI as a human-authored PR.
+The action uses the `RELEASE_PLEASE_CI` repository secret, which holds the shared
+fine-grained PAT named `release_please_ci`. A fine-grained token lets the generated
+PR trigger the same required CI as a human-authored PR. The token must include
+this repository in its selected repositories. When rotating it, update the secret
+in every repository using the shared token.
 
 The job guards on `always() && needs.ci.result == 'success'`. The `CI` gate fans
 in over the PR-only `pr-metadata` job, which is skipped on a push. A plain `if:`

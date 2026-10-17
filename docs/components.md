@@ -9,6 +9,7 @@
   - [Sub-feature submenus (git, ai, terminal)](#sub-feature-submenus-git-ai-terminal)
   - [Shared agent skills](#shared-agent-skills)
   - [OpenViking](#openviking)
+  - [OpenCode Sidequest](#opencode-sidequest)
   - [OpenCode V2 footer](#opencode-v2-footer)
   - [Terminal (Ghostty, iTerm2)](#terminal-ghostty-iterm2)
     - [Ghostty](#ghostty)
@@ -266,6 +267,42 @@ Selecting it alongside OpenCode registers the official pinned plugin in the
 managed section without replacing local plugin additions. See
 [OpenViking local memory](openviking.md) for guided setup, private initialization,
 provider authentication, loopback-only service activation, and trial measurements.
+
+### OpenCode Sidequest
+
+Selecting `ai > opencode` includes
+[opencode-sidequest](https://github.com/crag-h4k/opencode-sidequest), pinned at
+`0.1.0`. Its server tools run explicitly requested dependency graphs as child
+sessions. The terminal panel shows the graph and step conversations; enabling
+the plugin does not start a DAG on its own.
+
+`opencode.jsonc` registers the server package. `cli.json` repeats the same exact
+pin to pass `options.focusKey: "<leader>p"` to the terminal half. OpenCode combines
+matching package references into one terminal instance. A different version or
+a local checkout path is a different reference, so remove old local registrations
+when switching to the published packages.
+
+| Key or command | Action |
+| --- | --- |
+| `Ctrl+G`, then `B` | Show or hide the Sidequest panel |
+| `Ctrl+G`, then `P` | Open the panel or move focus between it and the session |
+| `Ctrl+G`, then `O` | Return from a step session to the DAG's origin |
+| `/dag` | Open the newest graph and focus the panel |
+| `/side-panel`, `/dag-origin` | Command alternatives for panel toggle and return |
+
+Dotfiles keeps `Ctrl+G` as the leader. The focus shortcut is a Sidequest plugin
+option, not a custom entry under `keybinds`, which only accepts native command
+IDs. Existing `focusKey` options survive applies. Native session navigation
+bindings remain unchanged.
+
+The stock `session.sidebar.toggle: "<leader>b"` is migrated to `"none"` to free
+the panel toggle. Custom sidebar bindings and explicitly disabled values are
+preserved. `session.sidebar: "hide"` is seeded only when absent.
+
+Sidequest's own panel and composer strip show DAG progress. Pillbox's optional
+Sidequest pill has no data adapter yet and stays disabled by default. See the
+Sidequest README for the unresolved step-message navigation and focus-return
+issues. Both pinned npm releases must exist before deploying this integration.
 
 ### OpenCode V2 footer
 

@@ -57,6 +57,13 @@ CLI, server, plugin SDK, and terminal versions when diagnosing compatibility.
   not palette hex values; `tests/test_opencode_theme.py` proves the hues.
   Retire a removed managed entry through `RETIRED_PLUGINS` in the `cli.json`
   merge and its files through `home/.chezmoiremove`.
+- Sidequest is exact-pinned in both config files so terminal options reach its
+  single TUI instance. Seed its `focusKey` option to `<leader>p`; `ctrl+g` remains
+  the dotfiles leader. Plugin command IDs are not valid `cli.json.keybinds` keys.
+  Free the stock sidebar toggle for `<leader>b` while preserving custom bindings
+  and private plugin options. The panel implementation and its tests belong in
+  the Sidequest repository. Keep Pillbox's Sidequest pill disabled until its
+  adapter consumes the producer's actual metadata fields.
 - Diagnose glyph widths, capability probes, RGB backgrounds, and tmux differences
   in the actual terminal chain. The project supports Ghostty over SSH and tmux,
   and has regression history with Termius. Changing the font alone is insufficient
@@ -69,6 +76,8 @@ CLI, server, plugin SDK, and terminal versions when diagnosing compatibility.
   Build, Plan, and Auto. It does not reorder native tabs. Auto is a primary
   agent; the terminal plugin replies once to its permission asks while
   connected, never to question forms. Configured denials create no request.
+  That handler also owns Auto approval-failure notifications. Do not infer a
+  failed approval from a timer in a second event subscriber.
   Keep the native agent picker available if the plugin fails to load.
   Before the first prompt creates a session, Shift+Tab falls through to the
   native home-screen agent cycle. Do not create or query a session merely to

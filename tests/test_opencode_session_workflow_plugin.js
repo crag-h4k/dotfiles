@@ -2,7 +2,7 @@ const assert = require("node:assert/strict")
 const fs = require("node:fs")
 const vm = require("node:vm")
 
-function loadPlugin(ts, sourcePath, workflow) {
+function loadPlugin(ts, sourcePath, workflow, notifications = []) {
   const compiled = ts.transpileModule(fs.readFileSync(sourcePath, "utf8"), {
     compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2022, jsx: ts.JsxEmit.ReactJSX },
     fileName: sourcePath,
@@ -15,6 +15,7 @@ function loadPlugin(ts, sourcePath, workflow) {
     if (id === "@opencode/plugin/tui") return { Plugin: { define: (definition) => definition } }
     if (id === "@opentui/solid/jsx-runtime") return { jsx: () => null, jsxs: () => null }
     if (id === "./workflow.mjs") return workflow
+    if (id === "../../plugin/notify-shim.mjs") return { fire: (group) => notifications.push(group) }
     throw new Error(`unexpected import: ${id}`)
   }
   vm.runInNewContext(compiled.outputText, {
@@ -50,7 +51,8 @@ async function verifyAutoAgentName(ts, sourcePath) {
 }
 
 async function verifySessionWorkflowPlugin(ts, sourcePath, workflow) {
-  const plugin = loadPlugin(ts, sourcePath, workflow)
+  const notifications = []
+  const plugin = loadPlugin(ts, sourcePath, workflow, notifications)
   assert.equal(plugin.id, "dotfiles.session-workflow.tui")
 
   const sessions = new Map([
@@ -65,14 +67,17 @@ async function verifySessionWorkflowPlugin(ts, sourcePath, workflow) {
   const context = {
     data: {
       on: (type, handler) => { handlers[type] = handler; return () => {} },
-      session: { invalidate: () => {} },
+      session: { invalidate: () => {}, root: (id) => id },
     },
     client: {
       session: {
         get: async ({ sessionID }) => { lookups.push(sessionID); return sessions.get(sessionID) },
         switchAgent: async ({ sessionID, agent }) => { sessions.get(sessionID).agent = agent },
       },
-      permission: { reply: async (reply) => { replies.push(reply) } },
+      permission: {
+        reply: async (reply) => { replies.push(reply) },
+        list: async () => [{ id: "request" }],
+      },
     },
     keymap: { layer: (factory) => { commands = factory().commands } },
     ui: {
@@ -112,7 +117,74 @@ async function verifySessionWorkflowPlugin(ts, sourcePath, workflow) {
   await new Promise((resolve) => setImmediate(resolve))
   assert.equal(replies.length, 1)
 
+  sessions.get("recent").agent = "auto"
+  let finishApproval
+  let replyStarted = false
+  context.client.permission.reply = () => {
+    replyStarted = true
+    return new Promise((resolve) => { finishApproval = resolve })
+  }
+  handlers["permission.asked"]({ data: { sessionID: "recent", id: "request", action: "edit" } })
+  await new Promise((resolve) => setImmediate(resolve))
+  assert.equal(replyStarted, true)
+  assert.deepEqual(notifications, [], "an unresolved Auto approval must not notify")
+  // Complete well after the old grace period to reproduce the original race.
+  await new Promise((resolve) => setTimeout(resolve, 400))
+  assert.deepEqual(notifications, [], "slow successful approval must remain silent")
+  finishApproval()
+  await new Promise((resolve) => setImmediate(resolve))
+  assert.deepEqual(notifications, [])
+
+  context.client.permission.reply = async () => { throw Error("approval failed") }
+  handlers["permission.asked"]({ data: { sessionID: "recent", id: "request", action: "edit" } })
+  await new Promise((resolve) => setImmediate(resolve))
+  assert.deepEqual(notifications, ["opencode_permission"], "failed approval needs manual attention")
+
+  context.client.permission.list = async () => []
+  handlers["permission.asked"]({ data: { sessionID: "recent", id: "request", action: "edit" } })
+  await new Promise((resolve) => setImmediate(resolve))
+  assert.equal(notifications.length, 1, "another client's approval must suppress a stale failure alert")
+
+  context.client.permission.list = async () => [{ id: "request" }]
+  sessions.get("unread").agent = "auto"
+  handlers["permission.asked"]({ data: { sessionID: "unread", id: "request", action: "edit" } })
+  await new Promise((resolve) => setImmediate(resolve))
+  assert.equal(notifications.length, 1, "another session must not flag this pane")
+
+  const delayedFailure = async () => {
+    let resolve
+    context.client.permission.list = () => new Promise((done) => { resolve = done })
+    handlers["permission.asked"]({ data: { sessionID: "recent", id: "request", action: "edit" } })
+    await new Promise((done) => setImmediate(done))
+    return resolve
+  }
+  let resolveFailure = await delayedFailure()
+  handlers["permission.replied"]({ data: { sessionID: "recent", requestID: "request" } })
+  resolveFailure([{ id: "request" }])
+  await new Promise((resolve) => setImmediate(resolve))
+  assert.equal(notifications.length, 1, "a matching reply cancels an in-flight stale list response")
+
+  resolveFailure = await delayedFailure()
+  handlers["form.created"]({ data: { form: { sessionID: "recent" } } })
+  resolveFailure([{ id: "request" }])
+  await new Promise((resolve) => setImmediate(resolve))
+  assert.equal(notifications.length, 1, "a newer question must not be overwritten by an older failure check")
+
+  resolveFailure = await delayedFailure()
+  handlers["permission.replied"]({ data: { sessionID: "unread", requestID: "request" } })
+  handlers["form.created"]({ data: { form: { sessionID: "unread" } } })
+  resolveFailure([{ id: "request" }])
+  await new Promise((resolve) => setImmediate(resolve))
+  assert.equal(notifications.length, 2, "unrelated replies and forms must not suppress a pending failure")
+
+  let finishPendingCheck
+  context.client.permission.list = () => new Promise((resolve) => { finishPendingCheck = resolve })
+  handlers["permission.asked"]({ data: { sessionID: "recent", id: "request", action: "edit" } })
+  await new Promise((resolve) => setImmediate(resolve))
   dispose()
+  finishPendingCheck([{ id: "request" }])
+  await new Promise((resolve) => setImmediate(resolve))
+  assert.equal(notifications.length, 2, "plugin disposal cancels delayed failure alerts")
 }
 
 module.exports = { verifyAutoAgentName, verifySessionWorkflowPlugin }

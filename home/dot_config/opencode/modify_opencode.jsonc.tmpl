@@ -145,6 +145,7 @@ NEW_AGENTS = """\
 
 MANAGED_PLUGINS = (
     "opencode-pillbox-statusline@0.1.0",
+    "opencode-sidequest@0.1.0",
 {{ if dig "components" "ai" "openviking" false . }}
     "@openviking/opencode-plugin@2026.10.7",
 {{ end }}
@@ -164,6 +165,12 @@ PLUGIN_AUDIT = """\
     // VS Code Copilot Chat integration headers, runs only with "tiers": true;
     // this plain pin leaves it off. No install-time scripts or runtime npm
     // dependencies. An undocumented endpoint change makes a quota unavailable.
+    // opencode-sidequest runs explicit DAG requests in child sessions and adds
+    // a terminal side panel. Reviewed source for @0.1.0: prompts go through the
+    // configured OpenCode providers; run state and bounded outputs are stored
+    // locally. The panel can read and message each step. Host permissions still
+    // apply. No direct provider HTTP calls, install-time scripts, or runtime npm
+    // dependencies. Verify the published tarball before the first deployment.
 {{ if dig "components" "ai" "openviking" false . }}
     // OpenViking: upstream V2 hooks provide automatic recall and capture.
     // Audited @2026.10.7: captures user/assistant messages and tool output,
