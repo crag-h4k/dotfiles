@@ -144,8 +144,8 @@ adopting this entire workstation's personality:
 - [opencode-sidequest](https://github.com/crag-h4k/opencode-sidequest):
   dependency-aware sub-agent runs with a live graph and step conversations in a side panel.
 
-Both are currently unpublished; follow their READMEs to load them from a checkout.
-The pinned dotfiles integration requires both first npm releases before deployment.
+Both are published on npm at `0.1.0`, the version pinned by the dotfiles integration.
+Follow their READMEs for standalone installation or local development from a checkout.
 
 <!--
 command -v gum >/dev/null || { sudo apt-get update && sudo apt-get install -y gum; } && sh -c "$(curl -fsLS get.chezmoi.io)" -- init --apply crag-h4k # trixie oneliner
