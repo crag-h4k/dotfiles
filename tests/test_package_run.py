@@ -7,12 +7,14 @@ import os
 import pty
 import shutil
 import subprocess
+import sys
 import tempfile
 import termios
 import threading
 import tomllib
 import unittest
 from pathlib import Path
+from unittest.mock import patch
 
 
 REPO = Path(__file__).resolve().parents[1]
@@ -20,6 +22,12 @@ REPO = Path(__file__).resolve().parents[1]
 
 class PackageRunTest(unittest.TestCase):
     def setUp(self):
+        # Git hooks export repository paths that override the fixture's cwd.
+        self.enterContext(patch.dict(
+            os.environ,
+            {key: value for key, value in os.environ.items() if not key.startswith("GIT_")},
+            clear=True,
+        ))
         self.temp = tempfile.TemporaryDirectory()
         self.root = Path(self.temp.name)
         self.repo = self.root / "repo"
@@ -440,6 +448,42 @@ class PackageRunTest(unittest.TestCase):
         self.assertNotIn("fetch", git_calls)
         self.assertNotIn("pull", git_calls)
         self.assertFalse(manager_log.exists())
+
+
+@unittest.skipUnless(shutil.which("git") and shutil.which("chezmoi"), "requires git and chezmoi")
+class GitHookIsolationTest(unittest.TestCase):
+    def test_chezmoi_init_preserves_calling_worktree(self):
+        env = {key: value for key, value in os.environ.items() if not key.startswith("GIT_")}
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            caller = root / "caller"
+            worktree = root / "worktree"
+
+            def git(*args):
+                return subprocess.run(
+                    ["git", "-c", "core.hooksPath=/dev/null", *map(str, args)],
+                    env=env, capture_output=True, text=True, check=True,
+                ).stdout.strip()
+
+            git("init", caller)
+            git("-C", caller, "-c", "user.name=Fixture", "-c",
+                "user.email=fixture@example.invalid", "commit", "--allow-empty", "-m", "fixture")
+            git("-C", caller, "worktree", "add", "-b", "test-hook", worktree)
+            git_dir = Path(git("-C", worktree, "rev-parse", "--absolute-git-dir"))
+            config = caller / ".git" / "config"
+            index = git_dir / "index"
+            before = (config.read_bytes(), index.read_bytes())
+            result = subprocess.run(
+                [sys.executable, str(Path(__file__).resolve()),
+                 "PackageRunTest.test_declined_packages_only_materialize_missing_external"],
+                cwd=worktree,
+                env={**env, "GIT_DIR": str(git_dir), "GIT_INDEX_FILE": str(index)},
+                capture_output=True, text=True, timeout=60,
+            )
+            self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+            self.assertEqual((config.read_bytes(), index.read_bytes()), before)
+            self.assertEqual(git("-C", caller, "rev-parse", "--is-bare-repository"), "false")
+            self.assertEqual(git("-C", worktree, "status", "--porcelain"), "")
 
 
 if __name__ == "__main__":

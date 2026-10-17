@@ -70,6 +70,13 @@ architecture, prek version, and hook configuration. The shared CI summary
 comment includes the combined prek result. The prek and LuaRocks caches include
 the runner architecture, so native artifacts never cross between runners.
 
+Tests that initialize Git or chezmoi fixtures must clear inherited Git repository
+environment variables. During a worktree commit, `GIT_DIR` points at the calling
+checkout; a nested `chezmoi init` can otherwise reinitialize its shared repository
+as bare. `test_package_run.py` isolates that environment and checks that a calling
+linked worktree's config and index remain unchanged. A standalone prek run does
+not reproduce the commit-hook environment by itself.
+
 ## Trixie deployment
 
 Two Trixie jobs call `.github/workflows/trixie-deployment.yaml`: x86-64 on
