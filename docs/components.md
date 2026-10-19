@@ -235,11 +235,17 @@ changes, ask. The managed global OpenCode instructions also require an explicit
 two Release Please Conventional Commit message candidates and a user selection.
 Credential files and recursive removal commands remain denied.
 
-`cli.json` enables session tabs and uses `Ctrl+G` as a 1500 ms leader.
-Chezmoi merge-manages it, so settings changed with **Open settings** persist;
-see [OpenCode terminal settings](operation.md#opencode-terminal-settings) for
-the enforced and seeded keys.
-`<leader>h` / `<leader>l` move between tabs. The
+`cli.json` enables session tabs and keeps OpenCode's default `Ctrl+X` as a
+1500 ms leader. Chezmoi merge-manages it, so settings changed with **Open
+settings** persist; see
+[OpenCode terminal settings](operation.md#opencode-terminal-settings) for the
+enforced and seeded keys.
+Under the leader every direction key moves between tabs, so the same keys work
+whether the tabs are a top bar or a side column: `<leader>h`, `<leader>k`,
+`<leader>left` and `<leader>up` go to the previous tab, and `<leader>l`,
+`<leader>j`, `<leader>right` and `<leader>down` go to the next. The arrows and
+`<leader>t` give up OpenCode's pane-focus and terminal defaults for this, so
+dotfiles releases those bindings. The
 session-workflow CLI plugin uses Shift+Tab to cycle Build → Plan → Auto → Build
 for the current session. Before a session exists, the plugin yields Shift+Tab
 to OpenCode's native agent picker, so the first prompt need not start in Build.
@@ -254,7 +260,9 @@ that client with the global `--auto` flag when using the per-session cycle.
 `<leader>t` opens the built-in session list. Native session tabs keep OpenCode's
 default ordering; automatic priority sorting is being developed separately.
 
-`Home` moves to the first message, freeing `Ctrl+G` for the leader.
+`Home` and `<leader>f` move to the first message; the second works on keyboards
+without a Home key. `Ctrl+G`, OpenCode's default for that action, is no longer
+bound.
 
 ### OpenViking
 
@@ -284,13 +292,13 @@ when switching to the published packages.
 
 | Key or command | Action |
 | --- | --- |
-| `Ctrl+G`, then `B` | Show or hide the Sidequest panel |
-| `Ctrl+G`, then `P` | Open the panel or move focus between it and the session |
-| `Ctrl+G`, then `O` | Return from a step session to the DAG's origin |
+| `Ctrl+X`, then `B` | Show or hide the Sidequest panel |
+| `Ctrl+X`, then `P` | Open the panel or move focus between it and the session |
+| `Ctrl+X`, then `O` | Return from a step session to the DAG's origin |
 | `/dag` | Open the newest graph and focus the panel |
 | `/side-panel`, `/dag-origin` | Command alternatives for panel toggle and return |
 
-Dotfiles keeps `Ctrl+G` as the leader. The focus shortcut is a Sidequest plugin
+Dotfiles keeps OpenCode's default `Ctrl+X` as the leader. The focus shortcut is a Sidequest plugin
 option, not a custom entry under `keybinds`, which only accepts native command
 IDs. Existing `focusKey` options survive applies. Native session navigation
 bindings remain unchanged.

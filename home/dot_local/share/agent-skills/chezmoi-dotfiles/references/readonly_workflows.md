@@ -66,7 +66,7 @@ For the OpenCode footer, reproduce display issues against the pinned
 minimal model usage. Font changes alone do not settle rendering failures.
 For Sidequest, compare the identical server/TUI pins and its `focusKey` terminal
 option before changing host keybindings. Dotfiles seeds `<leader>p` and keeps
-`Ctrl+G` as the leader; panel behavior is maintained in the Sidequest repository.
+OpenCode's default `Ctrl+X` as the leader; panel behavior is maintained in the Sidequest repository.
 
 For tmux, test a separate socket and verify fresh-server configuration loading,
 scrolling, selection, notification firing, and clearing. Preserve active sessions.
