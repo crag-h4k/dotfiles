@@ -381,7 +381,7 @@ prompt. The target stays valid JSON with mode `0600`.
 
 | Class | Keys | On every apply |
 | --- | --- | --- |
-| Enforced | `$schema`, `attention.notifications`, `attention.sound`, `keybinds.leader`, `leader.timeout`, the managed `plugins` entries and their npm pins | Reset to the managed value |
+| Enforced | `$schema`, `attention.notifications`, `attention.sound`, `keybinds.leader`, `leader.timeout`, and the managed `plugins` entries at `@latest` | Reset to the managed value |
 | Seeded | Theme, tabs, the other keybinds, session, animations, diffs, terminal, managed plugin `options` | Added only when that key is absent; an existing value is never changed |
 | Migrated | The stock `session.sidebar.toggle` binding `<leader>b`, as a string or one-item list | Set to `none` to free Sidequest's panel toggle; custom bindings survive |
 | Kept | Everything else | Untouched, including keys that newer OpenCode releases add |
@@ -398,7 +398,7 @@ and `/demo`.
 Sidequest's `options.focusKey` is seeded to `<leader>p`, so `Ctrl+G`, then `P`
 focuses its panel without taking over the leader. Change it in the Sidequest
 entry's `options`; OC2's `keybinds` object does not accept plugin command IDs.
-Keep the exact Sidequest package reference the same in `opencode.jsonc` and
+Keep the same Sidequest package reference in `opencode.jsonc` and
 `cli.json` so OpenCode loads one terminal instance with the terminal options.
 
 Seeding is per key. A default added to the repository later reaches existing
@@ -410,7 +410,7 @@ does not seed `tabs.mode` next to an existing `tabs.enabled`.
 The merge removes retired dotfiles entries, such as the old
 `./v2-plugins/statusline` path, then appends any missing managed `plugins`
 entry. It leaves your own entries, their order, and later `-id` controls alone.
-An npm entry matches by package name whatever its version, so a pin bump
+An npm entry matches by package name whatever its version, so switching to `@latest`
 rewrites `package` in place and keeps the entry's options, which are seeded per
 key like the settings above. To turn off a managed plugin, append its control,
 for example `-dotfiles.agent-catalog`.
@@ -437,7 +437,14 @@ opencode2 plugin list
 ```
 
 Chezmoi owns the registrations between `// dotfiles:plugins:start` and
-`// dotfiles:plugins:end`, including their package pins and audit comments.
+`// dotfiles:plugins:end`, including their `@latest` references and audit comments.
+Both Pillbox and Sidequest follow npm's moving `latest` tag. OpenCode checks
+for newer versions on startup but keeps the installed versions until you choose
+to update them. Review the release, then run `opencode2 plugin update` to install
+the latest available versions. This executes new plugin code without a dotfiles
+change. A local npm release-age policy may reject a fresh version; keep the
+policy intact and use a process-scoped exception only when you accept the
+new release. A fresh installation also resolves the moving tags at startup.
 Keep local entries after the end marker. Packages, local paths, Git references,
 object options, and comments survive repeated applies in their original local
 order. There is no dotfiles allowlist; review additions yourself because plugins
@@ -450,8 +457,8 @@ This example omits the generated audit comments:
   "$schema": "https://opencode.ai/config.json",
   "plugins": [
     // dotfiles:plugins:start
-    "opencode-pillbox-statusline@0.1.0",
-    "opencode-sidequest@0.1.0",
+    "opencode-pillbox-statusline@latest",
+    "opencode-sidequest@latest",
     // dotfiles:plugins:end
     {
       "package": "@example/reviewer@1.2.3",
@@ -475,20 +482,20 @@ the server with `-sidequest` after the managed section and the terminal half
 with `-sidequest.tui` in `cli.json.plugins` when turning off the whole plugin.
 
 You can change a managed string registration to an object with `package` and
-`options` inside the marked section. Dotfiles owns its package version; local
-options and their comments survive pin updates. When a later dotfiles revision
+`options` inside the marked section. Dotfiles owns its `@latest` reference; local
+options and their comments survive reference updates. When a later dotfiles revision
 retires a managed registration, it removes that registration only. It does not
 delete independently added entries, plugin installations, or runtime data.
 
-The first apply adopts a single exact existing registration of a managed pin,
-such as `opencode-pillbox-statusline@0.1.0`, including the object form.
+The first apply adopts a single matching existing registration,
+such as `opencode-pillbox-statusline@latest`, including the object form.
 Other unmarked V2 entries remain local. A competing version, duplicate
 registration, malformed JSONC, or ambiguous marker pair produces a warning and
 leaves the entire target unchanged. The rest of the apply can continue.
 
 Resolve a conflict by keeping one registration in the managed section at the
-dotfiles pin, moving any local options into that object, and removing the
-competing entry. A different managed version requires a reviewed source change;
+dotfiles reference, moving any local options into that object, and removing the
+competing entry. A different managed reference requires a source change;
 a disable control does not transfer version ownership. The existing retirement
 of the singular V1 `plugin` key is unchanged.
 
