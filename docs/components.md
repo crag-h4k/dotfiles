@@ -94,7 +94,7 @@ Git is in the default component set. AI and terminal configuration are opt-in.
 | `ai` | `claude_hooks` | `~/.claude/settings.json` (merge) | off | merges the Claude notify hooks |
 | `ai` | `codex_hooks` | `~/.codex/config.toml` (merge) | off | merges the Codex notify hook + `tui.notifications` |
 | `ai` | `statusline` | `~/.claude/settings.json` + `~/.codex/config.toml` (merge) | off | Claude renderer plus a matching selected-palette Codex theme; keeps those files managed when notify hooks are off |
-| `ai` | `opencode` | OpenCode V2 (`@opencode/cli`) + V2 config + notifier bridge | on when AI is selected | isolated npm prefix, managed wrapper, native permissions, and exact-pinned statusline plugin |
+| `ai` | `opencode` | OpenCode V2 (`@opencode/cli`) + V2 config + notifier bridge | on when AI is selected | isolated npm prefix, managed wrapper, native permissions, and npm-latest statusline plugin |
 | `ai` | `copilot` | GitHub Copilot CLI (`@github/copilot` npm, `prerelease` tag) | off | npm-only channel (no Homebrew/apt); binary into `~/.local`; needs Node 22+ |
 | `ai` | `openviking` | local memory runtime, user services, and starter profiles | off | actual configuration and memory remain unmanaged; optional official OpenCode plugin |
 | `ai` | `codecompanion` | CodeCompanion.nvim + `claude-agent-acp` bridge | off | selecting it also enables and installs the Neovim component |
@@ -199,7 +199,7 @@ if CLI verification or the matching runtime installation fails.
 
 `~/.config/opencode/opencode.jsonc` is merge-managed. Chezmoi reasserts the
 schema, agent colors, Ricer's subagent mode, Plan handoff permissions, and the
-exact-pinned V2 registrations in a marked managed section. Local plugin entries
+`@latest` V2 registrations in a marked managed section. Local plugin entries
 remain after that section, with their order, options, and comments preserved.
 Managed object options also survive package-pin updates; competing registrations
 warn and leave the target unchanged. See
@@ -271,13 +271,13 @@ provider authentication, loopback-only service activation, and trial measurement
 ### OpenCode Sidequest
 
 Selecting `ai > opencode` includes
-[opencode-sidequest](https://github.com/crag-h4k/opencode-sidequest), pinned at
-`0.1.0`. Its server tools run explicitly requested dependency graphs as child
+[opencode-sidequest](https://github.com/crag-h4k/opencode-sidequest), tracking
+npm `latest`. Its server tools run explicitly requested dependency graphs as child
 sessions. The terminal panel shows the graph and step conversations; enabling
 the plugin does not start a DAG on its own.
 
-`opencode.jsonc` registers the server package. `cli.json` repeats the same exact
-pin to pass `options.focusKey: "<leader>p"` to the terminal half. OpenCode combines
+`opencode.jsonc` registers the server package. `cli.json` repeats the same
+`@latest` reference to pass `options.focusKey: "<leader>p"` to the terminal half. OpenCode combines
 matching package references into one terminal instance. A different version or
 a local checkout path is a different reference, so remove old local registrations
 when switching to the published packages.
@@ -302,13 +302,13 @@ preserved. `session.sidebar: "hide"` is seeded only when absent.
 Sidequest's own panel and composer strip show DAG progress. Pillbox's optional
 Sidequest pill has no data adapter yet and stays disabled by default. See the
 Sidequest README for the unresolved step-message navigation and focus-return
-issues. Both pinned npm releases must exist before deploying this integration.
+issues. Both npm packages must exist before deploying this integration.
 
 ### OpenCode V2 footer
 
 The footer comes from the
 [opencode-pillbox-statusline](https://github.com/crag-h4k/opencode-pillbox-statusline)
-npm package, exact-pinned at `0.1.0`. It draws a row of pills: project, Git,
+npm package, tracking npm `latest`. It draws a row of pills: project, Git,
 agent and model, elapsed time, subagents, context, session cost, model tier,
 and provider quota at the right edge. As the terminal narrows, lower-priority
 pills shrink and then drop. Colors come from the active OpenCode theme, so
@@ -318,7 +318,7 @@ OpenCode passes `opencode.jsonc` options only to a plugin's server half, so
 dotfiles registers the package twice:
 
 - `opencode.jsonc` loads the server half, which fetches provider quota. The
-  managed entry carries the audit comment for the pinned version.
+  managed entry carries a reference audit for a known release, not future versions.
 - `cli.json` loads the terminal half with the dotfiles options, after
   `-opencode.prompt.footer` disables the stock footer and its command-palette
   hint.
@@ -330,7 +330,7 @@ fall back to `feedback.warning` and `hue.accent`. The `tierIcons` chezmoi data
 key (`value` or `heat`) sets the tier pill's icon ramp on every apply.
 
 Change options in the pillbox entry of `~/.config/opencode/cli.json`. The merge
-owns the version pin and the tier ramp, and seeds the other options one key at
+owns the `@latest` reference and the tier ramp, and seeds the other options one key at
 a time, so your edits survive `chezmoi apply`. Change the ramp through
 `tierIcons` instead. A managed option you delete comes back on the next apply;
 set it to the value you want instead. The pillbox README covers every option,
@@ -341,10 +341,10 @@ catalog price and makes no network call. Turning them on sends Copilot `/models`
 requests that identify as VS Code Copilot Chat; read the README's data and
 privacy section first. To opt in, replace the managed string in
 `opencode.jsonc` with the object form below. The merge keeps its options when it
-bumps the pin.
+changes the reference.
 
 ```jsonc
-{ "package": "opencode-pillbox-statusline@0.1.0", "options": { "tiers": true } }
+{ "package": "opencode-pillbox-statusline@latest", "options": { "tiers": true } }
 ```
 
 On existing hosts, `home/.chezmoiremove` deletes the old local footer

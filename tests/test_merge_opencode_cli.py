@@ -30,8 +30,8 @@ pytestmark = pytest.mark.skipif(
     shutil.which("chezmoi") is None, reason="chezmoi not installed"
 )
 
-PILLBOX_PIN = "opencode-pillbox-statusline@0.1.0"
-SIDEQUEST_PIN = "opencode-sidequest@0.1.0"
+PILLBOX_PIN = "opencode-pillbox-statusline@latest"
+SIDEQUEST_PIN = "opencode-sidequest@latest"
 YELLOW = ["hue.yellow", "feedback.warning"]
 CYAN = ["hue.cyan", "hue.accent"]
 PILLBOX = {
