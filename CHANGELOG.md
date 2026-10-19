@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.3.1](https://github.com/crag-h4k/dotfiles/compare/v1.3.0...v1.3.1) (2026-10-17)
+
+
+### Bug Fixes
+
+* **tests:** prevent bare repo corruption ([#127](https://github.com/crag-h4k/dotfiles/issues/127)) ([e487b07](https://github.com/crag-h4k/dotfiles/commit/e487b07ca6c23a7cf531a6fc98b5017f3a837897))
+
 ## [1.3.0](https://github.com/crag-h4k/dotfiles/compare/v1.2.0...v1.3.0) (2026-10-17)
 
 
