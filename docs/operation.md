@@ -443,7 +443,7 @@ prompt. The target stays valid JSON with mode `0600`.
 
 | Class | Keys | On every apply |
 | --- | --- | --- |
-| Enforced | `$schema`, `attention.notifications`, `attention.sound`, `keybinds.leader`, `leader.timeout`, and the managed `plugins` entries at `@latest` | Reset to the managed value |
+| Enforced | `$schema`, `attention.notifications`, `attention.sound`, `keybinds.leader`, `leader.timeout`, the tab navigation keys (`session.tab.previous`, `session.tab.next`, `session.first`) with the pane and terminal defaults they displace (`pane.focus.left`, `pane.focus.right`, `terminal.select`, `terminal.close`, `terminal.toggle`), and the managed `plugins` entries at `@latest` | Reset to the managed value |
 | Seeded | Theme, tabs, the other keybinds, session, animations, diffs, terminal, managed plugin `options` | Added only when that key is absent; an existing value is never changed |
 | Migrated | The stock `session.sidebar.toggle` binding `<leader>b`, as a string or one-item list | Set to `none` to free Sidequest's panel toggle; custom bindings survive |
 | Kept | Everything else | Untouched, including keys that newer OpenCode releases add |
@@ -452,12 +452,17 @@ The enforced keys protect integrations. `attention.notifications` and
 `attention.sound` are OpenCode's own OS banners and sounds. The tmux notifier
 tints the pane and window tab instead and deliberately raises no popups, so a
 settings toggle that turned the native alerts on would double every signal. The
-leader and its timeout are fixed because the session-workflow plugin and the
-tab bindings assume `Ctrl+G`. The `plugins` array turns off the stock footer
+leader and its timeout are fixed at OpenCode's default `Ctrl+X`. The navigation
+keys are fixed because every direction key must move between tabs and no two
+managed actions may share a chord. OpenCode binds `<leader>` plus an arrow to
+pane focus and the terminal pane, and `<leader>t` to the terminal toggle, which
+collided with the session list on `<leader>t`, so those are released. A host
+still on the old `Ctrl+G` leader moves to `Ctrl+X` on the next apply. The
+`plugins` array turns off the stock footer
 and configures the Pillbox and Sidequest terminal halves, the agent catalog,
 and `/demo`.
 
-Sidequest's `options.focusKey` is seeded to `<leader>p`, so `Ctrl+G`, then `P`
+Sidequest's `options.focusKey` is seeded to `<leader>p`, so `Ctrl+X`, then `P`
 focuses its panel without taking over the leader. Change it in the Sidequest
 entry's `options`; OC2's `keybinds` object does not accept plugin command IDs.
 Keep the same Sidequest package reference in `opencode.jsonc` and
