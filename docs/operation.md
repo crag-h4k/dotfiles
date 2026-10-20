@@ -239,41 +239,73 @@ pre-fill, even when the env var holds something else; the env var only seeds a
 first init or an old config that lacks the key. An old config without the keys
 applies with the defaults and needs no re-init.
 
-`chezmoi init` asks for both directories at the end of the AI submenu, so the
-questions appear only when AI tools are selected. Each one is pre-filled with the
-saved value, else the env seed, else the default. Enter keeps what is shown;
-anything you type is stored as written, in whichever of the three forms you use.
-A host without AI tools selected is never asked and keeps its saved value or the
-default.
+The AI picker is where you change them. With AI tools selected, its page lists a
+`directories` entry after the sub-features and shows the current paths in its
+header, pre-filled the same way as below (saved value, else env seed, else
+default):
+
+```text
+AI tools  (space toggles, enter confirms, esc cancels):
+Worktrees:   ~/src/worktrees
+Agent notes: $HOME/agents
+> • claude_hooks - Claude settings.json notify hooks
+  ...
+  • directories - change the worktrees and agent-notes directories (unchecked keeps them)
+```
+
+The entry starts unchecked, is never a component, and is never saved: it is not in
+`[data.components.ai]` or `aiSelection`, and the numbers of the other entries do
+not move. Leave it unchecked and init asks nothing about directories; the values
+stay as resolved. Check it (`x` toggles in Gum 2.x, which ignores Space; Tab works
+too) and init opens exactly one more page, an editor holding both paths:
+
+```text
+Edit the paths: Enter saves, Ctrl+C keeps as shown
+┃ worktrees: ~/src/worktrees
+┃ agents: $HOME/agents
+```
+
+The editor opens on the saved value, else the env seed, else the default, so a
+first init shows the default and every later init shows your last choice. Edit
+either line, then press Enter. Keys
+are case-insensitive, spaces around the colon are optional, blank lines are
+ignored, and a line you delete or leave empty keeps its pre-filled value. Anything
+you type is stored as written, in whichever of the three forms you use. Ctrl+C,
+Escape (Gum 2.x), or an empty answer keeps what is shown, with no second prompt.
 
 | Situation | Behavior |
 | --- | --- |
-| Gum installed, terminal available | `gum input` with the value pre-filled and editable. Escape or an empty answer keeps the shown value |
-| No Gum, terminal available | chezmoi's typed `promptString`; Enter keeps the default shown |
-| `DOTFILES_NO_TUI` set | No prompt; the pre-fill is used |
-| No usable terminal (stdin is not a TTY, or `/dev/tty` will not open) | No prompt; the pre-fill is used |
-| `cup` (`DOTFILES_PACKAGE_UPDATE`) or the retired `all+` migration | No prompt; the pre-fill is used |
+| Gum installed, terminal available | `directories` on the AI page; checked, it opens one `gum write` editor |
+| No Gum, terminal available | `10) directories` in the typed AI menu; chosen, it asks each path with chezmoi's `promptString`, pre-filled, Enter keeps it |
+| `DOTFILES_NO_TUI` set | No entry, no prompt; the pre-fill is used |
+| No usable terminal (stdin is not a TTY, or `/dev/tty` will not open) | No entry, no prompt; the pre-fill is used |
+| `cup` (`DOTFILES_PACKAGE_UPDATE`) or the retired `all+` migration | No entry, no prompt; the pre-fill is used |
+| AI tools not selected | The AI page is not shown; the saved value or default stands |
 
-The prompt follows the palette picker's rules, not the submenus': chezmoi's typed
-prompt fails outright with no terminal, so these questions are skipped instead of
-risking a failed init. `chezmoi apply` never prompts. `chezmoi init --apply` asks
-during its init step only.
+The gate follows the palette picker's rules, not the submenus': chezmoi's typed
+prompt fails outright with no terminal, so an entry that could not ask is not
+offered. `chezmoi apply` never prompts. `chezmoi init --apply` asks during its
+init step only. The typed AI menu is asked once (`promptStringOnce`), so on a host
+without Gum a re-init does not reopen it; change a value there by editing
+`~/.config/chezmoi/chezmoi.toml` (below) or by clearing `aiSelection` first.
 
-An answer that is not usable is explained and asked again, up to three times;
-then init stops with the same error `apply` would give. A saved or seeded value
-that is not usable is replaced by the default in the prompt, so accepting it
-repairs the config.
+An answer that is not usable, or a line that is not `worktrees: <path>` or
+`agents: <path>`, is explained and the editor reopens with your text kept, up to
+three times; then init stops with the same error `apply` would give. A saved or
+seeded value that is not usable shows as `(not usable)` in the page header and is
+replaced by the default in the editor, so accepting it repairs the config. Leaving
+the entry unchecked with such a value fails at the end of init, as `apply` would.
 
-To pick a value on a new host, seed it once. The prompt shows it pre-filled (add
-`DOTFILES_NO_TUI=1` to take it without being asked):
+To pick a value on a new host, seed it once. Init takes the seed as is, or shows
+it pre-filled if you check `directories` (add `DOTFILES_NO_TUI=1` to never be asked):
 
 ```sh
 DOTFILES_WORKTREES_DIR=/opt/worktrees DOTFILES_AGENTS_DIR="$HOME/notes/agents" \
   chezmoi init --apply
 ```
 
-To change it later, re-run `chezmoi init` and edit the pre-filled value, or edit
-`~/.config/chezmoi/chezmoi.toml` and apply:
+To change it later, re-run `chezmoi init`, check `directories`, and edit the
+pre-filled value, or edit `~/.config/chezmoi/chezmoi.toml` and apply:
 
 ```toml
 [data]

@@ -35,10 +35,12 @@ authoring inputs live outside it. Read `docs/architecture.md` and
 - `worktreesDir` and `agentsDir` are data keys whose saved values win on re-init;
   the `DOTFILES_WORKTREES_DIR` and `DOTFILES_AGENTS_DIR` env vars only seed a first
   init. Resolve them through `.chezmoitemplates/dotfiles-dir` with `dig` defaults so
-  old configs keep rendering. Init asks for both at the end of the AI submenu,
-  pre-filled (saved, then env seed, then default); `DOTFILES_NO_TUI`, no usable
-  terminal, `cup`, and an unselected AI component skip the prompt, and `apply` never
-  prompts. Apply creates the directories but never runs sudo; it prints the
+  old configs keep rendering. Init offers a `directories` entry on the AI page
+  (an init-time action: unchecked by default, outside `[data.components.ai]` and
+  `aiSelection`). Unchecked asks nothing; checked opens one editor with both paths,
+  pre-filled (saved, then env seed, then default). `DOTFILES_NO_TUI`, no usable
+  terminal, `cup`, `all+`, and an unselected AI component never offer it, and `apply`
+  never prompts. Pass user text to shell commands as positional parameters. Apply creates the directories but never runs sudo; it prints the
   privileged command instead. Existing worktrees and notes are not moved. Plan's
   handoff permissions follow `agentsDir` through the same template.
 - Keep Lazy's lockfile, downloaded plugins, OpenCode runtime links and npm state,

@@ -21,15 +21,23 @@ data keys. Resolve them only through the `dotfiles-dir` template, which expands
 `~` and `$HOME`, rejects relative or shell-unsafe values, and supplies the
 defaults, so an old config without the keys keeps rendering. Persisted values win
 on re-init; the `DOTFILES_WORKTREES_DIR` and `DOTFILES_AGENTS_DIR` environment
-variables only seed a first init. Init asks for both at the end of the AI submenu,
-pre-filled with the saved value, then the env seed, then the default. Follow the
-palette picker's gating there: no prompt under `DOTFILES_NO_TUI`, without a usable
-terminal (chezmoi's own `promptString` fails with none), on a `cup` re-init, or
-when AI is unselected, and never during `apply`. Interpolate a value into a shell
-word only after the template's check mode accepts it. Plan's handoff permissions
-render `<agentsDir>/plans` from the same template. Creation stays warn-only: print
-the privileged command and never run it. Do not move existing worktrees or notes
-automatically. Drive prompt tests through `tests/ctty_run.py` with a stub `gum`.
+variables only seed a first init. Init does not ask for them by default: the AI
+page has an unchecked `directories` entry, an init-time action like `theme` and
+`package mode` (never a component, never in `aiSelection`, number `10` outside the
+sub-feature range). Checked, it opens one `gum write` editor with both paths
+(`worktrees:` and `agents:` lines), pre-filled with the saved value, then the env
+seed, then the default; a typed host gets two `promptString` questions. Follow the
+palette picker's gating: the entry is not offered under `DOTFILES_NO_TUI`, without a
+usable terminal (chezmoi's own `promptString` fails with none), on a `cup` re-init,
+for the `all+` migration, or when AI is unselected, and `apply` never prompts. Pass
+user text to shell commands as positional parameters, and let check mode refuse raw
+text that cannot be shown safely. Plan's handoff permissions render
+`<agentsDir>/plans` from the same template. Creation stays warn-only: print the
+privileged command and never run it. Do not move existing worktrees or notes
+automatically. Drive prompt tests through `tests/ctty_run.py` with a stub `gum`
+(`write` included), and check real Gum in an isolated tmux server: Gum 2.x hides the
+first line of a pre-filled `write` unless it gets an explicit `--width`, and Gum 0.14
+subtracts a taller header from `--height`.
 
 For skill additions, keep one canonical copy under
 `home/dot_local/share/agent-skills` and per-entry links under the existing harness
