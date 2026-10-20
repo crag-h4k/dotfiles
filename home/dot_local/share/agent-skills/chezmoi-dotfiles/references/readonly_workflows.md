@@ -42,9 +42,10 @@ success. Keep native managers, release assets, Git externals, and Neovim-owned
 packages visible at the detail level needed to approve the transaction.
 
 For OpenCode runtime failures, compare SDK peer requirements with the resolved
-OpenTUI candidates. Runtime synchronization exempts the `@opencode/*` and
-`@opentui/*` release families, while other packages keep the user's age policy.
-Use the shared age-aware candidate resolver rather than a `view latest` lookup.
+OpenTUI candidates. Chezmoi-driven npm work, including runtime synchronization,
+runs with `NPM_CONFIG_MIN_RELEASE_AGE=0` in its process environment, so a user's
+release-age cooldown does not reject fresh packages; npm config files are never
+edited. Use the shared candidate resolver rather than a `view latest` lookup.
 
 For APT conflicts, inspect configured repository URIs, suites, and signing-key
 paths across `.sources` and legacy entries. Reuse valid existing configuration.

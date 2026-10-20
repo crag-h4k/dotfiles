@@ -43,7 +43,7 @@ write_opencode_stubs() {
 #!/bin/sh
 printf '%s\n' "\$*" >>'$log'
 if [ -n "\${NPM_POLICY_LOG:-}" ]; then
-  printf '%s %s\n' "\${NPM_CONFIG_MIN_RELEASE_AGE:-unset}" "\${NPM_CONFIG_MIN_RELEASE_AGE_EXCLUDE:-unset}" >>"\$NPM_POLICY_LOG"
+  printf '%s\n' "\${NPM_CONFIG_MIN_RELEASE_AGE:-unset}" >>"\$NPM_POLICY_LOG"
 fi
 prefix=""
 previous=""
@@ -196,11 +196,13 @@ STUB
   local home="$BATS_TEST_TMPDIR/home" stubs="$BATS_TEST_TMPDIR/stubs"
   local npm_log="$BATS_TEST_TMPDIR/npm.log" pip_log="$BATS_TEST_TMPDIR/pip.log"
   local rock_log="$BATS_TEST_TMPDIR/rock.log" nvim_log="$BATS_TEST_TMPDIR/nvim.log"
+  local age_log="$BATS_TEST_TMPDIR/npm-age.log"
   mkdir -p "$home/.config/nvim" "$stubs"
   : >"$home/.config/nvim/init.lua"
   cat >"$stubs/npm" <<STUB
 #!/bin/sh
 printf '%s\n' "\$*" >>'$npm_log'
+printf '%s\n' "\${NPM_CONFIG_MIN_RELEASE_AGE:-unset}" >>'$age_log'
 STUB
   write_python3_stub "$stubs/python3" "$pip_log"
   cat >"$stubs/luarocks" <<STUB
@@ -227,10 +229,11 @@ STUB
     printf 'luarocks\tluacheck\tplanned\tfloating\tregistry\t-\t-\t-\tmissing\n'
   } >"$plan"
   run env HOME="$home" PATH="$stubs:$PATH" DOTFILES_PLAN_OS=macos DOTFILES_PACKAGE_PLAN="$plan" \
-    INSTALL_AI_CODECOMPANION=true bash "$NVIM_INSTALL"
+    NPM_CONFIG_MIN_RELEASE_AGE=3 INSTALL_AI_CODECOMPANION=true bash "$NVIM_INSTALL"
   [ "$status" -eq 0 ]
   grep -Fq '@fsouza/prettierd@latest' "$npm_log"
   grep -Fq '@agentclientprotocol/claude-agent-acp@latest' "$npm_log"
+  [ "$(sort -u "$age_log")" = 0 ]
   grep -Fq -- '-m pip install --quiet --upgrade pynvim' "$pip_log"
   grep -Fq "install --tree $home/.luarocks luacheck" "$rock_log"
   [ ! -e "$nvim_log" ]
@@ -318,6 +321,29 @@ STUB
     bash "$OPENCODE2_INSTALL"
   [ "$status" -ne 0 ]
   [ "$(readlink "$prefix/bin/opencode2")" = "$old_cli" ]
+}
+
+@test "non-OpenCode npm installers run at release age 0 over an inherited cooldown" {
+  local home="$BATS_TEST_TMPDIR/age-home" stubs="$BATS_TEST_TMPDIR/age-stubs"
+  local age_log="$BATS_TEST_TMPDIR/age-installers.log" plan="$BATS_TEST_TMPDIR/age-plan.tsv"
+  mkdir -p "$home" "$stubs"
+  cat >"$stubs/npm" <<'STUB'
+#!/bin/sh
+for spec; do :; done
+printf '%s %s %s\n' "$1" "$spec" "${NPM_CONFIG_MIN_RELEASE_AGE:-unset}" >>"$AGE_LOG"
+STUB
+  printf '#!/bin/sh\nprintf "1.0.0\\n"\n' >"$stubs/copilot"
+  chmod +x "$stubs"/*
+  printf 'npm\tssh-mcp\tplanned\tpinned:2.18.0\torigin\tssh-mcp\t-\t2.18.0\tmissing\n' >"$plan"
+
+  run env HOME="$home" PATH="$stubs:$PATH" AGE_LOG="$age_log" NPM_CONFIG_MIN_RELEASE_AGE=3 \
+    DOTFILES_PACKAGE_PLAN="$plan" INSTALL_AI_SSH_MCP=true bash "$REPO_ROOT/scripts/install-ssh-mcp.sh"
+  [ "$status" -eq 0 ]
+  run env HOME="$home" PATH="$stubs:$PATH" AGE_LOG="$age_log" NPM_CONFIG_MIN_RELEASE_AGE=3 \
+    INSTALL_AI_COPILOT=true bash "$REPO_ROOT/scripts/install-copilot.sh"
+  [ "$status" -eq 0 ]
+  [ "$(cat "$age_log")" = "install ssh-mcp@2.18.0 0
+install @github/copilot@prerelease 0" ]
 }
 
 @test "atomic binary replacement leaves no partial destination" {
@@ -830,7 +856,7 @@ STUB
   [ "$status" -ne 0 ]
   run grep -F 'install --prefix' "$log"
   [[ "$output" != *'@opentui/solid@0.5.17'* ]]
-  [ "$(sort -u "$policy_log")" = '3 @opencode/*,@opentui/*' ]
+  [ "$(sort -u "$policy_log")" = 0 ]
 }
 
 @test "runtime candidate failure leaves the existing SDK untouched without starting install" {
@@ -852,7 +878,7 @@ STUB
   [ "$status" -ne 0 ]
 }
 
-@test "SDK 2.0.26 can install its fresh required OpenTUI family while keeping the age guard elsewhere" {
+@test "SDK 2.0.26 installs its fresh required OpenTUI family at release age 0" {
   local home="$BATS_TEST_TMPDIR/fresh-sdk" stubs="$BATS_TEST_TMPDIR/fresh-sdk-stubs"
   local config="$home/config" log="$home/npm.log" binary="$home/opencode2" policy_log="$home/policy.log"
   mkdir -p "$config" "$stubs"
@@ -866,7 +892,7 @@ STUB
   grep -Fq '@opencode/plugin@2.0.26' "$log"
   grep -Fq '@opentui/core@0.5.17' "$log"
   grep -Fq '@opentui/solid@0.5.17' "$log"
-  [ "$(sort -u "$policy_log")" = '3 @opencode/*,@opentui/*' ]
+  [ "$(sort -u "$policy_log")" = 0 ]
 }
 
 @test "missing OpenTUI Core declarations fail before installing or replacing the SDK" {
