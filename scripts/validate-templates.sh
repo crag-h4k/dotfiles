@@ -25,6 +25,8 @@ IGNORE="$SOURCE_DIR/.chezmoiignore"
 CONFIG_TMPL="$SOURCE_DIR/.chezmoi.toml.tmpl"
 RUNONCE="$SOURCE_DIR/.chezmoiscripts/run_after_00-install.sh.tmpl"
 NOTIFY_TMPL="$SOURCE_DIR/dot_config/notify/notify.yaml.tmpl"
+ZSHENV_TMPL="$SOURCE_DIR/dot_zshenv.tmpl"
+ENSURE_DIRS_TMPL="$SOURCE_DIR/.chezmoiscripts/run_after_02-ensure-dirs.sh.tmpl"
 NOTIFY_SOUNDS="$SOURCE_DIR/dot_config/notify/sounds"
 
 command -v chezmoi >/dev/null 2>&1 || { echo "validate-templates: chezmoi not found" >&2; exit 1; }
@@ -529,6 +531,60 @@ if grep -Fq 'git submodule update' "$RUNONCE"; then
     echo "validate-templates: palette submodule initialization must stay behind package approval" >&2
     fail=1
 fi
+
+# --- worktrees and agent directories --------------------------------------
+# data.worktreesDir / data.agentsDir default to $HOME/worktrees and $HOME/agents,
+# must tolerate an old config that lacks both keys, and feed ~/.zshenv and the
+# directory-creation script through the shared dotfiles-dir template. The Zsh
+# syntax gate skips templates, so the rendered ~/.zshenv is parsed here instead.
+# Behavior (kept values, env seeds, unsafe input, creation) is covered by
+# tests/test_user_dirs.bats.
+assert_user_dirs() {
+    local cfgdir out run_script
+    cfgdir=$(mktemp -d)
+    printf '[data]\n    componentSelection = "1 2 3"\n' >"$cfgdir/chezmoi.toml"
+    if ! out=$(chezmoi execute-template --init --source "$REPO_DIR" --config "$cfgdir/chezmoi.toml" <"$CONFIG_TMPL" 2>&1); then
+        echo "validate-templates: init render FAILED without worktreesDir/agentsDir: $out" >&2
+        fail=1; rm -rf "$cfgdir"; return
+    fi
+    # The literal $HOME is the stored default; the consumers expand it.
+    # shellcheck disable=SC2016
+    for expected in 'worktreesDir = "$HOME/worktrees"' 'agentsDir = "$HOME/agents"'; do
+        printf '%s\n' "$out" | grep -Fq "$expected" || {
+            echo "validate-templates: init did not persist the default: $expected" >&2
+            fail=1
+        }
+    done
+
+    # An old config without either key still renders both consumers.
+    printf '[data]\n' >"$cfgdir/chezmoi.toml"
+    if ! out=$(chezmoi execute-template --source "$REPO_DIR" --config "$cfgdir/chezmoi.toml" <"$ZSHENV_TMPL" 2>&1); then
+        echo "validate-templates: dot_zshenv.tmpl failed to render without the keys: $out" >&2
+        fail=1; rm -rf "$cfgdir"; return
+    fi
+    for name in DOTFILES_WORKTREES_DIR DOTFILES_AGENTS_DIR; do
+        printf '%s\n' "$out" | grep -Eq "^export $name='/[^']+'\$" || {
+            echo "validate-templates: ~/.zshenv does not export $name as a literal absolute path" >&2
+            fail=1
+        }
+    done
+    if command -v zsh >/dev/null 2>&1; then
+        printf '%s\n' "$out" >"$cfgdir/zshenv"
+        zsh -n "$cfgdir/zshenv" || { echo "validate-templates: rendered ~/.zshenv is not valid zsh" >&2; fail=1; }
+    fi
+
+    printf '[data.components.ai]\n    opencode = true\n' >"$cfgdir/chezmoi.toml"
+    run_script="$cfgdir/ensure-dirs.sh"
+    if ! chezmoi execute-template --source "$REPO_DIR" --config "$cfgdir/chezmoi.toml" <"$ENSURE_DIRS_TMPL" >"$run_script" 2>&1; then
+        echo "validate-templates: directory-creation script failed to render: $(cat "$run_script")" >&2
+        fail=1
+    elif ! bash -n "$run_script"; then
+        echo "validate-templates: rendered directory-creation script is not valid bash" >&2
+        fail=1
+    fi
+    rm -rf "$cfgdir"
+}
+assert_user_dirs
 
 # --- modify_ templates: gated JSON/TOML merge scripts ----------------------
 # Render each modify_*.tmpl under an ai sub-feature config, run the emitted merge

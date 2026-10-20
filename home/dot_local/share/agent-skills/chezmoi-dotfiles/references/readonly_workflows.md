@@ -16,6 +16,14 @@ keys and comments against realistic input. For a locally changed target, compare
 source, rendered output, and the override mechanism in `docs/operation.md` before
 choosing overwrite. Private CLI permissions and server routing stay in overlays.
 
+The worktrees and agent-notes directories are the `worktreesDir` and `agentsDir`
+data keys. Resolve them only through the `dotfiles-dir` template, which expands
+`~` and `$HOME`, rejects relative or shell-unsafe values, and supplies the
+defaults, so an old config without the keys keeps rendering. Persisted values win
+on re-init; the `DOTFILES_WORKTREES_DIR` and `DOTFILES_AGENTS_DIR` environment
+variables only seed a first init. Creation stays warn-only: print the privileged
+command and never run it. Do not move existing worktrees or notes automatically.
+
 For skill additions, keep one canonical copy under
 `home/dot_local/share/agent-skills` and per-entry links under the existing harness
 roots. Update gates, provenance, the exact validator file sets, docs, and tests
@@ -42,9 +50,10 @@ success. Keep native managers, release assets, Git externals, and Neovim-owned
 packages visible at the detail level needed to approve the transaction.
 
 For OpenCode runtime failures, compare SDK peer requirements with the resolved
-OpenTUI candidates. Runtime synchronization exempts the `@opencode/*` and
-`@opentui/*` release families, while other packages keep the user's age policy.
-Use the shared age-aware candidate resolver rather than a `view latest` lookup.
+OpenTUI candidates. Chezmoi-driven npm work, including runtime synchronization,
+runs with `NPM_CONFIG_MIN_RELEASE_AGE=0` in its process environment, so a user's
+release-age cooldown does not reject fresh packages; npm config files are never
+edited. Use the shared candidate resolver rather than a `view latest` lookup.
 
 For APT conflicts, inspect configured repository URIs, suites, and signing-key
 paths across `.sources` and legacy entries. Reuse valid existing configuration.
@@ -66,7 +75,7 @@ For the OpenCode footer, reproduce display issues against the pinned
 minimal model usage. Font changes alone do not settle rendering failures.
 For Sidequest, compare the identical server/TUI pins and its `focusKey` terminal
 option before changing host keybindings. Dotfiles seeds `<leader>p` and keeps
-`Ctrl+G` as the leader; panel behavior is maintained in the Sidequest repository.
+OpenCode's default `Ctrl+X` as the leader; panel behavior is maintained in the Sidequest repository.
 
 For tmux, test a separate socket and verify fresh-server configuration loading,
 scrolling, selection, notification firing, and clearing. Preserve active sessions.

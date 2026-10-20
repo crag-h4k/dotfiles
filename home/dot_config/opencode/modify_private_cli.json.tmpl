@@ -15,8 +15,14 @@
 #              (OpenCode's own OS banners and sounds; the tmux notifier in
 #              plugin/notify.ts is the single attention channel: visual,
 #              tmux-only, never popups); keybinds.leader and leader.timeout
-#              (the session-workflow plugin and tab bindings assume Ctrl+G);
-#              and the managed "plugins" directives below.
+#              (the leader stays on OpenCode's default Ctrl+X, which leaves
+#              Ctrl+G, OpenCode's default for the first message, to Home);
+#              the tab navigation keys (every direction key moves between
+#              tabs, so the four pane-focus and terminal defaults that sit on
+#              <leader> plus an arrow, and terminal.toggle on <leader>t, are
+#              released; the first message also answers to <leader>f for
+#              keyboards without a Home key); and the managed "plugins"
+#              directives below.
 #   SEEDED - written only when the leaf key is absent, one key at a time. A new
 #            dotfiles default reaches existing hosts; a value the TUI or the user
 #            set is never touched. Trade-off: a seeded key that is deleted comes
@@ -45,8 +51,8 @@
 # pin the yellow and cyan pills to the palette hues that gud-lucent defines,
 # with theme fallbacks for other themes. Full option reference: the package
 # README and schema.json.
-# Sidequest uses the same server/TUI package pin. Its focusKey option avoids
-# colliding with the Ctrl+G leader and is seeded without replacing local choices.
+# Sidequest uses the same server/TUI package pin. Its focusKey option is a leader
+# chord that no native binding uses; it is seeded without replacing local choices.
 #
 # ~/.config/opencode/cli.override.json is separate and wins at runtime: the
 # opencode2 wrapper exports it as OPENCODE_CLI_CONFIG_CONTENT. Nested objects
@@ -111,12 +117,17 @@ SETTINGS = (
     (("tabs", "scope"), "cwd", SEEDED),
     (("tabs", "layout"), "horizontal", SEEDED),
     (("tabs", "indicators"), "status", SEEDED),
-    (("keybinds", "leader"), "ctrl+g", OWNED),
-    (("keybinds", "session.tab.previous"), "<leader>h", SEEDED),
-    (("keybinds", "session.tab.next"), "<leader>l", SEEDED),
+    (("keybinds", "leader"), "ctrl+x", OWNED),
+    (("keybinds", "session.tab.previous"), "<leader>h,<leader>left,<leader>k,<leader>up", OWNED),
+    (("keybinds", "session.tab.next"), "<leader>l,<leader>right,<leader>j,<leader>down", OWNED),
     (("keybinds", "session.list"), "<leader>t", SEEDED),
-    (("keybinds", "session.first"), "home", SEEDED),
+    (("keybinds", "session.first"), "home,<leader>f", OWNED),
     (("keybinds", "session.sidebar.toggle"), "none", SEEDED),
+    (("keybinds", "pane.focus.left"), "none", OWNED),
+    (("keybinds", "pane.focus.right"), "none", OWNED),
+    (("keybinds", "terminal.select"), "none", OWNED),
+    (("keybinds", "terminal.close"), "none", OWNED),
+    (("keybinds", "terminal.toggle"), "none", OWNED),
     (("keybinds", "theme.switch"), "none", SEEDED),
     (("leader", "timeout"), 1500, OWNED),
     (("attention", "notifications"), False, OWNED),

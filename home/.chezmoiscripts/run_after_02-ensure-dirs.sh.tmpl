@@ -1,0 +1,26 @@
+#!/usr/bin/env bash
+# home/.chezmoiscripts/run_after_02-ensure-dirs.sh.tmpl
+# Create the worktrees directory on every apply, and the agent-notes directory
+# when any AI sub-feature is selected. Both paths come from the chezmoi data
+# (worktreesDir, agentsDir) through the shared dotfiles-dir template, so they
+# match what ~/.zshenv exports. The helper is idempotent, never uses sudo, and
+# only warns when a parent directory is not writable; see scripts/ensure-dirs.sh.
+set -euo pipefail
+
+{{/* Same AI sub-feature gate as home/.chezmoiignore and
+     run_after_01-finalize-agent-skills.sh.tmpl: the agent-notes directory exists
+     for the shared skills and tools, so it follows the skills. Keep aligned. */ -}}
+{{ $agentSkillsEnabled := or
+     (dig "components" "ai" "claude_hooks" false .)
+     (dig "components" "ai" "codex_hooks" false .)
+     (dig "components" "ai" "statusline" false .)
+     (dig "components" "ai" "opencode" false .)
+     (dig "components" "ai" "copilot" false .)
+     (dig "components" "ai" "openviking" false .)
+     (dig "components" "ai" "codecompanion" false .) -}}
+dirs=({{ includeTemplate "dotfiles-dir" (dict "home" .chezmoi.homeDir "key" "worktreesDir" "value" (dig "worktreesDir" "" .) "default" "worktrees") | squote }}
+{{- if $agentSkillsEnabled }} {{ includeTemplate "dotfiles-dir" (dict "home" .chezmoi.homeDir "key" "agentsDir" "value" (dig "agentsDir" "" .) "default" "agents") | squote }}{{ end }})
+
+# A failure to create a directory must never fail the apply.
+bash "{{ .chezmoi.sourceDir | dir }}/scripts/ensure-dirs.sh" "${dirs[@]}" ||
+    printf 'dotfiles: WARNING could not check the worktrees and agent directories\n' >&2

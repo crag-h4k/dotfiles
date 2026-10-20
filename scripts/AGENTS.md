@@ -20,6 +20,10 @@ workflows reference for changes to planning, installation, backup, or recovery.
   refreshes and one installation call per component.
 - Report unknown/unresolved candidates honestly. Do not label every floating
   dependency an update or infer installation success from a transaction marker.
+- Run chezmoi-driven npm work with `NPM_CONFIG_MIN_RELEASE_AGE=0`, exported in
+  `common.sh` and in each entrypoint that does not source it. The override is
+  process-scoped and replaces an inherited value. Never write the user's npm
+  config, and do not add per-package release-age exceptions.
 - Existing Git externals need cleanliness and safe fast-forward checks before
   updates. Skill externals retain immutable URLs and per-file checksums.
 

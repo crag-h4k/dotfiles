@@ -17,13 +17,16 @@ Pull requests use [the GitHub template](.github/pull_request_template.md) to
 record the change, evidence, deployment status, and known limitations. Fill
 its sections for the actual diff; local checks and platform CI are separate.
 
-Start from current `main` and use a worktree:
+Start from current `main` and use a worktree. Worktrees live together in one
+flat directory, `<root>/<repo>-<slug>`, where `<root>` is
+`$DOTFILES_WORKTREES_DIR` (default `$HOME/worktrees`; see
+[Worktree and agent directories](docs/operation.md#worktree-and-agent-directories)):
 
 ```sh
 git fetch origin
 git worktree add -b feat/short-description \
-  ../dotfiles-short-description origin/main
-cd ../dotfiles-short-description
+  "${DOTFILES_WORKTREES_DIR:-$HOME/worktrees}/dotfiles-short-description" origin/main
+cd "${DOTFILES_WORKTREES_DIR:-$HOME/worktrees}/dotfiles-short-description"
 ```
 
 A worktree is a normal branch with another checkout. `git status`, `git diff`,
@@ -66,7 +69,7 @@ Inside a feature worktree, edit repository files normally and tell chezmoi to
 use that checkout:
 
 ```sh
-cd /path/to/dotfiles-worktree
+cd "${DOTFILES_WORKTREES_DIR:-$HOME/worktrees}/dotfiles-short-description"
 $EDITOR home/dot_zshrc
 chezmoi --source "$PWD" diff
 chezmoi --source "$PWD" apply

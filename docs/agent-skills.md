@@ -148,11 +148,18 @@ suffixes and other filenames are denied inside those roots. Review any
 later private Plan rules before relying on that boundary. The rules also allow
 external access to the installed handoff snapshot script. Use the home path as
 the handoff root on a new machine, or configure a narrow private rule for a
-different root. The skill still requires the root in the request or harness
-instructions; the permission rule does not choose or create it. A higher-priority
-harness policy can still block edits.
-The handoff root comes from the user or from harness instructions. The skill
-does not invent one. The snapshot script prints git state only. It does not
+different root. The permission rule does not choose or create a root. A
+higher-priority harness policy can still block edits.
+
+The handoff root comes from the user, then from harness instructions, then from
+`$DOTFILES_AGENTS_DIR/plans` when that variable is set (`data.agentsDir`, default
+`$HOME/agents`; see
+[Worktree and agent directories](operation.md#worktree-and-agent-directories)).
+Otherwise the skill asks; it does not invent one. The managed Plan permission
+rule does not cover `$DOTFILES_AGENTS_DIR/plans`, so add a narrow private rule if
+Plan mode should save handoffs there.
+
+The snapshot script prints git state only. It does not
 print the environment or file contents. Chezmoi installs it read-only and
 executable so the skill can invoke it directly. A draft that contains a private-key
 block, a cloud access key, a service token, or a password assignment is not
@@ -193,12 +200,15 @@ CI reruns, and merge require their own scoped authorization. Monitoring ends
 when checks finish, the budget expires, or it reaches a blocker; it does not
 leave a daemon running. No autonomous EveryInc babysitter is installed.
 
-Worktree setup detects an existing checkout before proposing another. It follows
-configured host/repository paths instead of assuming `.worktrees/`, asks before
-fetch/create/switch operations, and moves the primary session to a newly created
-tree only with available host support. Independent feature work does not reuse
-another task's worktree. Branches and trees remain after merge unless cleanup
-is separately authorized.
+Worktree setup detects an existing checkout before proposing another. A new
+tree goes in the flat `<root>/<repo>-<slug>` layout, where `<root>` is
+`$DOTFILES_WORKTREES_DIR` (default `$HOME/worktrees`, set by `data.worktreesDir`).
+A repository's own documented convention or an existing checkout of the same
+task wins over that default. The skill asks before fetch/create/switch
+operations, and moves the primary session to a newly created tree only with
+available host support. Independent feature work does not reuse another task's
+worktree. Branches and trees remain after merge unless cleanup is separately
+authorized.
 
 The maintenance, worktree, and publishing skills probe `--is-bare-repository`
 and `--is-inside-work-tree` before checkout-only checks. `~/dotfiles` can point

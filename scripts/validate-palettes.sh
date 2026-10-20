@@ -53,12 +53,14 @@ for palette in $(yq '.paletteOrder[]' "$SOURCE_DIR/.chezmoidata/palettes.yaml");
       and .tabs.mode == "on"
       and .attention.notifications == false
       and .attention.sound == false
-      and .keybinds.leader == "ctrl+g"
-      and .keybinds["session.tab.previous"] == "<leader>h"
-      and .keybinds["session.tab.next"] == "<leader>l"
+      and .keybinds.leader == "ctrl+x"
+      and .keybinds["session.tab.previous"] == "<leader>h,<leader>left,<leader>k,<leader>up"
+      and .keybinds["session.tab.next"] == "<leader>l,<leader>right,<leader>j,<leader>down"
       and .keybinds["session.list"] == "<leader>t"
+      and .keybinds["terminal.toggle"] == "none"
+      and .keybinds["pane.focus.left"] == "none"
       and (.keybinds | has("agent.cycle") | not)
-      and .keybinds["session.first"] == "home"
+      and .keybinds["session.first"] == "home,<leader>f"
       and .keybinds["theme.switch"] == "none"
        and .leader.timeout == 1500
         and .session.sidebar == "hide"

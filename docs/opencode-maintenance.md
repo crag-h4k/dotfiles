@@ -27,7 +27,8 @@ CLI, server, plugin SDK, and terminal versions when diagnosing compatibility.
 - `cli.json` is merge-managed by `modify_private_cli.json.tmpl` because V2's
   **Open settings** writes it. Keep the enforced set small: only keys that
   protect a dotfiles integration (`attention.*` so tmux stays the single alert
-  channel, the leader, the managed `plugins`). Seed every other default per leaf
+  channel, the leader and the tab navigation keys with the pane and terminal
+  defaults they replace, the managed `plugins`). Seed every other default per leaf
   and never overwrite it. Check the live schema at `opencode.ai/v2/cli.json`
   before adding a key, because the TUI rejects unknown settings, and keep
   `tabs.enabled` and `tabs.mode` from coexisting. Inline `cli.override.json`
@@ -47,8 +48,10 @@ CLI, server, plugin SDK, and terminal versions when diagnosing compatibility.
   switching the stable binary or runtime links. Preserve old releases on failure.
   Chezmoi must not manage runtime node_modules, npm lockfiles, or authentication.
   Resolve OpenTUI and Solid.js against the selected SDK's declared peers through
-  `npm-candidate.sh`. Runtime aging exceptions cover `@opencode/*` and
-  `@opentui/*`, not all npm packages. Metadata failure must not start installation.
+  `npm-candidate.sh`. Chezmoi-driven npm work, including the wrapper and runtime
+  sync, runs with `NPM_CONFIG_MIN_RELEASE_AGE=0` in its process environment only.
+  Do not add per-package aging exceptions or write the user's npm config. Metadata
+  failure must not start installation.
 - The footer is the `opencode-pillbox-statusline` package. Dotfiles owns its
   `@latest` reference in both config files, the `opencode.jsonc` reference audit, and the
   seeded `cli.json` color options; pill behavior, quota sources, and their
@@ -58,8 +61,8 @@ CLI, server, plugin SDK, and terminal versions when diagnosing compatibility.
   Retire a removed managed entry through `RETIRED_PLUGINS` in the `cli.json`
   merge and its files through `home/.chezmoiremove`.
 - Sidequest uses the same `@latest` reference in both config files so terminal options reach its
-  single TUI instance. Seed its `focusKey` option to `<leader>p`; `ctrl+g` remains
-  the dotfiles leader. Plugin command IDs are not valid `cli.json.keybinds` keys.
+  single TUI instance. Seed its `focusKey` option to `<leader>p`; the leader stays
+  on OpenCode's default `ctrl+x`. Plugin command IDs are not valid `cli.json.keybinds` keys.
   Free the stock sidebar toggle for `<leader>b` while preserving custom bindings
   and private plugin options. The panel implementation and its tests belong in
   the Sidequest repository. Keep Pillbox's Sidequest pill disabled until its

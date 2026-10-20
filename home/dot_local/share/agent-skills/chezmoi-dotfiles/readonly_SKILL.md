@@ -19,6 +19,9 @@ If outside a worktree, use `git-worktree` and `worktree list --porcelain` to
 locate the task's checkout or propose approved isolation. Do not change Git
 configuration or assume files beside a bare repository form a normal checkout.
 If multiple active checkouts could be the target, ask before editing.
+New worktrees go in the flat `<root>/<repo>-<slug>` layout under
+`$DOTFILES_WORKTREES_DIR` (default `$HOME/worktrees`); the `git-worktree` skill
+owns the details.
 
 Inside the selected checkout, resolve its Git root. `.chezmoiroot` selects
 `home/`; pass the repository root as `--source`.

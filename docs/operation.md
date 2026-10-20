@@ -8,6 +8,7 @@
 - [Telemetry opt-outs](#telemetry-opt-outs)
 - [Telemetry opt-outs](#telemetry-opt-outs)
 - [OpenCode updates](#opencode-updates)
+- [Worktree and agent directories](#worktree-and-agent-directories)
 - [Local overrides](#local-overrides)
   - [Shell PATH additions](#shell-path-additions)
   - [OpenCode terminal settings](#opencode-terminal-settings)
@@ -167,19 +168,36 @@ change does not alter that setting.
 ## OpenCode updates
 
 OpenCode's `/update` command and `opencode2 update` use the isolated npm install
-under `~/.local/share/opencode2`. The wrapper passes that prefix to npm. It also
-exempts the `@opencode/*` release family from npm's release-age filter because
-the native updater requests an exact new CLI version and platform package.
-The matching runtime exempts both `@opencode/*` and `@opentui/*`: a fresh SDK can
-require OpenTUI packages published the same day. Other packages retain the
-user's release-age guard, and dotfiles does not modify `~/.npmrc`.
+under `~/.local/share/opencode2`. The wrapper passes that prefix to npm and runs
+OpenCode with `NPM_CONFIG_MIN_RELEASE_AGE=0`. The native updater requests an
+exact new CLI version and platform package, a fresh SDK can require OpenTUI
+packages published the same day, and plugin installs resolve moving tags, so a
+release-age cooldown would reject exactly the releases an update is after.
+
+Chezmoi-driven npm work bypasses your cooldown by design. The same variable is
+exported by every npm entrypoint dotfiles drives:
+
+- package-mode applies (`chezmoi apply`, `chezmoi update`, `cup`), including the
+  package plan's inventory and candidate lookups;
+- the npm installers for OpenCode, Copilot, SSH MCP, Caveman, and the Neovim
+  npm tools, plus any Mason install the Neovim package step starts;
+- runtime synchronization, which `opencode2` also runs at launch;
+- the managed `opencode2` wrapper.
+
+The value replaces an inherited one, so a shell that exports
+`NPM_CONFIG_MIN_RELEASE_AGE=3` still gets `0` inside these processes. It exists
+only in their process environment. Dotfiles never writes `~/.npmrc` or another
+npm config file, and npm you run from a normal terminal keeps your policy.
+Anything started by `opencode2` inherits the variable, including shell commands
+an agent runs in a session. Run project installs that should honor the cooldown
+outside it.
 
 Runtime synchronization reads the installed CLI's SDK peer requirements and
-OpenTUI Solid's declared dependencies and peers, then
-uses npm's age-aware resolver for compatible OpenTUI and Solid.js candidates.
-Installation consumes those exact versions. Missing peer metadata or unresolved
-candidates stop the sync before npm changes the existing runtime; there is no
-fallback to an unconstrained `latest` tag.
+OpenTUI Solid's declared dependencies and peers, then resolves compatible
+OpenTUI and Solid.js candidates with `npm outdated`, which honors npm's date
+filters. Installation consumes those exact versions. Missing peer metadata or
+unresolved candidates stop the sync before npm changes the existing runtime;
+there is no fallback to an unconstrained `latest` tag.
 
 You can also update the CLI directly with npm:
 
@@ -199,6 +217,65 @@ submodule. The verification uses command-scoped Git trust for the exact paths;
 it does not add a global `safe.directory` exception or change source ownership.
 Packages installed under `$HOME`, including Luacheck, belong to the account
 running chezmoi.
+
+## Worktree and agent directories
+
+Two chezmoi data keys name the directories agents and humans share across
+repositories. Both are settings, not fixed paths, so each host picks its own.
+
+| Key | Default | First-init env seed | Holds | Created |
+| --- | --- | --- | --- | --- |
+| `worktreesDir` | `$HOME/worktrees` | `DOTFILES_WORKTREES_DIR` | Git worktrees, one flat directory per task: `<root>/<repo>-<slug>` | Every apply |
+| `agentsDir` | `$HOME/agents` | `DOTFILES_AGENTS_DIR` | Local agent notes: plans, specs, drafts, memory, handoffs | Every apply with an `ai` sub-feature selected |
+
+A value can be absolute, `~/...`, or `$HOME/...`. Relative paths, the
+filesystem root, and characters outside letters, digits, spaces, and
+`. _ @ % + = : , / ~ -` fail at init and apply rather than reaching a shell
+export. Chezmoi stores the text you give it and expands it everywhere it is
+used.
+
+A saved value always wins. Re-running `chezmoi init` keeps it, even when the
+env var holds something else; the env var only seeds a first init or an old
+config that lacks the key. Neither setting prompts, so the Gum picker, the typed
+menu, `DOTFILES_NO_TUI`, and non-interactive runs all behave the same. An old
+config without the keys applies with the defaults and needs no re-init.
+
+To pick a value on a new host, seed it once:
+
+```sh
+DOTFILES_WORKTREES_DIR=/opt/worktrees DOTFILES_AGENTS_DIR="$HOME/notes/agents" \
+  chezmoi init --apply
+```
+
+To change it later, edit `~/.config/chezmoi/chezmoi.toml` and apply:
+
+```toml
+[data]
+    worktreesDir = "/opt/worktrees"
+    agentsDir = "~/notes/agents"
+```
+
+The managed `~/.zshenv` renders both values as literal absolute paths and
+exports them as `DOTFILES_WORKTREES_DIR` and `DOTFILES_AGENTS_DIR` in every zsh,
+including non-interactive shells. The `git-worktree` and `handoff` skills read
+those variables. Open a new shell (`exec zsh`) after changing a value. A
+shell-only override belongs in `~/.zsh_private`; it changes what that shell
+reports, not where dotfiles creates directories. Without the `zsh` component
+`~/.zshenv` is not managed, so the variables are not exported; the skills then
+use `$HOME/worktrees` when it exists and ask for a handoff root.
+
+Apply creates a missing directory with mode 755 and leaves an existing one
+untouched: its mode, owner, and contents stay as they are. Dotfiles never runs
+`sudo`. When the nearest existing parent is not writable, for example
+`/opt/worktrees` on a fresh host, apply keeps going and prints the one-time
+command for you to run:
+
+```sh
+sudo install -d -o "$USER" -m 0755 /opt/worktrees
+```
+
+Existing worktrees and notes are not moved. Move a worktree with
+`git worktree move <path> <new-path>` from its repository.
 
 ## Local overrides
 
@@ -274,10 +351,12 @@ export EDITOR=vim
 An external installer can append a `~/.local/bin` PATH guard to `.zshrc`, causing
 chezmoi to report a local edit. The managed `.zshenv` already adds that directory.
 Before apply, the backup hook removes only the recognized duplicate tail when
-the rest of `.zshrc` and the installed `.zshenv` exactly match managed source.
-The full original remains in the uniquely named pre-apply snapshot.
+the rest of `.zshrc` exactly matches managed source and the installed `.zshenv`
+still exports that PATH entry on its own line. (`.zshenv` is a template, so its
+rendered bytes are not compared.) The full original remains in the uniquely
+named pre-apply snapshot.
 
-Other local edits, symlinked targets, and changed `.zshenv` files are left alone.
+Other local edits, symlinked targets, and a `.zshenv` without that export are left alone.
 They keep the normal conflict prompt. Put intentional shell customizations in
 `~/.zsh_override`; do not use “overwrite all” to dismiss an unexplained change.
 
@@ -381,7 +460,7 @@ prompt. The target stays valid JSON with mode `0600`.
 
 | Class | Keys | On every apply |
 | --- | --- | --- |
-| Enforced | `$schema`, `attention.notifications`, `attention.sound`, `keybinds.leader`, `leader.timeout`, and the managed `plugins` entries at `@latest` | Reset to the managed value |
+| Enforced | `$schema`, `attention.notifications`, `attention.sound`, `keybinds.leader`, `leader.timeout`, the tab navigation keys (`session.tab.previous`, `session.tab.next`, `session.first`) with the pane and terminal defaults they displace (`pane.focus.left`, `pane.focus.right`, `terminal.select`, `terminal.close`, `terminal.toggle`), and the managed `plugins` entries at `@latest` | Reset to the managed value |
 | Seeded | Theme, tabs, the other keybinds, session, animations, diffs, terminal, managed plugin `options` | Added only when that key is absent; an existing value is never changed |
 | Migrated | The stock `session.sidebar.toggle` binding `<leader>b`, as a string or one-item list | Set to `none` to free Sidequest's panel toggle; custom bindings survive |
 | Kept | Everything else | Untouched, including keys that newer OpenCode releases add |
@@ -390,12 +469,17 @@ The enforced keys protect integrations. `attention.notifications` and
 `attention.sound` are OpenCode's own OS banners and sounds. The tmux notifier
 tints the pane and window tab instead and deliberately raises no popups, so a
 settings toggle that turned the native alerts on would double every signal. The
-leader and its timeout are fixed because the session-workflow plugin and the
-tab bindings assume `Ctrl+G`. The `plugins` array turns off the stock footer
+leader and its timeout are fixed at OpenCode's default `Ctrl+X`. The navigation
+keys are fixed because every direction key must move between tabs and no two
+managed actions may share a chord. OpenCode binds `<leader>` plus an arrow to
+pane focus and the terminal pane, and `<leader>t` to the terminal toggle, which
+collided with the session list on `<leader>t`, so those are released. A host
+still on the old `Ctrl+G` leader moves to `Ctrl+X` on the next apply. The
+`plugins` array turns off the stock footer
 and configures the Pillbox and Sidequest terminal halves, the agent catalog,
 and `/demo`.
 
-Sidequest's `options.focusKey` is seeded to `<leader>p`, so `Ctrl+G`, then `P`
+Sidequest's `options.focusKey` is seeded to `<leader>p`, so `Ctrl+X`, then `P`
 focuses its panel without taking over the leader. Change it in the Sidequest
 entry's `options`; OC2's `keybinds` object does not accept plugin command IDs.
 Keep the same Sidequest package reference in `opencode.jsonc` and
@@ -442,9 +526,10 @@ Both Pillbox and Sidequest follow npm's moving `latest` tag. OpenCode checks
 for newer versions on startup but keeps the installed versions until you choose
 to update them. Review the release, then run `opencode2 plugin update` to install
 the latest available versions. This executes new plugin code without a dotfiles
-change. A local npm release-age policy may reject a fresh version; keep the
-policy intact and use a process-scoped exception only when you accept the
-new release. A fresh installation also resolves the moving tags at startup.
+change. The `opencode2` wrapper runs with `NPM_CONFIG_MIN_RELEASE_AGE=0` (see
+[OpenCode updates](#opencode-updates)), so your npm release-age policy does not
+reject a fresh version there; reviewing the release is the control. A fresh
+installation also resolves the moving tags at startup.
 Keep local entries after the end marker. Packages, local paths, Git references,
 object options, and comments survive repeated applies in their original local
 order. There is no dotfiles allowlist; review additions yourself because plugins

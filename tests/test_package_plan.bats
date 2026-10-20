@@ -249,6 +249,32 @@ STUB
   [ "$(grep -c 'outdated -g --json --prefix .*\.local$' "$log")" -eq 1 ]
 }
 
+@test "npm inventory runs at release age 0 over an inherited cooldown" {
+  local stubdir="${BATS_TEST_TMPDIR}/npm-age" log="${BATS_TEST_TMPDIR}/npm-age.log"
+  mkdir -p "$stubdir"
+  cat > "${stubdir}/brew" <<'STUB'
+#!/bin/sh
+exit 0
+STUB
+  cat > "${stubdir}/npm" <<STUB
+#!/bin/sh
+printf '%s %s\n' "\$1" "\${NPM_CONFIG_MIN_RELEASE_AGE:-unset}" >> "${log}"
+case "\$1" in
+  outdated) printf '{}' ;;
+esac
+STUB
+  chmod +x "${stubdir}/brew" "${stubdir}/npm"
+
+  run env PATH="${stubdir}:${PATH}" NPM_CONFIG_MIN_RELEASE_AGE=3 DOTFILES_PLAN_OS=macos \
+    DOTFILES_PLAN_APPROVED=1 INSTALL_NEOVIM=true INSTALL_AI_OPENCODE=true \
+    bash "$PLANNER" --records
+
+  [ "$status" -eq 0 ]
+  grep -q '^list 0$' "$log"
+  grep -q '^outdated 0$' "$log"
+  [ "$(sort -u "$log" | grep -vc ' 0$')" -eq 0 ]
+}
+
 @test "managed Ghostty cask remains eligible for update" {
   local stubdir="${BATS_TEST_TMPDIR}/ghostty-stub"
   mkdir -p "$stubdir"

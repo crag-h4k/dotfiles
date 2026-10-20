@@ -4,8 +4,9 @@
 
 set -euo pipefail
 
-# A fresh SDK can require OpenTUI released the same day. Other packages keep aging.
-export NPM_CONFIG_MIN_RELEASE_AGE_EXCLUDE='@opencode/*,@opentui/*'
+# A fresh SDK can require OpenTUI released the same day. Chezmoi-driven npm work
+# bypasses the user's release-age cooldown through this process environment only.
+export NPM_CONFIG_MIN_RELEASE_AGE=0
 
 binary="${1:?usage: sync-runtime.sh OPENCODE_BINARY [CONFIG_DIR]}"
 config_dir="${2:-$HOME/.config/opencode}"

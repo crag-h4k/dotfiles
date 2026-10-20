@@ -124,7 +124,7 @@ checkout dirty.
 | [Agent skills](docs/agent-skills.md) | Cross-harness layout, invocation policy, immutable pins, and threat boundaries |
 | [Agent guidance](docs/agent-guidance.md) | Repository instructions, maintenance workflows, and recorded decisions |
 | [Architecture](docs/architecture.md) | Source-root boundaries, ownership, and rendered paths |
-| [Operation](docs/operation.md) | Daily chezmoi work, tmux behavior, statuslines, and removal |
+| [Operation](docs/operation.md) | Daily chezmoi work, worktree and agent directories, tmux behavior, statuslines, and removal |
 | [Neovim](docs/neovim.md) | Lazy, Mason, LSPs, linters, and local revision state |
 | [Gitleaks](docs/gitleaks.md) | Editor warnings, project allowlists, exclusions, and prek enforcement |
 | [Notifications](docs/notifications.md) | tmux-native process and Claude/Codex attention cues |
