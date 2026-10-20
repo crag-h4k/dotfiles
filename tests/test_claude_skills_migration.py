@@ -195,10 +195,10 @@ class ClaudeSkillsMigrationTest(unittest.TestCase):
                 with self.assertRaisesRegex(ValueError, "not group or world writable"):
                     MIGRATION.migration_plan(self.home)
 
-    def deny(self, path: Path) -> None:
-        """Remove every permission bit from path until the test ends."""
+    def deny(self, path: Path, mode: int = 0) -> None:
+        """Set path to a mode that blocks the owner's access until the test ends."""
         original = path.stat().st_mode & 0o7777
-        path.chmod(0)
+        path.chmod(mode)
         # Cleanups run last-in first-out, so this runs before the temporary
         # directory is removed.
         self.addCleanup(path.chmod, original)
@@ -248,9 +248,8 @@ class ClaudeSkillsMigrationTest(unittest.TestCase):
                     )
                     self.assertEqual(result.stderr, "")
 
-    def test_pre_apply_hook_skips_an_inaccessible_legacy_root(self) -> None:
-        # Run the hook alone: with a non-empty root chezmoi itself must still
-        # replace the directory, which is outside what the hook can do.
+    def hook_repo(self) -> Path:
+        """Build a minimal source tree that manages only the Claude skills link."""
         repo = self.home.parent / "hook-repo"
         scripts = repo / "scripts"
         hooks = repo / "home/.chezmoiscripts"
@@ -261,37 +260,254 @@ class ClaudeSkillsMigrationTest(unittest.TestCase):
         (repo / "home/dot_claude/symlink_skills").write_text("../.agents/skills\n")
         shutil.copyfile(REPO / "home/.chezmoiscripts/run_before_00-backup.sh", hooks / "run_before_00-backup.sh")
         shutil.copyfile(MODULE, scripts / "migrate-claude-skills.py")
+        return repo
+
+    def hook_environment(self, home: Path, repo: Path, *path_prefix: Path) -> dict:
+        """Return a clean environment for running the hook or chezmoi against home."""
         # The hook runs `python3`; make it the interpreter under test.
         interpreter = self.home.parent / "interpreter"
-        interpreter.mkdir()
-        (interpreter / "python3").symlink_to(sys.executable)
-        for name, home in self.inaccessible_states().items():
-            with self.subTest(denied=name):
-                config = home / ".config/chezmoi/chezmoi.toml"
-                config.parent.mkdir(parents=True)
-                config.write_text('sourceDir = "' + str(repo) + '"\n')
-                environment = {key: value for key, value in os.environ.items() if key not in GIT_ENVIRONMENT}
-                environment.update({
-                    "HOME": str(home),
-                    "XDG_CONFIG_HOME": str(home / ".config"),
-                    "XDG_DATA_HOME": str(home / ".local/share"),
-                    "XDG_CACHE_HOME": str(home / ".cache"),
-                    "XDG_STATE_HOME": str(home / ".local/state"),
-                    "CHEZMOI_SOURCE_DIR": str(repo / "home"),
-                    "PATH": str(interpreter) + os.pathsep + os.environ["PATH"],
-                })
-                environment.pop("DOTFILES_MIGRATE_CLAUDE_SKILLS", None)
+        if not interpreter.exists():
+            interpreter.mkdir()
+            (interpreter / "python3").symlink_to(sys.executable)
+        config = home / ".config/chezmoi/chezmoi.toml"
+        config.parent.mkdir(parents=True, exist_ok=True)
+        config.write_text('sourceDir = "' + str(repo) + '"\n')
+        environment = {key: value for key, value in os.environ.items() if key not in GIT_ENVIRONMENT}
+        environment.update({
+            "HOME": str(home),
+            "XDG_CONFIG_HOME": str(home / ".config"),
+            "XDG_DATA_HOME": str(home / ".local/share"),
+            "XDG_CACHE_HOME": str(home / ".cache"),
+            "XDG_STATE_HOME": str(home / ".local/state"),
+            "CHEZMOI_SOURCE_DIR": str(repo / "home"),
+            "PATH": os.pathsep.join([*map(str, path_prefix), str(interpreter), os.environ["PATH"]]),
+        })
+        environment.pop("DOTFILES_MIGRATE_CLAUDE_SKILLS", None)
+        return environment
 
-                result = subprocess.run(
-                    ["bash", str(hooks / "run_before_00-backup.sh")],
-                    env=environment, stdin=subprocess.DEVNULL, capture_output=True, text=True, timeout=60,
-                )
+    def run_hook(self, repo: Path, environment: dict) -> subprocess.CompletedProcess:
+        return subprocess.run(
+            ["bash", str(repo / "home/.chezmoiscripts/run_before_00-backup.sh")],
+            env=environment, stdin=subprocess.DEVNULL, capture_output=True, text=True, timeout=60,
+        )
 
-                output = result.stdout + result.stderr
-                self.assertEqual(result.returncode, 0, output)
-                self.assertNotIn("migrate-claude-skills:", output)
-                self.assertNotIn("Traceback", output)
-                self.assertNotIn("review the Claude skill migration", output)
+    def test_pre_apply_hook_skips_an_inaccessible_legacy_root(self) -> None:
+        # Run the hook alone: with a non-empty root chezmoi itself must still
+        # replace the directory, which is outside what the hook can do. A denied
+        # ~/.claude is different: the hook repairs it, so it is covered below.
+        repo = self.hook_repo()
+        home = self.inaccessible_states()["skills"]
+        environment = self.hook_environment(home, repo)
+
+        result = self.run_hook(repo, environment)
+
+        output = result.stdout + result.stderr
+        self.assertEqual(result.returncode, 0, output)
+        self.assertNotIn("migrate-claude-skills:", output)
+        self.assertNotIn("Traceback", output)
+        self.assertNotIn("review the Claude skill migration", output)
+        self.assertNotIn("restored owner access", output)
+
+    def test_pre_apply_hook_reviews_skills_inside_an_untraversable_claude_dir(self) -> None:
+        # `-d ~/.claude/skills` is false while ~/.claude cannot be searched, so
+        # the hook used to skip the review gate and the move-aside entirely.
+        repo = self.hook_repo()
+        home = self.inaccessible_states()["claude"]
+        environment = self.hook_environment(home, repo)
+
+        result = self.run_hook(repo, environment)
+
+        output = result.stdout + result.stderr
+        self.assertEqual(result.returncode, 1, output)
+        self.assertIn("review the Claude skill migration", output)
+        self.assertEqual(output.count("restored owner access"), 1, output)
+        self.assertEqual((home / ".claude").stat().st_mode & 0o777, 0o700)
+        self.assertEqual((home / ".claude/skills/local-example/SKILL.md").read_text(), "legacy skill\n")
+
+        environment["DOTFILES_MIGRATE_CLAUDE_SKILLS"] = "true"
+        result = self.run_hook(repo, environment)
+
+        self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+        self.assertNotIn("restored owner access", result.stdout)
+        self.assertTrue((home / ".claude/skills").is_symlink())
+        self.assertEqual((home / ".agents/skills/local-example/SKILL.md").read_text(), "legacy skill\n")
+
+    def test_apply_stops_at_the_review_gate_for_an_untraversable_claude_dir(self) -> None:
+        # End to end: chezmoi owns the mode of ~/.claude, so it repaired the
+        # directory itself and replaced skills/ with the link, losing the skills.
+        repo = self.hook_repo()
+        home = self.inaccessible_states()["claude"]
+        environment = self.hook_environment(home, repo)
+        command = ["chezmoi", "--source", str(repo), "--destination", str(home), "--no-tty", "apply"]
+
+        result = subprocess.run(command, env=environment, stdin=subprocess.DEVNULL,
+                                capture_output=True, text=True, timeout=60)
+
+        output = result.stdout + result.stderr
+        self.assertEqual(result.returncode, 1, output)
+        self.assertIn("review the Claude skill migration", output)
+        skills = home / ".claude/skills"
+        self.assertFalse(skills.is_symlink(), output)
+        self.assertEqual((skills / "local-example/SKILL.md").read_text(), "legacy skill\n")
+
+        environment["DOTFILES_MIGRATE_CLAUDE_SKILLS"] = "true"
+        result = subprocess.run(command, env=environment, stdin=subprocess.DEVNULL,
+                                capture_output=True, text=True, timeout=60)
+
+        self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+        self.assertTrue(skills.is_symlink())
+        self.assertEqual((home / ".agents/skills/local-example/SKILL.md").read_text(), "legacy skill\n")
+
+    def test_pre_apply_hook_only_repairs_what_it_owns_and_must(self) -> None:
+        repo = self.hook_repo()
+        fake_bin = self.home.parent / "fake-bin"
+        fake_bin.mkdir()
+        (fake_bin / "chmod").write_text("#!/bin/sh\nexit 1\n")
+        (fake_bin / "chmod").chmod(0o755)
+
+        def prepared(name: str, mode: int) -> Path:
+            home = self.home.parent / ("guard-" + name)
+            (home / ".claude").mkdir(parents=True)
+            (home / ".claude/settings.json").write_text("{}\n")
+            self.deny(home / ".claude", mode)
+            return home
+
+        with self.subTest(case="already searchable"):
+            home = self.home.parent / "guard-searchable"
+            (home / ".claude").mkdir(parents=True)
+            (home / ".claude").chmod(0o750)
+            result = self.run_hook(repo, self.hook_environment(home, repo))
+
+            self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+            self.assertNotIn("restored owner access", result.stdout)
+            self.assertEqual((home / ".claude").stat().st_mode & 0o777, 0o750)
+
+        with self.subTest(case="only the owner bits change"):
+            home = prepared("bits", 0o604)
+            result = self.run_hook(repo, self.hook_environment(home, repo))
+
+            self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+            self.assertEqual((home / ".claude").stat().st_mode & 0o777, 0o704)
+
+        with self.subTest(case="symlink is never changed"):
+            home = self.home.parent / "guard-symlink"
+            home.mkdir()
+            target = self.home.parent / "guard-symlink-target"
+            target.mkdir()
+            (home / ".claude").symlink_to(target)
+            self.deny(target)
+            result = self.run_hook(repo, self.hook_environment(home, repo))
+
+            self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+            self.assertNotIn("restored owner access", result.stdout)
+            self.assertEqual(target.stat().st_mode & 0o777, 0)
+
+        with self.subTest(case="failed chmod warns and continues"):
+            home = prepared("chmod-fails", 0)
+            result = self.run_hook(repo, self.hook_environment(home, repo, fake_bin))
+
+            self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+            self.assertIn("WARNING could not restore access", result.stderr)
+            self.assertNotIn("restored owner access", result.stdout)
+            self.assertEqual((home / ".claude").stat().st_mode & 0o777, 0)
+
+    def real_apply(self, home: Path, *features: str) -> subprocess.CompletedProcess:
+        """Apply the whole repository to a disposable home, configs only, no network."""
+        lines = [
+            f'sourceDir = "{REPO}"', "[data]", 'installMode = "configs"', 'palette = "dracula"',
+            "[data.components]", "zsh = false", "tmux = false", "neovim = false", "[data.components.ai]",
+        ]
+        for feature in ("claude_hooks", "codex_hooks", "statusline", "opencode", "copilot", "openviking", "codecompanion"):
+            lines.append(f"{feature} = {str(feature in features).lower()}")
+        lines += [
+            "[data.components.git]", "config = false", "personal = false", "ignore_global = false",
+            "[data.components.terminal]", "ghostty = false", "iterm2 = false",
+        ]
+        config = home / ".config/chezmoi/chezmoi.toml"
+        config.parent.mkdir(parents=True, exist_ok=True)
+        config.write_text("\n".join(lines) + "\n")
+        environment = {key: value for key, value in os.environ.items() if key not in GIT_ENVIRONMENT}
+        environment.update({
+            "HOME": str(home),
+            "XDG_CONFIG_HOME": str(home / ".config"),
+            "XDG_DATA_HOME": str(home / ".local/share"),
+            "XDG_CACHE_HOME": str(home / ".cache"),
+            "XDG_STATE_HOME": str(home / ".local/state"),
+        })
+        environment.pop("DOTFILES_MIGRATE_CLAUDE_SKILLS", None)
+        return subprocess.run(
+            ["chezmoi", "--source", str(REPO), "--destination", str(home), "--no-tty",
+             "apply", "--exclude=externals", "--refresh-externals=never"],
+            env=environment, stdin=subprocess.DEVNULL, capture_output=True, text=True, timeout=120,
+        )
+
+    def codex_repo(self) -> Path:
+        """Build a minimal source tree around the real .chezmoiremove."""
+        repo = self.home.parent / "codex-repo"
+        (repo / "home/dot_codex").mkdir(parents=True)
+        (repo / ".chezmoiroot").write_text("home\n")
+        (repo / "home/dot_codex/managed.txt").write_text("managed\n")
+        shutil.copyfile(REPO / "home/.chezmoiremove", repo / "home/.chezmoiremove")
+        return repo
+
+    def codex_apply(self, repo: Path, home: Path) -> subprocess.CompletedProcess:
+        return subprocess.run(
+            ["chezmoi", "--source", str(repo), "--destination", str(home), "--no-tty", "apply"],
+            env=self.hook_environment(home, repo), stdin=subprocess.DEVNULL,
+            capture_output=True, text=True, timeout=60,
+        )
+
+    def stale_codex_theme(self, name: str) -> Path:
+        """Create a home holding the old Codex theme that .chezmoiremove deletes."""
+        stale = self.home.parent / name / ".codex/themes/gud.tmTheme"
+        stale.parent.mkdir(parents=True)
+        stale.write_text("old theme\n")
+        return stale
+
+    def test_apply_tolerates_an_untraversable_codex_directory(self) -> None:
+        # Chezmoi reads .chezmoiremove before any script runs, so a hook cannot
+        # repair ~/.codex first; the removal of the old theme is skipped instead.
+        repo = self.codex_repo()
+        stale = self.stale_codex_theme("codex-denied")
+        home = stale.parents[2]
+        self.deny(home / ".codex")
+
+        result = self.codex_apply(repo, home)
+
+        output = result.stdout + result.stderr
+        self.assertEqual(result.returncode, 0, output)
+        self.assertNotIn("permission denied", output)
+
+        # Chezmoi repairs the mode of the directory it manages, so the skipped
+        # removal runs on the next apply.
+        again = self.codex_apply(repo, home)
+
+        self.assertEqual(again.returncode, 0, again.stdout + again.stderr)
+        self.assertFalse(stale.exists())
+
+    def test_apply_still_removes_the_old_codex_theme_from_a_searchable_directory(self) -> None:
+        repo = self.codex_repo()
+        stale = self.stale_codex_theme("codex-searchable")
+
+        result = self.codex_apply(repo, stale.parents[2])
+
+        self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+        self.assertFalse(stale.exists())
+
+    def test_full_apply_tolerates_an_untraversable_codex_directory(self) -> None:
+        # One run against the real source and selections, which also exercises
+        # the ignore rules and the Codex merge target around the removal.
+        stale = self.stale_codex_theme("codex-full")
+        home = stale.parents[2]
+        (home / ".codex/config.toml").write_text('model = "local-model"\n')
+        self.deny(home / ".codex")
+
+        result = self.real_apply(home, "claude_hooks", "codex_hooks", "statusline")
+
+        output = result.stdout + result.stderr
+        self.assertEqual(result.returncode, 0, output)
+        self.assertNotIn("permission denied", output)
+        self.assertIn('model = "local-model"', (home / ".codex/config.toml").read_text())
 
     def test_openviking_only_apply_tolerates_absent_harness_directories(self) -> None:
         # Claude and Codex are not selected, so a host may have neither, or only
