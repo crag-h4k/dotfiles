@@ -12,12 +12,9 @@ _resolve_npm_candidate() {
         rmdir "$directory"
         return 1
     fi
-    # Unlike `view`, `outdated` honors release-age and before filters.
-    local -a command=(npm outdated --prefix "$directory" --long --json --fetch-retries=0 --fetch-timeout=15000)
-    if [[ "$name" == @opencode/cli ]]; then
-        command=(env 'NPM_CONFIG_MIN_RELEASE_AGE_EXCLUDE=@opencode/*' "${command[@]}")
-    fi
-    output=$("${command[@]}" 2>/dev/null) || result=$?
+    # Unlike `view`, `outdated` honors release-age and before filters. Resolve
+    # the newest release whatever cooldown the caller's environment carries.
+    output=$(NPM_CONFIG_MIN_RELEASE_AGE=0 npm outdated --prefix "$directory" --long --json --fetch-retries=0 --fetch-timeout=15000 2>/dev/null) || result=$?
     rm -f "$directory/package.json"
     rmdir "$directory"
     (( result <= 1 )) || return 1
