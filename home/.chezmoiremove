@@ -4,7 +4,15 @@
 {{/* Gud remains the Zsh prompt name, but no longer names color artifacts. */}}
 .config/ghostty/themes/gud-theme.conf
 .config/statusline/gud-palette.sh
+{{/* Chezmoi reads removals before any run_before script, and an lstat of a path
+     inside an unsearchable ~/.codex fails the whole apply, so a hook cannot repair
+     it first. Stat only ~/.codex itself, which works at any mode, and list the
+     old theme when the owner can search it. 64 is the owner execute bit (0o100). */}}
+{{ with stat (joinPath .chezmoi.destDir ".codex") -}}
+{{ if eq (mod (div .perm 64) 2) 1 -}}
 .codex/themes/gud.tmTheme
+{{ end -}}
+{{ end -}}
 {{/* opencode-pillbox-statusline replaced the local OpenCode V2 footer and its
      server plugins. Left behind, the plugin/ files keep auto-loading and serving
      quota RPCs, including the Copilot /models call that pillbox makes opt-in. */}}

@@ -67,6 +67,33 @@ move_aside() {
     fi
 }
 
+# Give the owner back search access to a directory it cannot traverse. Every test
+# on a path inside such a directory fails, so `-d` is false for a real skills
+# directory under a mode-000 ~/.claude: the review gate below never runs, and
+# chezmoi, which owns the mode of ~/.claude, repairs it and replaces skills/ with
+# the managed link, deleting the user's skills without a backup. Restoring u+rwx
+# (the bits chezmoi would set anyway; never group or other) lets the gate and the
+# backup see what is really there. Only a real directory this account owns is
+# touched, never a symlink or one that is already searchable. A failed chmod
+# warns instead of aborting the apply.
+restore_owner_access() {
+    local dir="$1"
+    [[ -d "$dir" && ! -L "$dir" && -O "$dir" && ! -x "$dir" ]] || return 0
+    if chmod u+rwx "$dir"; then
+        printf 'dotfiles: %s was not searchable; restored owner access (chmod u+rwx) so existing files can be backed up and reviewed before chezmoi manages it\n' "$dir"
+    else
+        printf 'dotfiles: WARNING could not restore access to %s; files inside it cannot be backed up or reviewed\n' "$dir" >&2
+    fi
+}
+
+# Only a managed ~/.claude/skills link puts ~/.claude's contents at risk.
+claude_skills="$HOME/.claude/skills"
+claude_skills_managed=false
+if chezmoi managed --path-style=absolute --include=symlinks 2>/dev/null | grep -Fqx "$claude_skills"; then
+    claude_skills_managed=true
+    restore_owner_access "$HOME/.claude"
+fi
+
 # 1. Every managed file (the configs themselves).
 while IFS= read -r target; do
     copy_into_backup "$target"
@@ -98,9 +125,7 @@ done < <(chezmoi managed --path-style=absolute --include=files 2>/dev/null \
 # migration compares every entry before moving anything and refuses a conflict.
 # Requiring an explicit opt-in prevents a normal noninteractive apply from
 # silently relocating a user's independent skills.
-claude_skills="$HOME/.claude/skills"
-if chezmoi managed --path-style=absolute --include=symlinks 2>/dev/null | grep -Fqx "$claude_skills" &&
-    [[ -d "$claude_skills" && ! -L "$claude_skills" ]]; then
+if [[ "$claude_skills_managed" == true && -d "$claude_skills" && ! -L "$claude_skills" ]]; then
     if [[ ! -r "$claude_skills" || ! -x "$claude_skills" ]]; then
         # Nothing inside can be listed, so there is nothing to review or move.
         # Chezmoi itself replaces the directory when it can.

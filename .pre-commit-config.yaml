@@ -123,7 +123,7 @@ repos:
         entry: python3 -m unittest tests/test_claude_skills_migration.py
         language: system
         pass_filenames: false
-        files: ^(home/(\.chezmoiignore|\.chezmoiscripts/run_before_00-backup\.sh|dot_claude/symlink_skills)|scripts/migrate-claude-skills\.py|tests/test_claude_skills_migration\.py)$
+        files: ^(home/(\.chezmoiignore|\.chezmoiremove|\.chezmoiscripts/run_before_00-backup\.sh|dot_claude/symlink_skills)|scripts/migrate-claude-skills\.py|tests/test_claude_skills_migration\.py)$
 
       - id: test-caveman
         name: python (Caveman private config and user services)

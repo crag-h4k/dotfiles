@@ -713,6 +713,20 @@ a directory that chezmoi also manages as a directory (`~/.config`, `~/.claude`,
 paths are real directories. Recover an original from
 `~/.dotfiles-backup/<timestamp>/<relative-path>.pre-apply`.
 
+Two inaccessible-directory cases are handled before chezmoi can trip on them. A
+`~/.claude` you own but cannot search gets `chmod u+rwx` from the same script when
+the managed skills link is selected, so its legacy skills are reviewed and backed up
+instead of replaced; see [Cross-harness agent skills](agent-skills.md#selection-and-layout).
+A `~/.codex` you cannot search used to fail every apply with
+`lstat ~/.codex/themes/gud.tmTheme: permission denied`. Chezmoi reads
+`.chezmoiremove` before any script runs, so a hook cannot fix that first. The
+template there now lists the old Codex theme only when the owner can search
+`~/.codex`. Chezmoi repairs the mode of the directory it manages, and the next
+apply removes the theme. The gate tests the owner's search bit, so a `~/.codex`
+owned by another account is not covered. Because the directory is unreadable on
+that first run, its managed files are not copied into the snapshot, though the
+Codex config merge still preserves their local keys.
+
 ### Reloading
 
 ```sh
