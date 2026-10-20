@@ -49,7 +49,7 @@ repos:
         exclude: |
           (?x)^(
             home/dot_zshrc$|
-            home/dot_zshenv$|
+            home/dot_zshenv\.tmpl$|
             home/dot_zsh/aliases$|
             home/dot_zsh/custom/functions/.*\.zsh$
           )$
@@ -109,14 +109,14 @@ repos:
         entry: python3 -m unittest tests/test_telemetry_env.py
         language: system
         pass_filenames: false
-        files: ^(home/dot_zshenv|tests/test_telemetry_env\.py)$
+        files: ^(home/(dot_zshenv\.tmpl|\.chezmoitemplates/dotfiles-dir)|tests/test_telemetry_env\.py)$
 
       - id: test-zshrc-migration
         name: python (backed-up redundant zshrc PATH tail)
         entry: python3 -m unittest tests/test_zshrc_migration.py
         language: system
         pass_filenames: false
-        files: ^(home/(dot_zshrc|dot_zshenv|\.chezmoiscripts/run_before_00-backup\.sh)|scripts/normalize-zshrc\.py|tests/test_zshrc_migration\.py)$
+        files: ^(home/(dot_zshrc|dot_zshenv\.tmpl|\.chezmoiscripts/run_before_00-backup\.sh)|scripts/normalize-zshrc\.py|tests/test_zshrc_migration\.py)$
 
       - id: test-claude-skills-migration
         name: python (Claude skill root migration)
@@ -172,7 +172,7 @@ repos:
         entry: python3 -m unittest tests/test_agent_skills.py
         language: system
         pass_filenames: false
-        files: ^((.*/)?AGENTS\.md|docs/agent-(skills|guidance)\.md|home/(\.chezmoi(ignore|external\.toml)|dot_(agents|claude)/skills/.*|dot_config/opencode/(agents/ricer|commands/(dotfiles|handoff|humanize|unslop|publish|pr-watch|worktree))\.md|dot_local/share/agent-skills/.*)|scripts/validate-agent-skills\.py|tests/test_agent_skills\.py)$
+        files: ^((.*/)?AGENTS\.md|docs/agent-(skills|guidance)\.md|home/(dot_zshenv\.tmpl|\.chezmoi(ignore|external\.toml)|dot_(agents|claude)/skills/.*|dot_config/opencode/(agents/ricer|commands/(dotfiles|handoff|humanize|unslop|publish|pr-watch|worktree))\.md|dot_local/share/agent-skills/.*)|scripts/validate-agent-skills\.py|tests/test_agent_skills\.py)$
 
       - id: luacheck
         name: luacheck
@@ -190,7 +190,7 @@ repos:
         entry: scripts/validate-templates.sh
         language: script
         pass_filenames: false
-        files: ^(home/(\.chezmoiexternal\.toml|\.chezmoi(ignore|\.toml\.tmpl)|\.chezmoiscripts/run_after_00-install\.sh\.tmpl|dot_gitconfig|dot_claude/modify_settings\.json\.tmpl|dot_codex/modify_private_config\.toml\.tmpl|dot_config/notify/(notify\.yaml\.tmpl|sounds/.*))|home/\.chezmoidata/palettes\.yaml|scripts/(confirm-install|package-plan|validate-templates)\.sh)$
+        files: ^(home/(\.chezmoiexternal\.toml|\.chezmoi(ignore|\.toml\.tmpl)|\.chezmoitemplates/.*|\.chezmoiscripts/run_after_(00-install|02-ensure-dirs)\.sh\.tmpl|dot_zshenv\.tmpl|dot_gitconfig|dot_claude/modify_settings\.json\.tmpl|dot_codex/modify_private_config\.toml\.tmpl|dot_config/notify/(notify\.yaml\.tmpl|sounds/.*))|home/\.chezmoidata/palettes\.yaml|scripts/(confirm-install|package-plan|validate-templates)\.sh)$
 
       - id: zsh-syntax
         name: zsh syntax (zsh -n)
@@ -198,8 +198,9 @@ repos:
         language: script
         # ShellCheck cannot parse zsh and excludes home/dot_zsh/, so without this
         # these files have no syntax gate at all. Templates are skipped: they are
-        # not valid zsh until chezmoi renders them.
-        files: ^home/(dot_zshrc|dot_zshenv|dot_zsh/(aliases|custom/.*\.(zsh|zsh-theme))|dot_local/bin/executable_opencode2|dot_tmux/bin/executable_tpm-local-policy)$
+        # not valid zsh until chezmoi renders them. scripts/validate-templates.sh
+        # renders home/dot_zshenv.tmpl and runs zsh -n on the result.
+        files: ^home/(dot_zshrc|dot_zsh/(aliases|custom/.*\.(zsh|zsh-theme))|dot_local/bin/executable_opencode2|dot_tmux/bin/executable_tpm-local-policy)$
         exclude: \.tmpl$
 
       - id: typescript-syntax
@@ -290,6 +291,15 @@ repos:
         additional_dependencies: ['bats@1.13.0']
         pass_filenames: false
         files: ^(home/\.chezmoi\.toml\.tmpl|tests/test_palette_init\.bats)$
+
+      - id: bats-user-dirs
+        name: bats (worktrees and agent directories)
+        entry: bats
+        args: [tests/test_user_dirs.bats]
+        language: node
+        additional_dependencies: ['bats@1.13.0']
+        pass_filenames: false
+        files: ^(home/(\.chezmoi\.toml\.tmpl|\.chezmoitemplates/dotfiles-dir|dot_zshenv\.tmpl|\.chezmoiscripts/run_after_02-ensure-dirs\.sh\.tmpl)|scripts/ensure-dirs\.sh|tests/test_user_dirs\.bats)$
 
       - id: python-package-run
         name: python (packageRun initialization trigger)

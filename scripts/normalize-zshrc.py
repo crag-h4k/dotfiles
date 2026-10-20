@@ -7,6 +7,7 @@ import re
 import stat
 import tempfile
 
+PATH_EXPORT = b"export PATH=$HOME/.local/bin:$PATH"
 PATH_GUARD = 'case ":$PATH:" in *":$HOME/.local/bin:"*) ;; *) export PATH="$HOME/.local/bin:$PATH" ;; esac'
 
 
@@ -17,12 +18,17 @@ def normalize(source, target, backup):
     current = target.read_bytes()
     if current == canonical or not current.startswith(canonical):
         return False
-    # A local zshenv edit must not lose the only hook providing this PATH entry.
-    source_env = source.with_name("dot_zshenv")
+    # Dropping the zshrc guard must not lose the only hook providing this PATH
+    # entry. zshenv is a template now, so its rendered bytes cannot be compared
+    # here; require the managed source to carry the export and the installed file
+    # to still contain it as an active line.
+    source_env = source.with_name("dot_zshenv.tmpl")
     target_env = target.with_name(".zshenv")
-    if not source_env.is_file() or not target_env.is_file() or source_env.read_bytes() != target_env.read_bytes():
+    if not source_env.is_file() or not target_env.is_file():
         return False
-    if b'export PATH=$HOME/.local/bin:$PATH' not in source_env.read_bytes():
+    if PATH_EXPORT not in source_env.read_bytes().splitlines():
+        return False
+    if PATH_EXPORT not in (line.strip() for line in target_env.read_bytes().splitlines()):
         return False
     lines = current[len(canonical):].decode("utf-8").splitlines()
     tail = [line for line in lines if line.strip()]

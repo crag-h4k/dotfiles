@@ -1,6 +1,6 @@
 """Check managed telemetry exports without loading the user's shell config."""
+import os
 from pathlib import Path
-import shutil
 import subprocess
 import tempfile
 import unittest
@@ -13,7 +13,15 @@ class TelemetryEnvTest(unittest.TestCase):
     def test_zsh_startup_exports_optouts_to_child_processes(self):
         with tempfile.TemporaryDirectory(prefix="telemetry-") as directory:
             home = Path(directory)
-            shutil.copyfile(REPO / "home/dot_zshenv", home / ".zshenv")
+            config = home / "chezmoi.toml"
+            config.write_text("[data]\n")
+            rendered = subprocess.run(
+                ["chezmoi", "execute-template", "--source", str(REPO), "--config", str(config)],
+                input=(REPO / "home/dot_zshenv.tmpl").read_text(), env={**os.environ, "HOME": directory},
+                capture_output=True, text=True, timeout=30,
+            )
+            self.assertEqual(rendered.returncode, 0, rendered.stderr)
+            (home / ".zshenv").write_text(rendered.stdout)
             env = {"HOME": directory, "ZDOTDIR": directory, "PATH": "/usr/bin:/bin",
                    "TERM": "dumb"}
             child = 'printf "%s\\n" "$DO_NOT_TRACK" "$HOMEBREW_NO_ANALYTICS" "$CHECKPOINT_DISABLE"'

@@ -57,10 +57,17 @@ For new work, follow repository branch prefixes and start from current remote
 main/default unless the user names a dependency. Refresh it only after fetch
 approval. If refresh fails or no remote exists, report it and ask whether an
 explicit local ref is acceptable; do not silently call a stale base current.
-Use the configured worktree root. In this workstation's dotfiles workflow,
-`/opt/worktrees/dotfiles-<slug>` is an established host layout, not a portable
-requirement for every machine. Do not add public-repo machine configuration
-just to record the host's path. Ask if no path convention is known.
+Use the flat worktree root, one directory per worktree: `<root>/<repo>-<slug>`.
+There is no nested `<project>/<worktree>` level. `<repo>` is the repository
+directory name and `<slug>` is a short task name that matches the branch suffix
+(`feat/short-description` becomes `short-description`). `<root>` is
+`$DOTFILES_WORKTREES_DIR` when it is set, otherwise `$HOME/worktrees` when that
+directory exists. Ask if neither is available. A repository's own documented
+worktree convention, or an existing checkout of the same task, wins over this
+default. The approval preview still names the exact destination.
+
+Keep the skill and any public file generic. A host changes its root through its
+chezmoi data (`worktreesDir`), not by writing a machine path into shared text.
 
 If the named branch already has a worktree, report its path and ask whether to
 reuse it. Never force a second checkout, remove it, or repurpose it. For a PR,

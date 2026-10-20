@@ -73,7 +73,8 @@ Library/Application Support
 {{/* Writing-quality skills are an automatic child of the existing AI parent.
      Any selected AI sub-feature enables the one canonical skill store, the
      per-skill harness links, and the OpenCode commands. Keep this expression
-     aligned with home/.chezmoiexternal.toml. */}}
+     aligned with home/.chezmoiexternal.toml and with the agent-notes directory
+     gate in .chezmoiscripts/run_after_02-ensure-dirs.sh.tmpl. */}}
 {{ $agentSkillsEnabled := or
      (dig "components" "ai" "claude_hooks" false .)
      (dig "components" "ai" "codex_hooks" false .)

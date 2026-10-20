@@ -125,6 +125,13 @@ There is no separate submenu choice. A single canonical store under
 `~/.claude/skills` is a compatibility symlink to that root. A legacy real
 Claude skills directory is migrated only with explicit approval during apply.
 
+The same selection creates the agent-notes directory, `data.agentsDir` (default
+`$HOME/agents`), that `handoff` and other skills use for plans, specs, drafts,
+and handoffs. Worktrees have a sibling setting, `data.worktreesDir` (default
+`$HOME/worktrees`), that is created on every host regardless of selection. Both
+are exported from `~/.zshenv`; see
+[Worktree and agent directories](operation.md#worktree-and-agent-directories).
+
 Claude Code and CodeCompanion use the Claude compatibility root. Codex,
 OpenCode V2, and GitHub Copilot use the Agent Skills root. OpenCode may discover
 both roots, but both paths resolve to the same entries and one effective ID per
@@ -683,6 +690,8 @@ There are two ways to change the selection.
   [data]
       palette = "dracula"
       zshTheme = "gud"
+      worktreesDir = "$HOME/worktrees"
+      agentsDir = "$HOME/agents"
       installMode = "configs"
       packageRun = 0
   [data.components]

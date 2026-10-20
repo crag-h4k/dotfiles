@@ -79,6 +79,11 @@ PUBLIC_TEXT_FILES = (
     *(f"home/dot_config/opencode/commands/{command}.md"
       for command in ("publish", "pr-watch", "worktree")),
 )
+# Environment variables the managed ~/.zshenv exports, and the skill that reads each.
+DIRECTORY_VARIABLES = {
+    "DOTFILES_WORKTREES_DIR": "home/dot_local/share/agent-skills/git-worktree/readonly_SKILL.md",
+    "DOTFILES_AGENTS_DIR": "home/dot_local/share/agent-skills/handoff/readonly_SKILL.md",
+}
 EXPECTED_EXTERNALS = {
     ".local/share/agent-skills/unslop-code/SKILL.md": (
         "https://raw.githubusercontent.com/JCarterJohnson/vibecoded-design-tells/f7c4aefc2c797a66e55b49354a93917ab60d33ac/unslop-ai-code/skill/SKILL.md",
@@ -621,6 +626,18 @@ def validate_public_text(root: Path) -> list[str]:
     return errors
 
 
+def validate_directory_contract(root: Path) -> list[str]:
+    """Check that each skill reads a directory variable that ~/.zshenv exports."""
+    errors: list[str] = []
+    zshenv = (root / "home/dot_zshenv.tmpl").read_text(encoding="utf-8")
+    for name, skill in DIRECTORY_VARIABLES.items():
+        if f"export {name}=" not in zshenv:
+            errors.append(f"home/dot_zshenv.tmpl does not export {name}")
+        if name not in (root / skill).read_text(encoding="utf-8"):
+            errors.append(f"{skill}: does not read {name}")
+    return errors
+
+
 def validate_git_skill_manifests(root: Path) -> list[str]:
     """Check discovery IDs and preserve the audited upstream license bytes."""
     errors: list[str] = []
@@ -657,6 +674,7 @@ def validate_repository(root: Path = REPO_ROOT) -> list[str]:
         validate_maintainer_skill,
         validate_experience_adapter,
         validate_git_skill_manifests,
+        validate_directory_contract,
         validate_invocation_policy,
         validate_public_text,
     ):

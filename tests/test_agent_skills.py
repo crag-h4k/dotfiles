@@ -160,6 +160,20 @@ class RepositoryContractTests(unittest.TestCase):
             self.assertTrue(any("pre-approve" in finding for finding in findings))
             self.assertTrue(any("MIT notice" in finding for finding in findings))
 
+    def test_skills_read_the_directory_variables_that_zshenv_exports(self) -> None:
+        self.assertEqual(VALIDATOR.validate_directory_contract(REPO_ROOT), [])
+        temp_dir = tempfile.TemporaryDirectory()
+        self.addCleanup(temp_dir.cleanup)
+        root = Path(temp_dir.name)
+        for relative in ("home/dot_zshenv.tmpl", *VALIDATOR.DIRECTORY_VARIABLES.values()):
+            target = root / relative
+            target.parent.mkdir(parents=True, exist_ok=True)
+            target.write_text("unrelated\n")
+        findings = VALIDATOR.validate_directory_contract(root)
+        for name, skill in VALIDATOR.DIRECTORY_VARIABLES.items():
+            self.assertIn(f"home/dot_zshenv.tmpl does not export {name}", findings)
+            self.assertIn(f"{skill}: does not read {name}", findings)
+
     def test_public_scan_covers_the_ricer_definition(self) -> None:
         relative = "home/dot_config/opencode/agents/ricer.md"
         self.assertIn(relative, VALIDATOR.PUBLIC_TEXT_FILES)

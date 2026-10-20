@@ -32,6 +32,11 @@ authoring inputs live outside it. Read `docs/architecture.md` and
   Preserve those files and their ignore entries. Personal Git identities,
   credentials, host-specific OpenCode permissions, and routing belong in those
   private files. Plan's portable handoff-root permissions are managed source.
+- `worktreesDir` and `agentsDir` are data keys whose saved values win on re-init;
+  the `DOTFILES_WORKTREES_DIR` and `DOTFILES_AGENTS_DIR` env vars only seed a first
+  init. Resolve them through `.chezmoitemplates/dotfiles-dir` with `dig` defaults so
+  old configs keep rendering. Apply creates the directories but never runs sudo; it
+  prints the privileged command instead. Existing worktrees and notes are not moved.
 - Keep Lazy's lockfile, downloaded plugins, OpenCode runtime links and npm state,
   caches, transcripts, and authentication unmanaged. Chezmoi declares desired
   configuration; application/package managers own their local runtime state.

@@ -16,6 +16,14 @@ keys and comments against realistic input. For a locally changed target, compare
 source, rendered output, and the override mechanism in `docs/operation.md` before
 choosing overwrite. Private CLI permissions and server routing stay in overlays.
 
+The worktrees and agent-notes directories are the `worktreesDir` and `agentsDir`
+data keys. Resolve them only through the `dotfiles-dir` template, which expands
+`~` and `$HOME`, rejects relative or shell-unsafe values, and supplies the
+defaults, so an old config without the keys keeps rendering. Persisted values win
+on re-init; the `DOTFILES_WORKTREES_DIR` and `DOTFILES_AGENTS_DIR` environment
+variables only seed a first init. Creation stays warn-only: print the privileged
+command and never run it. Do not move existing worktrees or notes automatically.
+
 For skill additions, keep one canonical copy under
 `home/dot_local/share/agent-skills` and per-entry links under the existing harness
 roots. Update gates, provenance, the exact validator file sets, docs, and tests
