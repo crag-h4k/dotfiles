@@ -53,9 +53,10 @@ search on the file's title and description. Classify each file:
 - Copied unchanged: no action.
 - Copied but the file is newer and different: show the difference and propose
   replacing the OpenViking copy with the file content.
-- Missing from OpenViking: propose a create-only copy in the matching memory
-  category. Flag personal, sensitive, stale, or superseded files instead of
-  proposing them.
+- Missing from OpenViking: propose a copy in the matching memory category.
+  OpenViking 0.5 and later let `mode="create"` overwrite an existing file, so
+  reread the target immediately before writing and stop if it now exists. Flag
+  personal, sensitive, stale, or superseded files instead of proposing them.
 - Duplicated by an extracted memory: propose keeping the more complete record
   and deleting the other, listing both URIs.
 - Contradicted by OpenViking: show both claims, their dates, and current
@@ -92,17 +93,17 @@ do not create another copy of the policy rules just removed.
 
 If a deleted template or policy memory returns, report recurrence and inspect
 the extraction configuration before suggesting a fix. Configuration changes
-need a separate decision. In OpenViking 0.4.23 the account template editing API
-locks `enabled`; the supported User settings API can restrict
+need a separate decision. In OpenViking 0.4.23 and 0.5.1.1 the account template
+editing API locks `enabled`; the supported User settings API can restrict
 `memory_policy.memory_types`. This is an allowlist, so preserve other targets
 and types, check explicit session overrides, and disclose how future types are
 handled. Verify the installed version before using that contract.
 
 ## Built-in consolidation is not a preview
 
-OpenViking 0.4.23 has `ov compile --skill memory` for in-place consolidation.
-Its model-generated operations are applied automatically, including deletions;
-it does not provide this approval-first workflow. Do not run it as a dry-run or
+OpenViking 0.4.23 and 0.5.1.1 have `ov compile --skill memory` for in-place
+consolidation. Its model-generated operations are applied automatically,
+including deletions; it does not provide this approval-first workflow. Do not run it as a dry-run or
 assume a prompt requesting a report prevents writes. Use native memory primitives
 for reviewed changes, or obtain explicit approval for automatic consolidation
 of a named scope with an appropriate backup.

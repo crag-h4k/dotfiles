@@ -315,7 +315,7 @@ main() {
             local openviking_target
             openviking_target=$(package_target uv-tool openviking)
             package_action_try uv-tool openviking "OpenViking isolated Python environment" \
-                env OPENVIKING_VERSION="${openviking_target:-${OPENVIKING_VERSION:-0.4.23}}" \
+                env OPENVIKING_VERSION="${openviking_target:-${OPENVIKING_VERSION:-0.5.1.1}}" \
                 INSTALL_AI_OPENVIKING=true bash "$SCRIPT_DIR/install-openviking.sh" || true
         fi
 
