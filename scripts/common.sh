@@ -99,7 +99,7 @@ package_plan_signature() {
             INSTALL_AI_COPILOT INSTALL_AI_OPENVIKING INSTALL_AI_SSH_MCP INSTALL_AI_CAVEMAN INSTALL_TERMINAL_GHOSTTY INSTALL_TERMINAL_ITERM2; do
             printf '%s=%s\n' "$flag" "${!flag:-false}"
         done
-        printf '%s\n' "${OPENCODE2_VERSION:-latest}" "${COPILOT_VERSION:-prerelease}" "${PREK_VERSION:-0.5.4}" "${OPENVIKING_VERSION:-0.4.23}"
+        printf '%s\n' "${OPENCODE2_VERSION:-latest}" "${COPILOT_VERSION:-prerelease}" "${PREK_VERSION:-0.5.4}" "${OPENVIKING_VERSION:-0.5.1.1}"
         cksum "$_COMMON_SH_DIR/package-plan.sh" "$_COMMON_SH_DIR/package-resolve.sh" "$_COMMON_SH_DIR/common.sh"
         cksum "$_COMMON_SH_DIR/../home/dot_config/opencode/npm-candidate.sh"
         for flag in "$_COMMON_SH_DIR/plan-neovim-packages.lua" "$_COMMON_SH_DIR/neovim-package-lib.lua" \

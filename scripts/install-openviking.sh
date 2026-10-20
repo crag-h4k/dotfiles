@@ -9,11 +9,21 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 source "$SCRIPT_DIR/common.sh"
 
 [[ "${INSTALL_AI_OPENVIKING:-false}" == true ]] || exit 0
-OPENVIKING_VERSION="${OPENVIKING_VERSION:-0.4.23}"
+OPENVIKING_VERSION="${OPENVIKING_VERSION:-0.5.1.1}"
 OPENVIKING_INSTALL_ROOT=$(openviking_install_root)
-[[ "$OPENVIKING_VERSION" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]] || die "OpenViking requires an exact release version"
+[[ "$OPENVIKING_VERSION" =~ ^[0-9]+\.[0-9]+\.[0-9]+(\.[0-9]+)?$ ]] || die "OpenViking requires an exact release version"
 command -v uv >/dev/null 2>&1 || die "OpenViking requires uv; install the approved package first"
 command -v python3 >/dev/null 2>&1 || die "OpenViking requires Python 3.10+"
+# openviking pins tree-sitter 0.25.2, which has no CPython 3.15 wheels; the
+# wheel-only install fails there. Prefer a supported interpreter over python3.
+if [[ -z "${OPENVIKING_PYTHON:-}" ]]; then
+    for candidate in python3.13 python3.12 python3.14 python3.11 python3; do
+        if command -v "$candidate" >/dev/null 2>&1; then
+            OPENVIKING_PYTHON="$candidate"
+            break
+        fi
+    done
+fi
 
 healthy() {
     local python="$1"
@@ -49,7 +59,7 @@ if healthy "$OPENVIKING_INSTALL_ROOT/current/bin/python" 2>/dev/null; then
 else
     stage=$(mktemp -d "$OPENVIKING_INSTALL_ROOT/releases/$OPENVIKING_VERSION.XXXXXX")
     info "OpenViking $OPENVIKING_VERSION: creating an isolated Python environment"
-    uv venv --python "${OPENVIKING_PYTHON:-python3}" "$stage"
+    uv venv --python "$OPENVIKING_PYTHON" "$stage"
     info "OpenViking $OPENVIKING_VERSION: installing prebuilt packages"
     uv pip install --python "$stage/bin/python" --only-binary :all: "openviking==$OPENVIKING_VERSION"
     healthy "$stage/bin/python" || die "OpenViking import verification failed; previous runtime remains active"

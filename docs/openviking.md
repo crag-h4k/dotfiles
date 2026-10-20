@@ -22,11 +22,14 @@ Select `ai > openviking` during `chezmoi init`. It is off by default and does
 not require OpenCode. Selecting both `openviking` and `opencode` registers the
 official `@openviking/opencode-plugin` package in the managed plugin section.
 
-Package mode previews OpenViking `0.4.23`, Python, and uv where needed. The
+Package mode previews OpenViking `0.5.1.1`, Python, and uv where needed. The
 installer creates an isolated, wheel-only Python environment, verifies its
 native engine and required imports, then switches the stable runtime pointer.
-Previous environments remain available. It does not download Ollama models,
-initialize private model settings, log into providers, or start services.
+Previous environments remain available. It prefers Python 3.13, then 3.12,
+3.14, and 3.11, because OpenViking pins `tree-sitter` 0.25.2, which has no
+CPython 3.15 wheels. Set `OPENVIKING_PYTHON` to choose another interpreter.
+It does not download Ollama models, initialize private model settings, log into
+providers, or start services.
 
 Every apply ends with a read-only check. While `ai > openviking` is selected and
 the private configs are missing or the service does not answer `/ready`, it
@@ -194,8 +197,9 @@ Validate the installation and make small synthetic model probes:
 ~/.local/bin/openvikingctl probe-models
 ```
 
-The upstream `0.4.23` doctor incorrectly reports a missing VLM API key for the
-Copilot LiteLLM route, even though runtime authentication belongs to LiteLLM.
+The upstream `0.4.23` and `0.5.1.1` doctors incorrectly report missing
+embedding and VLM API keys for the Copilot LiteLLM route, even though runtime
+authentication belongs to LiteLLM.
 Do not add a fake key to make that check pass. Inspect every doctor result;
 `probe-models` verifies real embedding dimensions and a real extraction response.
 It prints timings and dimensions, not credentials or returned model text.
@@ -383,9 +387,9 @@ or incomplete source files. Neither transcripts, client credentials, nor
 progress files belong in this repository.
 
 A timeout can resume waiting on its existing task. Failed and cancelled
-extraction tasks are terminal with OpenViking `0.4.23`: the importer retains the
-task ID and will not re-append messages or submit a duplicate commit. A rerun
-re-checks the cursor and source guards, then polls the same failed task again.
+extraction tasks are terminal with OpenViking `0.4.23` and `0.5.1.1`: the
+importer retains the task ID and will not re-append messages or submit a
+duplicate commit. A rerun re-checks the cursor and source guards, then polls the same failed task again.
 Do not delete that session or edit its import progress to force a retry. Select
 a different unfinished session, or pass `--allow-reimport` with a new import name
 after deliberately changing the extraction provider and reviewing possible
@@ -409,9 +413,11 @@ this review step.
 To reconcile a file-based memory directory, name it when you ask for the review.
 The skill compares each file with OpenViking without changing the files.
 Unchanged copies need nothing. Newer files and missing facts become proposed
-create-only or replacement writes. Contradictions show both claims with their
-dates. Files you exclude, and personal or stale files, are flagged rather than
-proposed.
+writes. Since OpenViking `0.5.1`, `mode="create"` replaces an existing file
+instead of failing, so the skill rereads each target immediately before writing
+and treats a target that now exists as a replacement needing a new decision.
+Contradictions show both claims with their dates. Files you exclude, and
+personal or stale files, are flagged rather than proposed.
 
 Selecting OpenViking also adds a short memory block to the managed OpenCode
 global instructions. While the OpenViking tools and service are ready, it is the
@@ -511,12 +517,28 @@ unchanged. A previous release can be selected again after stopping the service.
 Back up the workspace before upgrades that might change its data format; an old
 Python environment alone does not reverse a database migration.
 
-Each server start logs warnings that `agfs.path` and `vectordb.path` are
-deprecated. They come from OpenViking `0.4.23` and `0.5.0` themselves: the
-storage validator fills both paths from `storage.workspace`, then the runtime
-config rebuild validates them again. The managed starters set only `workspace`
-and the backends, so leave `ov.conf` alone. Upstream `main` has dropped these
-warnings, but no release includes that fix yet.
+OpenViking `0.4.23` and `0.5.0` log warnings on each start that `agfs.path` and
+`vectordb.path` are deprecated, because the storage validator fills both paths
+from `storage.workspace`. `0.5.1.1` no longer logs them. The managed starters
+set only `workspace` and the backends, so leave `ov.conf` alone.
+
+## Upgrade OpenViking
+
+A version bump changes the pinned `OPENVIKING_VERSION` default and applies
+through the normal package flow, but the live store needs a manual sequence.
+Drain queued work first: tasks queued before an upgrade keep their old Working
+Memory semantics. Stop the service, copy the whole `~/.openviking` directory to
+private storage outside it, then apply the pin and restart. Verify `/ready`, a
+new session commit followed by a search for its extracted fact, and
+`openvikingctl check-opencode`. To roll back, stop the service, point the
+`current` runtime symlink back at the previous release, revert the pin, and
+restore the backup if anything wrote after the upgrade must be discarded.
+
+OpenViking `0.5` changes behavior this repository relies on. Working Memory is
+off by default, so commits no longer write archive overviews. `write` with
+`mode="create"` replaces an existing file, and `mode="append"` creates a
+missing one. Wait-specific `timeout` fields are rejected with HTTP 400, and
+`POST /api/v1/sessions/{id}/extract` is gone; commit and poll its `task_id`.
 
 References:
 
