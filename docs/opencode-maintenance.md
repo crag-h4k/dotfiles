@@ -51,14 +51,14 @@ CLI, server, plugin SDK, and terminal versions when diagnosing compatibility.
   `npm-candidate.sh`. Runtime aging exceptions cover `@opencode/*` and
   `@opentui/*`, not all npm packages. Metadata failure must not start installation.
 - The footer is the `opencode-pillbox-statusline` package. Dotfiles owns its
-  exact pin in both config files, the `opencode.jsonc` audit comment, and the
+  `@latest` reference in both config files, the `opencode.jsonc` reference audit, and the
   seeded `cli.json` color options; pill behavior, quota sources, and their
-  tests belong upstream. Re-audit the package before every pin bump, and keep
+  tests belong upstream. Review a new release before an explicit plugin update; keep
   Copilot tiers opt-in. Keep color overrides as theme tokens with a fallback,
   not palette hex values; `tests/test_opencode_theme.py` proves the hues.
   Retire a removed managed entry through `RETIRED_PLUGINS` in the `cli.json`
   merge and its files through `home/.chezmoiremove`.
-- Sidequest is exact-pinned in both config files so terminal options reach its
+- Sidequest uses the same `@latest` reference in both config files so terminal options reach its
   single TUI instance. Seed its `focusKey` option to `<leader>p`; the leader stays
   on OpenCode's default `ctrl+x`. Plugin command IDs are not valid `cli.json.keybinds` keys.
   Free the stock sidebar toggle for `<leader>b` while preserving custom bindings

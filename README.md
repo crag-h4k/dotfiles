@@ -144,7 +144,9 @@ adopting this entire workstation's personality:
 - [opencode-sidequest](https://github.com/crag-h4k/opencode-sidequest):
   dependency-aware sub-agent runs with a live graph and step conversations in a side panel.
 
-Both are published on npm at `0.1.0`, the version pinned by the dotfiles integration.
+Both are published on npm. Dotfiles follows each package's `latest` tag rather
+than pinning a version; OpenCode checks for new versions, but installs them only
+when you run a plugin update.
 Follow their READMEs for standalone installation or local development from a checkout.
 
 <!--
