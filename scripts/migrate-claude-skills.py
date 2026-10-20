@@ -15,6 +15,17 @@ import tempfile
 
 
 EXPECTED_LINK = Path("../.agents/skills")
+# Plan actions that never change the filesystem.
+IDLE_ACTIONS = ("ready", "absent", "inaccessible")
+
+
+def file_sha256(path: Path) -> str:
+    # hashlib.file_digest needs Python 3.11; macOS ships 3.9.
+    digest = hashlib.sha256()
+    with path.open("rb") as stream:
+        for chunk in iter(lambda: stream.read(1 << 20), b""):
+            digest.update(chunk)
+    return digest.hexdigest()
 
 
 def entry_signature(path: Path) -> tuple:
@@ -24,8 +35,7 @@ def entry_signature(path: Path) -> tuple:
     if stat.S_ISLNK(mode):
         return ("link", os.readlink(path))
     if stat.S_ISREG(mode):
-        with path.open("rb") as stream:
-            return ("file", hashlib.file_digest(stream, "sha256").hexdigest())
+        return ("file", file_sha256(path))
     if not stat.S_ISDIR(mode):
         raise ValueError(f"unsupported skill entry type: {path}")
 
@@ -37,8 +47,7 @@ def entry_signature(path: Path) -> tuple:
         if stat.S_ISLNK(member_mode):
             members.append(("link", relative, os.readlink(member)))
         elif stat.S_ISREG(member_mode):
-            with member.open("rb") as stream:
-                members.append(("file", relative, hashlib.file_digest(stream, "sha256").hexdigest()))
+            members.append(("file", relative, file_sha256(member)))
         elif stat.S_ISDIR(member_mode):
             members.append(("dir", relative))
         else:
@@ -113,12 +122,19 @@ def migration_plan(home: Path) -> list[tuple[str, Path, Path | None]]:
     journal = read_journal(home)
     if journal and journal.get("status") != "complete":
         raise ValueError("an earlier Claude skill migration is incomplete; inspect the private migration journal")
-    if source_root.is_symlink():
+    # Claude Code may never have run here, and ~/.claude may not be traversable.
+    # Path.exists() and Path.is_symlink() raise on EACCES before Python 3.14, so
+    # inspect the root directly. Nothing to read means nothing to migrate.
+    try:
+        root_mode = source_root.lstat().st_mode
+    except (FileNotFoundError, NotADirectoryError):
+        return [("absent", source_root, None)]
+    except OSError:
+        return [("inaccessible", source_root, None)]
+    if stat.S_ISLNK(root_mode):
         if source_root.resolve() == destination_root.resolve():
             return [("ready", source_root, None)]
         raise ValueError("~/.claude/skills is a symlink to an unexpected target")
-    if not source_root.exists():
-        return [("absent", source_root, None)]
     writable_owner_directory(source_root, "~/.claude/skills")
 
     plan: list[tuple[str, Path, Path | None]] = []
@@ -126,6 +142,9 @@ def migration_plan(home: Path) -> list[tuple[str, Path, Path | None]]:
         writable_owner_directory(destination_root, "~/.agents/skills")
     else:
         plan.append(("create", destination_root, None))
+    # A directory this account cannot list has no entries to compare or move.
+    if not os.access(source_root, os.R_OK | os.X_OK):
+        return [("inaccessible", source_root, None)]
     for source in sorted(source_root.iterdir(), key=lambda path: path.name):
         if source.name == ".DS_Store":
             plan.append(("remove", source, None))
@@ -150,6 +169,8 @@ def describe(plan: list[tuple[str, Path, Path | None]]) -> str:
             lines.append("Claude skills already use the canonical agent-skills root")
         elif action == "absent":
             lines.append("No legacy Claude skills directory exists")
+        elif action == "inaccessible":
+            lines.append("Claude skills directory is not accessible; skipping legacy migration")
         elif action == "create":
             lines.append("Create canonical Agent Skills directory " + str(source))
         elif action == "remove":
@@ -164,11 +185,11 @@ def describe(plan: list[tuple[str, Path, Path | None]]) -> str:
 
 
 def apply(plan: list[tuple[str, Path, Path | None]], home: Path | None = None) -> None:
-    mutating = any(action not in ("ready", "absent") for action, _, _ in plan)
+    mutating = any(action not in IDLE_ACTIONS for action, _, _ in plan)
     if mutating and home is not None:
         write_journal(home, "in_progress", plan)
     for action, source, destination in plan:
-        if action in ("ready", "absent"):
+        if action in IDLE_ACTIONS:
             continue
         if action == "create":
             source.mkdir(mode=0o700, parents=True, exist_ok=False)

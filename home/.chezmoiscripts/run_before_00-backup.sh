@@ -101,17 +101,23 @@ done < <(chezmoi managed --path-style=absolute --include=files 2>/dev/null \
 claude_skills="$HOME/.claude/skills"
 if chezmoi managed --path-style=absolute --include=symlinks 2>/dev/null | grep -Fqx "$claude_skills" &&
     [[ -d "$claude_skills" && ! -L "$claude_skills" ]]; then
-    migration="$CHEZMOI_SOURCE_DIR/../scripts/migrate-claude-skills.py"
-    [[ -f "$migration" ]] || {
-        printf 'dotfiles: missing Claude skill migration helper: %s\n' "$migration" >&2
-        exit 1
-    }
-    if [[ "${DOTFILES_MIGRATE_CLAUDE_SKILLS:-}" != true ]]; then
-        python3 "$migration" --home "$HOME"
-        printf 'dotfiles: review the Claude skill migration above, then rerun with DOTFILES_MIGRATE_CLAUDE_SKILLS=true\n' >&2
-        exit 1
+    if [[ ! -r "$claude_skills" || ! -x "$claude_skills" ]]; then
+        # Nothing inside can be listed, so there is nothing to review or move.
+        # Chezmoi itself replaces the directory when it can.
+        printf 'dotfiles: Claude skills directory is not accessible; skipping legacy migration\n'
+    else
+        migration="$CHEZMOI_SOURCE_DIR/../scripts/migrate-claude-skills.py"
+        [[ -f "$migration" ]] || {
+            printf 'dotfiles: missing Claude skill migration helper: %s\n' "$migration" >&2
+            exit 1
+        }
+        if [[ "${DOTFILES_MIGRATE_CLAUDE_SKILLS:-}" != true ]]; then
+            python3 "$migration" --home "$HOME"
+            printf 'dotfiles: review the Claude skill migration above, then rerun with DOTFILES_MIGRATE_CLAUDE_SKILLS=true\n' >&2
+            exit 1
+        fi
+        python3 "$migration" --home "$HOME" --apply
     fi
-    python3 "$migration" --home "$HOME" --apply
 fi
 
 # 3. Move aside targets whose on-disk type conflicts with what chezmoi will write.
