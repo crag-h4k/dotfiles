@@ -156,8 +156,8 @@ dirty the dotfiles repository. See [Neovim tooling](neovim.md) for the full spli
 | `home/dot_gitconfig` | `~/.gitconfig` | shared Git behavior and credential helpers; gated on `git > config` |
 | `home/dot_gitconfig` | `~/.gitconfig` | generic settings only; includes the unmanaged `~/.gitconfig.override` last and sets `user.useConfigOnly` |
 | `home/dot_gitignore_global` | `~/.gitignore_global` | global ignore patterns; gated on `git > ignore_global` (on by default) |
-| `home/.chezmoi.toml.tmpl` | `~/.config/chezmoi/chezmoi.toml` | prompts for components, palette, and install mode before apply; persists `worktreesDir` and `agentsDir` |
-| `home/.chezmoitemplates/dotfiles-dir` | (shared template) | expands and validates `worktreesDir` and `agentsDir` for the config, `~/.zshenv`, and the directory script |
+| `home/.chezmoi.toml.tmpl` | `~/.config/chezmoi/chezmoi.toml` | prompts for components, palette, and install mode before apply; with AI selected, asks for `worktreesDir` and `agentsDir` after the AI submenu and persists them |
+| `home/.chezmoitemplates/dotfiles-dir` | (shared template) | expands and validates `worktreesDir` and `agentsDir` for the config, `~/.zshenv`, the directory script, and the Plan handoff rules; check mode lets the init prompt ask again |
 | `home/.chezmoiignore` | (templated) | ignores an off component's (or sub-feature's) target paths |
 | `home/.chezmoiexternal.toml` | (templated externals) | plugins gated by `.components.zsh` / `.components.tmux` |
 | `home/.chezmoiscripts/run_before_00-backup.sh` | apply hook | snapshots existing targets before changes |

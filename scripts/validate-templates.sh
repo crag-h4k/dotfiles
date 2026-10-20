@@ -16,6 +16,9 @@ set -euo pipefail
 # controlling terminal would launch the interactive picker for every case.
 export DOTFILES_NO_TUI=1
 export DOTFILES_INSTALL_MODE=configs
+# The directory seeds are exported by ~/.zshenv on a configured host and would
+# replace the defaults asserted in assert_user_dirs below.
+unset DOTFILES_WORKTREES_DIR DOTFILES_AGENTS_DIR
 
 REPO_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 AGENT_SKILLS_VALIDATOR="$REPO_DIR/scripts/validate-agent-skills.py"

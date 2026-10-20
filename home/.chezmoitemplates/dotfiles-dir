@@ -9,12 +9,16 @@
 {{- /*   key      the data key, used only in error messages                         */ -}}
 {{- /*   value    the raw configured value; empty or unset selects the default      */ -}}
 {{- /*   default  leaf name under the home directory used when value is empty       */ -}}
+{{- /*   check    optional; true returns "" for a usable value or the error text     */ -}}
+{{- /*            instead of failing, so the init prompt can ask again              */ -}}
 {{- /* A value may be absolute, "~", "~/x", "$HOME", "$HOME/x", or the braced form. */ -}}
 {{- /* Anything else fails loudly instead of rendering a relative path into a      */ -}}
 {{- /* shell export. The character whitelist keeps the single-quoted exports in    */ -}}
 {{- /* ~/.zshenv and the run script safe without per-consumer escaping.            */ -}}
 {{- $home := .home -}}
+{{- $check := dig "check" false . -}}
 {{- $v := trim .value -}}
+{{- $err := "" -}}
 {{- if eq $v "" -}}{{- $v = printf "%s/%s" $home .default -}}{{- end -}}
 {{- if or (eq $v "~") (eq $v "$HOME") (eq $v "${HOME}") -}}
 {{-   $v = $home -}}
@@ -26,13 +30,16 @@
 {{-   $v = printf "%s/%s" $home (trimPrefix "${HOME}/" $v) -}}
 {{- end -}}
 {{- if not (hasPrefix "/" $v) -}}
-{{-   fail (printf "data.%s must be an absolute path, ~/..., or $HOME/...; got %q" .key .value) -}}
+{{-   $err = printf "data.%s must be an absolute path, ~/..., or $HOME/...; got %q" .key .value -}}
+{{- else -}}
+{{-   $v = clean $v -}}
+{{-   if eq $v "/" -}}
+{{-     $err = printf "data.%s must not be the filesystem root" .key -}}
+{{-   else if not (regexMatch `^/[A-Za-z0-9._ @%+=:,/~-]+$` $v) -}}
+{{-     $err = printf "data.%s must name a directory using only letters, digits, spaces, and . _ @ %% + = : , / ~ -; got %q" .key $v -}}
+{{-   end -}}
 {{- end -}}
-{{- $v = clean $v -}}
-{{- if eq $v "/" -}}
-{{-   fail (printf "data.%s must not be the filesystem root" .key) -}}
+{{- if and $err (not $check) -}}
+{{-   fail $err -}}
 {{- end -}}
-{{- if not (regexMatch `^/[A-Za-z0-9._ @%+=:,/~-]+$` $v) -}}
-{{-   fail (printf "data.%s must name a directory using only letters, digits, spaces, and . _ @ %% + = : , / ~ -; got %q" .key $v) -}}
-{{- end -}}
-{{- $v -}}
+{{- if $check -}}{{- $err -}}{{- else -}}{{- $v -}}{{- end -}}

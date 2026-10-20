@@ -234,20 +234,46 @@ filesystem root, and characters outside letters, digits, spaces, and
 export. Chezmoi stores the text you give it and expands it everywhere it is
 used.
 
-A saved value always wins. Re-running `chezmoi init` keeps it, even when the
-env var holds something else; the env var only seeds a first init or an old
-config that lacks the key. Neither setting prompts, so the Gum picker, the typed
-menu, `DOTFILES_NO_TUI`, and non-interactive runs all behave the same. An old
-config without the keys applies with the defaults and needs no re-init.
+A saved value always wins. Re-running `chezmoi init` offers it back as the
+pre-fill, even when the env var holds something else; the env var only seeds a
+first init or an old config that lacks the key. An old config without the keys
+applies with the defaults and needs no re-init.
 
-To pick a value on a new host, seed it once:
+`chezmoi init` asks for both directories at the end of the AI submenu, so the
+questions appear only when AI tools are selected. Each one is pre-filled with the
+saved value, else the env seed, else the default. Enter keeps what is shown;
+anything you type is stored as written, in whichever of the three forms you use.
+A host without AI tools selected is never asked and keeps its saved value or the
+default.
+
+| Situation | Behavior |
+| --- | --- |
+| Gum installed, terminal available | `gum input` with the value pre-filled and editable. Escape or an empty answer keeps the shown value |
+| No Gum, terminal available | chezmoi's typed `promptString`; Enter keeps the default shown |
+| `DOTFILES_NO_TUI` set | No prompt; the pre-fill is used |
+| No usable terminal (stdin is not a TTY, or `/dev/tty` will not open) | No prompt; the pre-fill is used |
+| `cup` (`DOTFILES_PACKAGE_UPDATE`) or the retired `all+` migration | No prompt; the pre-fill is used |
+
+The prompt follows the palette picker's rules, not the submenus': chezmoi's typed
+prompt fails outright with no terminal, so these questions are skipped instead of
+risking a failed init. `chezmoi apply` never prompts. `chezmoi init --apply` asks
+during its init step only.
+
+An answer that is not usable is explained and asked again, up to three times;
+then init stops with the same error `apply` would give. A saved or seeded value
+that is not usable is replaced by the default in the prompt, so accepting it
+repairs the config.
+
+To pick a value on a new host, seed it once. The prompt shows it pre-filled (add
+`DOTFILES_NO_TUI=1` to take it without being asked):
 
 ```sh
 DOTFILES_WORKTREES_DIR=/opt/worktrees DOTFILES_AGENTS_DIR="$HOME/notes/agents" \
   chezmoi init --apply
 ```
 
-To change it later, edit `~/.config/chezmoi/chezmoi.toml` and apply:
+To change it later, re-run `chezmoi init` and edit the pre-filled value, or edit
+`~/.config/chezmoi/chezmoi.toml` and apply:
 
 ```toml
 [data]
@@ -300,9 +326,12 @@ Selecting OpenViking adds find-before-local-loaders guidance; see
 Existing local instructions stay intact. These are agent instructions, not
 shell aliases or a change to third-party scripts. A normal apply updates them;
 source edits alone do not change an already installed configuration.
-Its OpenCode config merge adds Plan handoff access for the two documented roots
-without replacing unrelated local Plan rules. Host-specific roots still need a
-private permission overlay.
+Its OpenCode config merge adds Plan handoff access for three roots without
+replacing unrelated local Plan rules: `~/.local/share/agent-handoffs`,
+`/opt/ai/handoffs`, and `<agentsDir>/plans`, where `<agentsDir>` is the resolved
+`data.agentsDir` (default `$HOME/agents`) written as a literal absolute path. The
+managed block follows `agentsDir` on the next apply after you change it. Any
+other root still needs a private permission overlay.
 
 None are chezmoi-managed. Each is listed
 unconditionally in `home/.chezmoiignore`, so chezmoi never applies or removes

@@ -687,6 +687,257 @@ def test_malformed_plan_permissions_are_not_overwritten(script):
     assert "plan permissions is not an array" in err
 
 
+# --- Plan handoff rules for the agent-notes directory ----------------------
+
+PLAN_START = "// dotfiles:plan-handoff:start"
+PLAN_END = "// dotfiles:plan-handoff:end"
+
+# The managed block as an earlier release rendered it: the two fixed roots, the
+# snapshot script, and the secret denials, with no agent-notes rules.
+OLDER_PLAN_RULES = (
+    '{ "action": "external_directory", "resource": "$HOME/.local/share/agent-handoffs/*", "effect": "allow" }',
+    '{ "action": "edit", "resource": "$HOME/.local/share/agent-handoffs/*", "effect": "deny" }',
+    '{ "action": "edit", "resource": "$HOME/.local/share/agent-handoffs/*/*-handoff-????-??-??.md", "effect": "allow" }',
+    '{ "action": "external_directory", "resource": "/opt/ai/handoffs/*", "effect": "allow" }',
+    '{ "action": "edit", "resource": "/opt/ai/handoffs/*", "effect": "deny" }',
+    '{ "action": "edit", "resource": "/opt/ai/handoffs/*/*-handoff-????-??-??.md", "effect": "allow" }',
+    '{ "action": "external_directory", "resource": "$HOME/.local/share/agent-skills/handoff/scripts/*", "effect": "allow" }',
+    '{ "action": "edit", "resource": "*.env", "effect": "deny" }',
+    '{ "action": "edit", "resource": "*.env.*", "effect": "deny" }',
+    '{ "action": "edit", "resource": "*.pem", "effect": "deny" }',
+    '{ "action": "edit", "resource": "*.key", "effect": "deny" }',
+)
+
+
+def older_plan_block(followed: bool, indent: str = " " * 8) -> str:
+    """The block an earlier apply wrote; its last rule carries a comma only when
+    another rule follows the block."""
+    lines = [indent + PLAN_START]
+    for i, rule in enumerate(OLDER_PLAN_RULES):
+        lines.append(indent + rule + ("," if i < len(OLDER_PLAN_RULES) - 1 or followed else ""))
+    lines.append(indent + PLAN_END)
+    return "\n".join(lines)
+
+
+def out_has_single_block(out: str) -> bool:
+    return out.count(PLAN_START) == 1 and out.count(PLAN_END) == 1
+
+
+def render_with_agents_dir(tmp_path_factory, agents_dir=None):
+    """Render the merge script for a given data.agentsDir under a disposable HOME.
+
+    Returns (script_path, home). `agents_dir=None` leaves the key out entirely,
+    like a config written before the key existed.
+    """
+    directory = tmp_path_factory.mktemp("opencode-agents-dir")
+    home = directory / "home"
+    home.mkdir()
+    config = directory / "chezmoi.toml"
+    line = "" if agents_dir is None else 'agentsDir = "%s"\n' % agents_dir
+    config.write_text(
+        '[data]\npalette = "dracula"\n%s[data.components.ai]\nopencode = true\nopenviking = false\n' % line
+    )
+    env = dict(os.environ, HOME=str(home))
+    out = subprocess.run(
+        ["chezmoi", "execute-template", "--source", str(REPO), "--config", str(config)],
+        stdin=TMPL.open(), capture_output=True, text=True, check=True, env=env,
+    ).stdout
+    path = directory / "merge.py"
+    path.write_text(out)
+    return str(path), str(home)
+
+
+def plan_block_resources(out: str) -> list[str]:
+    """Resources inside the managed marker block, in order."""
+    block = out.split(PLAN_START, 1)[1].split(PLAN_END, 1)[0]
+    return re.findall(r'"resource": "([^"]*)"', block)
+
+
+def assert_agent_notes_boundary(out: str, notes: str):
+    """The agent-notes handoff rules behave like the two fixed roots."""
+    d = parse(out)
+    effective = d["permissions"] + d["agents"]["plan"]["permissions"]
+    plans = notes + "/plans/"
+    assert permission_effect(effective, "external_directory", plans + "*") == "allow"
+    assert permission_effect(effective, "edit", plans + "Dotfiles/test-handoff-2026-10-20.md") == "allow"
+    assert permission_effect(effective, "edit", plans + "Dotfiles/write-probe.md") == "deny"
+    for name in ("secret.key", "secret.pem", "secret.env", "secret.env.local",
+                 "secret.env.backup-handoff-2026-10-20.md"):
+        assert permission_effect(effective, "edit", plans + "Dotfiles/" + name) == "deny"
+    # Only the plans subtree is writable; the rest of the notes tree is not.
+    for other in ("specs/Dotfiles.md", "drafts/note-handoff-2026-10-20.md", "memory/MEMORY.md"):
+        assert permission_effect(effective, "edit", notes + "/" + other) != "allow"
+    # The new rules live in Plan only, not in the global native policy.
+    assert not any(notes in rule["resource"] for rule in d["permissions"])
+
+
+def test_plan_handoff_rules_cover_the_default_agent_notes_plans(tmp_path_factory):
+    script, home = render_with_agents_dir(tmp_path_factory)
+    out, _ = merge(script, "")
+    assert_agent_notes_boundary(out, home + "/agents")
+    resources = plan_block_resources(out)
+    # Two fixed roots first, then agentsDir/plans, then the snapshot script, then
+    # the secret denials last.
+    assert resources == [
+        "$HOME/.local/share/agent-handoffs/*",
+        "$HOME/.local/share/agent-handoffs/*",
+        "$HOME/.local/share/agent-handoffs/*/*-handoff-????-??-??.md",
+        "/opt/ai/handoffs/*",
+        "/opt/ai/handoffs/*",
+        "/opt/ai/handoffs/*/*-handoff-????-??-??.md",
+        home + "/agents/plans/*",
+        home + "/agents/plans/*",
+        home + "/agents/plans/*/*-handoff-????-??-??.md",
+        "$HOME/.local/share/agent-skills/handoff/scripts/*",
+        "*.env", "*.env.*", "*.pem", "*.key",
+    ]
+    rules = parse(out)["agents"]["plan"]["permissions"]
+    assert [rule["effect"] for rule in rules[6:9]] == ["allow", "deny", "allow"]
+    assert [rule["action"] for rule in rules[6:9]] == ["external_directory", "edit", "edit"]
+    assert [rule["effect"] for rule in rules[-4:]] == ["deny"] * 4
+    # The existing roots keep working next to the new one.
+    for root in ("$HOME/.local/share/agent-handoffs/", "/opt/ai/handoffs/"):
+        assert permission_effect(rules, "edit", root + "Dotfiles/test-handoff-2026-10-20.md") == "allow"
+
+
+@pytest.mark.parametrize("configured, expected", [
+    ("/srv/notes", "/srv/notes"),
+    ("/srv/notes/", "/srv/notes"),
+    ("~/notes/agents", "{home}/notes/agents"),
+    ("$HOME/ag", "{home}/ag"),
+    ("${HOME}//ag/./x", "{home}/ag/x"),
+])
+def test_plan_handoff_rules_follow_a_custom_agents_dir(tmp_path_factory, configured, expected):
+    script, home = render_with_agents_dir(tmp_path_factory, configured)
+    out, _ = merge(script, "")
+    notes = expected.format(home=home)
+    assert_agent_notes_boundary(out, notes)
+    resources = plan_block_resources(out)
+    assert notes + "/plans/*" in resources
+    # The default location is not granted when another one is configured.
+    assert home + "/agents/plans/*" not in resources
+
+
+def test_plan_handoff_rules_handle_a_path_with_a_space(tmp_path_factory):
+    script, home = render_with_agents_dir(tmp_path_factory, "~/my notes/a@b+c%d")
+    notes = home + "/my notes/a@b+c%d"
+    out, _ = merge(script, "")
+    assert_agent_notes_boundary(out, notes)
+    assert notes + "/plans/*/*-handoff-????-??-??.md" in plan_block_resources(out)
+    # The merge script is plain Python: a space or percent sign must not break it.
+    compile(Path(script).read_text(), script, "exec")
+    assert merge(script, out)[0] == out
+
+
+@pytest.mark.parametrize("bad", ["relative/path", "/", "/tmp/a$(id)", "/tmp/it's", '/tmp/q"uote'])
+def test_unsafe_agents_dir_fails_the_render_instead_of_reaching_python(tmp_path_factory, bad):
+    directory = tmp_path_factory.mktemp("opencode-agents-bad")
+    config = directory / "chezmoi.toml"
+    config.write_text('[data]\nagentsDir = "%s"\n' % bad.replace('"', '\\"'))
+    result = subprocess.run(
+        ["chezmoi", "execute-template", "--source", str(REPO), "--config", str(config)],
+        stdin=TMPL.open(), capture_output=True, text=True,
+        env=dict(os.environ, HOME=str(directory)),
+    )
+    assert result.returncode != 0
+    assert "data.agentsDir" in result.stderr
+
+
+def test_plan_handoff_block_regenerates_over_an_older_block(tmp_path_factory):
+    script, home = render_with_agents_dir(tmp_path_factory, "/srv/notes")
+    src = '''\
+{
+  "agents": {
+    "plan": {
+      "permissions": [
+        // Local rule above the managed block.
+        { "action": "edit", "resource": "/private/before/*", "effect": "allow" },
+%s
+        // Local rule below the managed block.
+        { "action": "edit", "resource": "/private/after/*", "effect": "allow" }
+      ]
+    }
+  }
+}
+''' % older_plan_block(followed=True)
+    out, err = merge(script, src)
+    assert not err
+    assert out.count(PLAN_START) == 1 and out.count(PLAN_END) == 1
+    assert plan_block_resources(out).count("/srv/notes/plans/*") == 2
+    assert_agent_notes_boundary(out, "/srv/notes")
+    # The older block's exact rules are still present once, not duplicated.
+    assert plan_block_resources(out).count("/opt/ai/handoffs/*") == 2
+    rules = parse(out)["agents"]["plan"]["permissions"]
+    assert rules[0]["resource"] == "/private/before/*"
+    assert rules[-1]["resource"] == "/private/after/*"
+    assert merge(script, out)[0] == out
+
+
+def test_plan_handoff_block_follows_a_changed_agents_dir(tmp_path_factory):
+    old_script, _ = render_with_agents_dir(tmp_path_factory, "/srv/old-notes")
+    new_script, _ = render_with_agents_dir(tmp_path_factory, "/srv/new-notes")
+    first, _ = merge(old_script, "")
+    assert "/srv/old-notes/plans/*" in plan_block_resources(first)
+    second, _ = merge(new_script, first)
+    assert out_has_single_block(second)
+    assert "/srv/old-notes" not in second
+    assert_agent_notes_boundary(second, "/srv/new-notes")
+    assert merge(new_script, second)[0] == second
+
+
+def test_plan_handoff_regeneration_preserves_everything_outside_the_markers(tmp_path_factory):
+    script, home = render_with_agents_dir(tmp_path_factory)
+    src = '''\
+{
+  "instructions": ["/home/example/MEMORY.md"],
+
+  // Local plan customization lives next to the managed block.
+  "agents": {
+    "plan": {
+      "description": "Plan with local limits",
+      "permissions": [
+        // Trailing note kept with the rule below it.
+        { "action": "edit", "resource": "/private/notes/*", "effect": "allow" },
+%s
+      ]
+    },
+    // A custom agent the merge must not touch.
+    "reviewer": { "mode": "subagent", "color": "#112233" }
+  },
+
+  // Machine-local MCP entry.
+  "mcp": { "servers": { "local": { "type": "local", "command": ["true"] } } }
+}
+''' % older_plan_block(followed=False)
+    out, err = merge(script, src)
+    assert not err
+    d = parse(out)
+    assert d["agents"]["plan"]["description"] == "Plan with local limits"
+    assert d["agents"]["reviewer"] == {"mode": "subagent", "color": "#112233"}
+    assert d["mcp"]["servers"]["local"]["command"] == ["true"]
+    assert d["instructions"] == ["/home/example/MEMORY.md"]
+    for comment in ("// Local plan customization lives next to the managed block.",
+                    "// Trailing note kept with the rule below it.",
+                    "// A custom agent the merge must not touch.",
+                    "// Machine-local MCP entry."):
+        assert comment in out
+    rules = d["agents"]["plan"]["permissions"]
+    assert rules[0] == {"action": "edit", "resource": "/private/notes/*", "effect": "allow"}
+    assert_agent_notes_boundary(out, home + "/agents")
+    assert merge(script, out)[0] == out
+
+
+def test_plan_handoff_output_is_valid_jsonc_and_strict_json_shaped(tmp_path_factory):
+    script, home = render_with_agents_dir(tmp_path_factory, "/srv/notes")
+    fresh, _ = merge(script, "")
+    # json5 accepts the JSONC comments; a successful parse proves the commas and
+    # brackets around the longer block are still correct.
+    assert parse(fresh)["agents"]["plan"]["permissions"][-1]["resource"] == "*.key"
+    # Without its full-line comments the same text must also load as strict JSON.
+    stripped = "\n".join(line for line in fresh.splitlines() if not line.lstrip().startswith("//"))
+    assert json.loads(stripped)["agents"]["plan"]["permissions"]
+
+
 # --- seeded -----------------------------------------------------------------
 
 def test_existing_permission_is_never_overwritten(script):

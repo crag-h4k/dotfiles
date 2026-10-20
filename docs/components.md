@@ -129,7 +129,11 @@ The same selection creates the agent-notes directory, `data.agentsDir` (default
 `$HOME/agents`), that `handoff` and other skills use for plans, specs, drafts,
 and handoffs. Worktrees have a sibling setting, `data.worktreesDir` (default
 `$HOME/worktrees`), that is created on every host regardless of selection. Both
-are exported from `~/.zshenv`; see
+are exported from `~/.zshenv`.
+
+`chezmoi init` asks for both right after the AI submenu, pre-filled with the saved
+value, the env seed, or the default. The questions are skipped with
+`DOTFILES_NO_TUI`, without a terminal, and on a `cup` re-init. See
 [Worktree and agent directories](operation.md#worktree-and-agent-directories).
 
 Claude Code and CodeCompanion use the Claude compatibility root. Codex,
