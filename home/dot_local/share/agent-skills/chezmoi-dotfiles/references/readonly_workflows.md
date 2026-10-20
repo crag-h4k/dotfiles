@@ -21,8 +21,15 @@ data keys. Resolve them only through the `dotfiles-dir` template, which expands
 `~` and `$HOME`, rejects relative or shell-unsafe values, and supplies the
 defaults, so an old config without the keys keeps rendering. Persisted values win
 on re-init; the `DOTFILES_WORKTREES_DIR` and `DOTFILES_AGENTS_DIR` environment
-variables only seed a first init. Creation stays warn-only: print the privileged
-command and never run it. Do not move existing worktrees or notes automatically.
+variables only seed a first init. Init asks for both at the end of the AI submenu,
+pre-filled with the saved value, then the env seed, then the default. Follow the
+palette picker's gating there: no prompt under `DOTFILES_NO_TUI`, without a usable
+terminal (chezmoi's own `promptString` fails with none), on a `cup` re-init, or
+when AI is unselected, and never during `apply`. Interpolate a value into a shell
+word only after the template's check mode accepts it. Plan's handoff permissions
+render `<agentsDir>/plans` from the same template. Creation stays warn-only: print
+the privileged command and never run it. Do not move existing worktrees or notes
+automatically. Drive prompt tests through `tests/ctty_run.py` with a stub `gum`.
 
 For skill additions, keep one canonical copy under
 `home/dot_local/share/agent-skills` and per-entry links under the existing harness
