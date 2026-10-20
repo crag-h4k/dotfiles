@@ -5,7 +5,9 @@ OpenCode V2's Open settings dialog writes ~/.config/opencode/cli.json, so the fi
 merge-managed instead of overwritten. These tests pin the ownership contract:
 
   OWNED   "$schema", attention.notifications/sound = false, keybinds.leader,
-          leader.timeout, the managed "plugins" directives, and their npm pins.
+          leader.timeout, the tab navigation keys and the pane and terminal
+          defaults they displace, the managed "plugins" directives, and their
+          npm pins.
   SEEDED  every other default and managed plugin option, one leaf key at a time,
           only when absent.
   KEPT    everything else, including keys this script has never heard of.
@@ -72,12 +74,17 @@ BASELINE = {
     "theme": {"name": "gud-lucent", "mode": "system"},
     "tabs": {"mode": "on", "scope": "cwd", "layout": "horizontal", "indicators": "status"},
     "keybinds": {
-        "leader": "ctrl+g",
-        "session.tab.previous": "<leader>h",
-        "session.tab.next": "<leader>l",
+        "leader": "ctrl+x",
+        "session.tab.previous": "<leader>h,<leader>left,<leader>k,<leader>up",
+        "session.tab.next": "<leader>l,<leader>right,<leader>j,<leader>down",
         "session.list": "<leader>t",
-        "session.first": "home",
+        "session.first": "home,<leader>f",
         "session.sidebar.toggle": "none",
+        "pane.focus.left": "none",
+        "pane.focus.right": "none",
+        "terminal.select": "none",
+        "terminal.close": "none",
+        "terminal.toggle": "none",
         "theme.switch": "none",
     },
     "leader": {"timeout": 1500},
@@ -189,14 +196,14 @@ def test_sidequest_frees_only_the_stock_sidebar_binding(script, binding, expecte
     current = {"keybinds": {
         "session.sidebar.toggle": binding,
         "session.child.next": "right",
-        "session.tab.previous": "alt+h",
+        "session.new": "alt+n",
     }}
     once = merge(script, current)
     keys = once["keybinds"]
     assert keys["session.sidebar.toggle"] == expected
-    assert keys["leader"] == "ctrl+g"
+    assert keys["leader"] == "ctrl+x"
     assert keys["session.child.next"] == "right"
-    assert keys["session.tab.previous"] == "alt+h"
+    assert keys["session.new"] == "alt+n"
     assert "sidequest.dag.focus" not in keys
     assert merge(script, once) == once
 
@@ -225,7 +232,15 @@ def test_unknown_keys_and_groups_survive_in_place(script):
     [
         (("attention", "notifications"), True),
         (("attention", "sound"), True),
-        (("keybinds", "leader"), "ctrl+x"),
+        (("keybinds", "leader"), "ctrl+g"),
+        (("keybinds", "session.tab.previous"), "alt+h"),
+        (("keybinds", "session.tab.next"), "alt+l"),
+        (("keybinds", "session.first"), "ctrl+g"),
+        (("keybinds", "pane.focus.left"), "<leader>left"),
+        (("keybinds", "pane.focus.right"), "<leader>right"),
+        (("keybinds", "terminal.select"), "<leader>down"),
+        (("keybinds", "terminal.close"), "<leader>up"),
+        (("keybinds", "terminal.toggle"), "<leader>t"),
         (("leader", "timeout"), 2000),
         (("$schema",), "https://opencode.ai/cli.json"),
     ],
@@ -244,6 +259,31 @@ def test_owned_keys_are_restored(script, path, wrong):
     for key in path:
         node = node[key]
     assert node == expected
+
+
+def test_previous_release_keybinds_move_to_the_default_leader(script):
+    previous = {"keybinds": {
+        "leader": "ctrl+g",
+        "session.tab.previous": "<leader>h",
+        "session.tab.next": "<leader>l",
+        "session.first": "home",
+        "session.list": "<leader>s",
+    }}
+    keys = merge(script, previous)["keybinds"]
+    for action in ("leader", "session.tab.previous", "session.tab.next", "session.first"):
+        assert keys[action] == BASELINE["keybinds"][action], action
+    assert keys["session.list"] == "<leader>s", "a seeded binding the user changed stays"
+    for action in ("pane.focus.left", "pane.focus.right", "terminal.select", "terminal.close", "terminal.toggle"):
+        assert keys[action] == "none", action
+
+
+def test_no_two_managed_actions_share_a_leader_chord():
+    chords = {}
+    for action, value in BASELINE["keybinds"].items():
+        for chord in str(value).split(","):
+            if chord.startswith("<leader>"):
+                chords.setdefault(chord, []).append(action)
+    assert {chord: actions for chord, actions in chords.items() if len(actions) > 1} == {}
 
 
 def test_enforcing_attention_leaves_its_other_settings_alone(script):
@@ -561,7 +601,7 @@ def test_chezmoi_reapply_after_tui_edits_keeps_them_without_a_prompt(sandbox):
             "tabs.layout": "vertical",
             "highlights": False,
             "attention.notifications": True,
-            "keybinds.leader": "ctrl+x",
+            "keybinds.leader": "ctrl+g",
         }
     )
     result = sandbox.chezmoi(sandbox.merge_source, "apply")
@@ -572,7 +612,7 @@ def test_chezmoi_reapply_after_tui_edits_keeps_them_without_a_prompt(sandbox):
     assert data["tabs"]["layout"] == "vertical"
     assert data["highlights"] is False
     assert data["attention"]["notifications"] is False
-    assert data["keybinds"]["leader"] == "ctrl+g"
+    assert data["keybinds"]["leader"] == "ctrl+x"
     assert sandbox.target.stat().st_mode & 0o777 == 0o600
     assert sandbox.chezmoi(sandbox.merge_source, "diff").stdout == ""
 
