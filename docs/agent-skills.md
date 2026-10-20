@@ -56,13 +56,24 @@ An interrupted migration leaves an owner-only journal at
 `~/.local/state/dotfiles/claude-skills-migration.json`; later applies stop until
 that state is reviewed instead of guessing how to continue.
 
-A missing legacy directory has nothing to migrate, so apply continues. So does one
-this account cannot list, such as a `~/.claude` or `~/.claude/skills` without
-read or search permission: the hook and helper say they are skipping the
-migration and exit cleanly. Chezmoi still has to write the managed link, so a
-non-empty directory it cannot open stays yours to fix. Conflicts, unsafe
-ownership, and unexpected link targets on a readable directory keep stopping
-the apply.
+A missing legacy directory has nothing to migrate, so apply continues. So does a
+`~/.claude/skills` this account cannot list (no read or search permission): the
+hook and helper say they are skipping the migration and exit cleanly. Chezmoi still
+has to write the managed link, so a non-empty directory it cannot open stays yours
+to fix. It fails loudly and removes nothing.
+
+A `~/.claude` you own but cannot search is a different case, because it hides a real
+skills directory from every check, and chezmoi would repair the mode and replace
+that directory with the link without a backup. While the managed skills link is
+selected, the hook runs `chmod u+rwx` on it, prints one line saying so, and then
+treats the skills as above: the review gate comes first. It changes only the owner
+bits, and never touches a symlink, a directory that is already searchable, or one
+owned by another account. If the `chmod` fails, the hook warns and continues, and
+chezmoi's own repair of the mode can still replace the directory. Fix the mode by
+hand before applying in that case.
+
+Conflicts, unsafe ownership, and unexpected link targets on a readable directory
+keep stopping the apply.
 
 Selecting `ai > openviking` adds two unmodified upstream instruction skills,
 `openviking-memory` and `openviking-skills`, plus a local `ov-experience-memory`
