@@ -621,6 +621,30 @@ class OpenVikingBenchmarkTest(unittest.TestCase):
 
 
 class OpenVikingInstallerTest(unittest.TestCase):
+    def run_installer(self, version):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            home = root / "home"
+            home.mkdir()
+            (root / "tools").mkdir()
+            (root / "tools/uv").write_text('#!/bin/sh\nexit 1\n')
+            (root / "tools/uv").chmod(0o755)
+            return subprocess.run(["/bin/bash", str(REPO / "scripts/install-openviking.sh")],
+                                  env=dict(os.environ, HOME=str(home), PATH=str(root / "tools") + ':' + os.environ['PATH'],
+                                           INSTALL_AI_OPENVIKING="true", OPENVIKING_INSTALL_ROOT=str(root / "runtime"),
+                                           OPENVIKING_VERSION=version),
+                                  capture_output=True, text=True)
+
+    def test_exact_release_versions_with_three_or_four_components_pass_validation(self):
+        for version in ("0.4.23", "0.5.1.1"):
+            self.assertNotIn("exact release version", self.run_installer(version).stderr)
+
+    def test_floating_and_malformed_versions_are_refused_before_any_install(self):
+        for version in ("latest", "0.5", "0.5.1.1.1", "0.5.1.1-rc1"):
+            result = self.run_installer(version)
+            self.assertNotEqual(result.returncode, 0)
+            self.assertIn("exact release version", result.stderr)
+
     def test_disabled_component_has_no_package_or_filesystem_side_effects(self):
         with tempfile.TemporaryDirectory() as directory:
             home = Path(directory) / "home"
