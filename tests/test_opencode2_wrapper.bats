@@ -111,20 +111,26 @@ arg=npm
 arg=2.1.0" ]
 }
 
-@test "native interactive updater inherits an OpenCode-only release-age exception" {
-  run env TEST_NPM_POLICY=true NPM_CONFIG_MIN_RELEASE_AGE=3 "$WRAPPER"
+@test "native interactive updater runs at release age 0 over an inherited cooldown" {
+  run env -u NPM_CONFIG_MIN_RELEASE_AGE_EXCLUDE TEST_NPM_POLICY=true NPM_CONFIG_MIN_RELEASE_AGE=3 "$WRAPPER"
   [ "$status" -eq 0 ]
-  [[ "$output" == *$'age=3\nexclude=@opencode/*\n'* ]]
+  [[ "$output" == *$'age=0\nexclude=unset\n'* ]]
   [[ "$output" == *'arg=--standalone'* ]]
 }
 
-@test "command-line updater inherits the same exception without changing npmrc" {
+@test "wrapper sets release age 0 when none is inherited" {
+  run env -u NPM_CONFIG_MIN_RELEASE_AGE -u NPM_CONFIG_MIN_RELEASE_AGE_EXCLUDE TEST_NPM_POLICY=true "$WRAPPER" --version
+  [ "$status" -eq 0 ]
+  [[ "$output" == *$'age=0\nexclude=unset\n'* ]]
+}
+
+@test "command-line updater runs at release age 0 without changing npmrc" {
   printf 'min-release-age=3\n' >"$HOME/.npmrc"
   local before
   before=$(cksum "$HOME/.npmrc")
-  run env TEST_NPM_POLICY=true NPM_CONFIG_MIN_RELEASE_AGE=3 "$WRAPPER" update
+  run env -u NPM_CONFIG_MIN_RELEASE_AGE_EXCLUDE TEST_NPM_POLICY=true NPM_CONFIG_MIN_RELEASE_AGE=3 "$WRAPPER" update
   [ "$status" -eq 0 ]
-  [[ "$output" == *$'age=3\nexclude=@opencode/*\n'* ]]
+  [[ "$output" == *$'age=0\nexclude=unset\n'* ]]
   [ "$(cksum "$HOME/.npmrc")" = "$before" ]
 }
 

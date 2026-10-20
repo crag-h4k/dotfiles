@@ -473,12 +473,14 @@ Lazy plugin, Treesitter parser, Mason package, and selected Zsh or tmux Git
 checkout with its installed and candidate version or revision. Current items
 are skipped; metadata failures appear under `Could not check`.
 
-Floating npm candidates use npm's age-aware resolution, so a preview does not
-pin a fresh release that the user's release-age window would reject. OpenCode
-uses an `@opencode/*` exception for its exact CLI and platform release family.
-Runtime synchronization also exempts `@opentui/*` when resolving the SDK's
-declared peers, so a required same-day OpenTUI release is not rejected. Other
-packages retain the configured release-age window.
+Floating npm candidates resolve through `npm outdated`, which honors npm's date
+filters, with `NPM_CONFIG_MIN_RELEASE_AGE=0` set in the process environment.
+Chezmoi-driven npm work therefore sees the newest release despite a release-age
+cooldown in the user's npm config, and the preview shows the version the
+installer will fetch. The override applies to the package plan, every npm
+installer, and runtime synchronization; it never edits `~/.npmrc`, and npm run
+outside these entrypoints keeps the user's policy. See
+[OpenCode updates](operation.md#opencode-updates).
 
 Native discovery refreshes registry metadata and Git objects without installing
 packages or changing checked-out files. Parser candidates come from the planned

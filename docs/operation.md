@@ -167,19 +167,36 @@ change does not alter that setting.
 ## OpenCode updates
 
 OpenCode's `/update` command and `opencode2 update` use the isolated npm install
-under `~/.local/share/opencode2`. The wrapper passes that prefix to npm. It also
-exempts the `@opencode/*` release family from npm's release-age filter because
-the native updater requests an exact new CLI version and platform package.
-The matching runtime exempts both `@opencode/*` and `@opentui/*`: a fresh SDK can
-require OpenTUI packages published the same day. Other packages retain the
-user's release-age guard, and dotfiles does not modify `~/.npmrc`.
+under `~/.local/share/opencode2`. The wrapper passes that prefix to npm and runs
+OpenCode with `NPM_CONFIG_MIN_RELEASE_AGE=0`. The native updater requests an
+exact new CLI version and platform package, a fresh SDK can require OpenTUI
+packages published the same day, and plugin installs resolve moving tags, so a
+release-age cooldown would reject exactly the releases an update is after.
+
+Chezmoi-driven npm work bypasses your cooldown by design. The same variable is
+exported by every npm entrypoint dotfiles drives:
+
+- package-mode applies (`chezmoi apply`, `chezmoi update`, `cup`), including the
+  package plan's inventory and candidate lookups;
+- the npm installers for OpenCode, Copilot, SSH MCP, Caveman, and the Neovim
+  npm tools, plus any Mason install the Neovim package step starts;
+- runtime synchronization, which `opencode2` also runs at launch;
+- the managed `opencode2` wrapper.
+
+The value replaces an inherited one, so a shell that exports
+`NPM_CONFIG_MIN_RELEASE_AGE=3` still gets `0` inside these processes. It exists
+only in their process environment. Dotfiles never writes `~/.npmrc` or another
+npm config file, and npm you run from a normal terminal keeps your policy.
+Anything started by `opencode2` inherits the variable, including shell commands
+an agent runs in a session. Run project installs that should honor the cooldown
+outside it.
 
 Runtime synchronization reads the installed CLI's SDK peer requirements and
-OpenTUI Solid's declared dependencies and peers, then
-uses npm's age-aware resolver for compatible OpenTUI and Solid.js candidates.
-Installation consumes those exact versions. Missing peer metadata or unresolved
-candidates stop the sync before npm changes the existing runtime; there is no
-fallback to an unconstrained `latest` tag.
+OpenTUI Solid's declared dependencies and peers, then resolves compatible
+OpenTUI and Solid.js candidates with `npm outdated`, which honors npm's date
+filters. Installation consumes those exact versions. Missing peer metadata or
+unresolved candidates stop the sync before npm changes the existing runtime;
+there is no fallback to an unconstrained `latest` tag.
 
 You can also update the CLI directly with npm:
 
@@ -447,9 +464,10 @@ Both Pillbox and Sidequest follow npm's moving `latest` tag. OpenCode checks
 for newer versions on startup but keeps the installed versions until you choose
 to update them. Review the release, then run `opencode2 plugin update` to install
 the latest available versions. This executes new plugin code without a dotfiles
-change. A local npm release-age policy may reject a fresh version; keep the
-policy intact and use a process-scoped exception only when you accept the
-new release. A fresh installation also resolves the moving tags at startup.
+change. The `opencode2` wrapper runs with `NPM_CONFIG_MIN_RELEASE_AGE=0` (see
+[OpenCode updates](#opencode-updates)), so your npm release-age policy does not
+reject a fresh version there; reviewing the release is the control. A fresh
+installation also resolves the moving tags at startup.
 Keep local entries after the end marker. Packages, local paths, Git references,
 object options, and comments survive repeated applies in their original local
 order. There is no dotfiles allowlist; review additions yourself because plugins

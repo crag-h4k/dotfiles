@@ -450,10 +450,13 @@ skill registries when the CLI exits before pipe output drains. A connected MCP
 server does not make a failed capture plugin count as active.
 
 Exact package pins can still be blocked by a locally configured npm release-age
-policy. This integration does not require an age gate. Review the effective npm
-configuration when the registry reports that a pinned version exists but npm
-rejects its publication date. Preserve the exact pin, registry integrity checks,
-and matching OpenCode SDK runtime rather than substituting an unreviewed release.
+policy when npm runs outside the managed entrypoints. Package-mode applies and
+the `opencode2` wrapper set `NPM_CONFIG_MIN_RELEASE_AGE=0` in their process
+environment (see [OpenCode updates](operation.md#opencode-updates)), so they do
+not hit it. Elsewhere, review the effective npm configuration when the registry
+reports that a pinned version exists but npm rejects its publication date.
+Preserve the exact pin, registry integrity checks, and matching OpenCode SDK
+runtime rather than substituting an unreviewed release.
 
 ## Measure the trial
 

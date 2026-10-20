@@ -8,6 +8,12 @@ set -euo pipefail
 # (e.g. package-plan.sh) regardless of the caller's working directory.
 _COMMON_SH_DIR="$(cd "$(dirname "${BASH_SOURCE[0]:-$0}")" && pwd)"
 
+# Chezmoi-driven npm work must see freshly published releases, so it bypasses
+# the user's release-age cooldown. This is a process-environment override that
+# replaces any inherited value for the installers and their children; no npm
+# config file is written, and other npm use keeps the user's policy.
+export NPM_CONFIG_MIN_RELEASE_AGE=0
+
 die() { printf 'dotfiles: %s\n' "$*" >&2; exit 1; }
 info() { printf '==> %s\n' "$*"; }
 warn() { printf 'WARN: %s\n' "$*" >&2; }

@@ -68,21 +68,37 @@ STUB
   [ "$output" = 'planned 1.2.3' ]
 }
 
-@test "OpenCode candidate resolution uses the updater exception and retains release age" {
+@test "OpenCode candidate resolution overrides an inherited release age without an exclude list" {
   cat >"$BATS_TEST_TMPDIR/bin/npm" <<'STUB'
 #!/bin/sh
 [ "$1" = outdated ] || exit 90
-[ "$NPM_CONFIG_MIN_RELEASE_AGE" = 3 ] || exit 91
-[ "$NPM_CONFIG_MIN_RELEASE_AGE_EXCLUDE" = '@opencode/*' ] || exit 92
+[ "$NPM_CONFIG_MIN_RELEASE_AGE" = 0 ] || exit 91
+[ -z "${NPM_CONFIG_MIN_RELEASE_AGE_EXCLUDE+x}" ] || exit 92
 printf '{"@opencode/cli":{"wanted":"2.0.25"}}\n'
 exit 1
 STUB
   chmod +x "$BATS_TEST_TMPDIR/bin/npm"
   # The isolated child shell expands its positional source path.
   # shellcheck disable=SC2016
-  run env NPM_CONFIG_MIN_RELEASE_AGE=3 bash -c 'source "$1/scripts/common.sh"; source "$1/scripts/package-resolve.sh"; _resolve_npm_candidate @opencode/cli latest' _ "$ROOT"
+  run env -u NPM_CONFIG_MIN_RELEASE_AGE_EXCLUDE NPM_CONFIG_MIN_RELEASE_AGE=3 bash -c 'source "$1/scripts/common.sh"; source "$1/scripts/package-resolve.sh"; _resolve_npm_candidate @opencode/cli latest' _ "$ROOT"
   [ "$status" -eq 0 ]
   [ "$output" = 2.0.25 ]
+}
+
+@test "candidate resolution for any package overrides an inherited release age on its own" {
+  cat >"$BATS_TEST_TMPDIR/bin/npm" <<'STUB'
+#!/bin/sh
+[ "$1" = outdated ] || exit 90
+[ "$NPM_CONFIG_MIN_RELEASE_AGE" = 0 ] || exit 91
+printf '{"tool":{"wanted":"1.2.3"}}\n'
+exit 1
+STUB
+  chmod +x "$BATS_TEST_TMPDIR/bin/npm"
+  # The helper is sourced alone, without common.sh, to prove it is self-contained.
+  # shellcheck disable=SC2016
+  run env NPM_CONFIG_MIN_RELEASE_AGE=3 bash -c 'source "$1/home/dot_config/opencode/npm-candidate.sh"; _resolve_npm_candidate tool latest' _ "$ROOT"
+  [ "$status" -eq 0 ]
+  [ "$output" = 1.2.3 ]
 }
 
 @test "Debian nodejs without bundled npm is deferred until NodeSource setup" {

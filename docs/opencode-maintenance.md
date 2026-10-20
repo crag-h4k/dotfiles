@@ -48,8 +48,10 @@ CLI, server, plugin SDK, and terminal versions when diagnosing compatibility.
   switching the stable binary or runtime links. Preserve old releases on failure.
   Chezmoi must not manage runtime node_modules, npm lockfiles, or authentication.
   Resolve OpenTUI and Solid.js against the selected SDK's declared peers through
-  `npm-candidate.sh`. Runtime aging exceptions cover `@opencode/*` and
-  `@opentui/*`, not all npm packages. Metadata failure must not start installation.
+  `npm-candidate.sh`. Chezmoi-driven npm work, including the wrapper and runtime
+  sync, runs with `NPM_CONFIG_MIN_RELEASE_AGE=0` in its process environment only.
+  Do not add per-package aging exceptions or write the user's npm config. Metadata
+  failure must not start installation.
 - The footer is the `opencode-pillbox-statusline` package. Dotfiles owns its
   `@latest` reference in both config files, the `opencode.jsonc` reference audit, and the
   seeded `cli.json` color options; pill behavior, quota sources, and their
