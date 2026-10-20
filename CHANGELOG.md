@@ -1,5 +1,22 @@
 # Changelog
 
+## [1.4.0](https://github.com/crag-h4k/dotfiles/compare/v1.3.1...v1.4.0) (2026-10-20)
+
+
+### Features
+
+* **agent:** dirs prompt and plan rule ([#135](https://github.com/crag-h4k/dotfiles/issues/135)) ([e509df9](https://github.com/crag-h4k/dotfiles/commit/e509df90e1b54a2cacb4970b654f90a8e5e88225))
+* **chezmoi:** add configurable worktrees and agents directories ([#133](https://github.com/crag-h4k/dotfiles/issues/133)) ([9cdb719](https://github.com/crag-h4k/dotfiles/commit/9cdb719d8daecb336569b1a3820cfd65e7ad920a))
+* **chezmoi:** replace the two directory prompts with one optional editor page ([#138](https://github.com/crag-h4k/dotfiles/issues/138)) ([5d5f524](https://github.com/crag-h4k/dotfiles/commit/5d5f5242e754a665853cad109107f873e2abf71a))
+* **npm:** bypass the release-age cooldown for chezmoi npm installs and updates ([#131](https://github.com/crag-h4k/dotfiles/issues/131)) ([4ff6ead](https://github.com/crag-h4k/dotfiles/commit/4ff6ead8941a725adbd0604929d105b03235ca68))
+* **oc2:** return the leader to Ctrl+X and free the colliding keys ([#129](https://github.com/crag-h4k/dotfiles/issues/129)) ([0649c3f](https://github.com/crag-h4k/dotfiles/commit/0649c3f0c2510647a18173a20a78c44a03a8d8aa))
+
+
+### Bug Fixes
+
+* **chezmoi:** restore owner access to ~/.claude and skip the ~/.codex theme removal when it is unsearchable ([#136](https://github.com/crag-h4k/dotfiles/issues/136)) ([9ea665b](https://github.com/crag-h4k/dotfiles/commit/9ea665ba9130cf37c64883fd90a92f279c3c0de6))
+* **chezmoi:** tolerate a missing or unreadable ~/.claude/skills in the migration ([#134](https://github.com/crag-h4k/dotfiles/issues/134)) ([4ace278](https://github.com/crag-h4k/dotfiles/commit/4ace2785f66e982371082e9812bd84d2bc0df88b))
+
 ## [1.3.1](https://github.com/crag-h4k/dotfiles/compare/v1.3.0...v1.3.1) (2026-10-17)
 
 
