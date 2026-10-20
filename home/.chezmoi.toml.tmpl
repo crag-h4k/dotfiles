@@ -4,8 +4,9 @@
 {{- /* change it. Parsed into booleans below so the rest of the repo can gate  */ -}}
 {{- /* on .components.* (see .chezmoiignore, .chezmoiexternal.toml).            */ -}}
 {{- /*                                                                          */ -}}
-{{- /* With AI selected, init also asks for the worktrees and agent-notes         */ -}}
-{{- /* directories right after the AI submenu (see $dirSpecs below).               */ -}}
+{{- /* The AI submenu also carries a `directories` setup action (see $aiActions     */ -}}
+{{- /* and $dirSpecs below). Left unchecked, the worktrees and agent-notes          */ -}}
+{{- /* directories keep their saved value; checked, one editor page asks for both.  */ -}}
 {{- /*                                                                          */ -}}
 {{- /* Single source of truth: add/remove a component by editing this list.    */ -}}
 {{- /* Each record is:                                                          */ -}}
@@ -33,6 +34,15 @@
     (dict "num" "5" "key" "copilot"       "label" "copilot"       "desc" "GitHub Copilot CLI (npm @github/copilot; pulls in the copilot binary)" "all" false)
     (dict "num" "8" "key" "openviking"    "label" "openviking"    "desc" "local memory service + unmanaged starter configs" "all" false)
     (dict "num" "6" "key" "codecompanion" "label" "codecompanion" "desc" "CodeCompanion.nvim assistant (also installs Neovim, Node + claude-agent-acp)" "all" false)
+-}}
+{{- /* Init-time actions of the AI submenu. Like the top-level $actions they are    */ -}}
+{{- /* shown with the sub-features but are never components: they stay out of       */ -}}
+{{- /* $aiFeatures, [data.components.ai], and the persisted aiSelection, and the     */ -}}
+{{- /* number is outside the sub-feature range (7 and 9 are retired tokens that      */ -}}
+{{- /* migrate to opencode). Unchecked by default and only offered when init can      */ -}}
+{{- /* actually prompt (see $dirsOffered).                                            */ -}}
+{{- $aiActions := list
+    (dict "num" "10" "key" "directories" "label" "directories" "desc" "change the worktrees and agent-notes directories (unchecked keeps them)" "all" false "action" true)
 -}}
 {{- /* Terminal-emulator sub-features. MULTI-select (like git/ai): installing more */ -}}
 {{- /* than one emulator's config is harmless and Dane runs both, so this is not a  */ -}}
@@ -196,14 +206,14 @@
 {{- /* promptStringOnce (which must read the persisted [data] selection keys).   */ -}}
 {{- $root := . -}}
 {{- /* Worktrees and agent-notes directories. Each entry resolves to the value the   */ -}}
-{{- /* init prompt pre-fills, and to the persisted value when nothing prompts: a      */ -}}
-{{- /* saved [data] value always wins, then DOTFILES_WORKTREES_DIR / DOTFILES_AGENTS_DIR */ -}}
-{{- /* (which only seed a first init, or an old config that lacks the key), then the   */ -}}
-{{- /* "$HOME/<default>" default. The stored text stays verbatim (absolute, ~/, or      */ -}}
-{{- /* $HOME/ forms); consumers expand it through the shared dotfiles-dir template.    */ -}}
+{{- /* editor pre-fills, and to the persisted value when nothing prompts: a saved     */ -}}
+{{- /* [data] value always wins, then DOTFILES_WORKTREES_DIR / DOTFILES_AGENTS_DIR     */ -}}
+{{- /* (which only seed a first init, or an old config that lacks the key), then the    */ -}}
+{{- /* "$HOME/<default>" default. The stored text stays verbatim (absolute, ~/, or       */ -}}
+{{- /* $HOME/ forms); consumers expand it through the shared dotfiles-dir template.     */ -}}
 {{- $dirSpecs := list
-      (dict "key" "worktreesDir" "env" "DOTFILES_WORKTREES_DIR" "default" "worktrees" "title" "Git worktrees directory (one folder per task)")
-      (dict "key" "agentsDir"    "env" "DOTFILES_AGENTS_DIR"    "default" "agents"    "title" "Agent notes directory (plans/specs/drafts/handoffs)")
+      (dict "key" "worktreesDir" "env" "DOTFILES_WORKTREES_DIR" "default" "worktrees" "label" "worktrees" "title" "Git worktrees directory (one folder per task)")
+      (dict "key" "agentsDir"    "env" "DOTFILES_AGENTS_DIR"    "default" "agents"    "label" "agents"    "title" "Agent notes directory (plans/specs/drafts/handoffs)")
 -}}
 {{- $dirs := dict -}}
 {{- range $dirSpecs -}}
@@ -212,6 +222,38 @@
 {{-   if eq $dirValue "" }}{{- $dirValue = printf "$HOME/%s" .default -}}{{- end -}}
 {{-   $dirs = set $dirs .key $dirValue -}}
 {{- end -}}
+{{- /* What the AI page shows and the editor pre-fills. The pre-fill is the value       */ -}}
+{{- /* above only when dotfiles-dir's check mode accepts it (usable, and plain text);    */ -}}
+{{- /* anything else is replaced by the literal default and noted in $dirBad, so an      */ -}}
+{{- /* unvalidated saved or seeded value never reaches the editor or a shell word. The    */ -}}
+{{- /* page shows the pre-fill with unexpected characters masked, so a hand-edited        */ -}}
+{{- /* value cannot send terminal escapes.                                                */ -}}
+{{- $dirOffer := dict -}}
+{{- $dirShow := dict -}}
+{{- $dirBad := dict -}}
+{{- range $dirSpecs -}}
+{{-   $dirCur := get $dirs .key -}}
+{{-   $dirNote := "" -}}
+{{-   if includeTemplate "dotfiles-dir" (dict "home" $root.chezmoi.homeDir "key" .key "value" $dirCur "default" .default "check" true) -}}
+{{-     $dirBad = set $dirBad .key true -}}
+{{-     $dirNote = " (not usable)" -}}
+{{-     $dirOffer = set $dirOffer .key (printf "$HOME/%s" .default) -}}
+{{-   else -}}
+{{-     $dirOffer = set $dirOffer .key $dirCur -}}
+{{-   end -}}
+{{-   $dirShow = set $dirShow .key (printf "%s%s" (regexReplaceAll `[^A-Za-z0-9._ @%+=:,/~${}-]` $dirCur "?") $dirNote) -}}
+{{- end -}}
+{{- /* The directories entry exists only where init can ask: AI selected, an            */ -}}
+{{- /* interactive run (not DOTFILES_NO_TUI, not a `cup` re-init, not the `all+`           */ -}}
+{{- /* migration), a TTY stdin, and a /dev/tty that opens. The `default` shortcut never      */ -}}
+{{- /* selects AI, so it needs no gate. chezmoi's own promptString fails without a terminal,  */ -}}
+{{- /* and an entry that does nothing when checked is worse than none. Everywhere else the     */ -}}
+{{- /* values stay as resolved above. (get $resolved "ai") only spares the terminal probe.      */ -}}
+{{- $dirsOffered := false -}}
+{{- if and (get $resolved "ai") (not $legacyAllPlus) (not $packageUpdate) (not (env "DOTFILES_NO_TUI")) (stdinIsATTY) -}}
+{{-   if eq (trim (output "sh" "-c" "test -e /dev/tty && (: </dev/tty) 2>/dev/null && printf tty || true")) "tty" }}{{- $dirsOffered = true }}{{- end -}}
+{{- end -}}
+{{- $wantDirs := false -}}
 {{- range $c := $components -}}
 {{-   if gt (len $c.sub) 0 -}}
 {{-     $feats := $c.sub -}}
@@ -228,6 +270,9 @@
 {{-     $stored := "" -}}
 {{-     if get $resolved $c.key -}}
 {{-       $subSel := "" -}}
+{{- /* The submenu's init-time actions (AI only, and only where init can prompt). */ -}}
+{{-       $subActions := list -}}
+{{-       if and (eq $c.key "ai") $dirsOffered }}{{ $subActions = $aiActions }}{{ end -}}
 {{- /* `default` takes the sub-defaults without prompting (the guard below        */ -}}
 {{- /* defaults an empty $subSel); only an explicit per-number selection prompts. */ -}}
 {{-       if $legacyAllPlus -}}
@@ -242,6 +287,7 @@
 {{- /* codecompanion's "node, npm" desc is why the previous seed never pre-checked). */ -}}
 {{-         $subOptOf := dict -}}
 {{-         range $menuFeats }}{{ $subOptOf = set $subOptOf .key (printf "%s - %s" .key (.desc | replace ", " "/" | replace "," "/")) }}{{ end -}}
+{{-         range $subActions }}{{ $subOptOf = set $subOptOf .key (printf "%s - %s" .key (.desc | replace ", " "/" | replace "," "/")) }}{{ end -}}
 {{-         $seedOpts := list -}}
 {{-         if eq $prevSub "" -}}
 {{- /* fresh, or the parent was just turned on: pre-check the sub-defaults. */ -}}
@@ -257,17 +303,28 @@
 {{-         end -}}
 {{-         $subOpts := list -}}
 {{-         range $menuFeats }}{{ $subOpts = append $subOpts (squote (get $subOptOf .key)) }}{{ end -}}
+{{-         range $subActions }}{{ $subOpts = append $subOpts (squote (get $subOptOf .key)) }}{{ end -}}
 {{-         $subHdr := printf "%s  (space toggles, enter confirms, esc cancels):" $c.header -}}
+{{- /* The header's extra lines show the current directories, one per line. */ -}}
+{{-         if gt (len $subActions) 0 }}{{ $subHdr = printf "%s\nWorktrees:   %s\nAgent notes: %s" $subHdr (get $dirShow "worktreesDir") (get $dirShow "agentsDir") }}{{ end -}}
 {{-         $subSelFlag := "" -}}
 {{-         if gt (len $seedOpts) 0 }}{{ $subSelFlag = printf "--selected=%s" (join "," $seedOpts | squote) }}{{ end -}}
-{{-         $subCmd := printf "test -e /dev/tty && gum choose --no-limit %s --header %s %s </dev/tty 2>/dev/tty || true" $subSelFlag ($subHdr | squote) (join " " $subOpts) -}}
+{{- /* The header travels as a positional parameter ($1), so a value with quotes or   */ -}}
+{{- /* newlines in it can never be parsed as shell syntax. A taller header needs a      */ -}}
+{{- /* taller list: Gum 0.14 (Debian) subtracts the header's lines from --height, so the  */ -}}
+{{- /* page gets room for every option, the header, and a spare line.                      */ -}}
+{{-         $subHeight := "" -}}
+{{-         if gt (len $subActions) 0 }}{{ $subHeight = printf "--height %d" (add (len $subOpts) 5) }}{{ end -}}
+{{-         $subCmd := printf "test -e /dev/tty && gum choose --no-limit %s %s --header \"$1\" %s </dev/tty 2>/dev/tty || true" $subSelFlag $subHeight (join " " $subOpts) -}}
 {{-         $picked := list -}}
-{{-         range (splitList "\n" (trim (output "sh" "-c" $subCmd))) }}{{ if . }}{{ $picked = append $picked (first (splitList " " .)) }}{{ end }}{{ end -}}
+{{-         range (splitList "\n" (trim (output "sh" "-c" $subCmd "sh" $subHdr))) }}{{ if . }}{{ $picked = append $picked (first (splitList " " .)) }}{{ end }}{{ end -}}
 {{-         $subSel = trim (join " " $picked) -}}
 {{-       end -}}
 {{-       if eq $subSel "" -}}
 {{-         $subLines := list (printf "%s (enter numbers or keys):" $c.header) -}}
 {{-         range $menuFeats }}{{ $subLines = append $subLines (printf "  %s) %s - %s" .num .label .desc) }}{{ end -}}
+{{-         range $subActions }}{{ $subLines = append $subLines (printf "  %s) %s - %s" .num .label .desc) }}{{ end -}}
+{{-         if gt (len $subActions) 0 }}{{ $subLines = append $subLines (printf "  now: worktrees %s, agent notes %s" (get $dirShow "worktreesDir") (get $dirShow "agentsDir")) }}{{ end -}}
 {{-         $subPrompt := printf "%s\n\nEnter (e.g. \"1 3\"), or press Enter for default (%s)" (join "\n" $subLines) $subDefault -}}
 {{-         $subSel = trim (promptStringOnce $root $c.selKey $subPrompt) -}}
 {{-       end -}}
@@ -291,6 +348,8 @@
 {{- /* Personal identity used to be a peer of managed Git config. Promote a */ -}}
 {{- /* personal-only old selection to managed config before resolving fields. */ -}}
 {{-       if and (eq $c.key "git") (or (hasKey $subTokens "personal") (hasKey $subTokens "2") (dig "components" "git" "personal" false $root)) }}{{- $subTokens = set $subTokens "config" true }}{{- end -}}
+{{- /* A sub-menu action is selected by key or number too; it only ever sets a flag. */ -}}
+{{-       range $subActions }}{{ if or (hasKey $subTokens .key) (hasKey $subTokens .num) }}{{ $wantDirs = true }}{{ end }}{{ end -}}
 {{-       range $feats }}{{ $r = set $r .key (or (hasKey $subTokens .key) (hasKey $subTokens .num)) }}{{ end -}}
 {{-       $storedKeys := list -}}
 {{-       range $feats }}{{ if get $r .key }}{{ $storedKeys = append $storedKeys .key }}{{ end }}{{ end -}}
@@ -300,40 +359,90 @@
 {{-     end -}}
 {{-     $subResolved = set $subResolved $c.key $r -}}
 {{-     $subSelStore = set $subSelStore $c.key $stored -}}
-{{- /* End of the AI submenu: ask for the worktrees and agent-notes directories. The   */ -}}
-{{- /* prompts follow the palette picker's rules, not the submenus': DOTFILES_NO_TUI     */ -}}
-{{- /* and any run without a usable terminal skip them and keep the pre-filled value      */ -}}
-{{- /* (saved, then env seed, then default). Also skipped for `cup` re-inits and the      */ -}}
-{{- /* `all+` migration, which never reopen a submenu. Gum input when Gum is installed,   */ -}}
-{{- /* a typed promptString otherwise; Esc or an empty gum answer keeps the shown value.  */ -}}
-{{- /* promptString is not safe without a terminal (no /dev/tty, or an EOF on stdin with   */ -}}
-{{- /* --no-tty makes chezmoi fail), so stdin and /dev/tty must both be usable. Answers    */ -}}
-{{- /* are checked through dotfiles-dir in check mode and asked again up to three times;     */ -}}
-{{- /* a value still unusable then fails at the final dotfiles-dir call below.              */ -}}
-{{-     if and (eq $c.key "ai") (get $resolved "ai") (not $useDefault) (not $legacyAllPlus) (not $packageUpdate) (not (env "DOTFILES_NO_TUI")) (stdinIsATTY) -}}
-{{-       $dirTTY := trim (output "sh" "-c" "test -e /dev/tty && (: </dev/tty) 2>/dev/null && printf tty || true") -}}
-{{-       if eq $dirTTY "tty" -}}
-{{-         $dirGum := lookPath "gum" -}}
-{{-         range $spec := $dirSpecs -}}
-{{-           $offer := get $dirs $spec.key -}}
-{{- /* The offer is interpolated into a single-quoted shell word for Gum. Only a value    */ -}}
-{{- /* that passes the dotfiles-dir whitelist is safe there, so an unusable saved or       */ -}}
-{{- /* seeded value is replaced by the literal default and the user is told.                */ -}}
-{{-           if includeTemplate "dotfiles-dir" (dict "home" $root.chezmoi.homeDir "key" $spec.key "value" $offer "default" $spec.default "check" true) -}}
-{{-             $offer = printf "$HOME/%s" $spec.default -}}
-{{-             $_ := output "sh" "-c" (printf "printf '%%s\\n' %s >/dev/tty 2>/dev/null || true" (squote (printf "The current %s value is not usable; showing the default instead." $spec.key))) -}}
+{{- /* End of the AI submenu: the one directories editor. $wantDirs is only ever set      */ -}}
+{{- /* when the `directories` entry was offered (see $dirsOffered: an interactive run, a    */ -}}
+{{- /* TTY stdin, and a /dev/tty that opens) and checked; it stays set for the terminal      */ -}}
+{{- /* submenu that follows, hence the key test. With Gum: a single `gum write`             */ -}}
+{{- /* page holding both paths on two lines, pre-filled from $dirOffer (saved value,       */ -}}
+{{- /* else env seed, else default). Without Gum: a typed promptString per path, pre-      */ -}}
+{{- /* filled the same way. Answers are parsed leniently, checked through dotfiles-dir     */ -}}
+{{- /* in check mode, and asked again up to three times with the text kept; then the       */ -}}
+{{- /* existing dotfiles-dir error stops init. Esc, Ctrl+C, or an empty answer keeps the    */ -}}
+{{- /* pre-fill. User text reaches a shell only as a positional parameter ($1, $2), never    */ -}}
+{{- /* spliced into the command string.                                                      */ -}}
+{{-     if and (eq $c.key "ai") $wantDirs -}}
+{{-       $dirNew := dict "worktreesDir" (get $dirOffer "worktreesDir") "agentsDir" (get $dirOffer "agentsDir") -}}
+{{-       range $spec := $dirSpecs -}}
+{{-         if hasKey $dirBad $spec.key -}}
+{{-           $_ := output "sh" "-c" (printf "printf '%%s\\n' %s >/dev/tty 2>/dev/null || true" (squote (printf "The current %s value is not usable; showing the default instead." $spec.key))) -}}
+{{-         end -}}
+{{-       end -}}
+{{-       if lookPath "gum" -}}
+{{-         $dirText := printf "worktrees: %s\nagents: %s" (get $dirNew "worktreesDir") (get $dirNew "agentsDir") -}}
+{{-         $dirHdr := "Edit the paths: Enter saves, Ctrl+C keeps as shown" -}}
+{{- /* Gum 2.x hides the first line of a pre-filled value while its width is automatic     */ -}}
+{{- /* (--width 0 or unset), so the page gets an explicit width: the terminal's, less the    */ -}}
+{{- /* prompt, or 78 when it cannot be read. --char-limit 0 lifts the 400-character default   */ -}}
+{{- /* of Gum 0.14. Only flags that exist in 0.14.0 through 2.x are used.                     */ -}}
+{{-         $dirCmd := `w=$(stty size </dev/tty 2>/dev/null | cut -d' ' -f2); case $w in ''|*[!0-9]*) w=80 ;; esac; [ "$w" -ge 24 ] || w=80; w=$((w - 2)); test -e /dev/tty && gum write --width "$w" --header "$2" --value "$1" --placeholder "Empty keeps the shown values" --char-limit 0 </dev/tty 2>/dev/tty || true` -}}
+{{-         $dirDone := false -}}
+{{-         $dirLast := $dirNew -}}
+{{-         range $try := until 3 -}}
+{{-           if not $dirDone -}}
+{{-             $dirAnswer := trim (output "sh" "-c" $dirCmd "sh" $dirText $dirHdr) -}}
+{{-             if eq $dirAnswer "" -}}
+{{-               $dirDone = true -}}
+{{-             else -}}
+{{- /* One `key: path` per line; keys are case-insensitive, spaces optional, blank lines    */ -}}
+{{- /* ignored, a key left empty or deleted keeps its pre-fill, a later line wins.           */ -}}
+{{-               $dirParsed := dict -}}
+{{-               $dirUnread := false -}}
+{{-               range $dirLine := splitList "\n" $dirAnswer -}}
+{{-                 $dirLine = trim $dirLine -}}
+{{-                 if ne $dirLine "" -}}
+{{-                   if regexMatch `(?i)^(worktrees|agents)\s*[:=]` $dirLine -}}
+{{-                     $dirKey := lower (regexFind `(?i)^(worktrees|agents)` $dirLine) -}}
+{{-                     $dirVal := trim (regexReplaceAll `(?i)^(worktrees|agents)\s*[:=]` $dirLine "") -}}
+{{-                     if ne $dirVal "" }}{{- $dirParsed = set $dirParsed $dirKey $dirVal }}{{- end -}}
+{{-                   else -}}
+{{-                     $dirUnread = true -}}
+{{-                   end -}}
+{{-                 end -}}
+{{-               end -}}
+{{-               $dirCand := dict "worktreesDir" (dig "worktrees" (get $dirOffer "worktreesDir") $dirParsed) "agentsDir" (dig "agents" (get $dirOffer "agentsDir") $dirParsed) -}}
+{{-               $dirProblems := list -}}
+{{-               range $spec := $dirSpecs -}}
+{{-                 if includeTemplate "dotfiles-dir" (dict "home" $root.chezmoi.homeDir "key" $spec.key "value" (get $dirCand $spec.key) "default" $spec.default "check" true) }}{{- $dirProblems = append $dirProblems $spec.label }}{{- end -}}
+{{-               end -}}
+{{-               $dirLast = $dirCand -}}
+{{-               if or $dirUnread (gt (len $dirProblems) 0) -}}
+{{-                 $dirText = $dirAnswer -}}
+{{-                 $dirMsg := "Each line must look like 'worktrees: <path>' or 'agents: <path>'." -}}
+{{-                 if gt (len $dirProblems) 0 }}{{- $dirMsg = printf "Not a usable directory for %s: use an absolute path, ~/..., or $HOME/... with letters, digits, spaces, and . _ @ %% + = : , / ~ -" (join " and " $dirProblems) }}{{- end -}}
+{{-                 $_ := output "sh" "-c" `printf '%s\n' "$1" >/dev/tty 2>/dev/null || true` "sh" $dirMsg -}}
+{{-               else -}}
+{{-                 $dirNew = $dirCand -}}
+{{-                 $dirDone = true -}}
+{{-               end -}}
+{{-             end -}}
 {{-           end -}}
+{{-         end -}}
+{{- /* Three unusable answers: stop here with the existing clear error rather than      */ -}}
+{{- /* opening the next prompt first.                                                    */ -}}
+{{-         if not $dirDone -}}
+{{-           range $spec := $dirSpecs -}}
+{{-             $_ := includeTemplate "dotfiles-dir" (dict "home" $root.chezmoi.homeDir "key" $spec.key "value" (get $dirLast $spec.key) "default" $spec.default) -}}
+{{-           end -}}
+{{-           fail "Could not use the directories answer after three tries. Use lines like 'worktrees: ~/worktrees' and 'agents: ~/agents' with plain path characters." -}}
+{{-         end -}}
+{{-       else -}}
+{{-         range $spec := $dirSpecs -}}
+{{-           $offer := get $dirOffer $spec.key -}}
 {{-           $answer := $offer -}}
 {{-           $taken := false -}}
 {{-           range $try := until 3 -}}
 {{-             if not $taken -}}
-{{-               $given := "" -}}
-{{-               if $dirGum -}}
-{{-                 $dirCmd := printf "gum input --header %s --placeholder %s --value %s --width 0 </dev/tty 2>/dev/tty || true" ((printf "%s  (Enter keeps the shown value)" $spec.title) | squote) ((printf "$HOME/%s" $spec.default) | squote) ($offer | squote) -}}
-{{-                 $given = trim (output "sh" "-c" $dirCmd) -}}
-{{-               else -}}
-{{-                 $given = trim (promptString $spec.title $offer) -}}
-{{-               end -}}
+{{-               $given := trim (promptString $spec.title $offer) -}}
 {{-               if eq $given "" }}{{- $given = $offer -}}{{- end -}}
 {{-               $answer = $given -}}
 {{-               if includeTemplate "dotfiles-dir" (dict "home" $root.chezmoi.homeDir "key" $spec.key "value" $given "default" $spec.default "check" true) -}}
@@ -343,14 +452,14 @@
 {{-               end -}}
 {{-             end -}}
 {{-           end -}}
-{{-           $dirs = set $dirs $spec.key $answer -}}
-{{- /* Three unusable answers: stop here with the existing clear error rather than      */ -}}
-{{- /* opening the next prompt first.                                                    */ -}}
 {{-           if not $taken -}}
 {{-             $_ := includeTemplate "dotfiles-dir" (dict "home" $root.chezmoi.homeDir "key" $spec.key "value" $answer "default" $spec.default) -}}
+{{-             fail (printf "Could not use the %s answer after three tries." $spec.label) -}}
 {{-           end -}}
+{{-           $dirNew = set $dirNew $spec.key $answer -}}
 {{-         end -}}
 {{-       end -}}
+{{-       range $spec := $dirSpecs }}{{- $dirs = set $dirs $spec.key (get $dirNew $spec.key) }}{{- end -}}
 {{-     end -}}
 {{-   end -}}
 {{- end -}}

@@ -10,7 +10,10 @@
 {{- /*   value    the raw configured value; empty or unset selects the default      */ -}}
 {{- /*   default  leaf name under the home directory used when value is empty       */ -}}
 {{- /*   check    optional; true returns "" for a usable value or the error text     */ -}}
-{{- /*            instead of failing, so the init prompt can ask again              */ -}}
+{{- /*            instead of failing, so the init prompt can ask again. Check mode  */ -}}
+{{- /*            also rejects raw text outside the plain whitelist (plus $ { }),    */ -}}
+{{- /*            because the init editor shows and re-edits the raw value; clean    */ -}}
+{{- /*            alone could drop a quote or newline hidden behind a ".." segment.  */ -}}
 {{- /* A value may be absolute, "~", "~/x", "$HOME", "$HOME/x", or the braced form. */ -}}
 {{- /* Anything else fails loudly instead of rendering a relative path into a      */ -}}
 {{- /* shell export. The character whitelist keeps the single-quoted exports in    */ -}}
@@ -18,6 +21,7 @@
 {{- $home := .home -}}
 {{- $check := dig "check" false . -}}
 {{- $v := trim .value -}}
+{{- $v0 := $v -}}
 {{- $err := "" -}}
 {{- if eq $v "" -}}{{- $v = printf "%s/%s" $home .default -}}{{- end -}}
 {{- if or (eq $v "~") (eq $v "$HOME") (eq $v "${HOME}") -}}
@@ -38,6 +42,9 @@
 {{-   else if not (regexMatch `^/[A-Za-z0-9._ @%+=:,/~-]+$` $v) -}}
 {{-     $err = printf "data.%s must name a directory using only letters, digits, spaces, and . _ @ %% + = : , / ~ -; got %q" .key $v -}}
 {{-   end -}}
+{{- end -}}
+{{- if and $check (not $err) (ne $v0 "") (not (regexMatch `^[A-Za-z0-9._ @%+=:,/~${}-]+$` $v0)) -}}
+{{-   $err = printf "data.%s has characters that cannot be shown or edited safely" .key -}}
 {{- end -}}
 {{- if and $err (not $check) -}}
 {{-   fail $err -}}

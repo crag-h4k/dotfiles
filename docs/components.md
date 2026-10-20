@@ -77,7 +77,10 @@ The component list in `home/.chezmoi.toml.tmpl` is the source of truth for both
 interfaces. Set `DOTFILES_NO_TUI=1` to force the numbered prompt.
 
 `theme` and `package mode` are init-time actions. They live outside
-`[data.components]` and reopen the relevant picker when selected.
+`[data.components]` and reopen the relevant picker when selected. The AI submenu
+has one of its own, `directories` (typed number `10`; the numbers of the
+sub-features do not change), which opens the worktrees and agent-notes editor. It
+follows the same rule: never a component, never saved.
 
 ### Sub-feature submenus (git, ai, terminal)
 
@@ -131,9 +134,12 @@ and handoffs. Worktrees have a sibling setting, `data.worktreesDir` (default
 `$HOME/worktrees`), that is created on every host regardless of selection. Both
 are exported from `~/.zshenv`.
 
-`chezmoi init` asks for both right after the AI submenu, pre-filled with the saved
-value, the env seed, or the default. The questions are skipped with
-`DOTFILES_NO_TUI`, without a terminal, and on a `cup` re-init. See
+To change either one, check the `directories` entry at the bottom of the AI
+page (it shows the current paths in its header and starts unchecked). Checked, it
+opens one editor page with both paths, pre-filled with the saved value, the env
+seed, or the default. Unchecked, nothing is asked. The entry is an init-time
+action, not a sub-feature: it is never saved, and it is not offered with
+`DOTFILES_NO_TUI`, without a terminal, or on a `cup` re-init. See
 [Worktree and agent directories](operation.md#worktree-and-agent-directories).
 
 Claude Code and CodeCompanion use the Claude compatibility root. Codex,
