@@ -4,6 +4,9 @@
 {{- /* change it. Parsed into booleans below so the rest of the repo can gate  */ -}}
 {{- /* on .components.* (see .chezmoiignore, .chezmoiexternal.toml).            */ -}}
 {{- /*                                                                          */ -}}
+{{- /* With AI selected, init also asks for the worktrees and agent-notes         */ -}}
+{{- /* directories right after the AI submenu (see $dirSpecs below).               */ -}}
+{{- /*                                                                          */ -}}
 {{- /* Single source of truth: add/remove a component by editing this list.    */ -}}
 {{- /* Each record is:                                                          */ -}}
 {{- /*   num   the menu number the user types to select it (string).           */ -}}
@@ -192,6 +195,23 @@
 {{- /* range rebinds `.` to the element, so capture the root data for dig /     */ -}}
 {{- /* promptStringOnce (which must read the persisted [data] selection keys).   */ -}}
 {{- $root := . -}}
+{{- /* Worktrees and agent-notes directories. Each entry resolves to the value the   */ -}}
+{{- /* init prompt pre-fills, and to the persisted value when nothing prompts: a      */ -}}
+{{- /* saved [data] value always wins, then DOTFILES_WORKTREES_DIR / DOTFILES_AGENTS_DIR */ -}}
+{{- /* (which only seed a first init, or an old config that lacks the key), then the   */ -}}
+{{- /* "$HOME/<default>" default. The stored text stays verbatim (absolute, ~/, or      */ -}}
+{{- /* $HOME/ forms); consumers expand it through the shared dotfiles-dir template.    */ -}}
+{{- $dirSpecs := list
+      (dict "key" "worktreesDir" "env" "DOTFILES_WORKTREES_DIR" "default" "worktrees" "title" "Git worktrees directory (one folder per task)")
+      (dict "key" "agentsDir"    "env" "DOTFILES_AGENTS_DIR"    "default" "agents"    "title" "Agent notes directory (plans/specs/drafts/handoffs)")
+-}}
+{{- $dirs := dict -}}
+{{- range $dirSpecs -}}
+{{-   $dirValue := trim (dig .key "" $root) -}}
+{{-   if eq $dirValue "" }}{{- $dirValue = trim (env .env) -}}{{- end -}}
+{{-   if eq $dirValue "" }}{{- $dirValue = printf "$HOME/%s" .default -}}{{- end -}}
+{{-   $dirs = set $dirs .key $dirValue -}}
+{{- end -}}
 {{- range $c := $components -}}
 {{-   if gt (len $c.sub) 0 -}}
 {{-     $feats := $c.sub -}}
@@ -280,6 +300,58 @@
 {{-     end -}}
 {{-     $subResolved = set $subResolved $c.key $r -}}
 {{-     $subSelStore = set $subSelStore $c.key $stored -}}
+{{- /* End of the AI submenu: ask for the worktrees and agent-notes directories. The   */ -}}
+{{- /* prompts follow the palette picker's rules, not the submenus': DOTFILES_NO_TUI     */ -}}
+{{- /* and any run without a usable terminal skip them and keep the pre-filled value      */ -}}
+{{- /* (saved, then env seed, then default). Also skipped for `cup` re-inits and the      */ -}}
+{{- /* `all+` migration, which never reopen a submenu. Gum input when Gum is installed,   */ -}}
+{{- /* a typed promptString otherwise; Esc or an empty gum answer keeps the shown value.  */ -}}
+{{- /* promptString is not safe without a terminal (no /dev/tty, or an EOF on stdin with   */ -}}
+{{- /* --no-tty makes chezmoi fail), so stdin and /dev/tty must both be usable. Answers    */ -}}
+{{- /* are checked through dotfiles-dir in check mode and asked again up to three times;     */ -}}
+{{- /* a value still unusable then fails at the final dotfiles-dir call below.              */ -}}
+{{-     if and (eq $c.key "ai") (get $resolved "ai") (not $useDefault) (not $legacyAllPlus) (not $packageUpdate) (not (env "DOTFILES_NO_TUI")) (stdinIsATTY) -}}
+{{-       $dirTTY := trim (output "sh" "-c" "test -e /dev/tty && (: </dev/tty) 2>/dev/null && printf tty || true") -}}
+{{-       if eq $dirTTY "tty" -}}
+{{-         $dirGum := lookPath "gum" -}}
+{{-         range $spec := $dirSpecs -}}
+{{-           $offer := get $dirs $spec.key -}}
+{{- /* The offer is interpolated into a single-quoted shell word for Gum. Only a value    */ -}}
+{{- /* that passes the dotfiles-dir whitelist is safe there, so an unusable saved or       */ -}}
+{{- /* seeded value is replaced by the literal default and the user is told.                */ -}}
+{{-           if includeTemplate "dotfiles-dir" (dict "home" $root.chezmoi.homeDir "key" $spec.key "value" $offer "default" $spec.default "check" true) -}}
+{{-             $offer = printf "$HOME/%s" $spec.default -}}
+{{-             $_ := output "sh" "-c" (printf "printf '%%s\\n' %s >/dev/tty 2>/dev/null || true" (squote (printf "The current %s value is not usable; showing the default instead." $spec.key))) -}}
+{{-           end -}}
+{{-           $answer := $offer -}}
+{{-           $taken := false -}}
+{{-           range $try := until 3 -}}
+{{-             if not $taken -}}
+{{-               $given := "" -}}
+{{-               if $dirGum -}}
+{{-                 $dirCmd := printf "gum input --header %s --placeholder %s --value %s --width 0 </dev/tty 2>/dev/tty || true" ((printf "%s  (Enter keeps the shown value)" $spec.title) | squote) ((printf "$HOME/%s" $spec.default) | squote) ($offer | squote) -}}
+{{-                 $given = trim (output "sh" "-c" $dirCmd) -}}
+{{-               else -}}
+{{-                 $given = trim (promptString $spec.title $offer) -}}
+{{-               end -}}
+{{-               if eq $given "" }}{{- $given = $offer -}}{{- end -}}
+{{-               $answer = $given -}}
+{{-               if includeTemplate "dotfiles-dir" (dict "home" $root.chezmoi.homeDir "key" $spec.key "value" $given "default" $spec.default "check" true) -}}
+{{-                 $_ := output "sh" "-c" "printf '%s\\n' 'Not a usable directory: use an absolute path, ~/..., or $HOME/... with letters, digits, spaces, and . _ @ % + = : , / ~ -' >/dev/tty 2>/dev/null || true" -}}
+{{-               else -}}
+{{-                 $taken = true -}}
+{{-               end -}}
+{{-             end -}}
+{{-           end -}}
+{{-           $dirs = set $dirs $spec.key $answer -}}
+{{- /* Three unusable answers: stop here with the existing clear error rather than      */ -}}
+{{- /* opening the next prompt first.                                                    */ -}}
+{{-           if not $taken -}}
+{{-             $_ := includeTemplate "dotfiles-dir" (dict "home" $root.chezmoi.homeDir "key" $spec.key "value" $answer "default" $spec.default) -}}
+{{-           end -}}
+{{-         end -}}
+{{-       end -}}
+{{-     end -}}
 {{-   end -}}
 {{- end -}}
 
@@ -361,20 +433,14 @@
 {{-   $_ := output "sh" "-c" (printf "printf '%%s\\n' %s >/dev/tty 2>/dev/null || true" (squote $msg)) -}}
 {{- end -}}
 {{- $zshTheme := dig "zshTheme" "gud" $root -}}
-{{- /* Worktrees and agent-notes directories. Persisted like palette/installMode: a   */ -}}
-{{- /* configured value always wins on re-init. DOTFILES_WORKTREES_DIR and            */ -}}
-{{- /* DOTFILES_AGENTS_DIR only seed a first init (or an old config that lacks the     */ -}}
-{{- /* key), so a stale exported value cannot overwrite a deliberate edit. Neither     */ -}}
-{{- /* prompts, which keeps DOTFILES_NO_TUI, no-gum, and no-tty runs identical. The    */ -}}
-{{- /* stored text is kept verbatim (default "$HOME/..."); consumers expand it through */ -}}
-{{- /* the shared dotfiles-dir template. Calling it here validates the value so a bad  */ -}}
-{{- /* entry fails at init instead of rendering into ~/.zshenv.                        */ -}}
-{{- $worktreesDir := trim (dig "worktreesDir" "" $root) -}}
-{{- if eq $worktreesDir "" }}{{- $worktreesDir = trim (env "DOTFILES_WORKTREES_DIR") -}}{{- end -}}
-{{- if eq $worktreesDir "" }}{{- $worktreesDir = "$HOME/worktrees" -}}{{- end -}}
-{{- $agentsDir := trim (dig "agentsDir" "" $root) -}}
-{{- if eq $agentsDir "" }}{{- $agentsDir = trim (env "DOTFILES_AGENTS_DIR") -}}{{- end -}}
-{{- if eq $agentsDir "" }}{{- $agentsDir = "$HOME/agents" -}}{{- end -}}
+{{- /* Worktrees and agent-notes directories are persisted like palette/installMode,   */ -}}
+{{- /* with their prefill resolved (and, after the AI submenu, prompted) above. An      */ -}}
+{{- /* unprompted run keeps the saved value, then the env seed, then the default, so     */ -}}
+{{- /* DOTFILES_NO_TUI, no-gum, and no-tty runs agree. Calling dotfiles-dir here           */ -}}
+{{- /* validates the final value, so a bad entry fails at init instead of rendering into   */ -}}
+{{- /* ~/.zshenv.                                                                           */ -}}
+{{- $worktreesDir := get $dirs "worktreesDir" -}}
+{{- $agentsDir := get $dirs "agentsDir" -}}
 {{- $worktreesCheck := includeTemplate "dotfiles-dir" (dict "home" .chezmoi.homeDir "key" "worktreesDir" "value" $worktreesDir "default" "worktrees") -}}
 {{- $agentsCheck := includeTemplate "dotfiles-dir" (dict "home" .chezmoi.homeDir "key" "agentsDir" "value" $agentsDir "default" "agents") -}}
 {{- /* Final confirmation happens inside the init template, before chezmoi applies */ -}}

@@ -153,22 +153,23 @@ unless the current request authorizes them. In Plan mode the skill and read-only
 snapshot script remain available; only files under the configured handoff root
 can be edited for save or close, not project files.
 With `ai > opencode` selected, the managed Plan permissions allow edits to
-`<Project>/<slug>-handoff-<YYYY-MM-DD>.md` under
-`~/.local/share/agent-handoffs/` and `/opt/ai/handoffs/`. Sensitive file
-suffixes and other filenames are denied inside those roots. Review any
-later private Plan rules before relying on that boundary. The rules also allow
-external access to the installed handoff snapshot script. Use the home path as
-the handoff root on a new machine, or configure a narrow private rule for a
-different root. The permission rule does not choose or create a root. A
-higher-priority harness policy can still block edits.
+`<Project>/<slug>-handoff-<YYYY-MM-DD>.md` under three roots:
+`~/.local/share/agent-handoffs/`, `/opt/ai/handoffs/`, and `<agentsDir>/plans/`,
+where `<agentsDir>` is `data.agentsDir` (default `$HOME/agents`) rendered as a
+literal absolute path. Sensitive file suffixes and other filenames are denied
+inside those roots. Review any later private Plan rules before relying on that
+boundary. The rules also allow external access to the installed handoff snapshot
+script. For a different root, configure a narrow private rule. The permission
+rule does not choose or create a root. A higher-priority harness policy can still
+block edits.
 
 The handoff root comes from the user, then from harness instructions, then from
-`$DOTFILES_AGENTS_DIR/plans` when that variable is set (`data.agentsDir`, default
-`$HOME/agents`; see
+`$DOTFILES_AGENTS_DIR/plans` when that variable is set (`data.agentsDir`; see
 [Worktree and agent directories](operation.md#worktree-and-agent-directories)).
-Otherwise the skill asks; it does not invent one. The managed Plan permission
-rule does not cover `$DOTFILES_AGENTS_DIR/plans`, so add a narrow private rule if
-Plan mode should save handoffs there.
+Otherwise the skill asks; it does not invent one. The managed Plan rules cover
+`$DOTFILES_AGENTS_DIR/plans`, so Plan mode can save handoffs there with no private
+rule. If you change `data.agentsDir`, the next apply rewrites the managed block for
+the new location.
 
 The snapshot script prints git state only. It does not
 print the environment or file contents. Chezmoi installs it read-only and

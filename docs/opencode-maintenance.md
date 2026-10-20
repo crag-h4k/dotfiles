@@ -17,8 +17,9 @@ CLI, server, plugin SDK, and terminal versions when diagnosing compatibility.
 - Keep generic configuration in source and preserve unmanaged `cli.override.json`,
   `override.zsh`, `remote.env`, and `v2-plugins/local`. Private permissions, provider
   connections, notification bridges, and server routing belong in the overlays.
-  The narrow Plan handoff-root permissions are portable managed exceptions;
-  host-specific handoff roots still need private rules.
+  The narrow Plan handoff-root permissions (the two fixed roots and
+  `<agentsDir>/plans`, rendered from `data.agentsDir`) are portable managed
+  exceptions; any other handoff root still needs a private rule.
 - Preserve merge-managed JSONC and unknown user settings. Inspect the renderer
   for the active V2 schema; older OpenCode flags and plugin APIs are not a basis
   for a fix. Do not silently alter account, model, or permission selection.

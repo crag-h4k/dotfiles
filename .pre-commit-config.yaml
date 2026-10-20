@@ -290,7 +290,7 @@ repos:
         language: node
         additional_dependencies: ['bats@1.13.0']
         pass_filenames: false
-        files: ^(home/\.chezmoi\.toml\.tmpl|tests/test_palette_init\.bats)$
+        files: ^(home/(\.chezmoi\.toml\.tmpl|\.chezmoitemplates/dotfiles-dir)|tests/test_palette_init\.bats)$
 
       - id: bats-user-dirs
         name: bats (worktrees and agent directories)
@@ -299,7 +299,7 @@ repos:
         language: node
         additional_dependencies: ['bats@1.13.0']
         pass_filenames: false
-        files: ^(home/(\.chezmoi\.toml\.tmpl|\.chezmoitemplates/dotfiles-dir|dot_zshenv\.tmpl|\.chezmoiscripts/run_after_02-ensure-dirs\.sh\.tmpl)|scripts/ensure-dirs\.sh|tests/test_user_dirs\.bats)$
+        files: ^(home/(\.chezmoi\.toml\.tmpl|\.chezmoitemplates/dotfiles-dir|dot_zshenv\.tmpl|\.chezmoiscripts/run_after_02-ensure-dirs\.sh\.tmpl)|scripts/ensure-dirs\.sh|tests/(test_user_dirs\.bats|ctty_run\.py))$
 
       - id: python-package-run
         name: python (packageRun initialization trigger)
@@ -329,7 +329,7 @@ repos:
         entry: uv run --with pytest --with json5 pytest tests/test_merge_opencode_config.py -v
         language: system
         pass_filenames: false
-        files: ^(home/dot_config/opencode/modify_opencode\.jsonc\.tmpl|tests/test_merge_opencode_config\.py)$
+        files: ^(home/(dot_config/opencode/modify_opencode\.jsonc\.tmpl|\.chezmoitemplates/dotfiles-dir)|tests/test_merge_opencode_config\.py)$
 
       - id: pytest-merge-opencode-cli
         name: pytest opencode cli.json (modify_private_cli.json.tmpl)
