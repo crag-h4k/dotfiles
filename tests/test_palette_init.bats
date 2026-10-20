@@ -28,8 +28,10 @@ render_palette() {
       printf '    palette = "%s"\n' "$2"
     fi
   } > "$SEED"
+  # --source is required: the config template includes the shared dotfiles-dir
+  # template, which real init finds in the checked-out source.
   run env DOTFILES_NO_TUI=1 DOTFILES_INSTALL_MODE=configs DOTFILES_PALETTE="$1" \
-    chezmoi execute-template --init --config "$SEED" < "$CONFIG_TMPL"
+    chezmoi execute-template --init --source "$CHEZMOI_DIR" --config "$SEED" < "$CONFIG_TMPL"
 }
 
 @test "palette: valid ID renders as-is" {

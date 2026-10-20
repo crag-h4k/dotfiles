@@ -361,6 +361,22 @@
 {{-   $_ := output "sh" "-c" (printf "printf '%%s\\n' %s >/dev/tty 2>/dev/null || true" (squote $msg)) -}}
 {{- end -}}
 {{- $zshTheme := dig "zshTheme" "gud" $root -}}
+{{- /* Worktrees and agent-notes directories. Persisted like palette/installMode: a   */ -}}
+{{- /* configured value always wins on re-init. DOTFILES_WORKTREES_DIR and            */ -}}
+{{- /* DOTFILES_AGENTS_DIR only seed a first init (or an old config that lacks the     */ -}}
+{{- /* key), so a stale exported value cannot overwrite a deliberate edit. Neither     */ -}}
+{{- /* prompts, which keeps DOTFILES_NO_TUI, no-gum, and no-tty runs identical. The    */ -}}
+{{- /* stored text is kept verbatim (default "$HOME/..."); consumers expand it through */ -}}
+{{- /* the shared dotfiles-dir template. Calling it here validates the value so a bad  */ -}}
+{{- /* entry fails at init instead of rendering into ~/.zshenv.                        */ -}}
+{{- $worktreesDir := trim (dig "worktreesDir" "" $root) -}}
+{{- if eq $worktreesDir "" }}{{- $worktreesDir = trim (env "DOTFILES_WORKTREES_DIR") -}}{{- end -}}
+{{- if eq $worktreesDir "" }}{{- $worktreesDir = "$HOME/worktrees" -}}{{- end -}}
+{{- $agentsDir := trim (dig "agentsDir" "" $root) -}}
+{{- if eq $agentsDir "" }}{{- $agentsDir = trim (env "DOTFILES_AGENTS_DIR") -}}{{- end -}}
+{{- if eq $agentsDir "" }}{{- $agentsDir = "$HOME/agents" -}}{{- end -}}
+{{- $worktreesCheck := includeTemplate "dotfiles-dir" (dict "home" .chezmoi.homeDir "key" "worktreesDir" "value" $worktreesDir "default" "worktrees") -}}
+{{- $agentsCheck := includeTemplate "dotfiles-dir" (dict "home" .chezmoi.homeDir "key" "agentsDir" "value" $agentsDir "default" "agents") -}}
 {{- /* Final confirmation happens inside the init template, before chezmoi applies */ -}}
 {{- /* any target files. The helper and install.sh consume the same package planner. */ -}}
 {{- $notifyEnabled := or
@@ -435,6 +451,8 @@ progress = true
     terminalSelection = {{ get $subSelStore "terminal" | quote }}
     palette = {{ $palette | quote }}
     zshTheme = {{ $zshTheme | quote }}
+    worktreesDir = {{ $worktreesDir | quote }}
+    agentsDir = {{ $agentsDir | quote }}
     installMode = {{ $installMode | quote }}
     packageRun = {{ $packageRun }}
 

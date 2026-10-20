@@ -17,7 +17,8 @@ Resolve the handoff root in this order:
 
 1. A path the user names in the request.
 2. The handoff root named in the active harness instructions.
-3. Ask. Do not invent a root.
+3. `$DOTFILES_AGENTS_DIR/plans`, when `DOTFILES_AGENTS_DIR` is set.
+4. Ask. Do not invent a root.
 
 Write `<root>/<Project>/<slug>-handoff-<YYYY-MM-DD>.md`. Slug first, then the
 date. Do not overwrite an older file.

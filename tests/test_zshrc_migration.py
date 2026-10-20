@@ -21,10 +21,15 @@ class ZshrcMigrationTest(unittest.TestCase):
         self.home.mkdir()
         self.source.parent.mkdir(parents=True)
         self.source.write_text("# fixture zshrc\nexport EDITOR=nvim\n")
-        self.source.with_name("dot_zshenv").write_text('export PATH=$HOME/.local/bin:$PATH\n')
+        # The managed zshenv is a template; its rendered bytes differ from source.
+        self.source.with_name("dot_zshenv.tmpl").write_text(
+            'export DOTFILES_WORKTREES_DIR={{ .chezmoi.homeDir | squote }}\n'
+            'export PATH=$HOME/.local/bin:$PATH\n')
         self.target = self.home / ".zshrc"
         self.target.write_bytes(self.source.read_bytes())
-        (self.home / ".zshenv").write_bytes(self.source.with_name("dot_zshenv").read_bytes())
+        (self.home / ".zshenv").write_text(
+            "export DOTFILES_WORKTREES_DIR='/rendered/worktrees'\n"
+            'export PATH=$HOME/.local/bin:$PATH\n')
         self.backup = self.root / "backup"
         self.backup.mkdir()
         spec = importlib.util.spec_from_file_location("normalize_zshrc", REPO / "scripts/normalize-zshrc.py")
@@ -67,6 +72,26 @@ class ZshrcMigrationTest(unittest.TestCase):
                 self.assertEqual(self.target.read_bytes(), content)
         self.seed_tail()
         (self.home / ".zshenv").write_text("# local env\n")
+        self.assertFalse(self.helper.normalize(self.source, self.target, self.backup))
+        self.assertEqual(self.target.read_bytes(), self.original)
+        # A commented-out export does not provide the PATH entry.
+        (self.home / ".zshenv").write_text("# export PATH=$HOME/.local/bin:$PATH\n")
+        self.assertFalse(self.helper.normalize(self.source, self.target, self.backup))
+        self.assertEqual(self.target.read_bytes(), self.original)
+
+    def test_rendered_or_extended_zshenv_still_provides_the_path_entry(self):
+        # Rendered output and local additions both keep the export as a whole line.
+        (self.home / ".zshenv").write_text(
+            "export DOTFILES_AGENTS_DIR='/rendered/agents'\n"
+            "export PATH=$HOME/.local/bin:$PATH\n"
+            "export CUSTOM=fixture\n")
+        self.seed_tail()
+        self.assertTrue(self.helper.normalize(self.source, self.target, self.backup))
+        self.assertEqual(self.target.read_bytes(), self.source.read_bytes())
+
+    def test_missing_zshenv_source_blocks_the_migration(self):
+        self.seed_tail()
+        self.source.with_name("dot_zshenv.tmpl").unlink()
         self.assertFalse(self.helper.normalize(self.source, self.target, self.backup))
         self.assertEqual(self.target.read_bytes(), self.original)
 

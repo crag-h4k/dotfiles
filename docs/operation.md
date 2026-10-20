@@ -8,6 +8,7 @@
 - [Telemetry opt-outs](#telemetry-opt-outs)
 - [Telemetry opt-outs](#telemetry-opt-outs)
 - [OpenCode updates](#opencode-updates)
+- [Worktree and agent directories](#worktree-and-agent-directories)
 - [Local overrides](#local-overrides)
   - [Shell PATH additions](#shell-path-additions)
   - [OpenCode terminal settings](#opencode-terminal-settings)
@@ -217,6 +218,65 @@ it does not add a global `safe.directory` exception or change source ownership.
 Packages installed under `$HOME`, including Luacheck, belong to the account
 running chezmoi.
 
+## Worktree and agent directories
+
+Two chezmoi data keys name the directories agents and humans share across
+repositories. Both are settings, not fixed paths, so each host picks its own.
+
+| Key | Default | First-init env seed | Holds | Created |
+| --- | --- | --- | --- | --- |
+| `worktreesDir` | `$HOME/worktrees` | `DOTFILES_WORKTREES_DIR` | Git worktrees, one flat directory per task: `<root>/<repo>-<slug>` | Every apply |
+| `agentsDir` | `$HOME/agents` | `DOTFILES_AGENTS_DIR` | Local agent notes: plans, specs, drafts, memory, handoffs | Every apply with an `ai` sub-feature selected |
+
+A value can be absolute, `~/...`, or `$HOME/...`. Relative paths, the
+filesystem root, and characters outside letters, digits, spaces, and
+`. _ @ % + = : , / ~ -` fail at init and apply rather than reaching a shell
+export. Chezmoi stores the text you give it and expands it everywhere it is
+used.
+
+A saved value always wins. Re-running `chezmoi init` keeps it, even when the
+env var holds something else; the env var only seeds a first init or an old
+config that lacks the key. Neither setting prompts, so the Gum picker, the typed
+menu, `DOTFILES_NO_TUI`, and non-interactive runs all behave the same. An old
+config without the keys applies with the defaults and needs no re-init.
+
+To pick a value on a new host, seed it once:
+
+```sh
+DOTFILES_WORKTREES_DIR=/opt/worktrees DOTFILES_AGENTS_DIR="$HOME/notes/agents" \
+  chezmoi init --apply
+```
+
+To change it later, edit `~/.config/chezmoi/chezmoi.toml` and apply:
+
+```toml
+[data]
+    worktreesDir = "/opt/worktrees"
+    agentsDir = "~/notes/agents"
+```
+
+The managed `~/.zshenv` renders both values as literal absolute paths and
+exports them as `DOTFILES_WORKTREES_DIR` and `DOTFILES_AGENTS_DIR` in every zsh,
+including non-interactive shells. The `git-worktree` and `handoff` skills read
+those variables. Open a new shell (`exec zsh`) after changing a value. A
+shell-only override belongs in `~/.zsh_private`; it changes what that shell
+reports, not where dotfiles creates directories. Without the `zsh` component
+`~/.zshenv` is not managed, so the variables are not exported; the skills then
+use `$HOME/worktrees` when it exists and ask for a handoff root.
+
+Apply creates a missing directory with mode 755 and leaves an existing one
+untouched: its mode, owner, and contents stay as they are. Dotfiles never runs
+`sudo`. When the nearest existing parent is not writable, for example
+`/opt/worktrees` on a fresh host, apply keeps going and prints the one-time
+command for you to run:
+
+```sh
+sudo install -d -o "$USER" -m 0755 /opt/worktrees
+```
+
+Existing worktrees and notes are not moved. Move a worktree with
+`git worktree move <path> <new-path>` from its repository.
+
 ## Local overrides
 
 Each managed tool reads one unmanaged file where you can change its behavior
@@ -291,10 +351,12 @@ export EDITOR=vim
 An external installer can append a `~/.local/bin` PATH guard to `.zshrc`, causing
 chezmoi to report a local edit. The managed `.zshenv` already adds that directory.
 Before apply, the backup hook removes only the recognized duplicate tail when
-the rest of `.zshrc` and the installed `.zshenv` exactly match managed source.
-The full original remains in the uniquely named pre-apply snapshot.
+the rest of `.zshrc` exactly matches managed source and the installed `.zshenv`
+still exports that PATH entry on its own line. (`.zshenv` is a template, so its
+rendered bytes are not compared.) The full original remains in the uniquely
+named pre-apply snapshot.
 
-Other local edits, symlinked targets, and changed `.zshenv` files are left alone.
+Other local edits, symlinked targets, and a `.zshenv` without that export are left alone.
 They keep the normal conflict prompt. Put intentional shell customizations in
 `~/.zsh_override`; do not use “overwrite all” to dismiss an unexplained change.
 

@@ -116,7 +116,7 @@ dirty the dotfiles repository. See [Neovim tooling](neovim.md) for the full spli
 | Path in repo | Target on host | Notes |
 | --- | --- | --- |
 | `home/dot_zshrc` | `~/.zshrc` | real file |
-| `home/dot_zshenv` | `~/.zshenv` | real file |
+| `home/dot_zshenv.tmpl` | `~/.zshenv` | rendered template; exports `DOTFILES_WORKTREES_DIR` and `DOTFILES_AGENTS_DIR` as literal paths |
 | `home/dot_zsh/aliases` | `~/.zsh/aliases` | real file |
 | `home/dot_zsh/bin/executable_*` | `~/.zsh/bin/*` | exec bit preserved |
 | `home/dot_zsh/custom/functions/*.zsh` | `~/.zsh/custom/functions/*.zsh` | |
@@ -156,11 +156,13 @@ dirty the dotfiles repository. See [Neovim tooling](neovim.md) for the full spli
 | `home/dot_gitconfig` | `~/.gitconfig` | shared Git behavior and credential helpers; gated on `git > config` |
 | `home/dot_gitconfig` | `~/.gitconfig` | generic settings only; includes the unmanaged `~/.gitconfig.override` last and sets `user.useConfigOnly` |
 | `home/dot_gitignore_global` | `~/.gitignore_global` | global ignore patterns; gated on `git > ignore_global` (on by default) |
-| `home/.chezmoi.toml.tmpl` | `~/.config/chezmoi/chezmoi.toml` | prompts for components, palette, and install mode before apply |
+| `home/.chezmoi.toml.tmpl` | `~/.config/chezmoi/chezmoi.toml` | prompts for components, palette, and install mode before apply; persists `worktreesDir` and `agentsDir` |
+| `home/.chezmoitemplates/dotfiles-dir` | (shared template) | expands and validates `worktreesDir` and `agentsDir` for the config, `~/.zshenv`, and the directory script |
 | `home/.chezmoiignore` | (templated) | ignores an off component's (or sub-feature's) target paths |
 | `home/.chezmoiexternal.toml` | (templated externals) | plugins gated by `.components.zsh` / `.components.tmux` |
 | `home/.chezmoiscripts/run_before_00-backup.sh` | apply hook | snapshots existing targets before changes |
 | `home/.chezmoiscripts/run_after_00-install.sh.tmpl` | apply hook | checks selected packages on every package-mode apply |
+| `home/.chezmoiscripts/run_after_02-ensure-dirs.sh.tmpl` | apply hook | creates the worktrees directory, and the agent-notes directory when an AI sub-feature is selected; warns instead of using sudo |
 
 Repository-only lint policy lives under `config/linters/`: `gitleaks.toml`,
 `luacheckrc`, `markdownlint.yaml`, and `stylua.toml`.

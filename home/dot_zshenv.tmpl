@@ -1,3 +1,4 @@
+# ~/.zshenv, rendered from home/dot_zshenv.tmpl. Edit the source, not this file.
 export ZSH_BASE=$HOME/.zsh
 export ZSH_CUSTOM=$ZSH_BASE/custom
 export ZSH=$ZSH_BASE/ohmyzsh
@@ -31,6 +32,15 @@ export ARCH="$(arch)"
 # missing version only after validating HashiCorp's checksum signature.
 export TENV_AUTO_INSTALL=true
 export TENV_VALIDATION=signature
+# Where git worktrees and the local agent notes (plans, specs, drafts, handoffs)
+# live. Resolved from chezmoi data worktreesDir and agentsDir (defaults
+# $HOME/worktrees and $HOME/agents, also used when an old config lacks the keys)
+# and rendered as literal absolute paths, so sourcing costs no lookup. Agents and
+# skills read these from non-interactive shells too. Change a value in the
+# chezmoi data (docs/operation.md, "Worktree and agent directories"); a
+# shell-only override goes in ~/.zsh_private, which interactive shells source.
+export DOTFILES_WORKTREES_DIR={{ includeTemplate "dotfiles-dir" (dict "home" .chezmoi.homeDir "key" "worktreesDir" "value" (dig "worktreesDir" "" .) "default" "worktrees") | squote }}
+export DOTFILES_AGENTS_DIR={{ includeTemplate "dotfiles-dir" (dict "home" .chezmoi.homeDir "key" "agentsDir" "value" (dig "agentsDir" "" .) "default" "agents") | squote }}
 #
 case "$OSTYPE" in
     darwin*)

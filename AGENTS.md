@@ -34,9 +34,11 @@ palette, AI tooling, and verified deployments are central to the project.
   documentation. Investigate facts in the repo before asking. Ask about choices
   that change the result; do not repeatedly request permission for ordinary edits.
 - Preserve existing edits, the staging tree, active sessions, and another
-  agent's checkout. Use separate worktrees for independent feature work. Start
-  new features from current `main` unless the user names an existing branch or
-  dependency. Keep large feature series reviewable in dependency order.
+  agent's checkout. Use separate worktrees for independent feature work, placed
+  as `<root>/<repo>-<slug>` under `$DOTFILES_WORKTREES_DIR` (default
+  `$HOME/worktrees`). Start new features from current `main` unless the user
+  names an existing branch or dependency. Keep large feature series reviewable
+  in dependency order.
 - Never commit, push, merge, publish, or change repository settings without
   explicit authorization for the current task. Past chat approval is not a grant
   for a new operation. Follow the branch and PR conventions in CONTRIBUTING.
