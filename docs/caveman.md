@@ -28,11 +28,14 @@ Initialize one provider route explicitly:
 cavemanctl init --provider example --upstream https://api.example.com
 ```
 
-The provider must use an OpenAI-compatible Chat Completions or Responses API
-and already exist in OpenCode. Supply the upstream origin
-before `/v1`, including any required tenant prefix. Initialization creates
-`~/.caveman/oc2/settings.json` and `proxy-token` with private permissions. Reruns
-preserve both files. Edit private settings to change an existing route.
+The provider must already exist in OpenCode and use an OpenAI-compatible Chat
+Completions or Responses API. Add `--wire-dialect anthropic` when the same
+upstream also serves Anthropic Messages. Supply the upstream origin before
+`/v1`, including any required tenant prefix. Only requests for that origin and
+prefix take the route; the path below it is forwarded unchanged. Initialization
+creates `~/.caveman/oc2/settings.json` and `proxy-token` with private
+permissions. Reruns preserve both files. Edit private settings to change an
+existing route.
 
 The proxy defaults to `127.0.0.1:8787` and authenticated compression mode.
 `--listen` selects its listening address and `--url` selects the address the
@@ -41,6 +44,25 @@ different from the host's. Use an appropriate host or container-network address
 and keep that routing in private settings. A private upstream also needs an
 exact `--allow-private-host` entry. The credential used to reach the upstream
 remains with the existing OpenCode provider.
+
+### GitHub Copilot
+
+OpenCode's own GitHub Copilot login works through the same named route. As of
+OpenCode 2.1.1, Copilot's Claude models use Anthropic Messages and its other
+models use Responses or Chat Completions, all on the Copilot API origin:
+
+```sh
+cavemanctl init --provider github-copilot --upstream https://api.githubcopilot.com --wire-dialect anthropic
+```
+
+Copilot Business and Enterprise accounts can be served from another API host.
+Set `upstream` to the origin your OpenCode requests use, or they stay direct.
+Without the Anthropic dialect, Messages requests also stay direct: the proxy
+would read their usage and compression zones with OpenAI rules. To add the
+dialect to an existing route, set `"wire_dialect": "anthropic"` in private
+settings and run `cavemanctl restart`; the native service renders its proxy
+configuration again on start. For the Compose backend, run `cavemanctl render`
+and recreate the container.
 
 ## Activate and verify
 
@@ -65,8 +87,9 @@ Enable the `caveman` MCP in OpenCode's MCP settings, then reload the desired
 location. A V2 HTTP request hook routes the selected provider through the proxy
 and adds its authentication header. The request body, upstream credential,
 other headers, and underlying provider configuration are preserved.
-Unsupported endpoint paths, including native provider compaction endpoints,
-stay on their original route.
+Requests for another origin, outside the upstream prefix, or to unsupported
+endpoint paths stay on their original route. That includes native compaction
+and token-count endpoints.
 The Caveman MCP exposes its compression, recovery, statistics, and TOON tools
 directly, with `codemode: false`. Other MCP settings retain their current mode.
 Managed `caveman_*` rules allow this family in every agent mode, including

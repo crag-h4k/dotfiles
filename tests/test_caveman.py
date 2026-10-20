@@ -32,7 +32,7 @@ class CavemanTest(unittest.TestCase):
         self.args = types.SimpleNamespace(provider="example", upstream="https://api.example.com",
                                           backend="native",
                                           listen="127.0.0.1:8787", url="http://127.0.0.1:8787",
-                                          allow_private_host=[])
+                                          allow_private_host=[], wire_dialect=None)
 
     def init(self):
         with contextlib.redirect_stdout(io.StringIO()) as out:
@@ -74,12 +74,33 @@ class CavemanTest(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, "private file"):
             self.ctl.settings()
 
+    def test_wire_dialect_reaches_only_its_proxy_mount(self):
+        self.init()
+        self.ctl.render(self.ctl.settings())
+        mount = json.loads((self.ctl.PRIVATE / "proxy.json").read_text())["compat"]["example"]
+        self.assertEqual(mount, {"base_url": "https://api.example.com"})
+        (self.ctl.PRIVATE / "settings.json").unlink()
+        self.args.wire_dialect = "anthropic"
+        self.init()
+        self.ctl.render(self.ctl.settings())
+        mount = json.loads((self.ctl.PRIVATE / "proxy.json").read_text())["compat"]["example"]
+        self.assertEqual(mount, {"base_url": "https://api.example.com", "wire_dialect": "anthropic"})
+
+    def test_settings_without_a_wire_dialect_still_load(self):
+        self.init()
+        legacy = self.ctl.settings()
+        del legacy["wire_dialect"]
+        self.ctl.save(legacy)
+        self.assertNotIn("wire_dialect", self.ctl.settings())
+        self.ctl.render(self.ctl.settings())
+        self.assertNotIn("wire_dialect", (self.ctl.PRIVATE / "proxy.json").read_text())
+
     def test_malformed_listener_and_credential_urls_are_rejected(self):
         self.init()
         original = self.ctl.settings()
         for key, value in [("listen", "127.0.0.1:0"), ("provider", "../example"),
                            ("upstream", "https://user:secret@example.com"), ("mode", "unknown"),
-                           ("enabled", "false"), ("allow_private_hosts", ["*"])]:
+                           ("enabled", "false"), ("allow_private_hosts", ["*"]), ("wire_dialect", "openai")]:
             with self.subTest(key=key):
                 self.ctl.save({**original, key: value})
                 with self.assertRaises(ValueError):

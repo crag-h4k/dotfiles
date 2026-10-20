@@ -9,12 +9,14 @@ const source = (await readFile(new URL("../home/dot_config/opencode/plugins/cave
   .replace('import { Plugin } from "@opencode/plugin"', "const Plugin = { define: (plugin) => plugin }")
 const { configure } = await import(`data:text/javascript;base64,${Buffer.from(source).toString("base64")}`)
 
-async function fixture(t, enabled = true, existing) {
+async function fixture(t, enabled = true, existing, settings = {}) {
   const home = await mkdtemp(join(tmpdir(), "caveman-test-"))
   t.after(() => rm(home, { recursive: true, force: true }))
   const root = join(home, ".caveman/oc2")
   await mkdir(root, { recursive: true })
-  await writeFile(join(root, "settings.json"), JSON.stringify({ enabled, provider: "example", url: "http://127.0.0.1:8787" }), { mode: 0o600 })
+  await writeFile(join(root, "settings.json"), JSON.stringify({
+    enabled, provider: "example", upstream: "https://api.example.com", url: "http://127.0.0.1:8787", ...settings,
+  }), { mode: 0o600 })
   await writeFile(join(root, "proxy-token"), "fixture-private-token", { mode: 0o600 })
   const provider = { settings: { baseURL: "https://api.example.com/v1", apiKey: "fixture-key" }, headers: { "x-tenant": "example" }, models: ["preserved"] }
   const agents = ["build", "plan", "auto", "explore", "general", "custom"].map((id) => ({ id, permissions: [{ action: "*", resource: "*", effect: "deny" }] }))
@@ -68,7 +70,7 @@ test("the plugin does not enable an operator-disabled recovery MCP", async (t) =
 })
 
 test("tenant prefixes belong to private upstream settings; unsupported routes stay direct", async (t) => {
-  const f = await fixture(t)
+  const f = await fixture(t, true, undefined, { upstream: "https://api.example.com/tenant" })
   await configure(f.ctx, f.home)
   const event = { request: new Request("https://api.example.com/tenant/v1/chat/completions?version=1", { method: "POST", body: "{}" }) }
   f.hook().callback(event)
@@ -78,6 +80,59 @@ test("tenant prefixes belong to private upstream settings; unsupported routes st
   f.hook().callback(compact)
   assert.equal(compact.request, direct)
   assert.equal(compact.request.headers.has("x-cave-api-key"), false)
+})
+
+test("requests for another origin or outside the upstream prefix stay direct", async (t) => {
+  const f = await fixture(t, true, undefined, { upstream: "https://api.example.com/tenant" })
+  await configure(f.ctx, f.home)
+  for (const url of [
+    "https://other.example.com/tenant/v1/responses",
+    "https://api.example.com/v1/responses",
+    "https://api.example.com/tenantish/v1/responses",
+  ]) {
+    const direct = new Request(url, { method: "POST", body: "{}" })
+    const event = { request: direct }
+    f.hook().callback(event)
+    assert.equal(event.request, direct, url)
+  }
+})
+
+test("unversioned endpoints keep their path below the upstream", async (t) => {
+  const f = await fixture(t)
+  await configure(f.ctx, f.home)
+  for (const path of ["/chat/completions", "/responses"]) {
+    const event = { request: new Request(`https://api.example.com${path}`, { method: "POST", body: "{}" }) }
+    f.hook().callback(event)
+    assert.equal(event.request.url, `http://127.0.0.1:8787/compat/example${path}`)
+  }
+})
+
+test("Anthropic Messages routes only with the anthropic wire dialect", async (t) => {
+  const plain = await fixture(t)
+  await configure(plain.ctx, plain.home)
+  const direct = new Request("https://api.example.com/v1/messages", { method: "POST", body: "{}" })
+  const skipped = { request: direct }
+  plain.hook().callback(skipped)
+  assert.equal(skipped.request, direct)
+
+  const f = await fixture(t, true, undefined, { wire_dialect: "anthropic" })
+  await configure(f.ctx, f.home)
+  const event = { request: new Request("https://api.example.com/v1/messages", { method: "POST", body: "{}", headers: { Authorization: "Bearer fixture-key" } }) }
+  f.hook().callback(event)
+  assert.equal(event.request.url, "http://127.0.0.1:8787/compat/example/v1/messages")
+  assert.equal(event.request.headers.get("Authorization"), "Bearer fixture-key")
+  const count = new Request("https://api.example.com/v1/messages/count_tokens", { method: "POST", body: "{}" })
+  const counted = { request: count }
+  f.hook().callback(counted)
+  assert.equal(counted.request, count)
+})
+
+test("an unknown wire dialect or invalid upstream is rejected before registration", async (t) => {
+  for (const settings of [{ wire_dialect: "openai" }, { upstream: "https://user:secret@api.example.com" }, { upstream: undefined }]) {
+    const f = await fixture(t, true, undefined, settings)
+    await assert.rejects(configure(f.ctx, f.home))
+    assert.equal(f.registrations(), 0)
+  }
 })
 
 test("public token files are rejected before registration", async (t) => {
