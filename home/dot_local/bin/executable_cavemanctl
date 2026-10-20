@@ -61,6 +61,8 @@ def validate(value):
         raise ValueError("invalid listener port or proxy mode")
     if type(value["enabled"]) is not bool:
         raise ValueError("enabled must be a boolean")
+    if value.get("wire_dialect", "") not in ("", "anthropic"):
+        raise ValueError("wire_dialect must be empty or anthropic")
     if not isinstance(value["allow_private_hosts"], list) or not all(
         isinstance(host, str) and re.fullmatch(r"[a-zA-Z0-9_.:-]+", host)
         for host in value["allow_private_hosts"]
@@ -87,7 +89,8 @@ def init(args):
             raise ValueError("init requires --provider and --upstream on first use")
         value = {"provider": args.provider, "upstream": endpoint(args.upstream), "backend": args.backend,
                  "listen": args.listen, "url": endpoint(args.url), "mode": "compress",
-                 "allow_private_hosts": args.allow_private_host, "enabled": False}
+                 "allow_private_hosts": args.allow_private_host, "wire_dialect": args.wire_dialect or "",
+                 "enabled": False}
         save(validate(value))
         print("Created private settings with OC2 routing disabled")
     token = PRIVATE / "proxy-token"
@@ -106,8 +109,11 @@ def render(value):
     token = read_private(PRIVATE / "proxy-token").strip()
     if len(token) < 16 or any(char.isspace() for char in token):
         raise ValueError("proxy token must contain at least 16 non-whitespace characters")
+    mount = {"base_url": value["upstream"]}
+    if value.get("wire_dialect"):
+        mount["wire_dialect"] = value["wire_dialect"]
     config = {"label": "dotfiles", "mode": value["mode"], "listen": value["listen"],
-              "compat": {value["provider"]: {"base_url": value["upstream"]}}}
+              "compat": {value["provider"]: mount}}
     path = PRIVATE / "proxy.json"
     write_private(path, json.dumps(config, indent=2) + "\n")
     write_private(PRIVATE / "proxy.env", "CAVEMAN_AUTH_TOKEN=" + token + "\nCAVE_SSRF_ALLOWLIST=" + ",".join(value["allow_private_hosts"]) + "\n")
@@ -168,6 +174,7 @@ def main():
     parser.add_argument("--listen", default="127.0.0.1:8787")
     parser.add_argument("--url", default="http://127.0.0.1:8787", help="proxy URL reachable by the OC2 server")
     parser.add_argument("--allow-private-host", action="append", default=[])
+    parser.add_argument("--wire-dialect", choices=("anthropic",), help="upstream also serves Anthropic Messages")
     args = parser.parse_args()
     if args.action == "init":
         init(args)
