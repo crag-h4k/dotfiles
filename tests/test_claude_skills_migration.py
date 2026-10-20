@@ -9,6 +9,7 @@ import os
 from pathlib import Path
 import shutil
 import subprocess
+import sys
 import tempfile
 import unittest
 
@@ -19,6 +20,8 @@ SPEC = importlib.util.spec_from_file_location("migrate_claude_skills", MODULE)
 assert SPEC and SPEC.loader
 MIGRATION = importlib.util.module_from_spec(SPEC)
 SPEC.loader.exec_module(MIGRATION)
+
+GIT_ENVIRONMENT = ("GIT_DIR", "GIT_COMMON_DIR", "GIT_INDEX_FILE", "GIT_WORK_TREE")
 
 
 class ClaudeSkillsMigrationTest(unittest.TestCase):
@@ -173,6 +176,178 @@ class ClaudeSkillsMigrationTest(unittest.TestCase):
         root = self.home / ".claude/skills"
         self.assertTrue(root.is_symlink())
         self.assertEqual((self.home / ".agents/skills/local-example/SKILL.md").read_text(), "legacy skill\n")
+
+    def test_empty_readable_legacy_root_still_plans_the_link_replacement(self) -> None:
+        root = self.home / ".claude/skills"
+        root.mkdir(parents=True)
+
+        plan = MIGRATION.migration_plan(self.home)
+
+        self.assertEqual(plan, [("create", self.home / ".agents/skills", None), ("link", root, self.home / ".agents/skills")])
+
+    def test_group_or_world_writable_legacy_root_is_still_refused(self) -> None:
+        for mode in (0o775, 0o757):
+            with self.subTest(mode=oct(mode)):
+                root = self.home / ".claude/skills"
+                root.mkdir(parents=True, exist_ok=True)
+                root.chmod(mode)
+
+                with self.assertRaisesRegex(ValueError, "not group or world writable"):
+                    MIGRATION.migration_plan(self.home)
+
+    def deny(self, path: Path) -> None:
+        """Remove every permission bit from path until the test ends."""
+        original = path.stat().st_mode & 0o7777
+        path.chmod(0)
+        # Cleanups run last-in first-out, so this runs before the temporary
+        # directory is removed.
+        self.addCleanup(path.chmod, original)
+        if os.access(path, os.R_OK | os.X_OK):
+            self.skipTest("permission bits are not enforced for this account")
+
+    def inaccessible_states(self) -> dict[str, Path]:
+        """Create the homes where the legacy skills root cannot be inspected."""
+        states = {}
+        for name, hidden in (("claude", ".claude"), ("skills", ".claude/skills")):
+            home = self.home.parent / ("denied-" + name)
+            skill = home / ".claude/skills/local-example/SKILL.md"
+            skill.parent.mkdir(parents=True)
+            skill.write_text("legacy skill\n")
+            self.deny(home / hidden)
+            states[name] = home
+        return states
+
+    def test_inaccessible_legacy_root_is_skipped_not_raised(self) -> None:
+        # Path.exists() and Path.is_symlink() raise EACCES before Python 3.14,
+        # so an untraversable ~/.claude used to abort the plan.
+        for name, home in self.inaccessible_states().items():
+            with self.subTest(denied=name):
+                plan = MIGRATION.migration_plan(home)
+
+                self.assertEqual(plan, [("inaccessible", home / ".claude/skills", None)])
+                self.assertEqual(
+                    MIGRATION.describe(plan),
+                    "Claude skills directory is not accessible; skipping legacy migration",
+                )
+                MIGRATION.apply(plan, home)
+                self.assertFalse(MIGRATION.journal_path(home).exists())
+
+    def test_command_line_skips_an_inaccessible_legacy_root(self) -> None:
+        for name, home in self.inaccessible_states().items():
+            for arguments in ([], ["--apply"]):
+                with self.subTest(denied=name, arguments=arguments):
+                    result = subprocess.run(
+                        [sys.executable, str(MODULE), "--home", str(home), *arguments],
+                        stdin=subprocess.DEVNULL, capture_output=True, text=True, timeout=30,
+                    )
+
+                    self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+                    self.assertEqual(
+                        result.stdout.strip(),
+                        "Claude skills directory is not accessible; skipping legacy migration",
+                    )
+                    self.assertEqual(result.stderr, "")
+
+    def test_pre_apply_hook_skips_an_inaccessible_legacy_root(self) -> None:
+        # Run the hook alone: with a non-empty root chezmoi itself must still
+        # replace the directory, which is outside what the hook can do.
+        repo = self.home.parent / "hook-repo"
+        scripts = repo / "scripts"
+        hooks = repo / "home/.chezmoiscripts"
+        (repo / "home/dot_claude").mkdir(parents=True)
+        scripts.mkdir()
+        hooks.mkdir()
+        (repo / ".chezmoiroot").write_text("home\n")
+        (repo / "home/dot_claude/symlink_skills").write_text("../.agents/skills\n")
+        shutil.copyfile(REPO / "home/.chezmoiscripts/run_before_00-backup.sh", hooks / "run_before_00-backup.sh")
+        shutil.copyfile(MODULE, scripts / "migrate-claude-skills.py")
+        # The hook runs `python3`; make it the interpreter under test.
+        interpreter = self.home.parent / "interpreter"
+        interpreter.mkdir()
+        (interpreter / "python3").symlink_to(sys.executable)
+        for name, home in self.inaccessible_states().items():
+            with self.subTest(denied=name):
+                config = home / ".config/chezmoi/chezmoi.toml"
+                config.parent.mkdir(parents=True)
+                config.write_text('sourceDir = "' + str(repo) + '"\n')
+                environment = {key: value for key, value in os.environ.items() if key not in GIT_ENVIRONMENT}
+                environment.update({
+                    "HOME": str(home),
+                    "XDG_CONFIG_HOME": str(home / ".config"),
+                    "XDG_DATA_HOME": str(home / ".local/share"),
+                    "XDG_CACHE_HOME": str(home / ".cache"),
+                    "XDG_STATE_HOME": str(home / ".local/state"),
+                    "CHEZMOI_SOURCE_DIR": str(repo / "home"),
+                    "PATH": str(interpreter) + os.pathsep + os.environ["PATH"],
+                })
+                environment.pop("DOTFILES_MIGRATE_CLAUDE_SKILLS", None)
+
+                result = subprocess.run(
+                    ["bash", str(hooks / "run_before_00-backup.sh")],
+                    env=environment, stdin=subprocess.DEVNULL, capture_output=True, text=True, timeout=60,
+                )
+
+                output = result.stdout + result.stderr
+                self.assertEqual(result.returncode, 0, output)
+                self.assertNotIn("migrate-claude-skills:", output)
+                self.assertNotIn("Traceback", output)
+                self.assertNotIn("review the Claude skill migration", output)
+
+    def test_openviking_only_apply_tolerates_absent_harness_directories(self) -> None:
+        # Claude and Codex are not selected, so a host may have neither, or only
+        # one, of their home directories. The apply must still finish cleanly.
+        states = {
+            "neither": (),
+            "claude-only": (".claude",),
+            "codex-only": (".codex",),
+        }
+        failure_markers = ("No such file", "Traceback", "does not exist", "cannot access")
+        # The validator needs tomllib (Python 3.11+); the migration helper under
+        # test does not, so only this test is skipped on older interpreters.
+        validator_spec = importlib.util.spec_from_file_location(
+            "validate_agent_skills", REPO / "scripts/validate-agent-skills.py"
+        )
+        assert validator_spec and validator_spec.loader
+        validator = importlib.util.module_from_spec(validator_spec)
+        try:
+            validator_spec.loader.exec_module(validator)
+        except ModuleNotFoundError as error:
+            self.skipTest("scripts/validate-agent-skills.py needs " + str(error.name))
+        for name, directories in states.items():
+            with self.subTest(state=name):
+                home = self.home.parent / ("home-" + name)
+                home.mkdir()
+                for directory in directories:
+                    (home / directory).mkdir()
+                config = home / ".config/chezmoi/chezmoi.toml"
+                config.parent.mkdir(parents=True)
+                # The pre-apply hook runs a bare `chezmoi managed`, which finds
+                # the source through this config rather than the apply's flags.
+                config.write_text(f'sourceDir = "{REPO}"\n' + validator.component_config({"openviking"}))
+                environment = {key: value for key, value in os.environ.items() if key not in GIT_ENVIRONMENT}
+                environment.update({
+                    "HOME": str(home),
+                    "XDG_CONFIG_HOME": str(home / ".config"),
+                    "XDG_DATA_HOME": str(home / ".local/share"),
+                    "XDG_CACHE_HOME": str(home / ".cache"),
+                    "XDG_STATE_HOME": str(home / ".local/state"),
+                })
+                environment.pop("DOTFILES_MIGRATE_CLAUDE_SKILLS", None)
+
+                result = subprocess.run(
+                    ["chezmoi", "--source", str(REPO), "--destination", str(home), "--no-tty",
+                     "apply", "--exclude=externals", "--refresh-externals=never"],
+                    env=environment, stdin=subprocess.DEVNULL, capture_output=True, text=True, timeout=120,
+                )
+
+                output = result.stdout + result.stderr
+                self.assertEqual(result.returncode, 0, output)
+                for marker in failure_markers:
+                    self.assertNotIn(marker, output)
+                self.assertEqual((home / ".claude/skills").readlink(), MIGRATION.EXPECTED_LINK)
+                self.assertTrue((home / ".agents/skills/openviking-memory").is_symlink())
+                self.assertFalse((home / ".codex/skills").exists())
+                self.assertFalse((home / ".codex/skill").exists())
 
 
 if __name__ == "__main__":
