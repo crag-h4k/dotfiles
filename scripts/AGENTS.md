@@ -56,3 +56,8 @@ final aggregate result must report that failure.
 
 Authoring generators must remain separate from installation. Update their
 committed output when the inputs change and use their check mode in validation.
+
+AI runtime concurrency is grouped by installation prefix. Keep Copilot, SSH MCP,
+and Caveman serial in `~/.local`, finish native/Node/uv bootstrap first, and join
+all runtime groups before Git updates and the aggregate summary. Preserve the
+approved plan, per-group logs, failure counts, and process-group cancellation.
