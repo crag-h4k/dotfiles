@@ -1007,6 +1007,8 @@ def test_existing_native_permissions_migrate_the_hook_driver(script):
     rules = parse(out)["permissions"]
     assert permission_effect(rules, "shell", "prek run --all-files") == "allow"
     assert permission_effect(rules, "shell", "pre-commit run --all-files") == "allow"
+    assert permission_effect(rules, "shell", "umask 022") == "allow"
+    assert permission_effect(rules, "shell", "umask 000") == "ask"
     assert '"resource": "terraform plan *"' in out
     assert "// Keep this local policy comment." in out
     assert merge(script, out)[0] == out
@@ -1022,8 +1024,8 @@ def test_existing_prek_allow_adds_pre_commit_without_changing_other_rules(script
     '''
     out, _ = merge(script, src)
     rules = parse(out)["permissions"]
-    assert [rule["resource"] for rule in rules[:3]] == [
-        "prek *", "pre-commit *", "terraform plan *"
+    assert [rule["resource"] for rule in rules[:4]] == [
+        "prek *", "pre-commit *", "umask 022", "terraform plan *"
     ]
     assert merge(script, out)[0] == out
 
@@ -1135,6 +1137,7 @@ def test_native_seed_has_narrow_allows_and_final_denials(script):
         ("shell", "pdftotext * -", "allow"),
         ("shell", "prek *", "allow"),
         ("shell", "pre-commit *", "allow"),
+        ("shell", "umask 022", "allow"),
         ("shell", "git worktree list *", "allow"),
         ("shell", "gh pr view *", "allow"),
     ):

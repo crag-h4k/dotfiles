@@ -171,7 +171,7 @@ class ParallelRuntimesTest(unittest.TestCase):
         shutil.copy2(ROOT / "scripts/install.sh", self.scripts / "install.sh")
         with (self.scripts / "common.sh").open("a") as stream:
             stream.write('''
-os_detect() { printf macos; }
+os_detect() { printf '%s' "${TEST_OS:-macos}"; }
 pkg_confirm() { [[ "${TEST_APPROVE:-true}" == true ]]; }
 verify_node_runtime() { touch "$TEST_ROOT/node-ready"; }
 ensure_chezmoi() { :; }
@@ -181,11 +181,22 @@ package_plan_resolve_deferred_git() { touch "$TEST_ROOT/git-started"; }
         planner.write_text("#!/bin/sh\nexit 0\n")
         planner.chmod(0o755)
         binaries = self.root / "bin"
-        binaries.mkdir()
+        binaries.mkdir(exist_ok=True)
         brew = binaries / "brew"
-        brew.write_text("#!/bin/sh\nexit 99\n")
+        brew.write_text('''#!/bin/sh
+printf '%s\n' "$*" >>"$TEST_ROOT/brew.log"
+[ -z "${HOMEBREW_NO_INSTALL_UPGRADE+x}" ] || exit 97
+[ "${TEST_BREW_FAIL:-false}" != true ]
+''')
         brew.chmod(0o755)
-        return subprocess.run(
+        sudo = binaries / "sudo"
+        sudo.write_text('''#!/bin/sh
+printf '%s\n' "$*" >>"$TEST_ROOT/apt.log"
+[ "${TEST_APT_FAIL:-false}" != true ]
+''')
+        sudo.chmod(0o755)
+        plan = self.plan.read_bytes()
+        result = subprocess.run(
             ["bash", str(self.scripts / "install.sh")],
             env={**self.env, "PATH": str(binaries) + os.pathsep + os.environ["PATH"],
                  "XDG_STATE_HOME": str(self.root / "state"), "DOTFILES_PACKAGES_APPROVED": "false",
@@ -194,6 +205,8 @@ package_plan_resolve_deferred_git() { touch "$TEST_ROOT/git-started"; }
                  "TEST_REQUIRE_BOOTSTRAP": "true", **env},
             capture_output=True, text=True, timeout=12,
         )
+        self.plan.write_bytes(plan)
+        return result
 
     def test_top_level_bootstraps_first_and_reports_worker_failures(self):
         result = self.run_top_level(TEST_FAIL="ssh-mcp")
@@ -207,6 +220,44 @@ package_plan_resolve_deferred_git() { touch "$TEST_ROOT/git-started"; }
         self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
         self.assertEqual(self.records(), {})
         self.assertFalse((self.root / "node-ready").exists())
+
+    def test_brew_missing_and_outdated_formulae_use_one_approved_transaction(self):
+        self.plan.write_text(
+            'brew-formula\tgum\tplanned\tfloating\tHomebrew\tgum\t-\t-\tmissing\n'
+            'brew-formula\tgit\tupdate\tfloating\tHomebrew\tgit\t1\t2\toutdated\n'
+            'brew-formula\tpython3\tinstalled\tfloating\tHomebrew\tpython3\t2\t2\tcurrent\n'
+        )
+        flags = {"INSTALL_AI_OPENCODE": "false", "INSTALL_AI_COPILOT": "false", "INSTALL_AI_OPENVIKING": "false"}
+        result = self.run_top_level(HOMEBREW_NO_INSTALL_UPGRADE="1", **flags)
+        self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+        self.assertEqual((self.root / "brew.log").read_text(), "install --no-ask gum git\n")
+        self.assertIn("package run summary: ok=2 failed=0 skipped=1", result.stdout)
+        (self.root / "brew.log").unlink()
+        result = self.run_top_level(TEST_BREW_FAIL="true", **flags)
+        self.assertEqual(result.returncode, 1)
+        self.assertEqual((self.root / "brew.log").read_text(), "install --no-ask gum git\n")
+        self.assertIn("package run summary: ok=1 failed=1 skipped=1", result.stdout)
+        (self.root / "brew.log").unlink()
+        result = self.run_top_level(TEST_APPROVE="false", **flags)
+        self.assertEqual(result.returncode, 0)
+        self.assertFalse((self.root / "brew.log").exists())
+
+    def test_debian_selected_packages_already_share_one_apt_transaction(self):
+        self.plan.write_text(
+            'apt\tgit\tplanned\tfloating\tDebian\tgit\t-\t2\tmissing\n'
+            'apt\tcurl\tupdate\tfloating\tDebian\tcurl\t1\t3\toutdated\n'
+            'apt\tzsh\tinstalled\tfloating\tDebian\tzsh\t2\t2\tcurrent\n'
+        )
+        flags = {"INSTALL_AI_OPENCODE": "false", "INSTALL_AI_COPILOT": "false", "INSTALL_AI_OPENVIKING": "false"}
+        result = self.run_top_level(TEST_OS="debian", **flags)
+        self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+        self.assertEqual((self.root / "apt.log").read_text(), "apt-get install -y git=2 curl=3\n")
+        self.assertIn("package run summary: ok=2 failed=0 skipped=3", result.stdout)
+        (self.root / "apt.log").unlink()
+        result = self.run_top_level(TEST_OS="debian", TEST_APT_FAIL="true", **flags)
+        self.assertEqual(result.returncode, 1)
+        self.assertEqual((self.root / "apt.log").read_text(), "apt-get install -y git=2 curl=3\n")
+        self.assertIn("package run summary: ok=1 failed=1 skipped=3", result.stdout)
 
 
 if __name__ == "__main__":

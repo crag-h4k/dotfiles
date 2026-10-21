@@ -697,13 +697,12 @@ STUB
     bash "$root/scripts/install.sh"
 }
 
-@test "Debian bootstraps NodeSource and npm before the APT batch and npm consumers" {
+@test "Debian installs NodeSource and approved APT packages together before npm consumers" {
   debian_node_bootstrap_fixture
   [ "$status" -eq 0 ]
   [ "$(cat "$BOOTSTRAP_LOG")" = "repo
 apt-get update
-apt-get install -y nodejs=24.21.0-1nodesource1
-apt-get install -y git=1.2.3
+apt-get install -y nodejs=24.21.0-1nodesource1 git=1.2.3
 npm install @opencode/cli" ]
 }
 
@@ -711,7 +710,7 @@ npm install @opencode/cli" ]
   export BOOTSTRAP_NODE_CURRENT=true
   debian_node_bootstrap_fixture
   [ "$status" -eq 0 ]
-  grep -Fq 'apt-get install -y --reinstall nodejs=24.21.0-1nodesource1' "$BOOTSTRAP_LOG"
+  grep -Fxq 'apt-get install -y --reinstall nodejs=24.21.0-1nodesource1 git=1.2.3' "$BOOTSTRAP_LOG"
   grep -Fq 'npm install @opencode/cli' "$BOOTSTRAP_LOG"
 }
 

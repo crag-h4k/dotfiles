@@ -23,8 +23,9 @@ CLI, server, plugin SDK, and terminal versions when diagnosing compatibility.
 - Preserve merge-managed JSONC and unknown user settings. Inspect the renderer
   for the active V2 schema; older OpenCode flags and plugin APIs are not a basis
   for a fix. Do not silently alter account, model, or permission selection.
-  The managed shell policy allows both `prek *` and `pre-commit *` for local
-  checks; it does not replace host-specific permissions.
+  The managed shell policy allows `prek *`, `pre-commit *`, and the exact
+  `umask 022` setup used by local checks. Existing hook-driver allows receive
+  missing companion rules on apply; other umask values keep their existing policy.
 - `cli.json` is merge-managed by `modify_private_cli.json.tmpl` because V2's
   **Open settings** writes it. Keep the enforced set small: only keys that
   protect a dotfiles integration (`attention.*` so tmux stays the single alert

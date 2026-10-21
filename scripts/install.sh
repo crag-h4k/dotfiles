@@ -143,7 +143,7 @@ main() {
         local pkg_started=$SECONDS
         local source_root
         local src name status _policy origin probe _current target reason
-        local -a brew_formula_install=() brew_formula_update=() brew_formula_remove=()
+        local -a brew_formula_install=() brew_formula_remove=()
         local -a brew_cask_install=() brew_cask_update=()
         local -a apt_packages=()
         export DOTFILES_APT_REPO_CHANGED=false
@@ -173,12 +173,13 @@ main() {
                 fi
                 # The plan refreshes Homebrew metadata before the single approval.
                 # Rebuild its status inventory from that metadata, then batch every
-                # requested formula and cask by action. Homebrew would otherwise ask
-                # once for every install or upgrade command.
+                # requested formula and cask by action. `brew install` also
+                # upgrades already installed, outdated formulae; use one
+                # transaction for both the missing and update plan entries.
                 while IFS=$'\t' read -r src name status _policy origin probe _current target reason <&3; do
                     case "$src:$status" in
                         brew-formula:planned) brew_formula_install+=("$name") ;;
-                        brew-formula:update) brew_formula_update+=("$name") ;;
+                        brew-formula:update) brew_formula_install+=("$name") ;;
                         brew-formula:remove) brew_formula_remove+=("$name") ;;
                         brew-formula:installed) package_skip "Homebrew formula $name is current" ;;
                         brew-cask:planned) brew_cask_install+=("$name") ;;
@@ -191,9 +192,8 @@ main() {
                     esac
                 done 3< "$DOTFILES_PACKAGE_PLAN"
                 ((${#brew_formula_install[@]} == 0)) ||
-                    package_try "Homebrew formula install" brew install --no-ask "${brew_formula_install[@]}" || true
-                ((${#brew_formula_update[@]} == 0)) ||
-                    package_try "Homebrew formula update" brew upgrade --no-ask "${brew_formula_update[@]}" || true
+                    package_try "Homebrew formula install/update" env -u HOMEBREW_NO_INSTALL_UPGRADE \
+                        brew install --no-ask "${brew_formula_install[@]}" || true
                 ((${#brew_formula_remove[@]} == 0)) ||
                     package_try "Homebrew legacy tool removal" brew uninstall "${brew_formula_remove[@]}" || true
                 ((${#brew_cask_install[@]} == 0)) ||
@@ -221,12 +221,6 @@ main() {
                 if [[ "$DOTFILES_APT_REPO_CHANGED" == true ]]; then
                     package_try "APT metadata refresh after repository setup" sudo apt-get update || true
                 fi
-                if [[ "$node_required" == true ]]; then
-                    package_action_try apt nodejs "Node.js 24+ and bundled npm bootstrap" install_node_runtime_debian || true
-                    if package_try "Node.js 24+ and npm verification" verify_node_runtime; then
-                        node_ready=true
-                    fi
-                fi
                 while IFS=$'\t' read -r src name status _policy origin probe _current target reason <&3; do
                     [[ "$src" == apt ]] || continue
                     [[ "$name" != nodejs ]] || continue
@@ -242,11 +236,27 @@ main() {
                         *) package_skip "APT $name is current" ;;
                     esac
                 done 3< "$DOTFILES_PACKAGE_PLAN"
+                if [[ "$node_required" == true ]]; then
+                    if package_needs_action apt nodejs; then
+                        if package_action_try apt nodejs "APT selected packages and Node.js bootstrap" \
+                            install_node_runtime_debian "${apt_packages[@]}"; then
+                            apt_packages=()
+                        fi
+                    else
+                        package_action_try apt nodejs "Node.js 24+ and bundled npm bootstrap" install_node_runtime_debian || true
+                    fi
+                fi
                 # apt-get install with several names installs missing dependencies
                 # and advances only this selected set. It never performs a
-                # distribution-wide upgrade.
+                # distribution-wide upgrade. If Node bootstrap failed, retry the
+                # other approved packages independently rather than losing them.
                 ((${#apt_packages[@]} == 0)) ||
                     package_try "APT selected package install/update" sudo apt-get install -y "${apt_packages[@]}" || true
+                if [[ "$node_required" == true ]]; then
+                    if package_try "Node.js 24+ and npm verification" verify_node_runtime; then
+                        node_ready=true
+                    fi
+                fi
                 # Neovim is one checksum-verified upstream tree so its binary,
                 # runtime, and libraries activate or roll back together.
                 [[ "$INSTALL_NEOVIM" == true ]] && { package_action_try github-release neovim "Neovim versioned release" install_neovim_debian || true; }
