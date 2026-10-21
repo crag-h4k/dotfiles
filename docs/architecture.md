@@ -50,11 +50,8 @@ package manager before init displays the deduplicated plan, and
 archives, npm, pip, and LuaRocks.
 
 The plan refreshes package metadata before one approval prompt. After approval,
-Homebrew uses one `brew install` batch for missing and outdated formulae;
-its selected casks and legacy removals remain separate. Debian includes the
-NodeSource bootstrap in the selected `apt-get install` batch, then verifies
-Node.js and npm before any npm consumers run. Both consume the
-fresh plan. Independent operations report their own failure and the run ends
+Homebrew and APT use that fresh metadata and batch selected package-manager
+operations. Independent operations report their own failure and the run ends
 with an aggregate result summary.
 
 After native packages, Node verification, and uv bootstrap complete, AI runtimes
@@ -77,9 +74,8 @@ opt-in, applies configuration only and does not change the stored `installMode`.
 
 On Debian, NodeSource and Aqua Security use explicit signed APT sources.
 NodeSource is selected for Neovim or any Node-dependent AI feature. Its Node.js
-package bundles npm; it shares the selected APT batch and is verified before
-npm consumers. If bootstrap fails, the other approved APT packages are retried
-independently. Debian's older nodejs-only candidate is deferred until
+package bundles npm; it is installed and verified before the remaining APT
+batch and npm consumers. Debian's older nodejs-only candidate is deferred until
 NodeSource is configured. A current Node.js with broken npm triggers package
 reinstallation rather than passing the runtime check. tenv,
 Neovim, tree-sitter CLI, and yq release downloads are

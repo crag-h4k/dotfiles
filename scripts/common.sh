@@ -786,7 +786,7 @@ install_node_runtime_debian() {
     if verify_node_min_major 24 && ! verify_node_runtime; then
         args+=(--reinstall)
     fi
-    sudo apt-get "${args[@]}" "nodejs=$target" "$@" || return 1
+    sudo apt-get "${args[@]}" "nodejs=$target" || return 1
     verify_node_runtime
 }
 

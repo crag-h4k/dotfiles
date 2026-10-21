@@ -89,15 +89,6 @@ concurrency on a smaller host; the default is `3`. An OpenCode npm prefix that
 resolves to the shared `~/.local` prefix forces serial execution. Interrupting
 the runtime supervisor stops its active groups and their child processes.
 
-On macOS, approved missing and outdated formulae share one `brew install`
-transaction; Homebrew upgrades outdated formulae in that batch, even if the
-calling shell sets `HOMEBREW_NO_INSTALL_UPGRADE`. That variable is removed only
-for this approved transaction. Selected casks and legacy removals stay separate.
-Debian combines NodeSource's Node.js bootstrap with the selected APT packages,
-then verifies npm. A failed bootstrap leaves a fallback install for the other
-approved packages. Both platforms still consume the approved plan and report
-failed batches.
-
 Config-only mode skips package work. A headless apply without
 `DOTFILES_ASSUME_YES=1` declines package changes. The direct chezmoi external
 refresh flag can still refresh Git externals before the installer runs; omit it
