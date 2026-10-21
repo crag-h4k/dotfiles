@@ -12,6 +12,7 @@
 - [Local overrides](#local-overrides)
   - [Shell PATH additions](#shell-path-additions)
   - [OpenCode terminal settings](#opencode-terminal-settings)
+  - [OpenCode idle locations](#opencode-idle-locations)
   - [OpenCode server plugins](#opencode-server-plugins)
 - [Terminal (tmux) behavior](#terminal-tmux-behavior)
   - [Status bar](#status-bar)
@@ -546,6 +547,11 @@ entry's `options`; OC2's `keybinds` object does not accept plugin command IDs.
 Keep the same Sidequest package reference in `opencode.jsonc` and
 `cli.json` so OpenCode loads one terminal instance with the terminal options.
 
+`keybinds.agent.cycle` is seeded to `shift+tab` for the opening prompt. The
+session-workflow plugin yields to that native binding before a session exists,
+then handles Build → Plan → Auto cycling inside a session. An explicit custom
+or disabled native binding survives apply, including one in `cli.override.json`.
+
 Seeding is per key. A default added to the repository later reaches existing
 hosts, and a value you changed is never touched. The cost is that a seeded key
 you delete comes back on the next apply; set it to the value you want instead.
@@ -570,6 +576,21 @@ for example `-dotfiles.agent-catalog`.
 
 If `cli.json` is not a JSON object, the merge leaves it unchanged and prints a
 warning, so a hand edit is never destroyed.
+
+### OpenCode idle locations
+
+The server config merge seeds `experimental.location_idle_timeout` to `false`
+in `~/.config/opencode/opencode.jsonc`, disabling idle location unloading.
+Existing values and other experimental settings, including comments, survive.
+To reclaim idle locations, set a duration such as `"4 hours"` in that file;
+project configuration can override the global value.
+
+This needs OpenCode **2.1.2 or later**, which includes
+[#57476](https://github.com/anomalyco/opencode/pull/57476). Its prerequisite
+[#57416](https://github.com/anomalyco/opencode/pull/57416) keeps running sessions,
+including pending questions and permission prompts, and background jobs loaded
+even when an idle timeout is configured. The setting belongs to the server;
+when attaching remotely, the connected server needs the update and config.
 
 ### OpenCode server plugins
 

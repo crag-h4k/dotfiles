@@ -73,6 +73,22 @@ jobs:
       - name: Verify ARM64 macOS and prepare runner Homebrew
         run: .github/scripts/prepare-macos-runner.sh
 
+      - name: Locate Homebrew download cache
+        id: brew-cache
+        run: echo "path=$(brew --cache)/downloads" >> "$GITHUB_OUTPUT"
+
+      - name: Cache deployment downloads
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: |
+            ${{ steps.brew-cache.outputs.path }}
+            ~/.npm/_cacache
+            ~/.cache/uv
+          key: deployment-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('scripts/install*.sh', 'scripts/package*.sh', 'home/.chezmoiexternal.toml') }}-${{ github.run_id }}
+          restore-keys: |
+            deployment-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('scripts/install*.sh', 'scripts/package*.sh', 'home/.chezmoiexternal.toml') }}-
+            deployment-${{ runner.os }}-${{ runner.arch }}-
+
       - name: Build clean macOS deployment source
         id: build
         continue-on-error: true

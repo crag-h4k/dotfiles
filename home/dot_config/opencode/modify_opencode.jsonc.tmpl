@@ -20,6 +20,8 @@
 #   SEEDED - with OpenCode selected, add bundled disabled MCP entries only when
 #            absent. The user's disabled flag and overrides win.
 #            The retired singular "plugin" key is removed when present.
+#   SEEDED - experimental.location_idle_timeout = false only when absent;
+#            existing timeouts and other experimental settings survive.
 #   SEEDED - native "permissions" are written only when the incoming file has no
 #            permission policy. The exact old seed is migrated. Existing native
 #            permissions retain their policy, except managed OpenViking and
@@ -67,6 +69,8 @@ HEADER = """\
 // exact retired seed is migrated automatically; customized policies are yours
 // except the managed OpenViking and Claude/Agent state allows plus generic
 // hook/Git rule migrations.
+// experimental.location_idle_timeout is seeded to false when absent; local
+// durations and other experimental settings survive subsequent applies.
 //
 // Terminal settings and the selected theme live in cli.json."""
 
@@ -74,6 +78,7 @@ HEADER = """\
 # round trip. The agents entry is merged separately to preserve local fields.
 OWNED_SCHEMA = '''\
   "$schema": "https://opencode.ai/config.json"'''
+SEED_EXPERIMENTAL = '  "experimental": {"location_idle_timeout": false}'
 
 BUILD_COLOR = "{{ $p.colors.green }}"
 PLAN_COLOR = "{{ $p.colors.blue }}"
@@ -1044,6 +1049,22 @@ def seed_mcp(block):
     return (wrapped[:start] + mcp + wrapped[entry["end"]:])[2:-2]
 
 
+def seed_experimental(block):
+    """Disable idle unloading by default without replacing local experiments."""
+    wrapped = "{\n" + block + "\n}"
+    _, _, entries = scan(wrapped)
+    entry = next(item for item in entries if item["name"] == "experimental")
+    start = entry_value_start(wrapped, entry)
+    if wrapped[start] != "{":
+        raise ValueError("experimental is not an object")
+    value = wrapped[start:entry["end"]]
+    opening, closing, members = scan(value)
+    if any(item["name"] == "location_idle_timeout" for item in members):
+        return block
+    value = insert_object_member(value, opening, closing, members, '"location_idle_timeout": false')
+    return (wrapped[:start] + value + wrapped[entry["end"]:])[2:-2]
+
+
 def build_owned(agents_block, plugins_block):
     """Build managed fields around the preserved agent and plugin settings."""
     blocks = [
@@ -1096,9 +1117,12 @@ def emit(s):
 # Empty stdin means the target does not exist yet: emit the full generic file,
 # native permissions included.
 if not text.strip():
+    kept = [SEED_EXPERIMENTAL]
+    if MCP_SELECTED:
+        set_trailing_comma(kept, True)
+        kept.append('  "mcp": {"servers": {' + ', '.join(value for _, value in MCP_ENTRIES) + '}}')
     emit(render(build_owned(NEW_AGENTS, merge_plugins('  "plugins": []')),
-                merge_openviking_permissions(SEED_PERMISSIONS).split("\n"),
-                ['  "mcp": {"servers": {' + ', '.join(value for _, value in MCP_ENTRIES) + '}}'] if MCP_SELECTED else []))
+                merge_openviking_permissions(SEED_PERMISSIONS).split("\n"), kept))
     raise SystemExit(0)
 
 root_open, root_close, entries = scan(text)
@@ -1222,6 +1246,16 @@ while kept and not kept[0].strip():
 while kept and not kept[-1].strip():
     kept.pop()
 
+experimental_entry = next((item for item in entries if item["name"] == "experimental"), None)
+if experimental_entry is not None:
+    first, last = entry_span(experimental_entry)
+    original = "\n".join(lines[first:last + 1])
+    try:
+        updated = seed_experimental(original)
+    except ValueError as exc:
+        passthrough("cannot seed experimental settings: %s" % exc)
+    kept = "\n".join(kept).replace(original, updated, 1).split("\n")
+
 if MCP_SELECTED:
     mcp_entry = next((item for item in entries if item["name"] == "mcp"), None)
     if mcp_entry is None:
@@ -1285,6 +1319,11 @@ if has_native_permissions:
     except ValueError as error:
         passthrough(str(error))
     kept = kept_text.replace("\n".join(native_lines), policy, 1).split("\n")
+if experimental_entry is None:
+    if kept:
+        set_trailing_comma(kept, True)
+    kept.append(SEED_EXPERIMENTAL)
+
 seed = None
 if not has_native_permissions and not has_custom_legacy_permission:
     seed = merge_openviking_permissions(SEED_PERMISSIONS).split("\n")

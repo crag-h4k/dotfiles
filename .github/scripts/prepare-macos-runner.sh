@@ -15,6 +15,10 @@ set -euo pipefail
 brew untap aws/tap 2>/dev/null || true
 
 prefix=$(brew --prefix)
+# Avoid migrating the runner's unused Azure CLI formula to a cask during update.
+if brew list --formula azure-cli >/dev/null 2>&1; then
+    brew uninstall --formula azure-cli
+fi
 openssl_link="$prefix/bin/openssl"
 legacy_target="$prefix/opt/openssl@1.1/bin/openssl"
 # The runner force-links retired OpenSSL 1.1 into the shared bin directory.

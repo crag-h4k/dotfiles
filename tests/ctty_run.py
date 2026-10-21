@@ -25,10 +25,22 @@
 import fcntl
 import os
 import pty
+import signal
 import subprocess
 import sys
 import termios
 import threading
+
+
+def wait(proc):
+    timeout = float(os.environ.get("CTTY_TIMEOUT", "60"))
+    try:
+        return proc.wait(timeout=timeout)
+    except subprocess.TimeoutExpired:
+        os.killpg(proc.pid, signal.SIGKILL)
+        proc.wait()
+        sys.stderr.write(f"ctty_run: command exceeded {timeout:g} seconds\n")
+        return 124
 
 
 def main():
@@ -42,7 +54,7 @@ def main():
         return 2
 
     if mode == "none":
-        return subprocess.call(args, preexec_fn=os.setsid)
+        return wait(subprocess.Popen(args, start_new_session=True))
 
     master, slave = pty.openpty()
     chunks = []
@@ -69,7 +81,7 @@ def main():
 
     kwargs = {"stdin": slave} if mode in ("stdin-tty", "stdin-only") else {}
     proc = subprocess.Popen(args, preexec_fn=child_setup, pass_fds=(slave,), **kwargs)
-    status = proc.wait()
+    status = wait(proc)
 
     # The child is gone. Close our slave copy so the reader sees EOF, then reap it.
     os.close(slave)

@@ -67,15 +67,15 @@ SOURCE_ROOT="$REPO_ROOT/home"
   [[ "$output" != *'Library/Application Support'* ]]
 }
 
-@test "OpenCode CLI leaves native agent cycling available on the home screen" {
+@test "OpenCode CLI seeds Shift+Tab for native agent cycling on the home screen" {
   local config="${BATS_TEST_TMPDIR}/chezmoi.toml" script="${BATS_TEST_TMPDIR}/merge-cli.py" output
   printf '[data]\n' > "$config"
   chezmoi execute-template --source "$REPO_ROOT" --config "$config" \
     < "$SOURCE_ROOT/dot_config/opencode/modify_private_cli.json.tmpl" > "$script"
   run bash -c 'printf "{}" | python3 "$1"' _ "$script"
   [ "$status" -eq 0 ]
-  output="$(printf '%s' "$output" | jq -r '.keybinds["agent.cycle"] // "native"')"
-  [ "$output" = native ]
+  output="$(printf '%s' "$output" | jq -r '.keybinds["agent.cycle"]')"
+  [ "$output" = shift+tab ]
 }
 
 @test "Trixie bootstraps Python before selected configuration merges run" {
