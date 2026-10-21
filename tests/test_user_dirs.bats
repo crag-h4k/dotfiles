@@ -269,7 +269,16 @@ render_tty() {
   run env HOME="$TEST_HOME" PATH="$STUBS:/usr/bin:/bin" DOTFILES_INSTALL_MODE=configs \
     GUM_STUB_DIR="$STUBS" CTTY_LOG="$TTY_LOG" ${envs[@]+"${envs[@]}"} \
     python3 "$CTTY" "$CTTY_MODE" "$CHEZMOI" execute-template --init --file \
+    -p "$WT_TITLE=" -p "$AG_TITLE=" \
     --source "$REPO_ROOT" --config "$CONFIG" ${args[@]+"${args[@]}"} "$CONFIG_TMPL" </dev/null
+}
+
+render_typed() {
+  local typed_path="$BATS_TEST_TMPDIR/no-gum"
+  mkdir -p "$typed_path"
+  ln -sf /bin/sh "$typed_path/sh"
+  ln -sf "$(command -v python3)" "$typed_path/python3"
+  render_tty PATH="$typed_path" "$@"
 }
 
 # gum_calls <subcommand>: the recorded calls of that subcommand.
@@ -596,13 +605,13 @@ AI_HDR='AI tools  (space toggles, enter confirms, esc cancels):'
   # prompt simulation stands in for typing the two paths.
   seed_ai_config 'worktreesDir = "/srv/saved-wt"'
   sed -i.bak 's/aiSelection = "opencode"/aiSelection = "opencode directories"/' "$CONFIG"
-  render_tty PATH=/usr/bin:/bin
+  render_typed
   [ "$status" -eq 0 ]
   no_gum_calls
   # No typed answer: Enter keeps the pre-fill (saved, then default).
   [ "$(stored)" = $'    worktreesDir = "/srv/saved-wt"\n    agentsDir = "$HOME/agents"' ]
 
-  render_tty PATH=/usr/bin:/bin -- -p "$WT_TITLE=/opt/typed-wt" -p "$AG_TITLE=~/typed/agents"
+  render_typed -- -p "$WT_TITLE=/opt/typed-wt" -p "$AG_TITLE=~/typed/agents"
   [ "$status" -eq 0 ]
   [ "$(stored)" = $'    worktreesDir = "/opt/typed-wt"\n    agentsDir = "~/typed/agents"' ]
   # The choice never lands in the saved selection or the tables.
@@ -614,13 +623,13 @@ AI_HDR='AI tools  (space toggles, enter confirms, esc cancels):'
   need_pty
   seed_ai_config
   sed -i.bak 's/aiSelection = "opencode"/aiSelection = "4 10"/' "$CONFIG"
-  render_tty PATH=/usr/bin:/bin -- -p "$WT_TITLE=/opt/by-number"
+  render_typed -- -p "$WT_TITLE=/opt/by-number"
   [ "$status" -eq 0 ]
   [[ "$output" == *'worktreesDir = "/opt/by-number"'* ]]
   [[ "$output" == *'opencode = true'* ]]
 
   seed_ai_config
-  render_tty PATH=/usr/bin:/bin -- -p "$WT_TITLE=/opt/ignored" -p "$AG_TITLE=/opt/ignored"
+  render_typed -- -p "$WT_TITLE=/opt/ignored" -p "$AG_TITLE=/opt/ignored"
   [ "$status" -eq 0 ]
   [[ "$output" == *'worktreesDir = "$HOME/worktrees"'* ]]
 }
@@ -629,7 +638,7 @@ AI_HDR='AI tools  (space toggles, enter confirms, esc cancels):'
   need_pty
   seed_ai_config
   sed -i.bak 's/aiSelection = "opencode"/aiSelection = "opencode directories"/' "$CONFIG"
-  render_tty PATH=/usr/bin:/bin -- -p "$WT_TITLE=/tmp/it's"
+  render_typed -- -p "$WT_TITLE=/tmp/it's"
   [ "$status" -ne 0 ]
   [[ "$output" == *"data.worktreesDir must name a directory using only"* ]]
 }
@@ -655,21 +664,21 @@ AI_HDR='AI tools  (space toggles, enter confirms, esc cancels):'
   # migrate to opencode, and 10 is the entry, never a feature.
   seed_ai_config
   sed -i.bak 's/aiSelection = "opencode"/aiSelection = "1 2 3 4 5 8 6"/' "$CONFIG"
-  render_tty PATH=/usr/bin:/bin
+  render_typed
   [ "$status" -eq 0 ]
   [[ "$output" == *"$expect"* ]]
 
   seed_ai_config
   sed -i.bak 's/aiSelection = "opencode"/aiSelection = "7"/' "$CONFIG"
-  render_tty PATH=/usr/bin:/bin
+  render_typed
   [[ "$output" == *'opencode = true'* ]]
   [[ "$output" == *'copilot = false'* ]]
   sed -i.bak 's/aiSelection = "7"/aiSelection = "9"/' "$CONFIG"
-  render_tty PATH=/usr/bin:/bin
+  render_typed
   [[ "$output" == *'opencode = true'* ]]
 
   sed -i.bak 's/aiSelection = "9"/aiSelection = "10"/' "$CONFIG"
-  render_tty PATH=/usr/bin:/bin
+  render_typed
   [ "$status" -eq 0 ]
   [[ "$output" == *'claude_hooks = false'* ]]
   [[ "$output" == *'opencode = false'* ]]
@@ -721,7 +730,7 @@ gated_result() {
   # chezmoi's own promptString fails here (no /dev/tty), so the template must not reach it.
   seed_ai_with_entry
   CTTY_MODE=--stdin-only
-  render_tty PATH=/usr/bin:/bin -- -p "$WT_TITLE=/opt/ignored" -p "$AG_TITLE=/opt/ignored"
+  render_typed -- -p "$WT_TITLE=/opt/ignored" -p "$AG_TITLE=/opt/ignored"
   gated_result
 }
 
@@ -775,7 +784,7 @@ gated_result() {
   sed -i.bak 's/componentSelection = "5"/componentSelection = "all+"/' "$CONFIG"
   set_write 1 'worktrees: /opt/never-used'
   # all+ only reaches the template through the typed menu (a Gum top page would replace it).
-  render_tty PATH=/usr/bin:/bin -- -p "$WT_TITLE=/opt/ignored" -p "$AG_TITLE=/opt/ignored"
+  render_typed -- -p "$WT_TITLE=/opt/ignored" -p "$AG_TITLE=/opt/ignored"
   [ "$status" -eq 0 ]
   no_gum_calls
   [[ "$output" == *'worktreesDir = "/srv/saved-wt"'* ]]

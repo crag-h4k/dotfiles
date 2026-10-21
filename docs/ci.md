@@ -70,12 +70,24 @@ architecture, prek version, and hook configuration. The shared CI summary
 comment includes the combined prek result. The prek and LuaRocks caches include
 the runner architecture, so native artifacts never cross between runners.
 
+The large installer/notifier Bats hook runs four files at a time through
+`scripts/bats-files.sh` when GNU parallel is available. Tests inside each file
+remain serial. CI installs GNU parallel; local runs fall back to serial when it
+is absent. Set `BATS_NUMBER_OF_PARALLEL_JOBS=1` for a serial comparison, or another
+positive count to tune file concurrency. Bats prints per-test timings.
+
 Tests that initialize Git or chezmoi fixtures must clear inherited Git repository
 environment variables. During a worktree commit, `GIT_DIR` points at the calling
 checkout; a nested `chezmoi init` can otherwise reinitialize its shared repository
 as bare. `test_package_run.py` isolates that environment and checks that a calling
 linked worktree's config and index remain unchanged. A standalone prek run does
 not reproduce the commit-hook environment by itself.
+
+Typed directory-prompt tests use an isolated PATH containing only Python and
+the shell, so a system-installed Gum cannot open an interactive picker. Both
+directory answers are simulated, including Enter to keep a default. The PTY
+helper stops hung commands and their process groups after 60 seconds;
+`CTTY_TIMEOUT` overrides that limit for helper regression tests.
 
 ## Trixie deployment
 
@@ -121,8 +133,18 @@ to `opt/openssl@1.1/bin/openssl`. Preparation unlinks the retired keg first.
 If Homebrew leaves that exact symlink behind, the helper rechecks its target
 and removes only the symlink, allowing OpenSSL 3 dependencies to link normally.
 Regular files, other targets, and the retired keg's files remain untouched.
-It does not uninstall packages or use force-overwrite. The helper refuses to
+It does not use force-overwrite. The helper refuses to
 run outside GitHub Actions and also removes the runner's unused, untrusted `aws/tap`.
+
+Preparation also removes the preinstalled Azure CLI formula when present. It is
+outside the selected deployment components, and Homebrew otherwise spends time
+migrating it to a cask during the package metadata refresh.
+
+Homebrew downloads, npm's content cache, and uv's cache are restored before the
+deployment. Cache keys include the runner OS, architecture, installer inputs,
+and run ID; prefix restores reuse older downloads while successful runs save
+new ones. Installed application trees and private configuration are rebuilt by
+the normal package-mode apply.
 
 The build phase copies a clean source tree and verifies the rendered archive.
 The install phase performs a fully headless package-mode apply with Homebrew.

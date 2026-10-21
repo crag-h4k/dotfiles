@@ -265,7 +265,9 @@ whether the tabs are a top bar or a side column: `<leader>h`, `<leader>k`,
 dotfiles releases those bindings. The
 session-workflow CLI plugin uses Shift+Tab to cycle Build → Plan → Auto → Build
 for the current session. Before a session exists, the plugin yields Shift+Tab
-to OpenCode's native agent picker, so the first prompt need not start in Build.
+to OpenCode's native agent cycle, whose `agent.cycle` binding is seeded to
+`shift+tab`, so the first prompt need not start in Build. Custom or disabled
+native bindings survive apply.
 Auto is a primary agent with a red identity pill; Ricer remains available as
 a subagent rather than occupying a slot in this cycle. While a terminal client
 is open, Auto mirrors native `--auto`: it replies once to pending permission asks,

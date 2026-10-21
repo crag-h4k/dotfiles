@@ -86,6 +86,12 @@ CLI, server, plugin SDK, and terminal versions when diagnosing compatibility.
   Before the first prompt creates a session, Shift+Tab falls through to the
   native home-screen agent cycle. Do not create or query a session merely to
   select the initial mode, and return `false` synchronously for that key path.
+  Seed `keybinds.agent.cycle` to `shift+tab` in `cli.json`; preserve explicit
+  local bindings, including disabled values.
+- Seed `experimental.location_idle_timeout: false` in the server config, keeping
+  local durations and other experimental fields/comments. It requires OpenCode
+  2.1.2 (#57476); #57416 protects pending questions, permissions, and background jobs
+  from idle eviction. A client-only change cannot configure a remote server.
 - The agent-catalog CLI plugin reads OpenCode's agent registry for the current
   location. Open it through the command palette as **Browse configured agents**
   or run `/subagents` or `/subagents-catalog`. It is read-only: browsing an agent

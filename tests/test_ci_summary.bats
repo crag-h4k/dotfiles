@@ -105,6 +105,8 @@ STUB
 printf '%s\n' "$*" >>"$BREW_LOG"
 case "$1" in
     --prefix) printf '%s\n' "$TEST_BREW_PREFIX" ;;
+    list) [ "${TEST_AZURE_INSTALLED:-false}" = true ] ;;
+    uninstall) exit "${TEST_UNINSTALL_RESULT:-0}" ;;
     unlink)
         [ "${TEST_UNLINK_RESULT:-0}" -eq 0 ] || exit "$TEST_UNLINK_RESULT"
         case "${TEST_UNLINK_EFFECT:-none}" in
@@ -131,10 +133,23 @@ STUB
     [ "$status" -eq 0 ]
     [ "$(cat "$BREW_LOG")" = "untap aws/tap
 --prefix
+list --formula azure-cli
 unlink openssl@1.1" ]
     [[ "$output" == *'0 symlinks removed'* ]]
     [ ! -L "$TEST_BREW_PREFIX/bin/openssl" ]
     [ "$(cat "$TEST_BREW_PREFIX/opt/openssl@1.1/bin/openssl")" = 'legacy OpenSSL binary' ]
+}
+
+@test "macOS CI removes the unused Azure formula before Homebrew can migrate it" {
+    setup_macos_runner
+    run env PATH="$BATS_TEST_TMPDIR/bin:$PATH" GITHUB_ACTIONS=true TEST_AZURE_INSTALLED=true \
+        "$REPO_ROOT/.github/scripts/prepare-macos-runner.sh"
+    [ "$status" -eq 0 ]
+    [[ "$(cat "$BREW_LOG")" == *'uninstall --formula azure-cli'* ]]
+
+    run env PATH="$BATS_TEST_TMPDIR/bin:$PATH" GITHUB_ACTIONS=true TEST_AZURE_INSTALLED=true TEST_UNINSTALL_RESULT=1 \
+        "$REPO_ROOT/.github/scripts/prepare-macos-runner.sh"
+    [ "$status" -eq 1 ]
 }
 
 @test "macOS CI accepts a successful Homebrew unlink without a leftover link" {

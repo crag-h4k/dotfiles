@@ -294,7 +294,7 @@ AGENTS_WITH_BUILTIN_FIELDS = """\
 
 def test_empty_stdin_seeds_a_complete_generic_file(script):
     out, _ = merge(script, "")
-    assert strict_json_keys(out) == ["$schema", "agents", "mcp", "permissions", "plugins"]
+    assert strict_json_keys(out) == ["$schema", "agents", "experimental", "mcp", "permissions", "plugins"]
     d = parse(out)
     assert d["$schema"] == "https://opencode.ai/config.json"
     assert set(d["agents"]) == {"build", "plan", "ricer"}
@@ -315,6 +315,7 @@ def test_empty_stdin_seeds_a_complete_generic_file(script):
     assert permission_effect(plan_rules, "edit", "/opt/other/project.md") == "ask"
     assert permission_effect(plan_rules, "external_directory", "$HOME/.local/share/agent-skills/handoff/scripts/*") == "allow"
     assert d["plugins"] == MANAGED_PLUGINS
+    assert d["experimental"]["location_idle_timeout"] is False
     # A fresh host must not come up unguarded.
     assert d["permissions"][0] == {
         "action": "*", "resource": "*", "effect": "ask",
@@ -1282,6 +1283,50 @@ def test_git_mutations_ask_and_recursive_rm_stays_denied(script):
     assert first_destructive_rule > last_allow
 
 
+@pytest.mark.parametrize("experimental", [
+    None,
+    '{}',
+    '{"todo": true, "subagent_depth": 2}',
+    '{"todo": true} // Keep this comment too.',
+    '{\n    // Keep the shell scanner.\n    "portable_shell_scanner": true,\n  }',
+])
+def test_idle_timeout_is_seeded_without_replacing_other_experiments(script, experimental):
+    source = '{\n  "model": "example/model"'
+    if experimental is not None:
+        source += ',\n  // Local experiments.\n  "experimental": ' + experimental
+    source += '\n}\n'
+    result, error = merge(script, source)
+    assert not error
+    expected = parse(experimental) if experimental is not None else {}
+    assert parse(result)["experimental"] == {**expected, "location_idle_timeout": False}
+    assert parse(result)["model"] == "example/model"
+    if experimental is not None:
+        assert '// Local experiments.' in result
+        assert experimental[1:experimental.rfind("}")] in result
+        for comment in re.findall(r"//[^\n]*", experimental):
+            assert comment in result
+    assert merge(script, result) == (result, "")
+
+
+@pytest.mark.parametrize("timeout", ['false', '"4 hours"'])
+def test_explicit_idle_timeout_and_comments_survive(script, timeout):
+    block = ('  // Local experiments.\n  "experimental": {\n'
+             '    "todo": true,\n'
+             '    "location_idle_timeout": ' + timeout + ', // Operator choice.\n  }')
+    result, error = merge(script, '{\n' + block + '\n}\n')
+    assert not error
+    assert block in result
+    assert parse(result)["experimental"]["location_idle_timeout"] == json.loads(timeout)
+    assert merge(script, result) == (result, "")
+
+
+def test_invalid_experimental_group_passes_through_with_a_warning(script):
+    source = '{\n  "experimental": []\n}\n'
+    result, error = merge(script, source)
+    assert result == source
+    assert "experimental is not an object" in error
+
+
 def test_seeded_block_matches_the_generic_base(script):
     """A fresh host and an existing host must converge on the same file."""
     base, _ = merge(script, "")
@@ -1326,7 +1371,7 @@ def test_trailing_comma_is_fixed_when_an_owned_key_was_last(script):
         '  "plugin": [\n    "stale@0.0.1"\n  ]\n}\n'
     )
     out, _ = merge(script, src)
-    assert strict_json_keys(out) == ["$schema", "agents", "mcp", "permission", "plugins"]
+    assert strict_json_keys(out) == ["$schema", "agents", "experimental", "mcp", "permission", "plugins"]
 
 
 # --- idempotence ------------------------------------------------------------

@@ -78,6 +78,7 @@ BASELINE = {
         "session.tab.previous": "<leader>h,<leader>left,<leader>k,<leader>up",
         "session.tab.next": "<leader>l,<leader>right,<leader>j,<leader>down",
         "session.list": "<leader>t",
+        "agent.cycle": "shift+tab",
         "session.first": "home,<leader>f",
         "session.sidebar.toggle": "none",
         "pane.focus.left": "none",
@@ -208,6 +209,13 @@ def test_sidequest_frees_only_the_stock_sidebar_binding(script, binding, expecte
     assert merge(script, once) == once
 
 
+@pytest.mark.parametrize("binding", ["alt+a", ["shift+tab", "alt+a"], {"key": "shift+tab", "fallthrough": True}, False, "none"])
+def test_native_agent_cycle_preserves_explicit_bindings(script, binding):
+    once = merge(script, {"keybinds": {"agent.cycle": binding}})
+    assert once["keybinds"]["agent.cycle"] == binding
+    assert merge(script, once) == once
+
+
 def test_unknown_keys_and_groups_survive_in_place(script):
     current = {
         "highlights": False,
@@ -312,6 +320,7 @@ def test_new_defaults_are_seeded_one_leaf_at_a_time(script):
     assert merged["tabs"]["scope"] == "cwd"
     assert merged["session"]["sidebar"] == "auto"
     assert merged["session"]["permissions"] == "prompt"
+    assert merged["keybinds"]["agent.cycle"] == "shift+tab"
     assert list(merged["tabs"])[0] == "layout"
 
 
@@ -622,11 +631,13 @@ def test_chezmoi_updated_managed_default_reaches_an_existing_host(sandbox):
     sandbox.tui_edit(**{"leader.timeout": 900})
     data = json.loads(sandbox.target.read_text())
     del data["diffs"]
+    del data["keybinds"]["agent.cycle"]
     sandbox.target.write_text(json.dumps(data))
     assert sandbox.chezmoi(sandbox.merge_source, "apply").returncode == 0
     data = json.loads(sandbox.target.read_text())
     assert data["leader"]["timeout"] == 1500
     assert data["diffs"] == {"wrap": "word"}
+    assert data["keybinds"]["agent.cycle"] == "shift+tab"
 
 
 def test_chezmoi_migrates_a_previously_plain_managed_file(sandbox):

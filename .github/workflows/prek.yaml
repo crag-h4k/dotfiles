@@ -62,10 +62,10 @@ jobs:
       # zsh is required by test_process.bats (_notify_resolve_bin
       # uses zsh-specific syntax and is tested via `zsh -c`). tmux runs the TPM
       # parser and startup tests against the current checkout above.
-      - name: Install tmux, zsh, and LuaRocks
+      - name: Install tmux, zsh, LuaRocks, and GNU parallel
         run: |
           sudo apt-get update
-          sudo apt-get install -y luarocks tmux zsh
+          sudo apt-get install -y luarocks tmux zsh parallel
 
       - name: Detect Lua version
         id: lua
