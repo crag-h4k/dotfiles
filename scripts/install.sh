@@ -270,53 +270,26 @@ main() {
             package_try "Neovim language and plugin packages" \
                 env DOTFILES_NODE_READY="$node_ready" bash "$SCRIPT_DIR/install-neovim.sh" || true
         }
-        if [[ "$INSTALL_AI_OPENCODE" == true ]]; then
-            if [[ "$node_ready" == true ]]; then
-                local opencode_target
-                opencode_target=$(package_target npm @opencode/cli)
-                package_action_try npm @opencode/cli "OpenCode V2 CLI and matching runtime" \
-                    env OPENCODE2_VERSION="${opencode_target:-${OPENCODE2_VERSION:-latest}}" INSTALL_AI_OPENCODE=true DOTFILES_NODE_READY=true \
-                    bash "$SCRIPT_DIR/install-opencode2.sh" || true
-            else
-                package_skip "OpenCode V2 CLI and matching runtime; Node.js 24+ unavailable"
-            fi
-        fi
-        if [[ "$INSTALL_AI_COPILOT" == true ]]; then
-            if [[ "$node_ready" == true ]]; then
-                local copilot_target
-                copilot_target=$(package_target npm @github/copilot)
-                package_action_try npm @github/copilot "GitHub Copilot CLI" env COPILOT_VERSION="${copilot_target:-${COPILOT_VERSION:-prerelease}}" INSTALL_AI_COPILOT=true DOTFILES_NODE_READY=true bash "$SCRIPT_DIR/install-copilot.sh" || true
-            else
-                package_skip "GitHub Copilot CLI; Node.js 24+ unavailable"
-            fi
-        fi
-        if [[ "$INSTALL_AI_SSH_MCP" == true ]]; then
-            if [[ "$node_ready" == true ]]; then
-                package_action_try npm ssh-mcp "SSH MCP" \
-                    env INSTALL_AI_SSH_MCP=true bash "$SCRIPT_DIR/install-ssh-mcp.sh" || true
-            else
-                package_skip "SSH MCP; Node.js 24+ unavailable"
-            fi
-        fi
-        if [[ "$INSTALL_AI_CAVEMAN" == true ]]; then
-            if [[ "$node_ready" == true ]]; then
-                package_action_try npm @caveman-ai/cli "Caveman CLI and signed runtime" \
-                    env INSTALL_AI_CAVEMAN=true bash "$SCRIPT_DIR/install-caveman.sh" || true
-            else
-                package_skip "Caveman; Node.js 24+ unavailable"
-            fi
-        fi
         if [[ "$os" == debian ]]; then
             package_action_try astral-uv uv "uv runtime availability" install_uv_debian || true
             package_action_try uv-tool prek "prek pinned hook runner" \
                 env PREK_VERSION="${PREK_VERSION:-0.5.4}" bash "$SCRIPT_DIR/install-prek.sh" || true
         fi
-        if [[ "$INSTALL_AI_OPENVIKING" == true ]]; then
-            local openviking_target
-            openviking_target=$(package_target uv-tool openviking)
-            package_action_try uv-tool openviking "OpenViking isolated Python environment" \
-                env OPENVIKING_VERSION="${openviking_target:-${OPENVIKING_VERSION:-0.5.1.1}}" \
-                INSTALL_AI_OPENVIKING=true bash "$SCRIPT_DIR/install-openviking.sh" || true
+        if [[ "$INSTALL_AI_OPENCODE" == true || "$INSTALL_AI_COPILOT" == true || "$INSTALL_AI_OPENVIKING" == true ]]; then
+            local runtime_results runtime_status=0 runtime_ok=0 runtime_failed=0 runtime_skipped=0
+            runtime_results=$(mktemp)
+            env INSTALL_AI_OPENCODE="$INSTALL_AI_OPENCODE" INSTALL_AI_COPILOT="$INSTALL_AI_COPILOT" \
+                INSTALL_AI_OPENVIKING="$INSTALL_AI_OPENVIKING" DOTFILES_NODE_READY="$node_ready" \
+                python3 "$SCRIPT_DIR/install-ai-runtimes.py" "$runtime_results" || runtime_status=$?
+            if ! read -r runtime_ok runtime_failed runtime_skipped <"$runtime_results"; then
+                warn "runtime installation did not return a summary"
+                runtime_ok=0 runtime_failed=1 runtime_skipped=0
+            fi
+            rm -f "$runtime_results"
+            _package_results_ok=$((_package_results_ok + runtime_ok))
+            _package_results_failed=$((_package_results_failed + runtime_failed))
+            _package_results_skipped=$((_package_results_skipped + runtime_skipped))
+            [[ "$runtime_status" -ne 130 ]] || exit 130
         fi
 
         package_plan_resolve_deferred_git || warn "could not resolve deferred Git packages"
@@ -374,5 +347,6 @@ main() {
 }
 
 export INSTALL_ZSH INSTALL_TMUX INSTALL_NEOVIM INSTALL_NOTIFY INSTALL_AI_CODECOMPANION
+export INSTALL_AI_SSH_MCP INSTALL_AI_CAVEMAN
 export INSTALL_AI_STATUSLINE INSTALL_AI_OPENCODE INSTALL_AI_COPILOT INSTALL_AI_OPENVIKING INSTALL_TERMINAL_GHOSTTY INSTALL_TERMINAL_ITERM2
 main "$@"

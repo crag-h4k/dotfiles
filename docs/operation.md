@@ -78,6 +78,17 @@ It covers native packages, npm CLIs, release downloads, language tools, managed
 Git checkouts, and Neovim packages. Source-controlled pins stay pinned; package
 approval also initializes the palette submodule at the source's exact commit.
 
+AI runtime installation uses three concurrent groups after prerequisites are
+ready: isolated OpenCode, shared-prefix npm tools, and OpenViking. Install logs
+prefix each line with the group name. A failed installer is counted while the
+other groups finish; the overall package run still fails. Current and blocked
+plan entries retain their existing skip and failure behavior.
+
+Set `DOTFILES_RUNTIME_JOBS=1` for serial runtime installation, or `2` to limit
+concurrency on a smaller host; the default is `3`. An OpenCode npm prefix that
+resolves to the shared `~/.local` prefix forces serial execution. Interrupting
+the runtime supervisor stops its active groups and their child processes.
+
 Config-only mode skips package work. A headless apply without
 `DOTFILES_ASSUME_YES=1` declines package changes. The direct chezmoi external
 refresh flag can still refresh Git externals before the installer runs; omit it

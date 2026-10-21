@@ -54,6 +54,14 @@ Homebrew and APT use that fresh metadata and batch selected package-manager
 operations. Independent operations report their own failure and the run ends
 with an aggregate result summary.
 
+After native packages, Node verification, and uv bootstrap complete, AI runtimes
+install in up to three independent groups: OpenCode's isolated prefix,
+OpenViking's Python environment, and the shared npm prefix. Copilot, SSH MCP,
+and Caveman remain serial within the shared-prefix group. Each group uses the
+same approved plan and reports its counts back to the top-level summary before
+Git runtime updates begin. Neovim setup finishes before these groups because
+its npm tools also use the shared prefix.
+
 The installer uses a `run_after` hook, so every apply checks the selected set
 when package mode is saved. Update, external refresh, and init/apply all use
 this same path. Config-only mode does not resolve or install packages.

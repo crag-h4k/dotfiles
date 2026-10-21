@@ -315,6 +315,13 @@ repos:
         pass_filenames: false
         files: ^(home/(\.chezmoi\.toml\.tmpl|\.chezmoiexternal\.toml|\.chezmoiscripts/run_after_00-install\.sh\.tmpl|dot_zsh/aliases)|home/dot_config/(nvim/init\.lua|opencode/npm-candidate\.sh)|scripts/(common|confirm-install|install[^/]*|package-resolve)\.sh|scripts/(plan-neovim-packages|neovim-package-lib)\.lua|tests/test_package_run\.py)$
 
+      - id: test-parallel-ai-runtimes
+        name: python (parallel AI runtime installation)
+        entry: python3 -m unittest tests/test_parallel_ai_runtimes.py
+        language: system
+        pass_filenames: false
+        files: ^(scripts/(common\.sh|install[^/]*\.(sh|py))|tests/test_parallel_ai_runtimes\.py)$
+
       - id: pytest-notify
         name: pytest notify (modify_settings.json.tmpl)
         entry: uv run --with pytest pytest tests/test_merge_settings.py -v
