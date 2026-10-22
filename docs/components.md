@@ -283,6 +283,13 @@ default ordering; automatic priority sorting is being developed separately.
 without a Home key. `Ctrl+G`, OpenCode's default for that action, is no longer
 bound.
 
+In the main prompt, Enter inserts a newline and Cmd+Enter submits. Both
+bindings are seeded in `cli.json`, and the macOS Ghostty config unbinds its own
+Cmd+Enter fullscreen toggle so the chord reaches OpenCode (inside tmux it
+arrives as Alt+Enter, which also submits). See
+[OpenCode prompt submit keys](operation.md#opencode-prompt-submit-keys) for how
+the chord travels, the autocomplete gotcha, and how to opt out.
+
 ### OpenViking
 
 `ai > openviking` installs an isolated Python memory-service runtime, native
@@ -598,6 +605,10 @@ Nerd Font Mono provides the prompt and tmux glyphs.
 A top-aligned, 40% quick terminal toggles with Command+backtick on macOS or
 Control+backtick on Linux. macOS needs Accessibility permission. Linux needs a
 desktop that implements the XDG GlobalShortcuts portal.
+
+On macOS the config also unbinds Cmd+Enter, Ghostty's default fullscreen toggle,
+so OpenCode can use it to submit a prompt. Fullscreen stays on Cmd+Ctrl+F. See
+[OpenCode prompt submit keys](operation.md#opencode-prompt-submit-keys).
 
 On macOS, Ghostty can also read
 `~/Library/Application Support/com.mitchellh.ghostty/config`. These dotfiles

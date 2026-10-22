@@ -78,6 +78,35 @@ SOURCE_ROOT="$REPO_ROOT/home"
   [ "$output" = shift+tab ]
 }
 
+@test "Ghostty frees Cmd+Enter for OpenCode submit on macOS only" {
+  local config="${BATS_TEST_TMPDIR}/chezmoi.toml" xdg="${BATS_TEST_TMPDIR}/xdg"
+  local template="$SOURCE_ROOT/dot_config/ghostty/config.tmpl"
+  printf '[data]\n' > "$config"
+  mkdir -p "$xdg/ghostty/themes" "${BATS_TEST_TMPDIR}/home"
+  chezmoi execute-template --source "$REPO_ROOT" --config "$config" \
+    < "$SOURCE_ROOT/dot_config/ghostty/themes/dotfiles.conf.tmpl" > "$xdg/ghostty/themes/dotfiles.conf"
+
+  run chezmoi execute-template --source "$REPO_ROOT" --config "$config" \
+    --override-data '{"chezmoi":{"os":"darwin"}}' < "$template"
+  [ "$status" -eq 0 ]
+  [[ "$output" == *$'\nkeybind = cmd+enter=unbind\n'* ]]
+  printf '%s\n' "$output" > "$xdg/ghostty/config"
+
+  # The key name is easy to get wrong (cmd+return is rejected), so let Ghostty
+  # judge the rendered copy where it is installed. A throwaway HOME and XDG dir
+  # keep the live config out of the check.
+  if command -v ghostty >/dev/null 2>&1; then
+    run env XDG_CONFIG_HOME="$xdg" HOME="${BATS_TEST_TMPDIR}/home" \
+      ghostty +validate-config --config-file="$xdg/ghostty/config"
+    [ "$status" -eq 0 ]
+  fi
+
+  run chezmoi execute-template --source "$REPO_ROOT" --config "$config" \
+    --override-data '{"chezmoi":{"os":"linux"}}' < "$template"
+  [ "$status" -eq 0 ]
+  [[ "$output" != *'cmd+enter'* ]]
+}
+
 @test "Trixie bootstraps Python before selected configuration merges run" {
   run python3 - "$REPO_ROOT/tests/trixie-deployment/Dockerfile.trixie" <<'PY'
 import pathlib

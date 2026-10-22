@@ -112,6 +112,11 @@ keybind = global:cmd+grave_accent=toggle_quick_terminal
 keybind = cmd+shift+enter=toggle_split_zoom
 # Even out split sizes.
 keybind = cmd+shift+e=equalize_splits
+# Ghostty's default Cmd+Enter is toggle_fullscreen, which eats the chord before
+# any program sees it. Unbinding it lets Cmd+Enter reach the terminal, where
+# OpenCode V2 reads it as "submit prompt" (cli.json input.submit). Fullscreen
+# stays on Cmd+Ctrl+F. Every program in Ghostty now receives Cmd+Enter.
+keybind = cmd+enter=unbind
 {{ else -}}
 # super is usually grabbed by the Linux WM, so use ctrl for the global toggle;
 # adjust to your desktop's global-shortcut UI if it collides.

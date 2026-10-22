@@ -142,6 +142,16 @@ SETTINGS = (
     (("animations",), True, SEEDED),
     (("diffs", "wrap"), "word", SEEDED),
     (("terminal", "title"), True, SEEDED),
+    # ---- Prompt submit keys: Enter inserts a newline, Cmd+Enter submits ----------
+    # SEEDED per leaf, so a binding set in the TUI or by hand is never replaced.
+    # These ids bind to any focused textarea, which is the main prompt composer.
+    # The question form, dialog prompts, the command palette and the autocomplete
+    # popup hard-code Enter, so they keep acting on it. Alt+Enter is listed as a
+    # submit chord on purpose: tmux without extended-keys delivers Cmd+Enter as
+    # Alt+Enter. It must stay out of input.newline, where it sits by default.
+    # Ghostty must also release Cmd+Enter; see ghostty/config.tmpl.
+    (("keybinds", "input.submit"), "super+return,alt+return", SEEDED),
+    (("keybinds", "input.newline"), "return,shift+return,ctrl+return,ctrl+j", SEEDED),
 )
 SEED_UNLESS = {("tabs", "mode"): (("tabs", "enabled"),)}
 

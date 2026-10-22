@@ -89,6 +89,14 @@ CLI, server, plugin SDK, and terminal versions when diagnosing compatibility.
   select the initial mode, and return `false` synchronously for that key path.
   Seed `keybinds.agent.cycle` to `shift+tab` in `cli.json`; preserve explicit
   local bindings, including disabled values.
+- The prompt submit keys are a pair. `cli.json` seeds `keybinds.input.submit` to
+  `super+return,alt+return` and `keybinds.input.newline` to
+  `return,shift+return,ctrl+return,ctrl+j`; the macOS Ghostty arm unbinds
+  `cmd+enter`. Keep `alt+return` in submit and out of newline, because tmux
+  without extended keys delivers Cmd+Enter as Alt+Enter. The ids bind to any
+  focused textarea, while forms, dialogs, and the autocomplete popup hard-code
+  Enter. Recheck the ids and chords against the installed OpenCode before changing
+  them, and keep the Ghostty half and its render test in step.
 - Seed `experimental.location_idle_timeout: false` in the server config, keeping
   local durations and other experimental fields/comments. It requires OpenCode
   2.1.2 (#57476); #57416 protects pending questions, permissions, and background jobs

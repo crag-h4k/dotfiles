@@ -103,6 +103,15 @@ BASELINE = {
     "terminal": {"title": True},
 }
 
+# ---- Prompt submit keys: Enter inserts a newline, Cmd+Enter submits ------------
+# Seeded only; see the matching block in modify_private_cli.json.tmpl. Kept apart
+# from BASELINE so it merges cleanly with other keybind work.
+PROMPT_KEYS = {
+    "input.submit": "super+return,alt+return",
+    "input.newline": "return,shift+return,ctrl+return,ctrl+j",
+}
+BASELINE["keybinds"].update(PROMPT_KEYS)
+
 
 def render(directory: Path, data: str = "") -> Path:
     """Render the modify_ template the way chezmoi will, return the script path."""
@@ -664,3 +673,76 @@ def test_chezmoi_leaves_the_local_override_untouched_and_unmerged(sandbox):
     data = json.loads(sandbox.target.read_text())
     assert data["session"]["sidebar"] == "hide"
     assert data["plugins"] == MANAGED_PLUGINS
+
+
+# ---- Prompt submit keys: Enter inserts a newline, Cmd+Enter submits ------------
+# input.submit and input.newline bind to any focused textarea; forms, dialogs and
+# the autocomplete popup keep acting on Enter. Both are SEEDED, never owned.
+def chords(value):
+    return set(value.split(","))
+
+
+def test_enter_makes_a_newline_and_cmd_or_alt_enter_submits(script):
+    keys = merge(script, {})["keybinds"]
+    submit, newline = chords(keys["input.submit"]), chords(keys["input.newline"])
+    assert {"super+return", "alt+return"} <= submit, "Cmd+Enter, and Alt+Enter as tmux delivers it"
+    assert "return" in newline and "return" not in submit
+    assert {"shift+return", "ctrl+return", "ctrl+j"} <= newline, "the native newline chords stay"
+    # A chord on both actions is ambiguous, and Alt+Enter is a newline by default.
+    assert submit.isdisjoint(newline)
+
+
+@pytest.mark.parametrize("action", sorted(PROMPT_KEYS))
+@pytest.mark.parametrize("binding", [
+    "ctrl+s",
+    "return",
+    ["ctrl+s", "alt+return"],
+    {"key": "ctrl+s", "fallthrough": True},
+    "none",
+    False,
+    None,
+])
+def test_prompt_keys_a_user_set_are_never_replaced(script, action, binding):
+    once = merge(script, {"keybinds": {action: binding}})
+    assert once["keybinds"][action] == binding
+    assert merge(script, once) == once
+
+
+def test_prompt_keys_are_seeded_one_at_a_time(script):
+    only_submit = merge(script, {"keybinds": {"input.submit": "ctrl+s"}})["keybinds"]
+    assert only_submit["input.submit"] == "ctrl+s"
+    assert only_submit["input.newline"] == PROMPT_KEYS["input.newline"]
+    only_newline = merge(script, {"keybinds": {"input.newline": "ctrl+j"}})["keybinds"]
+    assert only_newline["input.newline"] == "ctrl+j"
+    assert only_newline["input.submit"] == PROMPT_KEYS["input.submit"]
+
+
+def test_prompt_keys_leave_unrelated_keybinds_alone(script):
+    mine = {
+        "prompt.submit": "ctrl+enter",
+        "prompt.clear": "ctrl+u",
+        "input.move.left": "left",
+        "dialog.select.submit": "return",
+        "prompt.autocomplete.select": "tab",
+        "session.new": "alt+n",
+    }
+    keys = merge(script, {"keybinds": dict(mine)})["keybinds"]
+    for action, binding in mine.items():
+        assert keys[action] == binding, action
+    assert "prompt.submit" not in merge(script, {})["keybinds"], "no native default to seed"
+    for action in ("leader", "session.list", "agent.cycle"):
+        assert keys[action] == BASELINE["keybinds"][action], action
+
+
+def test_chezmoi_prompt_keys_reach_an_existing_host_and_a_user_choice_stays(sandbox):
+    assert sandbox.chezmoi(sandbox.merge_source, "apply").returncode == 0
+    data = json.loads(sandbox.target.read_text())
+    del data["keybinds"]["input.submit"]
+    data["keybinds"]["input.newline"] = "ctrl+j"
+    sandbox.target.write_text(json.dumps(data))
+    result = sandbox.chezmoi(sandbox.merge_source, "apply")
+    assert result.returncode == 0, result.stderr
+    keys = json.loads(sandbox.target.read_text())["keybinds"]
+    assert keys["input.submit"] == PROMPT_KEYS["input.submit"]
+    assert keys["input.newline"] == "ctrl+j"
+    assert sandbox.chezmoi(sandbox.merge_source, "diff").stdout == ""
