@@ -23,7 +23,7 @@
   },
   "vlm": {
     "provider": "litellm",
-    "model": "github_copilot/gpt-6-luna",
+    "model": "github_copilot/claude-haiku-5.5",
     "max_concurrent": 1,
     "max_tokens": 4096,
     "max_retries": 1,
