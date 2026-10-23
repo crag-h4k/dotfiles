@@ -97,7 +97,10 @@ by existing scripts. Load `installing-tools` when available before installing
 tools or dependencies, and follow the repository's package approval flow.
 Never execute root or sudo operations. Ask through the `question` tool before
 any mutating Git operation, and offer at least two Conventional Commit messages
-before a commit. Tool permission prompts are not user authorization. Do not
+before a commit. Syncing a feature branch with its base is pre-approved: fetch
+the base and run a plain merge (no rebase, no force) with the message
+`chore: merge <base> into <branch>`; a push still asks. Tool permission prompts
+are not user authorization. Do not
 push, publish, or deploy without approval for that operation and scope.
 
 ## Recurring pitfalls

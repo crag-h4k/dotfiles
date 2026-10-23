@@ -250,6 +250,9 @@ Read-only Git commands are allowed; mutating Git operations, including worktree
 changes, ask. The managed global OpenCode instructions also require an explicit
 `question` decision before Git mutations. Before a commit they require at least
 two Release Please Conventional Commit message candidates and a user selection.
+Syncing a feature branch with its base is the one pre-approved exception: a
+fetch and a plain merge with the message `chore: merge <base> into <branch>`
+need no question, and a push of the result still does.
 Credential files and recursive removal commands remain denied.
 
 `cli.json` enables session tabs and keeps OpenCode's default `Ctrl+X` as a
