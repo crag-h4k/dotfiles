@@ -316,6 +316,7 @@ class SkillDeploymentTests(unittest.TestCase):
         self.assertIn("Keep my custom rule.", first)
         self.assertIn("`question` tool", first)
         self.assertIn("Before any mutating Git operation", first)
+        self.assertIn("chore: merge <base> into <branch>", first)
         self.assertIn("at least two candidate commit messages", first)
         self.assertIn("Release Please Conventional Commit", first)
         search_start = "<!-- dotfiles:shell-search:start -->"
@@ -329,6 +330,9 @@ class SkillDeploymentTests(unittest.TestCase):
             "Before any mutating Git operation (including add, commit, push, rm, reset,\n"
             "clean, checkout, restore, and worktree changes), use `question` to get my\n"
             "explicit authorization for that operation. Read-only Git operations are fine.\n"
+            "Fetching a base branch and merging it into the current feature branch (no\n"
+            "rebase, no force, message `chore: merge <base> into <branch>`) is pre-approved;\n"
+            "a push still needs approval.\n"
             "Before a commit, present at least two candidate commit messages that follow\n"
             "this repo's Release Please Conventional Commit conventions, then ask me to\n"
             "choose one with `question`. Permission prompts do not replace this decision.\n",

@@ -11,6 +11,9 @@ When asking me how to proceed or how to evaluate options, use OpenCode's
 Before any mutating Git operation (including add, commit, push, rm, reset,
 clean, checkout, restore, and worktree changes), use `question` to get my
 explicit authorization for that operation. Read-only Git operations are fine.
+Fetching a base branch and merging it into the current feature branch (no
+rebase, no force, message `chore: merge <base> into <branch>`) is pre-approved;
+a push still needs approval.
 Before a commit, present at least two candidate commit messages that follow
 this repo's Release Please Conventional Commit conventions, then ask me to
 choose one with `question`. Permission prompts do not replace this decision."""
