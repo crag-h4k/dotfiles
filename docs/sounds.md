@@ -7,6 +7,7 @@
 - [Auditioning](#auditioning)
 - [Candidate sounds (2026-09-14)](#candidate-sounds-2026-09-14)
 - [Original sounds](#original-sounds)
+- [Silence](#silence)
 - [Constraints](#constraints)
 - [Adding a sound](#adding-a-sound)
 
@@ -121,6 +122,24 @@ now. Three options, in order of preference:
 
 The remaining eight are unattributed rather than known-proprietary. They should
 either get provenance or get replaced.
+
+## Silence
+
+`silence.mp3` is not a sound anyone hears. OpenCode's own attention sound, which
+the `opencode2` wrapper enables outside tmux, takes a file path per event, and a
+missing or empty path falls back to a sound bundled with OpenCode. A group with an
+empty `sound:` is silent in tmux, so the wrapper points its events at this 0.2 s
+file instead. See [Notifications](notifications.md#outside-tmux).
+
+It is generated, not sourced, so it has no origin or licence to record. It is
+exempt from the loudness and distinctness rules below, and it must stay in the
+directory. It meets the format rules: MP3, mono, 44.1 kHz, 128 kbps. To rebuild it:
+
+```sh
+ffmpeg -f lavfi -i anullsrc=r=44100:cl=mono -t 0.2 -ar 44100 -ac 1 \
+  -codec:a libmp3lame -b:a 128k -write_xing 1 -id3v2_version 0 -write_id3v1 0 \
+  home/dot_config/notify/sounds/silence.mp3
+```
 
 ## Constraints
 

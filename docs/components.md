@@ -10,6 +10,7 @@
   - [Shared agent skills](#shared-agent-skills)
   - [OpenViking](#openviking)
   - [OpenCode Sidequest](#opencode-sidequest)
+  - [OpenCode attention tabs](#opencode-attention-tabs)
   - [OpenCode V2 footer](#opencode-v2-footer)
   - [Terminal (Ghostty, iTerm2)](#terminal-ghostty-iterm2)
     - [Ghostty](#ghostty)
@@ -338,6 +339,71 @@ Sidequest pill has no data adapter yet and stays disabled by default. See the
 Sidequest README for the unresolved step-message navigation and focus-return
 issues. Both npm packages must exist before deploying this integration.
 
+### OpenCode attention tabs
+
+Selecting `ai > opencode` includes `v2-plugins/attention-tabs`, a small local CLI
+plugin that makes tabs aware of what needs you. One OpenCode process hosts every
+session tab, so the plugin reads the tab list and each tab's whole session
+family, including subagents. It works without tmux. Only the pane tint needs
+tmux and the notifier.
+
+| Class | Rank | Source |
+| --- | --- | --- |
+| Permission or error | 4 | A pending permission in the tab or its subagents, or an `error` unread marker |
+| Question | 3 | A pending question form |
+| Completion | 2 | An `activity` unread marker |
+| Busy or idle | 0 | Never moves a tab |
+
+Furthest right is most urgent. Within a rank, the longest-waiting tab sits
+furthest right, so a tab that just changed lands on the left edge of its class.
+The wait is dated from the waiting session's own update time, so every TUI
+computes the same order from the same server state. Rank 0 tabs keep the order
+you gave them.
+
+| Surface | Behavior |
+| --- | --- |
+| Sorting | Off by default (`sort`). Moves only the tabs whose class changed, after a 300 ms trailing debounce. It never re-sorts the whole bar and pauses while a leader chord is pending |
+| Toast | A permission or question in another tab raises a toast. OpenCode adds its clickable Open action when that tab's root differs from the one on screen |
+| Banner | A clickable line above the prompt names the class and tab of the top-ranked other tab. Clicking it focuses that tab |
+| Jump | `attention.jump` (default `<leader>z`, `/attention-jump`, command palette) focuses the most urgent other tab. Repeat to step through the rest in rank order |
+| Pause | `attention.sort.pause` (`/attention-sort`, command palette) toggles sorting so you can drag a tab by hand |
+| tmux tint | Asks the notifier to tint the pane: `tint own <group>` for the tab in view, `tint elsewhere <group>` for another tab, `tint clear` for none. Applied on a change of state only, so a keypress that clears an own tint is not undone. See [notifications](notifications.md) |
+
+A tab that is active in any live TUI is never moved. Each TUI writes its active
+tab and a heartbeat to the plugin's shared storage, and every sorter skips the
+tabs in the union of the live entries. An entry stops counting once it is older
+than `activeTtlMs`, so a crashed TUI releases its tab.
+
+Set the options on the `./v2-plugins/attention-tabs` entry in `cli.json`:
+
+| Option | Default | Meaning |
+| --- | --- | --- |
+| `sort` | `false` | Reorder tabs by urgency. Seeded off |
+| `jumpKey` | `<leader>z` | Chord for `attention.jump`. `false` or `"none"` leaves it unbound. Seeded |
+| `toast` | `true` | Toast for another tab's permission or question |
+| `banner` | `true` | Banner above the prompt |
+| `tmuxSink` | `true` | Tint the tmux pane through the notifier |
+| `notifierCommand` | `~/.config/notify/opencode-events.sh` | The command the tint calls |
+| `debounceMs` | `300` | Trailing debounce before a sort |
+| `activeTtlMs` | `15000` | How long another TUI's active tab stays pinned without a heartbeat |
+| `debugLog` | none | A file path; appends one JSON line per decision for diagnosis |
+
+The tint runs only when `tmuxSink` is true, `$TMUX` and `$TMUX_PANE` are set, and
+`notifierCommand` exists and is executable. Otherwise it does nothing and the rest
+keeps working. The command is started detached with its output ignored and is never
+awaited.
+
+Sorting ships off. An earlier sorter was disabled over a focus problem on macOS
+that no headless test reproduces, and this version has not been checked on that
+machine. In an isolated tmux session with a stand-in tab, moving a tab left focus
+with the same session. Turn `sort` on after you have watched a move on your own
+terminal. A click on the banner and the pane tint were confirmed with synthetic
+mouse events in isolated tmux; the real Ghostty click is a manual check.
+
+The older `plugins/priority-tabs` experiment is gone. Its viewed-time tiebreak
+reordered every tab you visited and is the likely cause of its focus bug, so
+nothing replaced it.
+
 ### OpenCode V2 footer
 
 The footer comes from the
@@ -385,7 +451,7 @@ On existing hosts, `home/.chezmoiremove` deletes the old local footer
 (`v2-plugins/statusline`) and its `plugin/` quota helpers, and the `cli.json`
 merge drops their registrations.
 
-The local CLI plugins (the agent catalog and `/demo`) import `@opencode/plugin`,
+The local CLI plugins (the agent catalog, attention tabs, and `/demo`) import `@opencode/plugin`,
 OpenTUI, and Solid. `sync-runtime.sh` installs versions matching the CLI into
 `~/.config/opencode/node_modules`. Package mode runs it, and the `opencode2`
 wrapper reruns it at launch, where it exits early once the versions match.

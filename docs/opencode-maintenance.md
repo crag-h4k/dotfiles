@@ -97,6 +97,19 @@ CLI, server, plugin SDK, and terminal versions when diagnosing compatibility.
   focused textarea, while forms, dialogs, and the autocomplete popup hard-code
   Enter. Recheck the ids and chords against the installed OpenCode before changing
   them, and keep the Ghostty half and its render test in step.
+- The attention-tabs CLI plugin (`v2-plugins/attention-tabs`) owns tab order, the
+  jump command, the toast and banner, and the optional tmux tint. Keep the ranking
+  in `rank.mjs` (pure, no host imports) and everything that needs a fake context in
+  `controller.mjs`, so `tests/test_opencode_attention_*.mjs` run without OpenCode.
+  Setup runs more than once, so cleanup must remove every listener, timer, and
+  stored entry. Start the notifier detached and never await it. `ui.tabs.move`
+  applies in call order but a read in the same tick still shows the old order, and
+  focus follows the session, not the index. Plan indexes with remove-then-insert
+  semantics, never move a tab that any live TUI has active, and keep sorting
+  seeded off until the macOS focus behavior is checked by hand. Plugin storage syncs
+  across TUI processes; keep the shared active set small and TTL-bound. Do not
+  bring back `plugins/priority-tabs`: its viewed-time tiebreak reordered every
+  visited tab.
 - Seed `experimental.location_idle_timeout: false` in the server config, keeping
   local durations and other experimental fields/comments. It requires OpenCode
   2.1.2 (#57476); #57416 protects pending questions, permissions, and background jobs

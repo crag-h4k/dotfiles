@@ -551,13 +551,23 @@ collided with the session list on `<leader>t`, so those are released. A host
 still on the old `Ctrl+G` leader moves to `Ctrl+X` on the next apply. The
 `plugins` array turns off the stock footer
 and configures the Pillbox and Sidequest terminal halves, the agent catalog,
-and `/demo`.
+attention tabs, and `/demo`.
 
 Sidequest's `options.focusKey` is seeded to `<leader>p`, so `Ctrl+X`, then `P`
 focuses its panel without taking over the leader. Change it in the Sidequest
 entry's `options`; OC2's `keybinds` object does not accept plugin command IDs.
 Keep the same Sidequest package reference in `opencode.jsonc` and
 `cli.json` so OpenCode loads one terminal instance with the terminal options.
+
+The attention-tabs entry is a local path in the object form,
+`{"package": "./v2-plugins/attention-tabs", "options": {...}}`, and the merge
+matches it by that path. Only two options are seeded: `sort` (`false`) and
+`jumpKey` (`<leader>z`). The rest keep the plugin's own defaults, so a later
+default reaches every host instead of being frozen by an earlier apply. To turn
+tab sorting on, set `"sort": true` in that entry; later applies keep it. To turn
+the plugin off, append `-dotfiles.attention-tabs` to `plugins`. The
+[attention tabs section](components.md#opencode-attention-tabs) lists every
+option.
 
 `keybinds.agent.cycle` is seeded to `shift+tab` for the opening prompt. The
 session-workflow plugin yields to that native binding before a session exists,
@@ -584,7 +594,7 @@ for example `-dotfiles.agent-catalog`.
 | Override | Effect |
 | --- | --- |
 | `{"attention":{"notifications":true}}` | Turns native banners on for that host, even though chezmoi keeps `cli.json` at `false` |
-| `{"plugins":["./v2-plugins/local/x"]}` | Replaces the whole array, removing the managed footer/Sidequest options, agent catalog, and `/demo` declarations unless the override restates them; server-registered TUI plugins may still load with their defaults |
+| `{"plugins":["./v2-plugins/local/x"]}` | Replaces the whole array, removing the managed footer/Sidequest options, agent catalog, attention tabs, and `/demo` declarations unless the override restates them; server-registered TUI plugins may still load with their defaults |
 
 If `cli.json` is not a JSON object, the merge leaves it unchanged and prints a
 warning, so a hand edit is never destroyed.

@@ -53,6 +53,10 @@
 # README and schema.json.
 # Sidequest uses the same server/TUI package pin. Its focusKey option is a leader
 # chord that no native binding uses; it is seeded without replacing local choices.
+# ./v2-plugins/attention-tabs is a local plugin in the object form, matched by its
+# path like any local entry. Its options are SEEDED per leaf: sort (off) and
+# jumpKey. The other options (toast, banner, tmuxSink, notifierCommand, debounceMs,
+# activeTtlMs) keep their in-plugin defaults so a later default reaches every host.
 #
 # ~/.config/opencode/cli.override.json is separate and wins at runtime: the
 # opencode2 wrapper exports it as OPENCODE_CLI_CONFIG_CONTENT. Nested objects
@@ -89,12 +93,17 @@ PILLBOX_OPTIONS = {
     },
 }
 
+# attention-tabs ships with sorting off until the old Mac focus bug is checked by
+# hand; both options are seeded per leaf, so a host that turns sorting on keeps it.
+ATTENTION_TABS_OPTIONS = {"sort": False, "jumpKey": "<leader>z"}
+
 MANAGED_PLUGINS = (
     "-opencode.prompt.footer",
     "./v2-plugins/agent-catalog",
     "./v2-plugins/demo",
     {"package": "opencode-pillbox-statusline@latest", "options": PILLBOX_OPTIONS},
     {"package": "opencode-sidequest@latest", "options": {"focusKey": "<leader>p"}},
+    {"package": "./v2-plugins/attention-tabs", "options": ATTENTION_TABS_OPTIONS},
 )
 # The local footer and the stock TUI half it replaced. A stale local path
 # fails to load, so the merge removes these instead of leaving them behind.
