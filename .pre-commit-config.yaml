@@ -164,6 +164,13 @@ repos:
         pass_filenames: false
         files: ^(home/dot_local/(bin/executable_openvikingctl|share/dotfiles/openviking/readonly_history_import\.py)|tests/test_openviking_import\.py)$
 
+      - id: test-openviking-memory-sources
+        name: python (OpenViking file-memory import and OpenCode 2 export)
+        entry: python3 -m unittest tests/test_openviking_memory_sources.py
+        language: system
+        pass_filenames: false
+        files: ^(home/dot_local/(bin/executable_openvikingctl|share/dotfiles/openviking/readonly_memory_sources\.py)|tests/test_openviking_memory_sources\.py)$
+
       - id: test-openviking-permissions
         name: node test (OpenViking permissions across agent modes)
         entry: node --test tests/test_openviking_permissions.mjs

@@ -123,13 +123,14 @@ def main():
     # OpenViking internals the importer subclasses fails the deployment gate.
     repo = Path(__file__).resolve().parents[1]
     imports = subprocess.run(
-        [str(root / "current/bin/python"), "-m", "unittest", "tests/test_openviking_import.py"],
+        [str(root / "current/bin/python"), "-m", "unittest",
+         "tests/test_openviking_import.py", "tests/test_openviking_memory_sources.py"],
         cwd=repo, env=dict(os.environ, PYTHONPATH=""), check=False,
         capture_output=True, text=True, timeout=600,
     )
     if imports.returncode:
-        raise ValueError("history import tests failed against the installed runtime:\n" + imports.stderr[-2000:])
-    print("OpenViking history import tests passed against the installed runtime")
+        raise ValueError("import tests failed against the installed runtime:\n" + imports.stderr[-2000:])
+    print("OpenViking history, memory, and OpenCode 2 import tests passed against the installed runtime")
 
 
 if __name__ == "__main__":

@@ -96,6 +96,8 @@ class LayoutRejectionTests(unittest.TestCase):
         (canonical / "ov-experience-memory/readonly_SKILL.md").touch()
         (canonical / "openviking-cleanup").mkdir()
         (canonical / "openviking-cleanup/readonly_SKILL.md").touch()
+        (canonical / "openviking-import").mkdir()
+        (canonical / "openviking-import/readonly_SKILL.md").touch()
         for skill_id in VALIDATOR.CAVEMAN_SKILL_IDS:
             private_dir = canonical / f"private_{skill_id}"
             private_dir.mkdir()
