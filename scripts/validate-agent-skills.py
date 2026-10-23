@@ -18,7 +18,7 @@ GIT_SKILL_IDS = ("git-publish", "pr-watch", "git-worktree")
 CORE_SKILL_IDS = (
     "chezmoi-dotfiles", "handoff", "humanizer", "unslop-code", "unslop-text", "unslop-ui"
 ) + GIT_SKILL_IDS
-OPENVIKING_SKILL_IDS = ("openviking-memory", "openviking-skills", "ov-experience-memory", "openviking-cleanup")
+OPENVIKING_SKILL_IDS = ("openviking-memory", "openviking-skills", "ov-experience-memory", "openviking-cleanup", "openviking-import")
 CAVEMAN_SKILL_IDS = ("caveman", "caveman-review")
 SKILL_IDS = CORE_SKILL_IDS + OPENVIKING_SKILL_IDS + CAVEMAN_SKILL_IDS
 GUIDANCE_FILES = (
@@ -67,6 +67,7 @@ PUBLIC_TEXT_FILES = (
     "home/dot_local/share/agent-skills/humanizer/agents/readonly_openai.yaml",
     "home/dot_local/share/agent-skills/ov-experience-memory/readonly_SKILL.md",
     "home/dot_local/share/agent-skills/openviking-cleanup/readonly_SKILL.md",
+    "home/dot_local/share/agent-skills/openviking-import/readonly_SKILL.md",
     "home/dot_config/opencode/commands/handoff.md",
     "home/dot_config/opencode/commands/dotfiles.md",
     "home/dot_config/opencode/commands/humanize.md",
@@ -501,6 +502,7 @@ def validate_layout(root: Path) -> list[str]:
         canonical_root / "humanizer/agents/readonly_openai.yaml",
         canonical_root / "ov-experience-memory/readonly_SKILL.md",
         canonical_root / "openviking-cleanup/readonly_SKILL.md",
+        canonical_root / "openviking-import/readonly_SKILL.md",
         canonical_root / "private_caveman/.keep",
         canonical_root / "private_caveman-review/.keep",
         *(canonical_root / "chezmoi-dotfiles" / path for path in DOTFILES_SKILL_FILES),
