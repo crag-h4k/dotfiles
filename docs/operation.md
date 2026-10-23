@@ -709,8 +709,9 @@ Checked by hand on 2026-10-23, Ghostty 1.3.1 with `macos-option-as-alt` unset on
 U.S. layout, with the left and the right Option key. Option+Enter arrives as
 `^[[13;3u` in a bare window with the protocol on, and as `^[^M` in a bare window
 with it off and inside tmux. Inside tmux, Shift+Enter and Ctrl+Enter arrive as plain
-Enter, which is why they stay newline chords. Not yet verified: Enter in the
-permission prompt, and a send from a live OpenCode session.
+Enter, which is why they stay newline chords. A live OpenCode session confirmed
+that Enter inserts a newline and Option+Enter sends. Not yet verified: Enter in the
+permission prompt.
 
 ### OpenCode idle locations
 
