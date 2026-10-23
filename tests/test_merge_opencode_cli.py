@@ -53,6 +53,8 @@ PILLBOX = {
 
 SIDEQUEST = {"package": SIDEQUEST_PIN, "options": {"focusKey": "<leader>p"}}
 
+ATTENTION_PATH = "./v2-plugins/attention-tabs"
+ATTENTION = {"package": ATTENTION_PATH, "options": {"sort": False, "jumpKey": "<leader>z"}}
 # The voice plugin is built from source into ~/.config/opencode/v2-plugins/talk, so it
 # is a local path. Its id is opencode-talk, which is also its npm name.
 TALK_PATH = "./v2-plugins/talk"
@@ -69,6 +71,7 @@ MANAGED_PLUGINS = [
     "./v2-plugins/demo",
     PILLBOX,
     SIDEQUEST,
+    ATTENTION,
 ]
 
 # What the previous dotfiles release wrote for a fresh host.
@@ -112,6 +115,15 @@ BASELINE = {
     "diffs": {"wrap": "word"},
     "terminal": {"title": True},
 }
+
+# ---- Prompt submit keys: Enter inserts a newline, Option+Enter submits ---------
+# Seeded only; see the matching block in modify_private_cli.json.tmpl. Kept apart
+# from BASELINE so it merges cleanly with other keybind work.
+PROMPT_KEYS = {
+    "input.submit": "super+return,alt+return",
+    "input.newline": "return,shift+return,ctrl+return,ctrl+j",
+}
+BASELINE["keybinds"].update(PROMPT_KEYS)
 
 
 def render(directory: Path, data: str = "", os_name: str | None = None) -> Path:
@@ -400,6 +412,7 @@ def test_plugin_directives_and_local_entries_are_preserved_in_order(script):
         "./v2-plugins/agent-catalog",
         PILLBOX,
         SIDEQUEST,
+        ATTENTION,
     ]
     assert plugins[3] is not local and plugins[3] == local
 
@@ -413,6 +426,7 @@ def test_removed_managed_plugin_is_added_back_at_the_end(script):
         "./v2-plugins/agent-catalog",
         PILLBOX,
         SIDEQUEST,
+        ATTENTION,
     ]
 
 
@@ -420,7 +434,7 @@ def test_object_form_managed_plugin_counts_as_present_and_keeps_options(script):
     entry = {"package": "./v2-plugins/agent-catalog", "options": {"compact": True}}
     plugins = merge(script, {"plugins": [entry]})["plugins"]
     assert plugins.count(entry) == 1
-    assert plugins == [entry, "-opencode.prompt.footer", "./v2-plugins/demo", PILLBOX, SIDEQUEST]
+    assert plugins == [entry, "-opencode.prompt.footer", "./v2-plugins/demo", PILLBOX, SIDEQUEST, ATTENTION]
 
 
 def test_plugins_are_not_duplicated_on_reapply(script):
@@ -446,6 +460,7 @@ def test_retired_footer_entries_are_stripped_from_an_existing_host(script):
         "./v2-plugins/demo",
         PILLBOX,
         SIDEQUEST,
+        ATTENTION,
     ]
     assert merge(script, once) == once
 
@@ -453,6 +468,52 @@ def test_retired_footer_entries_are_stripped_from_an_existing_host(script):
 def test_previous_fresh_install_converges_on_the_new_baseline(script):
     previous = dict(BASELINE, plugins=RETIRED_DEFAULT_PLUGINS)
     assert merge(script, previous) == BASELINE
+
+
+def attention_entries(plugins):
+    return [p for p in plugins if (p.get("package") if isinstance(p, dict) else p) == ATTENTION_PATH]
+
+
+def test_attention_tabs_is_managed_by_its_path_with_sorting_seeded_off(script):
+    plugins = merge(script, {})["plugins"]
+    assert attention_entries(plugins) == [ATTENTION]
+    assert plugins[-1] == ATTENTION
+    # Only these two are seeded; the rest keep their in-plugin defaults.
+    assert set(plugins[-1]["options"]) == {"sort", "jumpKey"}
+    assert plugins[-1]["options"]["sort"] is False
+
+
+@pytest.mark.parametrize("existing", [
+    ATTENTION_PATH,
+    {"package": ATTENTION_PATH},
+    {"package": ATTENTION_PATH, "options": {"sort": True}},
+])
+def test_attention_tabs_converges_to_one_object_entry_and_is_idempotent(script, existing):
+    once = merge(script, {"plugins": ["./v2-plugins/local/x", existing]})
+    assert len(attention_entries(once["plugins"])) == 1
+    assert once["plugins"][0] == "./v2-plugins/local/x"
+    entry = once["plugins"][1]
+    assert entry["package"] == ATTENTION_PATH
+    assert entry["options"]["jumpKey"] == "<leader>z"
+    assert entry["options"]["sort"] is (isinstance(existing, dict) and existing.get("options", {}).get("sort", False))
+    assert merge(script, once) == once
+
+
+def test_a_host_that_turns_sorting_on_keeps_it_and_its_other_options(script):
+    edited = {
+        "package": ATTENTION_PATH,
+        "options": {"sort": True, "jumpKey": "<leader>g", "toast": False, "futureOption": 1},
+        "futureField": "keep",
+    }
+    once = merge(script, {"plugins": [edited]})
+    assert once["plugins"][0] == edited
+    assert merge(script, once) == once
+
+
+def test_a_dash_control_for_attention_tabs_survives_the_merge(script):
+    plugins = merge(script, {"plugins": ["-dotfiles.attention-tabs"]})["plugins"]
+    assert plugins[0] == "-dotfiles.attention-tabs"
+    assert attention_entries(plugins) == [ATTENTION]
 
 
 def test_pillbox_pin_bump_rewrites_the_spec_and_keeps_user_options(script, tmp_path):
@@ -639,7 +700,9 @@ def test_voice_entry_is_appended_to_an_existing_host_in_order(voice_script, buil
     current = {"plugins": ["./v2-plugins/local/x", PILLBOX, "-sidequest.tui", SIDEQUEST]}
     plugins = merge(voice_script, current)["plugins"]
     assert plugins[:4] == current["plugins"]
-    assert plugins[4:] == ["-opencode.prompt.footer", "./v2-plugins/agent-catalog", "./v2-plugins/demo", TALK]
+    assert plugins[4:] == [
+        "-opencode.prompt.footer", "./v2-plugins/agent-catalog", "./v2-plugins/demo", ATTENTION, TALK,
+    ]
 
 
 def test_voice_merge_is_idempotent(voice_script, built):
@@ -783,7 +846,7 @@ def test_voice_off_removes_every_form_of_the_entry(tmp_path, data):
     assert plugins[:3] == ["./v2-plugins/local/x", "-opencode-talk", PILLBOX]
     assert [p for p in plugins if talk_like(p)] == []
     assert plugins[3:] == [
-        "-opencode.prompt.footer", "./v2-plugins/agent-catalog", "./v2-plugins/demo", SIDEQUEST,
+        "-opencode.prompt.footer", "./v2-plugins/agent-catalog", "./v2-plugins/demo", SIDEQUEST, ATTENTION,
     ]
 
 
@@ -915,3 +978,77 @@ def test_chezmoi_leaves_the_local_override_untouched_and_unmerged(sandbox):
     data = json.loads(sandbox.target.read_text())
     assert data["session"]["sidebar"] == "hide"
     assert data["plugins"] == MANAGED_PLUGINS
+
+
+# ---- Prompt submit keys: Enter inserts a newline, Option+Enter submits ---------
+# input.submit and input.newline bind to any focused textarea; forms, dialogs and
+# the autocomplete popup keep acting on Enter. Both are SEEDED, never owned.
+def chords(value):
+    return set(value.split(","))
+
+
+def test_enter_makes_a_newline_and_option_enter_submits(script):
+    keys = merge(script, {})["keybinds"]
+    submit, newline = chords(keys["input.submit"]), chords(keys["input.newline"])
+    assert "alt+return" in submit, "Option+Enter, which tmux also delivers as ESC CR"
+    assert "super+return" in submit, "Cmd+Enter, for a host that frees it from Ghostty"
+    assert "return" in newline and "return" not in submit
+    assert {"shift+return", "ctrl+return", "ctrl+j"} <= newline, "the native newline chords stay"
+    # A chord on both actions is ambiguous, and Alt+Enter is a newline by default.
+    assert submit.isdisjoint(newline)
+
+
+@pytest.mark.parametrize("action", sorted(PROMPT_KEYS))
+@pytest.mark.parametrize("binding", [
+    "ctrl+s",
+    "return",
+    ["ctrl+s", "alt+return"],
+    {"key": "ctrl+s", "fallthrough": True},
+    "none",
+    False,
+    None,
+])
+def test_prompt_keys_a_user_set_are_never_replaced(script, action, binding):
+    once = merge(script, {"keybinds": {action: binding}})
+    assert once["keybinds"][action] == binding
+    assert merge(script, once) == once
+
+
+def test_prompt_keys_are_seeded_one_at_a_time(script):
+    only_submit = merge(script, {"keybinds": {"input.submit": "ctrl+s"}})["keybinds"]
+    assert only_submit["input.submit"] == "ctrl+s"
+    assert only_submit["input.newline"] == PROMPT_KEYS["input.newline"]
+    only_newline = merge(script, {"keybinds": {"input.newline": "ctrl+j"}})["keybinds"]
+    assert only_newline["input.newline"] == "ctrl+j"
+    assert only_newline["input.submit"] == PROMPT_KEYS["input.submit"]
+
+
+def test_prompt_keys_leave_unrelated_keybinds_alone(script):
+    mine = {
+        "prompt.submit": "ctrl+enter",
+        "prompt.clear": "ctrl+u",
+        "input.move.left": "left",
+        "dialog.select.submit": "return",
+        "prompt.autocomplete.select": "tab",
+        "session.new": "alt+n",
+    }
+    keys = merge(script, {"keybinds": dict(mine)})["keybinds"]
+    for action, binding in mine.items():
+        assert keys[action] == binding, action
+    assert "prompt.submit" not in merge(script, {})["keybinds"], "no native default to seed"
+    for action in ("leader", "session.list", "agent.cycle"):
+        assert keys[action] == BASELINE["keybinds"][action], action
+
+
+def test_chezmoi_prompt_keys_reach_an_existing_host_and_a_user_choice_stays(sandbox):
+    assert sandbox.chezmoi(sandbox.merge_source, "apply").returncode == 0
+    data = json.loads(sandbox.target.read_text())
+    del data["keybinds"]["input.submit"]
+    data["keybinds"]["input.newline"] = "ctrl+j"
+    sandbox.target.write_text(json.dumps(data))
+    result = sandbox.chezmoi(sandbox.merge_source, "apply")
+    assert result.returncode == 0, result.stderr
+    keys = json.loads(sandbox.target.read_text())["keybinds"]
+    assert keys["input.submit"] == PROMPT_KEYS["input.submit"]
+    assert keys["input.newline"] == "ctrl+j"
+    assert sandbox.chezmoi(sandbox.merge_source, "diff").stdout == ""

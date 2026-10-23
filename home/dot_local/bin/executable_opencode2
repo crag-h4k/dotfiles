@@ -73,6 +73,25 @@ if [[ -r "$local_override" ]]; then
   source "$local_override" || exit $?
 fi
 
+# Outside tmux the notifier bridge stays silent, so OpenCode's own attention sound
+# is the only sound. Build it from notify.yaml, so the same groups and sound files
+# apply. Interactive launches only (it costs a yq call), and only when nothing has
+# set the CLI config content: a cli.override.json, override.zsh or the caller's
+# own OPENCODE_CLI_CONFIG_CONTENT always wins. Any failure leaves it unset. The
+# lookup runs in a subshell so the notify library never loads into this process.
+attention_launch="$interactive"
+case "${1:-}" in
+  --version|-v|--help|-h) attention_launch=false ;;
+esac
+if [[ "$attention_launch" == true && -z "${TMUX:-}" && -z "${OPENCODE_CLI_CONFIG_CONTENT:-}" \
+  && -r "$HOME/.config/notify/lib.sh" ]]; then
+  attention_config="$(source "$HOME/.config/notify/lib.sh" 2>/dev/null \
+    && notify_attention_config 2>/dev/null)" || attention_config=""
+  if [[ -n "$attention_config" ]]; then
+    export OPENCODE_CLI_CONFIG_CONTENT="$attention_config"
+  fi
+fi
+
 if [[ "$interactive" == true && "$explicit_server" == false \
   && "${OPENCODE2_BACKGROUND_SERVICE:-false}" != true ]]; then
   exec "$binary" --standalone "$@"

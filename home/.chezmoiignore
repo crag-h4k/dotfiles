@@ -49,8 +49,6 @@ AGENTS.md
 .config/opencode/v2-plugins/local
 # Built from source by run_before_20-build-opencode-talk.sh.tmpl; a runtime, not source.
 .config/opencode/v2-plugins/talk
-# Work-in-progress tab sorter: do not deploy or discover until the Mac focus bug is fixed.
-.config/opencode/plugins/priority-tabs
 .tmux/conf.d/override.conf
 .tmux/plugins
 .local/share/opencode2
