@@ -56,16 +56,28 @@ own foreground terminal:
 ~/.local/bin/openvikingctl setup
 ```
 
-The default `copilot` starter uses Claude Haiku 5.5 extraction and Copilot's
+The default `copilot` starter uses GPT-6 Luna extraction and Copilot's
 `text-embedding-3-small` embeddings. It needs a Copilot account with access to
 both models, but no local model server or model downloads. Content sent for
 extraction and embeddings leaves the machine; storage and the authenticated
 OpenViking listener remain local.
 
-The Copilot starters moved off GPT-6 Luna after its route rejected some
-security-related extraction prompts with a content-policy error. A rejected
-extraction writes no memory, and the task can still report completed. Check a
-commit's `memory_diff.json` instead of trusting the task status.
+The extraction model is not interchangeable. OpenViking's extraction loop wants
+its operations in one exact format, and a model that follows it loosely stores
+nothing. In isolated runs on synthetic sessions, GPT-6 Luna extracted memories on
+OpenViking 0.5.1.1 and 0.5.2, and Gemini 3.8 Flash did on 0.5.1.1. Claude Haiku
+5.5 failed to parse in the default format on both versions. With
+`memory.extraction_output_format` set to `json` (an upstream key with no
+documentation) it finished as completed with nothing stored. Claude Sonnet 5.5
+also stored nothing on 0.5.1.1. Test a new model on a synthetic session and read
+the commit's `memory_diff.json` before trusting it, because a task can report
+completed after extracting nothing.
+
+Luna's Copilot route can reject some security-related prompts with a
+content-policy error, and that extraction writes no memory. OpenViking's failover
+(`vlm.credentials` and `vlm.backup`) switches on transient, rate-limit,
+authentication, quota, and missing-model errors, not on a content-policy
+rejection, so a backup model does not cover it.
 
 Setup creates private configs only when absent, walks through the separate
 Copilot device login, probes both models, starts the user service, and provisions
@@ -136,7 +148,7 @@ that training ran.
 Extraction and embeddings are independent choices. Starter profiles include:
 
 - `copilot-ollama`: Copilot extraction through LiteLLM, local Nomic embeddings.
-- `copilot`: Claude Haiku 5.5 extraction and Copilot embeddings; no Ollama dependency.
+- `copilot`: GPT-6 Luna extraction and Copilot embeddings; no Ollama dependency.
 - `ollama`: local Qwen extraction and local Nomic embeddings.
 - `openai`: OpenAI API-key extraction and embeddings.
 - `codex-ollama`: native Codex OAuth extraction and local Nomic embeddings.
