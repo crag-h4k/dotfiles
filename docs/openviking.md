@@ -11,6 +11,7 @@
 - [Start the user service](#start-the-user-service)
 - [Enable OpenCode capture](#enable-opencode-capture)
 - [Import reviewed history](#import-reviewed-history)
+- [Import file memories and OpenCode 2 history](#import-file-memories-and-opencode-2-history)
 - [Review and clean up memories](#review-and-clean-up-memories)
 - [OpenCode permissions](#opencode-permissions)
 - [Measure the trial](#measure-the-trial)
@@ -55,11 +56,16 @@ own foreground terminal:
 ~/.local/bin/openvikingctl setup
 ```
 
-The default `copilot` starter uses GPT-6 Luna extraction and Copilot's
+The default `copilot` starter uses Claude Haiku 5.5 extraction and Copilot's
 `text-embedding-3-small` embeddings. It needs a Copilot account with access to
 both models, but no local model server or model downloads. Content sent for
 extraction and embeddings leaves the machine; storage and the authenticated
 OpenViking listener remain local.
+
+The Copilot starters moved off GPT-6 Luna after its route rejected some
+security-related extraction prompts with a content-policy error. A rejected
+extraction writes no memory, and the task can still report completed. Check a
+commit's `memory_diff.json` instead of trusting the task status.
 
 Setup creates private configs only when absent, walks through the separate
 Copilot device login, probes both models, starts the user service, and provisions
@@ -130,7 +136,7 @@ that training ran.
 Extraction and embeddings are independent choices. Starter profiles include:
 
 - `copilot-ollama`: Copilot extraction through LiteLLM, local Nomic embeddings.
-- `copilot`: GPT-6 Luna extraction and Copilot embeddings; no Ollama dependency.
+- `copilot`: Claude Haiku 5.5 extraction and Copilot embeddings; no Ollama dependency.
 - `ollama`: local Qwen extraction and local Nomic embeddings.
 - `openai`: OpenAI API-key extraction and embeddings.
 - `codex-ollama`: native Codex OAuth extraction and local Nomic embeddings.
@@ -237,8 +243,9 @@ The starter sets `plugin.opencode.mcpEnabled=false`. This skips the plugin's
 bundled MCP/skill registration, which calls the unsupported `SkillEditor.source`
 API in OpenCode `2.0.24`. It does not disable automatic capture or recall.
 The OpenViking component installs `openviking-memory`, `openviking-skills`, the
-local `ov-experience-memory` adapter, and the approval-first
-`openviking-cleanup` skill through native discovery. The first two retain their
+local `ov-experience-memory` adapter, the approval-first
+`openviking-cleanup` skill, and the plan-first `openviking-import` skill through
+native discovery. The first two retain their
 pinned upstream text; an unmodified upstream reference stays under
 `~/.local/share/dotfiles/openviking/` rather than being discovered as a second
 skill. The adapter checks the Experience directory once per session before
@@ -400,6 +407,90 @@ sessions, add `--continue-on-extraction-failure`. It records each terminal task
 in progress, skips it on this and later runs that pass the flag, and continues
 serially. It does not suppress source, cursor, network, or other transport and
 integrity failures.
+
+## Import file memories and OpenCode 2 history
+
+The history importers read Codex and Claude Code snapshots. Two more commands
+cover memory files and OpenCode 2 sessions. Both print a read-only plan unless
+you pass `--apply`, and neither prints memory text.
+
+### File memories
+
+`openvikingctl import-memory` compares markdown memory files with
+`viking://~/memories`. The default source is `memory/` under
+`$DOTFILES_AGENTS_DIR`; repeat `--source` to name others. No extraction model is
+involved, so a provider's content policy cannot reject a file and a failed write
+is reported instead of finishing as completed.
+
+```sh
+openvikingctl import-memory
+openvikingctl import-memory --apply
+openvikingctl import-memory --apply --update project_example.md
+```
+
+Each source is resolved first, so two paths to one directory count once. A link
+is followed only when its target sits inside a named source. Dangling links,
+links that leave the sources, and several names for one file are reported as
+skipped, and the real file wins over a link to it. The front matter `type`, or
+the file name prefix, picks the category: `feedback` goes to `preferences/user`,
+`project` to `entities/project`, and `reference` to `entities/reference`. A
+`user` file is the profile, which OpenViking keeps as a single file, so it is
+left for hand review. A file that `MEMORY.md` marks `(personal)` is skipped
+unless you pass `--include-personal`.
+
+The plan names one action per file:
+
+- `new`: not in OpenViking. Apply rereads the target, writes it, and reads it
+  back to verify.
+- `identical`: nothing to write. Apply records it so a rerun skips it.
+- `present-elsewhere`: the same name exists under another category; left alone.
+- `update`: the file changed since the last import and the OpenViking copy did
+  not.
+- `conflict`: both differ, or there is no import history.
+- `openviking-ahead`: the OpenViking copy changed after import; left alone.
+
+Apply writes only `new` files on its own. Replacing a changed file needs
+`--update NAME` for that exact name. Immediately before every write, apply
+rereads the target: a `new` file that has appeared is left alone
+(`appeared-since-plan`), and an approved replacement happens only if the
+OpenViking copy still matches the text the plan showed (`changed-since-plan`
+otherwise). Anything written after the plan is never overwritten. For `update` and `conflict` the plan adds
+`newer`, the side with the later timestamp, and `change`, a line count.
+OpenViking wins unless the file is newer, and a bulk edit such as a path rename
+also bumps a file's timestamp, so read the difference first:
+`--show-diff NAME` adds it to the plan for that file. State lives in
+`~/.openviking/memory-imports/<name>/state.json`, private and bound to the
+destination, so a rerun after an apply writes nothing.
+
+### OpenCode 2 sessions
+
+`openvikingctl export-oc2` reads the OpenCode 2 database (default
+`~/.local/share/opencode/opencode.db`, resolved through links and opened
+read-only) and writes a private snapshot in the Claude layout, with user and
+assistant text only. Reasoning, tool output, and working directories stay out.
+It skips sub-agent sessions, sessions active in the last 24 hours, sessions
+OpenViking already holds from live capture, and sessions another import covered.
+`--since`, `--include-children`, and `--min-idle-hours` adjust that.
+
+```sh
+openvikingctl export-oc2
+openvikingctl export-oc2 --apply --out "$HOME/private/oc2-snapshot"
+openvikingctl import-claude --source "$HOME/private/oc2-snapshot" --name oc2-first
+```
+
+Use a new, empty `--out` for each batch, because an import binds the whole
+snapshot and cannot resume after it changes. The replay is the same one
+`import-claude` uses, so it follows the rules in
+[Import reviewed history](#import-reviewed-history), including its use of the
+extraction provider.
+
+### Watch it in OpenCode 2
+
+The `openviking-import` skill runs both flows as two DAGs when the
+`opencode-sidequest` plugin provides `dag_start`: a read-only plan, then an apply
+after you approve it. The side panel shows each step as it runs. Without
+`dag_start` the skill runs the same commands in order. A DAG child session cannot
+ask a question, so approvals happen in the main session before the second run.
 
 ## Review and clean up memories
 

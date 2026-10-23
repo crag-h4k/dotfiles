@@ -77,7 +77,8 @@ keep stopping the apply.
 
 Selecting `ai > openviking` adds two unmodified upstream instruction skills,
 `openviking-memory` and `openviking-skills`, plus a local `ov-experience-memory`
-adapter and approval-first `openviking-cleanup` skill. The adapter's pinned
+adapter, an approval-first `openviking-cleanup` skill, and a plan-first
+`openviking-import` skill that runs as an OpenCode 2 DAG. The adapter's pinned
 upstream text stays outside skill discovery. These entries follow the same
 canonical-store and Agent Skills link pattern, but their downloads and links are
 gated on OpenViking only. Native discovery avoids the plugin's unsupported
