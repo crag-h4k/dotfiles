@@ -54,6 +54,22 @@
 # Sidequest uses the same server/TUI package pin. Its focusKey option is a leader
 # chord that no native binding uses; it is seeded without replacing local choices.
 #
+# Voice (opencode-talk) is a local plugin, built from a pinned, patched checkout
+# into ~/.config/opencode/v2-plugins/talk by the run_before_20 script, so its entry
+# is a path and not an npm pin. Three states, decided on every apply:
+#   voice off (or not macOS)  "./v2-plugins/talk" and the npm package "opencode-talk"
+#                             are removed, including entries added by hand.
+#   voice on, plugin built    the entry is managed and the npm package is removed,
+#                             because its tarball lacks the helper source. Built means
+#                             $HOME/.config/opencode/v2-plugins/talk/tui.js exists.
+#   voice on, not built       nothing about the plugin changes, a hand-added entry
+#                             included, and one stderr line says how to build it. An
+#                             entry that points at a missing plugin would fail to load.
+# Its onDeviceOnly option is OWNED (the patched helper ignores the opposite value
+# anyway); keybind and autoSend are SEEDED. The keybind is the tap-to-toggle chord
+# <leader>v on purpose, because hold detection is unreliable under tmux. To opt out
+# without turning the data key off, append "-opencode-talk" to this array.
+#
 # ~/.config/opencode/cli.override.json is separate and wins at runtime: the
 # opencode2 wrapper exports it as OPENCODE_CLI_CONFIG_CONTENT. Nested objects
 # merge over this file, but arrays and scalars REPLACE it, so an override that
@@ -65,9 +81,12 @@
 #
 # The file is gated wholesale in home/.chezmoiignore under ai > opencode. It is
 # a .tmpl so the check-json hook skips it; its only template value is the
-# tierIcons data key ("value" or "heat"), which sets the tier pill's icon ramp.
+# tierIcons data key ("value" or "heat"), which sets the tier pill's icon ramp, and
+# the components.ai.voice data key, which adds the voice plugin entry on macOS once
+# the plugin is built.
 import copy
 import json
+import os
 import re
 import sys
 
@@ -89,22 +108,36 @@ PILLBOX_OPTIONS = {
     },
 }
 
+VOICE = {{ ternary "True" "False" (and (eq .chezmoi.os "darwin") (dig "components" "ai" "voice" false .)) }}
+TALK_PATH = "./v2-plugins/talk"
+TALK_BUILT = VOICE and os.path.isfile(
+    os.path.join(os.path.expanduser("~"), ".config", "opencode", "v2-plugins", "talk", "tui.js")
+)
+TALK_BUILD_COMMAND = "bash " + {{ joinPath (.chezmoi.sourceDir | dir) "scripts" "opencode-talk" "build.sh" | toJson }}
+TALK = {
+    "package": TALK_PATH,
+    "options": {"keybind": "<leader>v", "onDeviceOnly": True, "autoSend": False},
+}
+
 MANAGED_PLUGINS = (
     "-opencode.prompt.footer",
     "./v2-plugins/agent-catalog",
     "./v2-plugins/demo",
     {"package": "opencode-pillbox-statusline@latest", "options": PILLBOX_OPTIONS},
     {"package": "opencode-sidequest@latest", "options": {"focusKey": "<leader>p"}},
-)
+) + ((TALK,) if TALK_BUILT else ())
 # The local footer and the stock TUI half it replaced. A stale local path
 # fails to load, so the merge removes these instead of leaving them behind.
+# The voice entries are retired when voice is off, and the npm package also once
+# the local build replaces it; while voice is on but unbuilt, neither is touched
+# (see the voice note above).
 RETIRED_PLUGINS = (
     "-opencode-copilot-statusline.tui",
     "./v2-plugins/statusline",
-)
+) + (("opencode-talk",) if TALK_BUILT or not VOICE else ()) + (() if VOICE else (TALK_PATH,))
 NPM_SPEC = re.compile(r"(@[a-z0-9._-]+/[a-z0-9._-]+|[a-z0-9._-]+)@[^/\s]+")
 # Option paths re-asserted from the managed entry on every apply.
-OWNED_OPTIONS = (("pills", "tier", "ramp"),)
+OWNED_OPTIONS = (("pills", "tier", "ramp"), ("onDeviceOnly",))
 
 # (path, value, ownership), applied in order so a first install lists keys in
 # this order. tabs.enabled is the legacy form of tabs.mode and loses to it, so
@@ -255,6 +288,8 @@ def main():
         print(f"modify_private_cli.json: leaving cli.json unchanged: {error}", file=sys.stderr)
         sys.stdout.write(raw)
         return
+    if VOICE and not TALK_BUILT:
+        print(f"modify_private_cli.json: voice is on but the plugin is not built; build it with: {TALK_BUILD_COMMAND}", file=sys.stderr)
     sys.stdout.write(json.dumps(merge(data), indent=2, ensure_ascii=False) + "\n")
 
 

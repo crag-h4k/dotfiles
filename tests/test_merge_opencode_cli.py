@@ -53,6 +53,16 @@ PILLBOX = {
 
 SIDEQUEST = {"package": SIDEQUEST_PIN, "options": {"focusKey": "<leader>p"}}
 
+# The voice plugin is built from source into ~/.config/opencode/v2-plugins/talk, so it
+# is a local path. Its id is opencode-talk, which is also its npm name.
+TALK_PATH = "./v2-plugins/talk"
+TALK = {
+    "package": TALK_PATH,
+    "options": {"keybind": "<leader>v", "onDeviceOnly": True, "autoSend": False},
+}
+VOICE_ON = "[data.components.ai]\nopencode = true\nvoice = true\n"
+VOICE_OFF = "[data.components.ai]\nopencode = true\nvoice = false\n"
+
 MANAGED_PLUGINS = [
     "-opencode.prompt.footer",
     "./v2-plugins/agent-catalog",
@@ -104,13 +114,19 @@ BASELINE = {
 }
 
 
-def render(directory: Path, data: str = "") -> Path:
-    """Render the modify_ template the way chezmoi will, return the script path."""
+def render(directory: Path, data: str = "", os_name: str | None = None) -> Path:
+    """Render the modify_ template the way chezmoi will, return the script path.
+
+    os_name pins .chezmoi.os, so a test of the macOS-only voice entry gives the same
+    answer on a Linux runner.
+    """
     config = directory / "chezmoi.toml"
     config.write_text("[data]\n" + data)
+    command = ["chezmoi", "execute-template", "--source", str(REPO), "--config", str(config)]
+    if os_name:
+        command += ["--override-data", json.dumps({"chezmoi": {"os": os_name}})]
     out = subprocess.run(
-        ["chezmoi", "execute-template", "--source", str(REPO), "--config", str(config)],
-        stdin=SCRIPT.open(), capture_output=True, text=True, check=True,
+        command, stdin=SCRIPT.open(), capture_output=True, text=True, check=True,
     ).stdout
     path = directory / "merge.py"
     path.write_text(out)
@@ -540,6 +556,241 @@ def test_unparseable_or_non_object_input_is_left_unchanged(script, raw):
 def test_blank_input_is_a_first_install(script):
     for raw in ("", "  \n"):
         assert json.loads(merge(script, raw, text=True).stdout) == BASELINE
+
+
+# --- voice: the opt-in dictation plugin (components.ai.voice, macOS) ----------------
+#
+# The entry is managed only when voice is on, the OS is macOS, and the plugin has been
+# built (~/.config/opencode/v2-plugins/talk/tui.js). Every test runs with HOME pointed at
+# an empty directory, so the answer never depends on the machine running the suite.
+
+@pytest.fixture(autouse=True)
+def fake_home(tmp_path, monkeypatch) -> Path:
+    home = tmp_path / "empty-home"
+    home.mkdir()
+    monkeypatch.setenv("HOME", str(home))
+    return home
+
+
+@pytest.fixture
+def built(fake_home) -> Path:
+    plugin = fake_home / ".config" / "opencode" / "v2-plugins" / "talk"
+    plugin.mkdir(parents=True)
+    (plugin / "tui.js").write_text("// built plugin\n")
+    return plugin
+
+
+@pytest.fixture(scope="module")
+def voice_script(tmp_path_factory) -> Path:
+    return render(tmp_path_factory.mktemp("opencode-cli-voice"), VOICE_ON, os_name="darwin")
+
+
+def run_merge(script, current):
+    """Like merge(), but keep stderr, for the not-built notice."""
+    result = subprocess.run(
+        [sys.executable, str(script)], input=json.dumps(current), capture_output=True, text=True
+    )
+    assert result.returncode == 0, result.stderr
+    return json.loads(result.stdout), result.stderr
+
+
+def talk_entries(plugins):
+    return [p for p in plugins if isinstance(p, dict) and p.get("package") == TALK_PATH]
+
+
+def talk_like(entry):
+    """Any enabling entry for the voice plugin: its local path or its npm name, any form."""
+    name = entry.get("package") if isinstance(entry, dict) else entry
+    if not isinstance(name, str) or name.startswith("-"):
+        return False
+    return name.split("@")[0].endswith(("opencode-talk", "v2-plugins/talk"))
+
+
+def test_voice_off_leaves_the_baseline_alone(tmp_path):
+    for data in ("", VOICE_OFF):
+        off = render(tmp_path, data, os_name="darwin")
+        assert merge(off, {}) == BASELINE
+
+
+def test_voice_off_ignores_a_built_plugin(tmp_path, built):
+    off = render(tmp_path, VOICE_OFF, os_name="darwin")
+    assert merge(off, {}) == BASELINE
+
+
+def test_voice_on_and_built_appends_the_entry_after_sidequest_and_changes_nothing_else(voice_script, built):
+    result = merge(voice_script, {})
+    assert result["plugins"] == MANAGED_PLUGINS + [TALK]
+    assert {key: value for key, value in result.items() if key != "plugins"} == {
+        key: value for key, value in BASELINE.items() if key != "plugins"
+    }
+    # Pillbox and Sidequest are exactly what they are without voice.
+    assert result["plugins"][3] == PILLBOX
+    assert result["plugins"][4] == SIDEQUEST
+
+
+def test_voice_on_off_macos_adds_no_entry(tmp_path, built):
+    # The helper builds only on macOS; a persisted voice key elsewhere must not leave a
+    # plugin path that cannot load, even if a directory happens to exist.
+    linux = render(tmp_path, VOICE_ON, os_name="linux")
+    assert merge(linux, {}) == BASELINE
+
+
+def test_voice_entry_is_appended_to_an_existing_host_in_order(voice_script, built):
+    current = {"plugins": ["./v2-plugins/local/x", PILLBOX, "-sidequest.tui", SIDEQUEST]}
+    plugins = merge(voice_script, current)["plugins"]
+    assert plugins[:4] == current["plugins"]
+    assert plugins[4:] == ["-opencode.prompt.footer", "./v2-plugins/agent-catalog", "./v2-plugins/demo", TALK]
+
+
+def test_voice_merge_is_idempotent(voice_script, built):
+    once = merge(voice_script, {})
+    assert merge(voice_script, once) == once
+    assert len(talk_entries(once["plugins"])) == 1
+    assert json.dumps(merge(voice_script, once)) == json.dumps(once)
+
+
+def test_voice_options_the_user_set_survive_and_new_ones_arrive(voice_script, built):
+    existing = {"package": TALK_PATH, "options": {
+        "keybind": "ctrl+y", "autoSend": True, "liveText": False, "silenceStop": 5,
+    }}
+    entry = talk_entries(merge(voice_script, {"plugins": [existing]})["plugins"])[0]
+    assert entry["options"] == {
+        "keybind": "ctrl+y", "autoSend": True, "liveText": False, "silenceStop": 5,
+        "onDeviceOnly": True,
+    }
+
+
+@pytest.mark.parametrize("wrong", [False, None, "false", 0])
+def test_on_device_only_is_reasserted_on_every_apply(voice_script, built, wrong):
+    existing = {"package": TALK_PATH, "options": {"onDeviceOnly": wrong, "autoSend": True}}
+    entry = talk_entries(merge(voice_script, {"plugins": [existing]})["plugins"])[0]
+    assert entry["options"]["onDeviceOnly"] is True
+    assert entry["options"]["autoSend"] is True
+
+
+def test_bare_voice_path_becomes_the_managed_entry(voice_script, built):
+    plugins = merge(voice_script, {"plugins": [TALK_PATH]})["plugins"]
+    assert talk_entries(plugins) == [TALK]
+    assert TALK_PATH not in plugins
+
+
+def test_voice_keybind_does_not_share_a_chord_with_another_managed_action(voice_script, built):
+    chord = TALK["options"]["keybind"]
+    taken = {}
+    for action, value in BASELINE["keybinds"].items():
+        for bound in str(value).split(","):
+            taken.setdefault(bound, []).append(action)
+    taken.setdefault(SIDEQUEST["options"]["focusKey"], []).append("sidequest focus")
+    assert chord.startswith("<leader>")
+    assert chord not in taken
+    assert merge(voice_script, {})["keybinds"] == BASELINE["keybinds"]
+
+
+def test_voice_replaces_the_npm_package_with_the_local_build(voice_script, built):
+    # The npm tarball leaves out the helper source, so a registry entry is never wanted.
+    for stale in ("opencode-talk", "opencode-talk@0.1.1", {"package": "opencode-talk@latest"}):
+        plugins = merge(voice_script, {"plugins": ["./v2-plugins/local/x", stale]})["plugins"]
+        assert plugins[0] == "./v2-plugins/local/x"
+        assert talk_entries(plugins) == [TALK]
+        assert [p for p in plugins if talk_like(p)] == [TALK]
+
+
+def test_voice_opt_out_control_after_the_managed_section_survives(voice_script, built):
+    current = {"plugins": [*MANAGED_PLUGINS, TALK, "-opencode-talk"]}
+    plugins = merge(voice_script, current)["plugins"]
+    assert plugins == [*MANAGED_PLUGINS, TALK, "-opencode-talk"]
+
+
+# Not built yet: the entry is neither added nor retired, and one line says how to build it.
+
+def test_voice_on_but_not_built_adds_no_entry_and_says_how_to_build(voice_script):
+    result, stderr = run_merge(voice_script, {})
+    assert result == BASELINE
+    assert stderr.count("\n") == 1
+    assert "not built" in stderr
+    assert "scripts/opencode-talk/build.sh" in stderr
+
+
+def test_a_hand_added_entry_is_untouched_until_the_plugin_is_built(voice_script):
+    hand = [
+        TALK_PATH,
+        {"package": TALK_PATH, "options": {"keybind": "ctrl+y", "onDeviceOnly": False}},
+        "opencode-talk",
+        {"package": "opencode-talk@latest", "options": {"autoSend": True}},
+    ]
+    for entry in hand:
+        current = {"plugins": ["./v2-plugins/local/x", entry, "-opencode-talk"]}
+        plugins, stderr = run_merge(voice_script, current)
+        assert plugins["plugins"][:3] == current["plugins"]
+        assert plugins["plugins"][3:] == BASELINE["plugins"]
+        assert "not built" in stderr
+
+
+def test_not_built_merge_is_idempotent_and_keeps_the_notice(voice_script):
+    once, first = run_merge(voice_script, {})
+    twice, second = run_merge(voice_script, once)
+    assert twice == once
+    assert first == second
+
+
+def test_building_the_plugin_adds_the_entry_on_the_next_apply(voice_script, fake_home):
+    before, stderr = run_merge(voice_script, {})
+    assert "not built" in stderr
+    plugin = fake_home / ".config" / "opencode" / "v2-plugins" / "talk"
+    plugin.mkdir(parents=True)
+    (plugin / "tui.js").write_text("// built\n")
+    after, stderr = run_merge(voice_script, before)
+    assert stderr == ""
+    assert after["plugins"] == MANAGED_PLUGINS + [TALK]
+
+
+@pytest.mark.parametrize("missing", ["tui.js", "plugin directory"])
+def test_a_half_removed_install_counts_as_not_built(voice_script, built, missing):
+    if missing == "tui.js":
+        (built / "tui.js").unlink()
+    else:
+        (built / "tui.js").unlink()
+        built.rmdir()
+    result, stderr = run_merge(voice_script, {})
+    assert result == BASELINE
+    assert "not built" in stderr
+
+
+def test_the_notice_is_silent_when_voice_is_off_or_the_input_is_unusable(tmp_path, voice_script):
+    off = render(tmp_path, VOICE_OFF, os_name="darwin")
+    _, stderr = run_merge(off, {})
+    assert stderr == ""
+    result = subprocess.run(
+        [sys.executable, str(voice_script)], input="{not json", capture_output=True, text=True
+    )
+    assert result.returncode == 0
+    assert "not built" not in result.stderr
+
+
+@pytest.mark.parametrize("data", ["", VOICE_OFF])
+def test_voice_off_removes_every_form_of_the_entry(tmp_path, data):
+    # This also removes an entry added by hand: with voice off, the plugin is not wanted.
+    stale = [
+        TALK_PATH,
+        {"package": TALK_PATH, "options": {"keybind": "ctrl+y"}},
+        "opencode-talk",
+        "opencode-talk@0.1.1",
+        {"package": "opencode-talk@latest", "options": {"autoSend": True}},
+    ]
+    off = render(tmp_path, data, os_name="darwin")
+    current = {"plugins": ["./v2-plugins/local/x", *stale, "-opencode-talk", PILLBOX]}
+    plugins = merge(off, current)["plugins"]
+    assert plugins[:3] == ["./v2-plugins/local/x", "-opencode-talk", PILLBOX]
+    assert [p for p in plugins if talk_like(p)] == []
+    assert plugins[3:] == [
+        "-opencode.prompt.footer", "./v2-plugins/agent-catalog", "./v2-plugins/demo", SIDEQUEST,
+    ]
+
+
+def test_turning_voice_off_after_it_was_on_converges_on_the_baseline(tmp_path, voice_script, built):
+    on = merge(voice_script, {})
+    off = render(tmp_path, VOICE_OFF, os_name="darwin")
+    assert merge(off, on) == BASELINE
 
 
 class Sandbox:

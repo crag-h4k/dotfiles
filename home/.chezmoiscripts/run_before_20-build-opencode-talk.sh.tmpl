@@ -1,0 +1,22 @@
+{{- /* Build the opt-in voice plugin. Renders to nothing, so chezmoi skips it, unless the  */ -}}
+{{- /* voice sub-feature, OpenCode, and macOS are all selected. A plain run_before script  */ -}}
+{{- /* on purpose: it runs on every apply, and build.sh decides from its stamp whether     */ -}}
+{{- /* anything needs doing. A failed build therefore retries on the next apply, and an    */ -}}
+{{- /* edited patch or pin rebuilds without a hash comment here. Keep this gate aligned      */ -}}
+{{- /* with the voice entry in modify_private_cli.json.tmpl.                                */ -}}
+{{- if and (eq .chezmoi.os "darwin") (dig "components" "ai" "opencode" false .) (dig "components" "ai" "voice" false .) -}}
+#!/usr/bin/env bash
+# home/.chezmoiscripts/run_before_20-build-opencode-talk.sh.tmpl
+# Build the pinned, patched opencode-talk plugin into
+# ~/.config/opencode/v2-plugins/talk. All logic lives in scripts/opencode-talk/build.sh
+# so it can be tested and run by hand; it exits fast when its stamp matches. A failed
+# build must never fail the apply: the script exits non-zero, and this wrapper turns
+# that into a warning.
+set -euo pipefail
+
+export DOTFILES_INSTALL_MODE={{ dig "installMode" "packages" . | quote }}
+
+bash "{{ .chezmoi.sourceDir | dir }}/scripts/opencode-talk/build.sh" ||
+    printf 'dotfiles: WARNING opencode-talk was not built, so the voice plugin will not load. Fix the error above, then run: bash "%s"\n' \
+        "{{ .chezmoi.sourceDir | dir }}/scripts/opencode-talk/build.sh" >&2
+{{- end }}

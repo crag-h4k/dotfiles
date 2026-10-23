@@ -26,11 +26,15 @@
 -}}
 {{- /* OpenCode V2 is the AI submenu default. CodeCompanion is deliberately last */ -}}
 {{- /* and off by default because it installs Neovim, Node, and claude-agent-acp. */ -}}
+{{- /* voice is an OpenCode add-on (selecting it also selects opencode, see the     */ -}}
+{{- /* `voice` token rule below). It builds a Swift helper, so like iterm2 it carries  */ -}}
+{{- /* an `os` tag that hides it from the menu off macOS; the key is still emitted.      */ -}}
 {{- $aiFeatures := list
     (dict "num" "1" "key" "claude_hooks"  "label" "claude_hooks"  "desc" "Claude settings.json notify hooks"           "all" false)
     (dict "num" "2" "key" "codex_hooks"   "label" "codex_hooks"   "desc" "Codex config.toml notify hook"               "all" false)
     (dict "num" "3" "key" "statusline"    "label" "statusline"    "desc" "Claude token/context statusline + matching Codex theme" "all" false)
     (dict "num" "4" "key" "opencode"      "label" "opencode"      "desc" "OpenCode V2 + managed standalone wrapper + tmux notifier" "all" true)
+    (dict "num" "11" "key" "voice"        "label" "voice"         "desc" "OpenCode dictation: pinned opencode-talk, on-device speech, helper built from source (macOS 26)" "all" false "os" "darwin")
     (dict "num" "5" "key" "copilot"       "label" "copilot"       "desc" "GitHub Copilot CLI (npm @github/copilot; pulls in the copilot binary)" "all" false)
     (dict "num" "8" "key" "openviking"    "label" "openviking"    "desc" "local memory service + unmanaged starter configs" "all" false)
     (dict "num" "6" "key" "codecompanion" "label" "codecompanion" "desc" "CodeCompanion.nvim assistant (also installs Neovim, Node + claude-agent-acp)" "all" false)
@@ -345,6 +349,9 @@
 {{-       if and (eq $c.key "ai") (or (hasKey $subTokens "opencode2") (hasKey $subTokens "7") (dig "components" "ai" "opencode2" false $root)) }}{{- $subTokens = set $subTokens "opencode" true }}{{- end -}}
 {{- /* SSH MCP is now bundled with OpenCode; migrate the retired menu token. */ -}}
 {{-       if and (eq $c.key "ai") (or (hasKey $subTokens "ssh_mcp") (hasKey $subTokens "9")) }}{{- $subTokens = set $subTokens "opencode" true }}{{- end -}}
+{{- /* Dictation drives OpenCode's terminal client, so a voice selection alone would  */ -}}
+{{- /* do nothing. It selects OpenCode too; uncheck both to turn the plugin off.        */ -}}
+{{-       if and (eq $c.key "ai") (or (hasKey $subTokens "voice") (hasKey $subTokens "11")) }}{{- $subTokens = set $subTokens "opencode" true }}{{- end -}}
 {{- /* Personal identity used to be a peer of managed Git config. Promote a */ -}}
 {{- /* personal-only old selection to managed config before resolving fields. */ -}}
 {{-       if and (eq $c.key "git") (or (hasKey $subTokens "personal") (hasKey $subTokens "2") (dig "components" "git" "personal" false $root)) }}{{- $subTokens = set $subTokens "config" true }}{{- end -}}

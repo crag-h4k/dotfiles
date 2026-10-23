@@ -1,0 +1,16 @@
+scripts/opencode-talk/0003-spoken-submit-send-it-only.patch
+Pins: opencode-talk v0.1.1 (see build.sh).
+Narrow the spoken submit command to the phrase "send it". A bare trailing
+"send" or "submit" is ordinary speech and must not submit a prompt.
+
+--- a/lib/clean.js
++++ b/lib/clean.js
+@@ -154,7 +154,7 @@
+ 
+ // Voice commands at the end of an utterance, e.g. "... send it" / "... gönder".
+ const SEND_RE = {
+-  en: /[\s,.]*\b(send it|send|submit)[.!]?$/i,
++  en: /[\s,.]*\b(send it)[.!]?$/i,
+   tr: /[\s,.]*(?<![\p{L}])(gönder|yolla)[.!]?$/iu,
+ }
+ 

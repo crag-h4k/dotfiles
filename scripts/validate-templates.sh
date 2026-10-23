@@ -281,6 +281,31 @@ assert_ai_only "codex_hooks"  "codex_hooks"
 assert_ai_only "ssh_mcp"      "opencode"
 assert_ai_only "9"            "opencode"
 
+# Voice is an OpenCode add-on: selecting it by key or number also selects OpenCode, and
+# OpenCode alone leaves it off. Nothing else turns on.
+assert_ai_voice() { # aiSelection want_voice
+    local aisel="$1" want_voice="$2" out cfgdir key val want
+    cfgdir=$(mktemp -d)
+    printf '[data]\n    componentSelection = "5"\n    aiSelection = "%s"\n' "$aisel" >"$cfgdir/chezmoi.toml"
+    if ! out=$(chezmoi execute-template --init --source "$REPO_DIR" --config "$cfgdir/chezmoi.toml" <"$CONFIG_TMPL" 2>&1); then
+        echo "validate-templates: voice render FAILED (ai='$aisel'): $out" >&2
+        fail=1; rm -rf "$cfgdir"; return
+    fi
+    rm -rf "$cfgdir"
+    for key in claude_hooks codex_hooks statusline opencode voice copilot codecompanion; do
+        val=$(printf '%s\n' "$out" | sed -n "s/^[[:space:]]*${key} = \\(.*\\)\$/\\1/p")
+        want=false
+        case "$key" in
+            opencode) want=true ;;
+            voice) want="$want_voice" ;;
+        esac
+        [[ "$val" == "$want" ]] || { echo "validate-templates: voice ai '$aisel' expected $key=$want, got '$val'" >&2; fail=1; }
+    done
+}
+assert_ai_voice "voice"    true
+assert_ai_voice "11"       true
+assert_ai_voice "opencode" false
+
 # The old V2 token is rewritten in persisted data and never emitted as a child key.
 cfgdir=$(mktemp -d)
 printf '[data]\ncomponentSelection = "5"\naiSelection = "opencode2"\n' >"$cfgdir/chezmoi.toml"

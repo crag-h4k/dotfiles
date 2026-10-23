@@ -18,8 +18,12 @@ repos:
   - repo: https://github.com/pre-commit/pre-commit-hooks
     rev: v5.0.0
     hooks:
+      # The opencode-talk patches carry blank context lines as a single space; a fixer
+      # that strips them corrupts the diff, so leave the patch files byte-exact.
       - id: trailing-whitespace
+        exclude: ^scripts/opencode-talk/.*\.patch$
       - id: end-of-file-fixer
+        exclude: ^scripts/opencode-talk/.*\.patch$
       - id: check-yaml
       - id: check-toml
         # Skip files that are not raw TOML documents:
@@ -282,6 +286,15 @@ repos:
         # Skips itself when the vendor/tinted-schemes submodule is absent (local
         # dev); CI checks out submodules, so it enforces there.
         files: ^(\.gitmodules|scripts/build-palettes\.py|home/(\.chezmoidata/palettes\.yaml|\.chezmoi\.toml\.tmpl))$
+
+      - id: bats-opencode-talk
+        name: bats (opencode-talk voice plugin build and patches)
+        entry: bats
+        args: [tests/test_opencode_talk.bats]
+        language: node
+        additional_dependencies: ['bats@1.13.0']
+        pass_filenames: false
+        files: ^(home/\.chezmoiscripts/run_before_20-build-opencode-talk\.sh\.tmpl|scripts/opencode-talk/.*|tests/test_opencode_talk\.bats)$
 
       - id: bats-palette-init
         name: bats (palette initialization)

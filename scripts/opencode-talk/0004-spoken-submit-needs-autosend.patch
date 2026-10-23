@@ -1,0 +1,24 @@
+scripts/opencode-talk/0004-spoken-submit-needs-autosend.patch
+Pins: opencode-talk v0.1.1 (see build.sh). Applies after 0001 to 0003.
+Make spoken submit follow the autoSend setting. Upstream strips a trailing "send it"
+and submits the prompt whatever autoSend says, so autoSend false still let a spoken
+phrase send. Here a spoken "send it" is acted on, and stripped, only when autoSend is
+true; otherwise the words go into the prompt verbatim and Enter stays manual.
+
+--- a/tui.js
++++ b/tui.js
+@@ -385,8 +385,12 @@
+         },
+         onFinal: async (raw) => {
+           end()
+-          const { text, send } = extractSend(clean(raw, vocab, language?.lang), language?.lang)
+-          const submit = send || settings.get("autoSend") === true
++          const autoSend = settings.get("autoSend") === true
++          // Patched: a spoken "send it" is acted on (and stripped) only when autoSend is on.
++          // Otherwise the words go into the prompt verbatim and Enter stays manual.
++          const cleaned = clean(raw, vocab, language?.lang)
++          const { text, send } = autoSend ? extractSend(cleaned, language?.lang) : { text: cleaned, send: false }
++          const submit = send || autoSend
+           if (!text) {
+             live.clear()
+             return toast("Didn't catch anything", "warning", 1500)

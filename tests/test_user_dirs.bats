@@ -402,8 +402,13 @@ AI_HDR='AI tools  (space toggles, enter confirms, esc cancels):'
   # none, so the 80-column fallback less the prompt) and no 400-character cap.
   gum_calls write | grep -Fq '[--width] [78]'
   gum_calls write | grep -Fq '[--char-limit] [0]'
-  # The AI page gets room for 8 options plus its 3-line header, for Gum 0.14.
-  gum_calls choose | sed -n 2p | grep -Fq '[--height] [13]'
+  # The AI page gets room for its options plus a 3-line header, for Gum 0.14: 8 options,
+  # or 9 on macOS, where the voice option is offered.
+  if [ "$(uname -s)" = Darwin ]; then
+    gum_calls choose | sed -n 2p | grep -Fq '[--height] [14]'
+  else
+    gum_calls choose | sed -n 2p | grep -Fq '[--height] [13]'
+  fi
   # The page says how to submit and cancel, in the oldest and newest Gum alike.
   [[ "$(cat "$STUBS/header.write.1")" == *'Enter saves'* ]]
   [[ "$(cat "$STUBS/header.write.1")" == *'Ctrl+C'* ]]
@@ -651,19 +656,20 @@ AI_HDR='AI tools  (space toggles, enter confirms, esc cancels):'
     codex_hooks = true
     statusline = true
     opencode = true
+    voice = true
     copilot = true
     openviking = true
     codecompanion = true'
   seed_ai_config
-  render_tty GUM_STUB_AI='claude_hooks codex_hooks statusline opencode copilot openviking codecompanion directories'
+  render_tty GUM_STUB_AI='claude_hooks codex_hooks statusline opencode voice copilot openviking codecompanion directories'
   [ "$status" -eq 0 ]
   [[ "$output" == *"$expect"* ]]
-  [[ "$output" == *'aiSelection = "claude_hooks codex_hooks statusline opencode copilot openviking codecompanion"'* ]]
+  [[ "$output" == *'aiSelection = "claude_hooks codex_hooks statusline opencode voice copilot openviking codecompanion"'* ]]
 
-  # Persisted numbers: 1..6 and 8 are the sub-features, 7 and 9 are retired tokens that
+  # Persisted numbers: 1..6, 8, and 11 are the sub-features, 7 and 9 are retired tokens that
   # migrate to opencode, and 10 is the entry, never a feature.
   seed_ai_config
-  sed -i.bak 's/aiSelection = "opencode"/aiSelection = "1 2 3 4 5 8 6"/' "$CONFIG"
+  sed -i.bak 's/aiSelection = "opencode"/aiSelection = "1 2 3 4 11 5 8 6"/' "$CONFIG"
   render_typed
   [ "$status" -eq 0 ]
   [[ "$output" == *"$expect"* ]]
@@ -692,7 +698,32 @@ AI_HDR='AI tools  (space toggles, enter confirms, esc cancels):'
   [ "$status" -eq 0 ]
   local keys
   keys=$(gum_calls choose | sed -n 2p | grep -o '\[[a-z_]* - ' | sed -E 's/^\[([a-z_]*) - $/\1/' | tr '\n' ' ')
-  [ "$keys" = "claude_hooks codex_hooks statusline opencode copilot openviking codecompanion directories " ]
+  # voice is offered only where its helper builds, so only on macOS.
+  if [ "$(uname -s)" = Darwin ]; then
+    [ "$keys" = "claude_hooks codex_hooks statusline opencode voice copilot openviking codecompanion directories " ]
+  else
+    [ "$keys" = "claude_hooks codex_hooks statusline opencode copilot openviking codecompanion directories " ]
+  fi
+}
+
+@test "voice: selecting it by key or number also selects OpenCode and nothing else" {
+  need_pty
+  local selection
+  for selection in voice 11; do
+    seed_ai_config
+    sed -i.bak "s/aiSelection = \"opencode\"/aiSelection = \"$selection\"/" "$CONFIG"
+    render_typed
+    [ "$status" -eq 0 ]
+    [[ "$output" == *'    opencode = true'* ]]
+    [[ "$output" == *'    voice = true'* ]]
+    [[ "$output" == *'    claude_hooks = false'* ]]
+    [[ "$output" == *'    copilot = false'* ]]
+    [[ "$output" == *'aiSelection = "opencode voice"'* ]]
+  done
+  # OpenCode alone leaves voice off, which is the default.
+  seed_ai_config
+  render_typed
+  [[ "$output" == *'    voice = false'* ]]
 }
 
 # --- gates: nothing is offered or asked ---------------------------------------

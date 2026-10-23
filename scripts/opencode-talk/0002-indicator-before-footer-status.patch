@@ -1,0 +1,18 @@
+scripts/opencode-talk/0002-indicator-before-footer-status.patch
+Pins: opencode-talk v0.1.1 (see build.sh).
+Render the recording indicator beside the footer status slot instead of inside
+it. OpenCode V2 drops prepend and append claims on a slot that another plugin
+replaces, and the pillbox statusline replaces prompt.footer.status, so the
+indicator would never show. A before claim sits outside the replaced slot.
+
+--- a/lib/indicator.js
++++ b/lib/indicator.js
+@@ -58,7 +58,7 @@
+   }
+ 
+   const unclaim = context.ui.slot({
+-    prepend: "prompt.footer.status",
++    before: "prompt.footer.status",
+     render: () => {
+       const el = ui.createElement("text")
+       // Take the width the hint needs instead of wrapping inside the footer row.

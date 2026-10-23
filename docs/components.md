@@ -10,6 +10,7 @@
   - [Shared agent skills](#shared-agent-skills)
   - [OpenViking](#openviking)
   - [OpenCode Sidequest](#opencode-sidequest)
+  - [OpenCode voice dictation](#opencode-voice-dictation)
   - [OpenCode V2 footer](#opencode-v2-footer)
   - [Terminal (Ghostty, iTerm2)](#terminal-ghostty-iterm2)
     - [Ghostty](#ghostty)
@@ -79,7 +80,7 @@ interfaces. Set `DOTFILES_NO_TUI=1` to force the numbered prompt.
 `theme` and `package mode` are init-time actions. They live outside
 `[data.components]` and reopen the relevant picker when selected. The AI submenu
 has one of its own, `directories` (typed number `10`; the numbers of the
-sub-features do not change), which opens the worktrees and agent-notes editor. It
+sub-features do not change, and `voice` is `11`), which opens the worktrees and agent-notes editor. It
 follows the same rule: never a component, never saved.
 
 ### Sub-feature submenus (git, ai, terminal)
@@ -99,6 +100,7 @@ Git is in the default component set. AI and terminal configuration are opt-in.
 | `ai` | `statusline` | `~/.claude/settings.json` + `~/.codex/config.toml` (merge) | off | Claude renderer plus a matching selected-palette Codex theme; keeps those files managed when notify hooks are off |
 | `ai` | `opencode` | OpenCode V2 (`@opencode/cli`) + V2 config + notifier bridge | on when AI is selected | isolated npm prefix, managed wrapper, native permissions, and npm-latest statusline plugin |
 | `ai` | `copilot` | GitHub Copilot CLI (`@github/copilot` npm, `prerelease` tag) | off | npm-only channel (no Homebrew/apt); binary into `~/.local`; needs Node 22+ |
+| `ai` | `voice` | pinned `opencode-talk` plugin, helper built from source, in `~/.config/opencode/v2-plugins/talk` | off | macOS 26 on Apple silicon only; hidden in the submenu elsewhere; selecting it also selects `opencode`; see [OpenCode voice dictation](#opencode-voice-dictation) |
 | `ai` | `openviking` | local memory runtime, user services, and starter profiles | off | actual configuration and memory remain unmanaged; optional official OpenCode plugin |
 | `ai` | `codecompanion` | CodeCompanion.nvim + `claude-agent-acp` bridge | off | selecting it also enables and installs the Neovim component |
 | `terminal` | `ghostty` | Ghostty config + quick-terminal dropdown | on | macOS and Linux |
@@ -330,6 +332,108 @@ Sidequest's own panel and composer strip show DAG progress. Pillbox's optional
 Sidequest pill has no data adapter yet and stays disabled by default. See the
 Sidequest README for the unresolved step-message navigation and focus-return
 issues. Both npm packages must exist before deploying this integration.
+
+### OpenCode voice dictation
+
+`ai > voice` is off by default and macOS only. It adds dictation to the OpenCode
+terminal client: tap a key, talk, and the words land in the prompt. The plugin is
+[opencode-talk](https://github.com/batuhansk/opencode-talk) v0.1.1 (MIT) at
+commit `5688bae8038ddf1eba35f82f86a0b1215ef93698`, vendored as a local plugin
+instead of the npm package. The tarball leaves out `helper/main.swift`, hardcodes
+the helper path with no override, and ships a prebuilt binary that cannot be
+verified. The plugin's JavaScript has no network calls and no install scripts.
+
+Selecting `voice` also selects `opencode`, because a dictation entry with no
+OpenCode would do nothing. The picker hides it off macOS. The data key is
+`components.ai.voice`; the typed number is `11`.
+
+**What gets built.** `run_before_20-build-opencode-talk.sh.tmpl` renders only
+when `voice`, `opencode`, and macOS are all on, and then runs on every apply. It
+calls `scripts/opencode-talk/build.sh`, which first compares a stamp. The stamp is
+a SHA-256 of the script (which carries the pin), the pinned commit, and every
+patch, kept in `~/.config/opencode/v2-plugins/talk/.build-stamp`. A matching stamp
+with `tui.js` and `bin/opencode-talk-helper` present ends the run in a few
+milliseconds, with no compiler, git, or network. Otherwise the script rebuilds:
+
+- clones the pinned commit and refuses to continue unless `git rev-parse HEAD`
+  equals the pin;
+- applies the four patches below, each checked first with `git apply --check`;
+- compiles the helper with `swiftc`, arm64 only, with the Info.plist embedded,
+  then signs it ad hoc as `dev.opencode-talk.helper`;
+- stages the plugin, stamp included, next to its destination and swaps it into
+  `~/.config/opencode/v2-plugins/talk`, keeping the previous install until the
+  new one passes `codesign --verify`.
+
+A missing stamp, an edited patch or pin, a new copy of the script, or a missing
+plugin or helper all trigger a rebuild. A failed build writes no stamp and leaves
+the previous install alone, so the next apply tries again; it never fails the
+apply, and prints a warning with the command to retry by hand. The script never
+runs the helper.
+
+The build needs the Xcode Command Line Tools for `swiftc`. They are a prerequisite
+that the package plan does not install: run `xcode-select --install` once. The
+script reports this when `swiftc` is missing. It skips, quietly, off macOS, off
+Apple silicon, below macOS 26, and in configs-only mode (which installs nothing).
+Run it by hand any time; `--force` rebuilds even when the stamp matches:
+
+```sh
+bash scripts/opencode-talk/build.sh [--force]
+```
+
+| Patch | Why |
+| --- | --- |
+| `0001-helper-on-device-only` | Ignores `--allow-cloud`, requires on-device recognition on both request types, and makes engine choice fail closed, so no chat setting can send audio to Apple |
+| `0002-indicator-before-footer-status` | Claims the slot beside `prompt.footer.status` instead of inside it; Pillbox replaces that slot, and OpenCode drops claims inside a replaced slot, so the recording indicator would never show |
+| `0003-spoken-submit-send-it-only` | Spoken submit matches only "send it", not a bare trailing "send" or "submit" |
+| `0004-spoken-submit-needs-autosend` | A spoken "send it" is acted on only when `autoSend` is on; upstream submitted on the phrase whatever `autoSend` said |
+
+**Audio stays on the Mac.** Recognition is on-device only and the cloud path is
+patched out. One network use remains and it carries no audio: macOS downloads its
+dictation language model the first time a language needs it.
+
+**Keys.** The chord is `Ctrl+X`, then `V`: tap to start, tap again to finish,
+`Esc` to cancel. Hold-to-talk is off on purpose because hold detection is
+unreliable under tmux. `autoSend` is seeded `false`, so a transcript waits for
+Enter. Spoken submit works only when `autoSend` is `true`: then "send it" at the
+end of an utterance is stripped and the prompt submits. With `autoSend` off the
+words, including a trailing "send it", go into the prompt verbatim and nothing
+submits.
+
+**First run.** macOS asks for Microphone and Speech Recognition access the first
+time the helper listens. Trigger both prompts yourself, once, from the terminal
+you use for OpenCode:
+
+```sh
+~/.config/opencode/v2-plugins/talk/bin/opencode-talk-helper check
+```
+
+Dotfiles never runs this. Each rebuild changes the ad-hoc signature, so macOS
+asks again after a rebuild. The helper relaunches itself with a private macOS
+call (`responsibility_spawnattrs_setdisclaim`) so the permission belongs to the
+helper and not to the terminal.
+
+**Options and ownership.** The `cli.json` entry is
+`{"package": "./v2-plugins/talk", "options": {...}}`. It appears only once the
+plugin is built, meaning `~/.config/opencode/v2-plugins/talk/tui.js` exists. Until
+then the merge adds nothing, touches no existing talk entry, and prints one line
+saying how to build it, so OpenCode never points at a plugin that is not there.
+Once built, `onDeviceOnly` is enforced on every apply; `keybind` (`<leader>v`) and
+`autoSend` are seeded one key at a time, so your edits survive, and the npm
+package `opencode-talk` is removed. With `voice` off, the merge removes the local
+entry and the npm package, including ones you added by hand. See
+[OpenCode terminal settings](operation.md#opencode-terminal-settings).
+
+**Turning it off.** Uncheck `voice` (or set `components.ai.voice` to `false`) and
+apply; the entry is removed. To keep the data key on and disable the plugin,
+append `"-opencode-talk"` to `plugins` in `cli.json` after the managed entries.
+The built directory stays on disk until you delete it.
+
+**Moving the pin.** Review the upstream diff between the two tags first, since
+the helper runs with your microphone and speech permissions. Then change
+`PIN_TAG` and `PIN_SHA` in `scripts/opencode-talk/build.sh`, rebuild the patches
+if they no longer apply, and run
+`OPENCODE_TALK_SOURCE=<tree at the new commit> bats tests/test_opencode_talk.bats`
+to check them against the real source.
 
 ### OpenCode V2 footer
 

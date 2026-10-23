@@ -1,0 +1,68 @@
+scripts/opencode-talk/0001-helper-on-device-only.patch
+Pins: opencode-talk v0.1.1 (see build.sh).
+Force on-device recognition in the helper. The shipped helper accepts an
+--allow-cloud flag (and `check` passes it internally) that lets Apple's servers
+recognize audio. This build ignores the flag, requires on-device recognition on
+both request types, and makes chooseEngine fail closed whatever its caller asks.
+A chat setting can therefore never enable cloud recognition.
+
+--- a/helper/main.swift
++++ b/helper/main.swift
+@@ -4,7 +4,7 @@
+ //   opencode-talk-helper listen [--lang en-US] [--mic "MacBook"] [--engine auto|dictation|legacy] [--hint JSON ...]
+ //   opencode-talk-helper prepare [--lang en-US --lang tr-TR]   (installs macOS 26 dictation models)
+ //   opencode-talk-helper languages [--lang ...] [--all]         (default: System Settings languages)
+-//   Add --allow-cloud to permit Apple's servers for languages without on-device support.
++//   --allow-cloud is accepted and ignored in this build; recognition is always on-device.
+ //   opencode-talk-helper mics
+ //   opencode-talk-helper transcribe <audio-file> [--engine ...] [--hint ...]
+ //   opencode-talk-helper check
+@@ -116,7 +116,7 @@
+         continue
+       }
+       if flag == "--allow-cloud" {
+-        allowCloud = true
++        // Patched: cloud recognition is never permitted, so the flag is ignored.
+         continue
+       }
+       if flag == "--all" {
+@@ -234,8 +234,8 @@
+     request.shouldReportPartialResults = true
+     request.contextualStrings = hints
+     request.addsPunctuation = true
+-    // Only reached without on-device support when the user allowed cloud recognition.
+-    request.requiresOnDeviceRecognition = recognizer.supportsOnDeviceRecognition
++    // Patched: always require on-device recognition; never fall back to Apple's servers.
++    request.requiresOnDeviceRecognition = true
+   }
+ 
+   func feed(_ buffer: CMSampleBuffer) { request.appendAudioSampleBuffer(buffer) }
+@@ -653,7 +653,9 @@
+ /// 2. otherwise the legacy engine if it runs on-device;
+ /// 3. otherwise install the dictation model now (a one-time system download);
+ /// 4. otherwise the legacy engine via Apple's servers, only if the user allowed it.
+-func chooseEngine(_ requested: String, language: String, allowCloud: Bool) async -> (EngineKind, Locale?) {
++func chooseEngine(_ requested: String, language: String, allowCloud _: Bool) async -> (EngineKind, Locale?) {
++  // Patched: fail closed. Whatever the caller asks, cloud recognition is never allowed.
++  let allowCloud = false
+   let name = displayName(language)
+   let onDevice = legacyOnDevice(language)
+   let cloudHint = "Set \"onDeviceOnly\": false to allow Apple's servers for it."
+@@ -705,7 +707,7 @@
+   let request = SFSpeechURLRecognitionRequest(url: URL(fileURLWithPath: path))
+   request.contextualStrings = hints
+   request.addsPunctuation = true
+-  if recognizer.supportsOnDeviceRecognition { request.requiresOnDeviceRecognition = true }
++  request.requiresOnDeviceRecognition = true
+   recognizer.recognitionTask(with: request, resultHandler: fileResults())
+   await runForever()
+ }
+@@ -766,7 +768,7 @@
+ case "check":
+   let recognizer = legacyRecognizer()
+   await authorize()
+-  let (engine, _) = await chooseEngine("auto", language: options.language, allowCloud: true)
++  let (engine, _) = await chooseEngine("auto", language: options.language, allowCloud: false)
+   emit([
+     "event": "ok",
+     "lang": options.language,

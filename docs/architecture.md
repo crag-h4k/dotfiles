@@ -169,6 +169,7 @@ dirty the dotfiles repository. See [Neovim tooling](neovim.md) for the full spli
 | `home/.chezmoiignore` | (templated) | ignores an off component's (or sub-feature's) target paths |
 | `home/.chezmoiexternal.toml` | (templated externals) | plugins gated by `.components.zsh` / `.components.tmux` |
 | `home/.chezmoiscripts/run_before_00-backup.sh` | apply hook | snapshots existing targets before changes |
+| `home/.chezmoiscripts/run_before_20-build-opencode-talk.sh.tmpl` | apply hook | with `ai > voice`, `ai > opencode`, and macOS, runs `scripts/opencode-talk/build.sh` on every apply; the script builds the pinned, patched voice plugin into `~/.config/opencode/v2-plugins/talk` only when its stamp is missing or stale, exits fast otherwise, and turns a failed build into a warning; renders to nothing when the gate is off |
 | `home/.chezmoiscripts/run_after_00-install.sh.tmpl` | apply hook | checks selected packages on every package-mode apply |
 | `home/.chezmoiscripts/run_after_02-ensure-dirs.sh.tmpl` | apply hook | creates the worktrees directory, and the agent-notes directory when an AI sub-feature is selected; warns instead of using sudo |
 

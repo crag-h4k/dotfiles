@@ -69,6 +69,17 @@ CLI, server, plugin SDK, and terminal versions when diagnosing compatibility.
   and private plugin options. The panel implementation and its tests belong in
   the Sidequest repository. Keep Pillbox's Sidequest pill disabled until its
   adapter consumes the producer's actual metadata fields.
+- Voice (`ai > voice`, macOS) is a local plugin, not the npm package: the tarball
+  lacks the helper source and the prebuilt binary cannot be verified. Keep the
+  pin in `scripts/opencode-talk/build.sh` at a commit someone has read, and
+  review the upstream diff before moving it. Patch 0001 is the privacy boundary
+  (on-device recognition, no cloud path); do not drop or weaken it, and do not run
+  the built helper from a script or test, because that opens the microphone. A
+  failed build warns, never fails the apply, and writes no stamp, so every apply
+  retries it. Keep the build gate and the `cli.json` entry gate aligned, and keep
+  the entry conditional on the built plugin, since a path to a missing plugin
+  fails to load. Keep `onDeviceOnly` enforced, spoken submit gated on `autoSend`,
+  and the default chord a tap toggle, since hold detection is unreliable under tmux.
 - Diagnose glyph widths, capability probes, RGB backgrounds, and tmux differences
   in the actual terminal chain. The project supports Ghostty over SSH and tmux,
   and has regression history with Termius. Changing the font alone is insufficient
