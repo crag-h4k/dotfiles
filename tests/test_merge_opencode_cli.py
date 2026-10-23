@@ -53,12 +53,16 @@ PILLBOX = {
 
 SIDEQUEST = {"package": SIDEQUEST_PIN, "options": {"focusKey": "<leader>p"}}
 
+ATTENTION_PATH = "./v2-plugins/attention-tabs"
+ATTENTION = {"package": ATTENTION_PATH, "options": {"sort": False, "jumpKey": "<leader>z"}}
+
 MANAGED_PLUGINS = [
     "-opencode.prompt.footer",
     "./v2-plugins/agent-catalog",
     "./v2-plugins/demo",
     PILLBOX,
     SIDEQUEST,
+    ATTENTION,
 ]
 
 # What the previous dotfiles release wrote for a fresh host.
@@ -384,6 +388,7 @@ def test_plugin_directives_and_local_entries_are_preserved_in_order(script):
         "./v2-plugins/agent-catalog",
         PILLBOX,
         SIDEQUEST,
+        ATTENTION,
     ]
     assert plugins[3] is not local and plugins[3] == local
 
@@ -397,6 +402,7 @@ def test_removed_managed_plugin_is_added_back_at_the_end(script):
         "./v2-plugins/agent-catalog",
         PILLBOX,
         SIDEQUEST,
+        ATTENTION,
     ]
 
 
@@ -404,7 +410,7 @@ def test_object_form_managed_plugin_counts_as_present_and_keeps_options(script):
     entry = {"package": "./v2-plugins/agent-catalog", "options": {"compact": True}}
     plugins = merge(script, {"plugins": [entry]})["plugins"]
     assert plugins.count(entry) == 1
-    assert plugins == [entry, "-opencode.prompt.footer", "./v2-plugins/demo", PILLBOX, SIDEQUEST]
+    assert plugins == [entry, "-opencode.prompt.footer", "./v2-plugins/demo", PILLBOX, SIDEQUEST, ATTENTION]
 
 
 def test_plugins_are_not_duplicated_on_reapply(script):
@@ -430,6 +436,7 @@ def test_retired_footer_entries_are_stripped_from_an_existing_host(script):
         "./v2-plugins/demo",
         PILLBOX,
         SIDEQUEST,
+        ATTENTION,
     ]
     assert merge(script, once) == once
 
@@ -437,6 +444,52 @@ def test_retired_footer_entries_are_stripped_from_an_existing_host(script):
 def test_previous_fresh_install_converges_on_the_new_baseline(script):
     previous = dict(BASELINE, plugins=RETIRED_DEFAULT_PLUGINS)
     assert merge(script, previous) == BASELINE
+
+
+def attention_entries(plugins):
+    return [p for p in plugins if (p.get("package") if isinstance(p, dict) else p) == ATTENTION_PATH]
+
+
+def test_attention_tabs_is_managed_by_its_path_with_sorting_seeded_off(script):
+    plugins = merge(script, {})["plugins"]
+    assert attention_entries(plugins) == [ATTENTION]
+    assert plugins[-1] == ATTENTION
+    # Only these two are seeded; the rest keep their in-plugin defaults.
+    assert set(plugins[-1]["options"]) == {"sort", "jumpKey"}
+    assert plugins[-1]["options"]["sort"] is False
+
+
+@pytest.mark.parametrize("existing", [
+    ATTENTION_PATH,
+    {"package": ATTENTION_PATH},
+    {"package": ATTENTION_PATH, "options": {"sort": True}},
+])
+def test_attention_tabs_converges_to_one_object_entry_and_is_idempotent(script, existing):
+    once = merge(script, {"plugins": ["./v2-plugins/local/x", existing]})
+    assert len(attention_entries(once["plugins"])) == 1
+    assert once["plugins"][0] == "./v2-plugins/local/x"
+    entry = once["plugins"][1]
+    assert entry["package"] == ATTENTION_PATH
+    assert entry["options"]["jumpKey"] == "<leader>z"
+    assert entry["options"]["sort"] is (isinstance(existing, dict) and existing.get("options", {}).get("sort", False))
+    assert merge(script, once) == once
+
+
+def test_a_host_that_turns_sorting_on_keeps_it_and_its_other_options(script):
+    edited = {
+        "package": ATTENTION_PATH,
+        "options": {"sort": True, "jumpKey": "<leader>g", "toast": False, "futureOption": 1},
+        "futureField": "keep",
+    }
+    once = merge(script, {"plugins": [edited]})
+    assert once["plugins"][0] == edited
+    assert merge(script, once) == once
+
+
+def test_a_dash_control_for_attention_tabs_survives_the_merge(script):
+    plugins = merge(script, {"plugins": ["-dotfiles.attention-tabs"]})["plugins"]
+    assert plugins[0] == "-dotfiles.attention-tabs"
+    assert attention_entries(plugins) == [ATTENTION]
 
 
 def test_pillbox_pin_bump_rewrites_the_spec_and_keeps_user_options(script, tmp_path):

@@ -301,6 +301,134 @@ arg=status" ]
   [[ "$output" == *'cli={"session":{"sidebar":"show"}}'* ]]
 }
 
+# --- Native attention sound outside tmux ---------------------------------------
+# The tmux notifier is silent outside tmux, so the wrapper hands OpenCode its own
+# attention.sound, built from notify.yaml. These tests run the wrapper under a
+# disposable HOME; TMUX is removed or set explicitly in each.
+
+NOTIFY_SRC_DIR="${BATS_TEST_DIRNAME}/../home/dot_config/notify"
+
+attention_home() {
+  command -v yq >/dev/null 2>&1 || skip "yq not installed"
+  yq --version 2>/dev/null | grep -qi mikefarah || skip "mikefarah yq not installed"
+  command -v python3 >/dev/null 2>&1 || skip "python3 not installed"
+  mkdir -p "$HOME/.config/notify/sounds"
+  cp "$NOTIFY_SRC_DIR/lib.sh" "$HOME/.config/notify/lib.sh"
+  cp "$NOTIFY_SRC_DIR/sounds/silence.mp3" "$HOME/.config/notify/sounds/silence.mp3"
+  touch "$HOME/.config/notify/sounds/ping.mp3" "$HOME/.config/notify/sounds/knock.mp3"
+  cat >"$HOME/.config/notify/notify.yaml" <<'YAML'
+settings:
+  volume: 50
+integrations:
+  opencode:
+    sound: ping.mp3
+  opencode_permission:
+    sound: knock.mp3
+  opencode_question:
+    sound: ""
+YAML
+}
+
+# cli_json <output>: the OPENCODE_CLI_CONFIG_CONTENT line the stub binary echoed,
+# or empty.
+cli_json() { printf '%s\n' "$1" | sed -n 's/^cli=//p'; }
+
+jget() {
+  printf '%s' "$1" | python3 -c 'import json, sys
+v = json.load(sys.stdin)
+for k in sys.argv[1:]:
+    v = v[k]
+print(v)' "${@:2}"
+}
+
+@test "outside tmux an interactive launch exports native attention sound from notify.yaml" {
+  attention_home
+  run env -u TMUX -u OPENCODE_CLI_CONFIG_CONTENT "$WRAPPER"
+  [ "$status" -eq 0 ]
+  local cli
+  cli=$(cli_json "$output")
+  [ -n "$cli" ]
+  [ "$(jget "$cli" attention sound)" = True ]
+  [ "$(jget "$cli" attention volume)" = 0.5 ]
+  [ "$(jget "$cli" attention sounds "done")" = "$HOME/.config/notify/sounds/ping.mp3" ]
+  [ "$(jget "$cli" attention sounds subagent_done)" = "$HOME/.config/notify/sounds/silence.mp3" ]
+  [ "$(jget "$cli" attention sounds permission)" = "$HOME/.config/notify/sounds/knock.mp3" ]
+  [ "$(jget "$cli" attention sounds error)" = "$HOME/.config/notify/sounds/knock.mp3" ]
+  # No popups: the wrapper must not turn system notifications on.
+  [[ "$cli" != *notifications* ]]
+  # The launch itself is unchanged.
+  [[ "$output" == *"arg=--standalone"* ]]
+}
+
+@test "an empty sound in notify.yaml becomes the shipped silence file" {
+  attention_home
+  run env -u TMUX -u OPENCODE_CLI_CONFIG_CONTENT "$WRAPPER"
+  [ "$(jget "$(cli_json "$output")" attention sounds question)" = "$HOME/.config/notify/sounds/silence.mp3" ]
+}
+
+@test "inside tmux the wrapper exports no attention config" {
+  attention_home
+  run env -u OPENCODE_CLI_CONFIG_CONTENT TMUX=/tmp/tmux-test/default,1,0 "$WRAPPER"
+  [ "$status" -eq 0 ]
+  [ -z "$(cli_json "$output")" ]
+}
+
+@test "non-interactive subcommands do not pay for the attention config" {
+  attention_home
+  run env -u TMUX -u OPENCODE_CLI_CONFIG_CONTENT "$WRAPPER" --version
+  [ "$status" -eq 0 ]
+  [ -z "$(cli_json "$output")" ]
+  run env -u TMUX -u OPENCODE_CLI_CONFIG_CONTENT "$WRAPPER" models
+  [ "$status" -eq 0 ]
+  [ -z "$(cli_json "$output")" ]
+}
+
+@test "a cli.override.json keeps the wrapper from adding attention config" {
+  attention_home
+  mkdir -p "$HOME/.config/opencode"
+  printf '%s\n' '{"session":{"sidebar":"show"}}' >"$HOME/.config/opencode/cli.override.json"
+  run env -u TMUX -u OPENCODE_CLI_CONFIG_CONTENT "$WRAPPER"
+  [ "$status" -eq 0 ]
+  [ "$(cli_json "$output")" = '{"session":{"sidebar":"show"}}' ]
+}
+
+@test "a user-set OPENCODE_CLI_CONFIG_CONTENT is never clobbered" {
+  attention_home
+  run env -u TMUX OPENCODE_CLI_CONFIG_CONTENT='{"session":{"sidebar":"hide"}}' "$WRAPPER"
+  [ "$status" -eq 0 ]
+  [ "$(cli_json "$output")" = '{"session":{"sidebar":"hide"}}' ]
+}
+
+@test "the wrapper exports nothing when yq is unavailable" {
+  attention_home
+  # The resolver memoizes its answer in these two globals; presetting them is the
+  # same as having no mikefarah yq anywhere.
+  run env -u TMUX -u OPENCODE_CLI_CONFIG_CONTENT _NOTIFY_YQ_READY=1 _NOTIFY_YQ= "$WRAPPER"
+  [ "$status" -eq 0 ]
+  [ -z "$(cli_json "$output")" ]
+  [[ "$output" == *"arg=--standalone"* ]]
+}
+
+@test "the wrapper exports nothing when notify.yaml is missing" {
+  attention_home
+  rm "$HOME/.config/notify/notify.yaml"
+  run env -u TMUX -u OPENCODE_CLI_CONFIG_CONTENT "$WRAPPER"
+  [ "$status" -eq 0 ]
+  [ -z "$(cli_json "$output")" ]
+}
+
+@test "the wrapper exports nothing when the notify library or silence file is missing" {
+  attention_home
+  rm "$HOME/.config/notify/sounds/silence.mp3"
+  run env -u TMUX -u OPENCODE_CLI_CONFIG_CONTENT "$WRAPPER"
+  [ "$status" -eq 0 ]
+  [ -z "$(cli_json "$output")" ]
+  rm "$HOME/.config/notify/lib.sh"
+  run env -u TMUX -u OPENCODE_CLI_CONFIG_CONTENT "$WRAPPER"
+  [ "$status" -eq 0 ]
+  [ -z "$(cli_json "$output")" ]
+}
+
 @test "local launch overrides can select a server before standalone routing" {
   mkdir -p "$HOME/.config/opencode"
   cat >"$HOME/.config/opencode/override.zsh" <<'OVERRIDE'

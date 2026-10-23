@@ -10,6 +10,11 @@
 // color via ~/.tmux/conf.d/notify.conf. The flag clears on the next keypress or
 // click in the pane (tmux handles that), so this plugin only ever fires.
 //
+// Outside tmux this plugin stays silent; OpenCode's own attention.sound covers
+// that case. Inside tmux the shim withholds the visual flag while a focused
+// client is already looking at the pane, and still plays the sound. See
+// docs/notifications.md.
+//
 // V2 loads the Plugin.define entrypoint below and setup() subscribes to the public
 // server event stream. fire() uses node:child_process and remains best-effort.
 //
