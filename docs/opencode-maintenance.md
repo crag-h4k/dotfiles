@@ -89,6 +89,17 @@ CLI, server, plugin SDK, and terminal versions when diagnosing compatibility.
   select the initial mode, and return `false` synchronously for that key path.
   Seed `keybinds.agent.cycle` to `shift+tab` in `cli.json`; preserve explicit
   local bindings, including disabled values.
+- The prompt send chord is Option+Enter. `cli.json` seeds `keybinds.input.submit`
+  to `super+return,alt+return` and `keybinds.input.newline` to
+  `return,shift+return,ctrl+return,ctrl+j`. Keep `alt+return` in submit and out
+  of newline. Do not move Ghostty's defaults to make Cmd+Enter work: it keeps
+  `super+enter` for fullscreen, `super+return` stays listed for hosts that unbind
+  it themselves, and the Ghostty render test guards that the managed config
+  neither binds nor unbinds `cmd+enter`. Ctrl+Enter and Shift+Enter are native
+  newline chords and lose their modifier in tmux without `extended-keys`. The
+  ids bind to any focused textarea, while forms, dialogs, and the autocomplete
+  popup hard-code Enter. Recheck the ids and chords against the installed
+  OpenCode before changing them.
 - The attention-tabs CLI plugin (`v2-plugins/attention-tabs`) owns tab order, the
   jump command, the toast and banner, and the optional tmux tint. Keep the ranking
   in `rank.mjs` (pure, no host imports) and everything that needs a fake context in

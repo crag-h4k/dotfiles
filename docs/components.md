@@ -284,6 +284,12 @@ default ordering; automatic priority sorting is being developed separately.
 without a Home key. `Ctrl+G`, OpenCode's default for that action, is no longer
 bound.
 
+In the main prompt, Option+Enter sends and Enter inserts a newline. Both
+bindings are seeded in `cli.json`, and Ghostty's own keys are untouched. See
+[OpenCode prompt submit keys](operation.md#opencode-prompt-submit-keys) for how
+the chord travels, the autocomplete gotcha, how a host can use Cmd+Enter, and
+how to opt out.
+
 ### OpenViking
 
 `ai > openviking` installs an isolated Python memory-service runtime, native
