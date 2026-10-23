@@ -696,13 +696,22 @@ stty "$old"
 
 In a bare Ghostty window expect `^[[13;3u`. Inside tmux expect `^[^M`. Ghostty's
 docs say an Option chord that produces no printable character, which includes
-Option+Enter, is treated as Alt whatever `macos-option-as-alt` says, so it should
-arrive without that setting. That has not been seen in a real window.
+Option+Enter, is treated as Alt whatever `macos-option-as-alt` says, so it arrives
+without that setting. Press Option+a too: expect `^[[97;3u` with the protocol on, or
+`^[a` with it off. If neither key prints anything, the keyboard or a key remapper is
+not sending Option, and the terminal never sees it.
 
 Checked in isolated tmux 3.8 servers against OpenCode 2.1.3: Enter inserts a
 newline, Alt+Enter (ESC then Enter) sends, and forms, dialogs, the command palette,
-and the autocomplete popup keep acting on Enter. Not yet verified: Option+Enter from
-Ghostty 1.3.1 with `macos-option-as-alt` unset, and Enter in the permission prompt.
+and the autocomplete popup keep acting on Enter.
+
+Checked by hand on 2026-10-23, Ghostty 1.3.1 with `macos-option-as-alt` unset on a
+U.S. layout, with the left and the right Option key. Option+Enter arrives as
+`^[[13;3u` in a bare window with the protocol on, and as `^[^M` in a bare window
+with it off and inside tmux. Inside tmux, Shift+Enter and Ctrl+Enter arrive as plain
+Enter, which is why they stay newline chords. A live OpenCode session confirmed
+that Enter inserts a newline and Option+Enter sends. Not yet verified: Enter in the
+permission prompt.
 
 ### OpenCode idle locations
 
