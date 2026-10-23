@@ -110,7 +110,7 @@ class OpenVikingTest(unittest.TestCase):
     def test_copilot_profile_does_not_require_local_ollama_or_migrate_existing_vectors(self):
         self.init("copilot")
         config = self.ctl.private_json(self.ctl.PRIVATE / "ov.conf")
-        self.assertEqual(config["vlm"]["model"], "github_copilot/gpt-6-luna")
+        self.assertEqual(config["vlm"]["model"], "github_copilot/claude-haiku-5.5")
         self.assertEqual(config["embedding"]["dense"]["model"], "github_copilot/text-embedding-3-small")
         self.assertEqual(config["embedding"]["dense"]["dimension"], 1536)
         self.init("copilot-ollama")
@@ -245,7 +245,7 @@ class OpenVikingTest(unittest.TestCase):
         responses = [
             {"data": [{"source": {"type": "package", "target": "@openviking/opencode-plugin@2026.10.7"}, "state": {"status": "active"}}]},
             {"data": [{"name": "openviking", "status": {"status": "connected"}}]},
-            {"data": [{"id": name, "content": "fixture private body " * 20000} for name in ("openviking-memory", "openviking-skills", "ov-experience-memory", "openviking-cleanup")]},
+            {"data": [{"id": name, "content": "fixture private body " * 20000} for name in ("openviking-memory", "openviking-skills", "ov-experience-memory", "openviking-cleanup", "openviking-import")]},
         ]
         with patch.object(self.ctl.subprocess, "run") as run:
             pending = iter(responses)
@@ -265,7 +265,7 @@ class OpenVikingTest(unittest.TestCase):
         responses = iter([
             {"data": [{"source": {"type": "package", "target": "@openviking/opencode-plugin@2026.10.7"}, "state": {"status": "failed"}}]},
             {"data": [{"name": "openviking", "status": {"status": "connected"}}]},
-            {"data": [{"id": name} for name in ("openviking-memory", "openviking-skills", "ov-experience-memory", "openviking-cleanup")]},
+            {"data": [{"id": name} for name in ("openviking-memory", "openviking-skills", "ov-experience-memory", "openviking-cleanup", "openviking-import")]},
         ])
 
         def reply(*args, **kwargs):
@@ -303,6 +303,22 @@ class OpenVikingTest(unittest.TestCase):
         self.assertEqual(command.call_args.args[0][3:5], ["--harness", "claude"])
         self.assertFalse(command.call_args.kwargs["check"])
         self.assertNotIn(secret, output.getvalue())
+
+    def test_memory_commands_dispatch_to_the_matching_subcommand_of_one_helper(self):
+        for action, subcommand in (("import-memory", "files"), ("export-oc2", "oc2")):
+            with self.subTest(action=action):
+                argv = [str(CONTROLLER), action, "--name", "fixture"]
+                with patch.object(self.ctl, "load_environment"), \
+                        patch.object(self.ctl, "runtime", return_value=self.home / "runtime"), \
+                        patch.object(self.ctl, "command", return_value=subprocess.CompletedProcess(argv, 0)) as command:
+                    with patch.object(self.ctl.sys, "argv", argv):
+                        with self.assertRaises(SystemExit) as error:
+                            self.ctl.main()
+                self.assertEqual(error.exception.code, 0)
+                invoked = command.call_args.args[0]
+                self.assertEqual(Path(invoked[2]).name, "memory_sources.py")
+                self.assertEqual(invoked[3:], [subcommand, "--name", "fixture"])
+                self.assertFalse(command.call_args.kwargs["check"])
 
     def test_run_enforces_loopback_and_private_working_directory(self):
         self.init()
