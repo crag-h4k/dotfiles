@@ -12,6 +12,7 @@
 - [Local overrides](#local-overrides)
   - [Shell PATH additions](#shell-path-additions)
   - [OpenCode terminal settings](#opencode-terminal-settings)
+  - [OpenCode prompt submit keys](#opencode-prompt-submit-keys)
   - [OpenCode idle locations](#opencode-idle-locations)
   - [OpenCode server plugins](#opencode-server-plugins)
 - [Terminal (tmux) behavior](#terminal-tmux-behavior)
@@ -550,13 +551,23 @@ collided with the session list on `<leader>t`, so those are released. A host
 still on the old `Ctrl+G` leader moves to `Ctrl+X` on the next apply. The
 `plugins` array turns off the stock footer
 and configures the Pillbox and Sidequest terminal halves, the agent catalog,
-and `/demo`.
+attention tabs, and `/demo`.
 
 Sidequest's `options.focusKey` is seeded to `<leader>p`, so `Ctrl+X`, then `P`
 focuses its panel without taking over the leader. Change it in the Sidequest
 entry's `options`; OC2's `keybinds` object does not accept plugin command IDs.
 Keep the same Sidequest package reference in `opencode.jsonc` and
 `cli.json` so OpenCode loads one terminal instance with the terminal options.
+
+The attention-tabs entry is a local path in the object form,
+`{"package": "./v2-plugins/attention-tabs", "options": {...}}`, and the merge
+matches it by that path. Only two options are seeded: `sort` (`false`) and
+`jumpKey` (`<leader>z`). The rest keep the plugin's own defaults, so a later
+default reaches every host instead of being frozen by an earlier apply. To turn
+tab sorting on, set `"sort": true` in that entry; later applies keep it. To turn
+the plugin off, append `-dotfiles.attention-tabs` to `plugins`. The
+[attention tabs section](components.md#opencode-attention-tabs) lists every
+option.
 
 `keybinds.agent.cycle` is seeded to `shift+tab` for the opening prompt. The
 session-workflow plugin yields to that native binding before a session exists,
@@ -583,10 +594,115 @@ for example `-dotfiles.agent-catalog`.
 | Override | Effect |
 | --- | --- |
 | `{"attention":{"notifications":true}}` | Turns native banners on for that host, even though chezmoi keeps `cli.json` at `false` |
-| `{"plugins":["./v2-plugins/local/x"]}` | Replaces the whole array, removing the managed footer/Sidequest options, agent catalog, and `/demo` declarations unless the override restates them; server-registered TUI plugins may still load with their defaults |
+| `{"plugins":["./v2-plugins/local/x"]}` | Replaces the whole array, removing the managed footer/Sidequest options, agent catalog, attention tabs, and `/demo` declarations unless the override restates them; server-registered TUI plugins may still load with their defaults |
 
 If `cli.json` is not a JSON object, the merge leaves it unchanged and prints a
 warning, so a hand edit is never destroyed.
+
+### OpenCode prompt submit keys
+
+In the main prompt composer, Option+Enter sends and Enter inserts a newline.
+Shift+Enter, Ctrl+Enter, and Ctrl+J also insert a newline. Nothing in Ghostty
+changes. Two seeded `cli.json` keybinds do it:
+
+- `keybinds.input.submit` is `super+return,alt+return`.
+- `keybinds.input.newline` is `return,shift+return,ctrl+return,ctrl+j`.
+
+`super+return` is Cmd+Enter. It stays in the list but does nothing out of the
+box: Ghostty keeps `super+enter` for fullscreen, so the chord never reaches
+OpenCode. It starts working on a host that unbinds it (below), or in another
+terminal that delivers it.
+
+Both keys are seeded per key, so a binding you set in **Open settings** or by
+hand is never replaced. A seeded key you delete comes back on the next apply; set
+it to the value you want instead. The ids bind to any focused textarea, which here
+means the composer. The question form's option list and its "type your own
+answer" box, dialog prompts, the command palette, and the autocomplete popup
+still act on Enter, and Alt+Enter does nothing in dialogs and forms. A permission
+prompt also reads Enter in its own layer. That comes from reading the OpenCode
+code, not from a live check.
+
+Option+Enter reaches OpenCode as `alt+return` two ways:
+
+- Outside tmux, OpenCode asks the terminal for the kitty keyboard protocol, and
+  the chord arrives as `alt+return`.
+- Inside tmux with `extended-keys off`, which is tmux's default and which these
+  dotfiles leave alone, tmux forwards it as ESC then Enter. OpenCode reads that
+  as `alt+return` too.
+
+`alt+return` has to stay out of `input.newline`, where OpenCode puts it by
+default. If it is in neither list it still sends through a built-in path.
+Ctrl+Enter and Shift+Enter are not send chords because they are OpenCode's native
+newline chords, and inside tmux without `extended-keys` they lose their modifier
+and arrive as plain Enter. Using Ctrl+Enter to send would need tmux
+`extended-keys on` and its removal from `input.newline`.
+
+Things to know:
+
+- An open autocomplete popup eats Option+Enter, and Enter selects the highlighted
+  item. After a `/command` or `@file` token, press Esc, then send.
+- To use Cmd+Enter on one machine, unbind Ghostty's fullscreen default in
+  `~/.config/ghostty/override.conf`. The key name is `cmd+enter`; Ghostty rejects
+  `cmd+return`.
+
+  ```text
+  keybind = cmd+enter=unbind
+  ```
+
+  Cmd+Enter then arrives as `super+return` (kitty protocol) or `ESC[27;9;13~`
+  (legacy mode), both read as `super+return`. Inside tmux 3.8 it arrives as
+  `alt+return`, because tmux has no Super modifier and folds it into Meta.
+  Fullscreen stays on Cmd+Ctrl+F. The unbind is terminal-wide, so every program in
+  Ghostty receives the chord, and one that does not know the sequences may print
+  or ignore them.
+- The `cli.json` keys are not OS-gated. On Debian, and over SSH, Enter also
+  inserts a newline, and the send chord is Alt+Enter if the terminal chain
+  delivers it.
+
+If Option+Enter does not send, pick one of these:
+
+- Set `macos-option-as-alt = true` in `override.conf`. Option then acts as Alt for
+  every key, which also stops Option from composing accented characters. Ghostty
+  already defaults to `true` on U.S. layouts and `false` on others, and `left` or
+  `right` limits the change to one Option key.
+- Change `input.submit` to a chord that does arrive, keeping it out of
+  `input.newline`.
+
+To get OpenCode's stock keys back on one host, put this in
+`~/.config/opencode/cli.override.json`:
+
+```json
+{
+  "keybinds": {
+    "input.submit": "return",
+    "input.newline": "shift+return,ctrl+return,alt+return,ctrl+j"
+  }
+}
+```
+
+To check what Option+Enter sends, open a terminal and run the commands below, then
+press Option+Enter within five seconds. The read times out by itself, because Ctrl-D
+can itself arrive as an escape sequence once the kitty protocol is on. Skip the two
+`printf` lines inside tmux, which does not speak the protocol.
+
+```zsh
+old=$(stty -g)
+stty -icanon -icrnl -echo min 0 time 50
+printf '\e[>5u'    # ask for the kitty protocol, as OpenCode does
+cat -v              # press Option+Enter now
+printf '\e[<u'     # give the protocol back
+stty "$old"
+```
+
+In a bare Ghostty window expect `^[[13;3u`. Inside tmux expect `^[^M`. Ghostty's
+docs say an Option chord that produces no printable character, which includes
+Option+Enter, is treated as Alt whatever `macos-option-as-alt` says, so it should
+arrive without that setting. That has not been seen in a real window.
+
+Checked in isolated tmux 3.8 servers against OpenCode 2.1.3: Enter inserts a
+newline, Alt+Enter (ESC then Enter) sends, and forms, dialogs, the command palette,
+and the autocomplete popup keep acting on Enter. Not yet verified: Option+Enter from
+Ghostty 1.3.1 with `macos-option-as-alt` unset, and Enter in the permission prompt.
 
 ### OpenCode idle locations
 

@@ -5,6 +5,11 @@
 settings:
   volume: 75
   threshold: 0
+  # The OpenCode TUI plugin shows a tab that needs attention in another tab's pane
+  # as a dimmed tint. This is how far that tint fades from its group color toward
+  # the palette background below: 0 is the full group color, 1 is the background
+  # itself. A plain decimal; anything else means 0.5.
+  elsewhere_dim: 0.5
   debug: false
   log: ~/.config/notify/notify.log
   ignore:
@@ -30,6 +35,7 @@ settings:
     - watch
 
 palette:
+  background: {{ $p.colors.background | quote }}
   dark_red: {{ $p.notify.dark_red | quote }}
   dark_purple: {{ $p.notify.dark_purple | quote }}
   dark_green: {{ $p.notify.dark_green | quote }}

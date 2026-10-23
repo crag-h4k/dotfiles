@@ -53,6 +53,10 @@
 # README and schema.json.
 # Sidequest uses the same server/TUI package pin. Its focusKey option is a leader
 # chord that no native binding uses; it is seeded without replacing local choices.
+# ./v2-plugins/attention-tabs is a local plugin in the object form, matched by its
+# path like any local entry. Its options are SEEDED per leaf: sort (off) and
+# jumpKey. The other options (toast, banner, tmuxSink, notifierCommand, debounceMs,
+# activeTtlMs) keep their in-plugin defaults so a later default reaches every host.
 #
 # ~/.config/opencode/cli.override.json is separate and wins at runtime: the
 # opencode2 wrapper exports it as OPENCODE_CLI_CONFIG_CONTENT. Nested objects
@@ -89,12 +93,17 @@ PILLBOX_OPTIONS = {
     },
 }
 
+# attention-tabs ships with sorting off until the old Mac focus bug is checked by
+# hand; both options are seeded per leaf, so a host that turns sorting on keeps it.
+ATTENTION_TABS_OPTIONS = {"sort": False, "jumpKey": "<leader>z"}
+
 MANAGED_PLUGINS = (
     "-opencode.prompt.footer",
     "./v2-plugins/agent-catalog",
     "./v2-plugins/demo",
     {"package": "opencode-pillbox-statusline@latest", "options": PILLBOX_OPTIONS},
     {"package": "opencode-sidequest@latest", "options": {"focusKey": "<leader>p"}},
+    {"package": "./v2-plugins/attention-tabs", "options": ATTENTION_TABS_OPTIONS},
 )
 # The local footer and the stock TUI half it replaced. A stale local path
 # fails to load, so the merge removes these instead of leaving them behind.
@@ -142,6 +151,18 @@ SETTINGS = (
     (("animations",), True, SEEDED),
     (("diffs", "wrap"), "word", SEEDED),
     (("terminal", "title"), True, SEEDED),
+    # ---- Prompt submit keys: Enter inserts a newline, Option+Enter submits -------
+    # SEEDED per leaf, so a binding set in the TUI or by hand is never replaced.
+    # These ids bind to any focused textarea, which is the main prompt composer.
+    # The question form, dialog prompts, the command palette and the autocomplete
+    # popup hard-code Enter, so they keep acting on it. Option+Enter (alt+return)
+    # sends; it arrives as ESC CR inside tmux with extended-keys off, and OpenCode
+    # reads that as alt+return. It must stay out of input.newline, where it sits
+    # by default. super+return (Cmd+Enter) stays listed but is inert in Ghostty,
+    # which keeps super+enter for fullscreen; it works only where a host unbinds
+    # it or another terminal delivers it. Ghostty's defaults are not changed.
+    (("keybinds", "input.submit"), "super+return,alt+return", SEEDED),
+    (("keybinds", "input.newline"), "return,shift+return,ctrl+return,ctrl+j", SEEDED),
 )
 SEED_UNLESS = {("tabs", "mode"): (("tabs", "enabled"),)}
 
