@@ -601,53 +601,72 @@ warning, so a hand edit is never destroyed.
 
 ### OpenCode prompt submit keys
 
-In the main prompt composer, Enter inserts a newline and Cmd+Enter submits. Two
-seeded `cli.json` keybinds do it:
+In the main prompt composer, Option+Enter sends and Enter inserts a newline.
+Shift+Enter, Ctrl+Enter, and Ctrl+J also insert a newline. Nothing in Ghostty
+changes. Two seeded `cli.json` keybinds do it:
 
 - `keybinds.input.submit` is `super+return,alt+return`.
 - `keybinds.input.newline` is `return,shift+return,ctrl+return,ctrl+j`.
 
-Both are seeded per key, so a binding you set in **Open settings** or by hand is
-never replaced. A seeded key you delete comes back on the next apply; set it to
-the value you want instead. The ids bind to any focused textarea, which here
+`super+return` is Cmd+Enter. It stays in the list but does nothing out of the
+box: Ghostty keeps `super+enter` for fullscreen, so the chord never reaches
+OpenCode. It starts working on a host that unbinds it (below), or in another
+terminal that delivers it.
+
+Both keys are seeded per key, so a binding you set in **Open settings** or by
+hand is never replaced. A seeded key you delete comes back on the next apply; set
+it to the value you want instead. The ids bind to any focused textarea, which here
 means the composer. The question form's option list and its "type your own
 answer" box, dialog prompts, the command palette, and the autocomplete popup
 still act on Enter, and Alt+Enter does nothing in dialogs and forms. A permission
 prompt also reads Enter in its own layer. That comes from reading the OpenCode
 code, not from a live check.
 
-Cmd+Enter has to get through Ghostty, and through tmux if you run it, before
-OpenCode sees anything:
+Option+Enter reaches OpenCode as `alt+return` two ways:
 
-- Ghostty binds Cmd+Enter to fullscreen by default, so the chord never reaches
-  the terminal. The macOS arm of the managed Ghostty config therefore has
-  `keybind = cmd+enter=unbind`. The key name is `cmd+enter`; Ghostty rejects
-  `cmd+return`. The Linux arm is unchanged.
-- Outside tmux, Ghostty sends Cmd+Enter as `super+return` (kitty keyboard
-  protocol) or as `ESC[27;9;13~` (legacy mode). OpenCode reads both as
-  `super+return`.
-- Inside tmux 3.8 there is no Super modifier, and tmux folds it into Meta. These
-  dotfiles leave tmux's default `extended-keys off` alone, so Cmd+Enter arrives
-  as `alt+return`.
+- Outside tmux, OpenCode asks the terminal for the kitty keyboard protocol, and
+  the chord arrives as `alt+return`.
+- Inside tmux with `extended-keys off`, which is tmux's default and which these
+  dotfiles leave alone, tmux forwards it as ESC then Enter. OpenCode reads that
+  as `alt+return` too.
 
-That is why `alt+return` sits in `input.submit`. It has to stay out of
-`input.newline`, where OpenCode puts it by default. If it is in neither list it
-still submits through a built-in path.
+`alt+return` has to stay out of `input.newline`, where OpenCode puts it by
+default. If it is in neither list it still sends through a built-in path.
+Ctrl+Enter and Shift+Enter are not send chords because they are OpenCode's native
+newline chords, and inside tmux without `extended-keys` they lose their modifier
+and arrive as plain Enter. Using Ctrl+Enter to send would need tmux
+`extended-keys on` and its removal from `input.newline`.
 
 Things to know:
 
-- An open autocomplete popup eats Alt+Enter and Cmd+Enter, and Enter selects the
-  highlighted item. After a `/command` or `@file` token, press Esc, then submit.
-- Cmd+Enter no longer toggles fullscreen in Ghostty. Fullscreen stays on
-  Cmd+Ctrl+F. To give Cmd+Enter back to Ghostty on one machine, add
-  `keybind = cmd+enter=toggle_fullscreen` to `~/.config/ghostty/override.conf`
-  and list another chord in `input.submit`. A later keybind with the same
-  trigger wins.
-- The unbind is terminal-wide. Every program in Ghostty now receives Cmd+Enter as
-  the sequences above, and one that does not know them may print or ignore them.
+- An open autocomplete popup eats Option+Enter, and Enter selects the highlighted
+  item. After a `/command` or `@file` token, press Esc, then send.
+- To use Cmd+Enter on one machine, unbind Ghostty's fullscreen default in
+  `~/.config/ghostty/override.conf`. The key name is `cmd+enter`; Ghostty rejects
+  `cmd+return`.
+
+  ```text
+  keybind = cmd+enter=unbind
+  ```
+
+  Cmd+Enter then arrives as `super+return` (kitty protocol) or `ESC[27;9;13~`
+  (legacy mode), both read as `super+return`. Inside tmux 3.8 it arrives as
+  `alt+return`, because tmux has no Super modifier and folds it into Meta.
+  Fullscreen stays on Cmd+Ctrl+F. The unbind is terminal-wide, so every program in
+  Ghostty receives the chord, and one that does not know the sequences may print
+  or ignore them.
 - The `cli.json` keys are not OS-gated. On Debian, and over SSH, Enter also
-  inserts a newline, and the submit chord is whichever of Cmd+Enter or Alt+Enter
-  the terminal chain delivers.
+  inserts a newline, and the send chord is Alt+Enter if the terminal chain
+  delivers it.
+
+If Option+Enter does not send, pick one of these:
+
+- Set `macos-option-as-alt = true` in `override.conf`. Option then acts as Alt for
+  every key, which also stops Option from composing accented characters. Ghostty
+  already defaults to `true` on U.S. layouts and `false` on others, and `left` or
+  `right` limits the change to one Option key.
+- Change `input.submit` to a chord that does arrive, keeping it out of
+  `input.newline`.
 
 To get OpenCode's stock keys back on one host, put this in
 `~/.config/opencode/cli.override.json`:
@@ -661,30 +680,29 @@ To get OpenCode's stock keys back on one host, put this in
 }
 ```
 
-To check what Cmd+Enter sends, open a bare Ghostty window (no tmux, no OpenCode)
-and run this. Press Cmd+Enter, then Ctrl-D, then restore the line discipline:
+To check what Option+Enter sends, open a terminal and run the commands below, then
+press Option+Enter within five seconds. The read times out by itself, because Ctrl-D
+can itself arrive as an escape sequence once the kitty protocol is on. Skip the two
+`printf` lines inside tmux, which does not speak the protocol.
 
 ```zsh
-stty -icrnl; cat -v
-# press Cmd+Enter, then Ctrl-D
-stty icrnl
+old=$(stty -g)
+stty -icanon -icrnl -echo min 0 time 50
+printf '\e[>5u'    # ask for the kitty protocol, as OpenCode does
+cat -v              # press Option+Enter now
+printf '\e[<u'     # give the protocol back
+stty "$old"
 ```
 
-Expect `^[[27;9;13~` outside tmux and `^[^M` inside tmux. If Ghostty still does
-not deliver the chord after the unbind, a machine-local fallback is to remap it
-to text in `override.conf` and submit on Alt+Enter:
+In a bare Ghostty window expect `^[[13;3u`. Inside tmux expect `^[^M`. Ghostty's
+docs say an Option chord that produces no printable character, which includes
+Option+Enter, is treated as Alt whatever `macos-option-as-alt` says, so it should
+arrive without that setting. That has not been seen in a real window.
 
-```text
-# ~/.config/ghostty/override.conf
-keybind = cmd+enter=text:\x1b\r
-```
-
-with `input.submit` set to `alt+return`. That fallback is documented, not
-shipped, and has not been tried in a real window.
-
-Checked against OpenCode 2.1.3, Ghostty 1.3.1, and tmux 3.8 in isolated
-pseudo-terminals and tmux servers. Not yet verified: a physical Cmd+Enter in a
-real Ghostty window, and Enter in the permission prompt.
+Checked in isolated tmux 3.8 servers against OpenCode 2.1.3: Enter inserts a
+newline, Alt+Enter (ESC then Enter) sends, and forms, dialogs, the command palette,
+and the autocomplete popup keep acting on Enter. Not yet verified: Option+Enter from
+Ghostty 1.3.1 with `macos-option-as-alt` unset, and Enter in the permission prompt.
 
 ### OpenCode idle locations
 

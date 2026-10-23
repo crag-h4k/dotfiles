@@ -107,7 +107,7 @@ BASELINE = {
     "terminal": {"title": True},
 }
 
-# ---- Prompt submit keys: Enter inserts a newline, Cmd+Enter submits ------------
+# ---- Prompt submit keys: Enter inserts a newline, Option+Enter submits ---------
 # Seeded only; see the matching block in modify_private_cli.json.tmpl. Kept apart
 # from BASELINE so it merges cleanly with other keybind work.
 PROMPT_KEYS = {
@@ -728,17 +728,18 @@ def test_chezmoi_leaves_the_local_override_untouched_and_unmerged(sandbox):
     assert data["plugins"] == MANAGED_PLUGINS
 
 
-# ---- Prompt submit keys: Enter inserts a newline, Cmd+Enter submits ------------
+# ---- Prompt submit keys: Enter inserts a newline, Option+Enter submits ---------
 # input.submit and input.newline bind to any focused textarea; forms, dialogs and
 # the autocomplete popup keep acting on Enter. Both are SEEDED, never owned.
 def chords(value):
     return set(value.split(","))
 
 
-def test_enter_makes_a_newline_and_cmd_or_alt_enter_submits(script):
+def test_enter_makes_a_newline_and_option_enter_submits(script):
     keys = merge(script, {})["keybinds"]
     submit, newline = chords(keys["input.submit"]), chords(keys["input.newline"])
-    assert {"super+return", "alt+return"} <= submit, "Cmd+Enter, and Alt+Enter as tmux delivers it"
+    assert "alt+return" in submit, "Option+Enter, which tmux also delivers as ESC CR"
+    assert "super+return" in submit, "Cmd+Enter, for a host that frees it from Ghostty"
     assert "return" in newline and "return" not in submit
     assert {"shift+return", "ctrl+return", "ctrl+j"} <= newline, "the native newline chords stay"
     # A chord on both actions is ambiguous, and Alt+Enter is a newline by default.
