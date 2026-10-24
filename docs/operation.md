@@ -1000,9 +1000,15 @@ provider selection, and performance measurements.
 
 ## SSH MCP for OpenCode V2
 
-Selecting `ai > opencode` installs the pinned `ssh-mcp` CLI and seeds
+Selecting `ai > opencode` installs the npm `latest` release of `ssh-mcp` and seeds
 `mcp.servers.ssh-mcp` disabled. It has no individual picker entry.
-Package approval is required for the binary.
+In package mode, each `chezmoi apply` or `chezmoi update` checks for a newer
+release and offers it in the package plan. The approved version is installed;
+configs-only mode does not check or upgrade packages. Package confirmation is
+still required for a pending upgrade unless unattended mode is explicitly enabled.
+On a fresh host without npm, SSH MCP's version is resolved after Node bootstrap
+and gets its own approval before installation. A declined or unresolved version
+is not installed.
 It uses a local stdio connection; no remote SSH service or key is installed by
 dotfiles.
 

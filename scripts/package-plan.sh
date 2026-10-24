@@ -494,7 +494,7 @@ _build() {
     [[ "$INSTALL_AI_COPILOT" == true ]] &&
         _add npm @github/copilot "https://www.npmjs.com/package/@github/copilot" copilot "$(_version_policy "$COPILOT_VERSION")"
     [[ "$INSTALL_AI_SSH_MCP" == true ]] &&
-        _add npm ssh-mcp "https://www.npmjs.com/package/ssh-mcp" ssh-mcp pinned:2.18.0
+        _add npm ssh-mcp "https://www.npmjs.com/package/ssh-mcp" ssh-mcp
     [[ "$INSTALL_AI_CAVEMAN" == true ]] &&
         _add npm @caveman-ai/cli "https://www.npmjs.com/package/@caveman-ai/cli (includes signed bin-v2.1.0 runtime)" caveman pinned:2.1.0
 

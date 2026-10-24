@@ -186,6 +186,40 @@ package_plan_resolve_deferred_git() {
     rm -f "$deferred"
 }
 
+package_plan_resolve_deferred_ssh_mcp() {
+    local source name status policy origin probe current target reason deferred merged
+    local -a _records=()
+    while IFS=$'\t' read -r source name status policy origin probe current target reason; do
+        if [[ "$source" == npm && "$name" == ssh-mcp && "$status" == check ]]; then
+            _records+=("$source"$'\t'"$name"$'\t'"$status"$'\t'"$policy"$'\t'"$origin"$'\t'"$probe")
+        fi
+    done <"$DOTFILES_PACKAGE_PLAN"
+    [[ "${#_records[@]}" -gt 0 ]] || return 0
+    # Node/npm may not exist when the initial plan is approved on a fresh host.
+    # Resolve only after bootstrap and ask again before installing that candidate.
+    # shellcheck source-path=SCRIPTDIR
+    # shellcheck source=package-resolve.sh
+    source "$_COMMON_SH_DIR/package-resolve.sh"
+    _resolve_records
+    deferred=$(mktemp "${DOTFILES_PACKAGE_PLAN}.ssh-mcp.XXXXXX") || return 1
+    merged=$(mktemp "${DOTFILES_PACKAGE_PLAN}.merged.XXXXXX") || { rm -f "$deferred"; return 1; }
+    printf '%s\n' "${_records[@]}" | awk -F '\t' 'BEGIN { OFS="\t" }
+        $3 == "check" || $3 == "blocked" { $3="blocked"; $9="SSH MCP version unavailable after Node bootstrap" }
+        { print }
+    ' >"$deferred"
+    if package_plan_needs_confirmation "$deferred" &&
+        ! package_plan_confirm "$deferred" "SSH MCP resolved after Node bootstrap"; then
+        awk -F '\t' 'BEGIN { OFS="\t" } { $3="blocked"; $9="resolved SSH MCP version was not approved"; print }' \
+            "$deferred" >"$merged"
+        cat "$merged" >"$deferred"
+    fi
+    awk -F '\t' 'NR == FNR { rows[$1 FS $2]=$0; next }
+        { key=$1 FS $2; if (key in rows) print rows[key]; else print }
+    ' "$deferred" "$DOTFILES_PACKAGE_PLAN" >"$merged"
+    mv "$merged" "$DOTFILES_PACKAGE_PLAN"
+    rm -f "$deferred"
+}
+
 package_plan_save_approval() {
     local sentinel
     sentinel=$(_pkg_confirm_sentinel) || return 1
