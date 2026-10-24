@@ -68,6 +68,36 @@ STUB
   [ "$output" = 'planned 1.2.3' ]
 }
 
+@test "SSH MCP deferred resolution installs only the approved npm candidate" {
+  export DOTFILES_PACKAGE_PLAN="$BATS_TEST_TMPDIR/plan" DOTFILES_ASSUME_YES=1
+  printf 'npm\tssh-mcp\tcheck\tfloating\tregistry\tssh-mcp\t-\t-\tresolve after Node installation\n' >"$DOTFILES_PACKAGE_PLAN"
+  cat >"$BATS_TEST_TMPDIR/bin/npm" <<'STUB'
+#!/bin/sh
+[ "$1" = outdated ] && [ "$2" = --prefix ] || exit 90
+node -e 'if (require(process.argv[1]).dependencies["ssh-mcp"] !== "latest") process.exit(1)' "$3/package.json" || exit 91
+printf '{"ssh-mcp":{"wanted":"2.20.2"}}\n'
+exit 1
+STUB
+  chmod +x "$BATS_TEST_TMPDIR/bin/npm"
+  run bash -c 'source "$1/scripts/common.sh"; package_plan_resolve_deferred_ssh_mcp' _ "$ROOT"
+  [ "$status" -eq 0 ]
+  [ "$(awk -F '\t' '{print $3, $8}' "$DOTFILES_PACKAGE_PLAN")" = 'planned 2.20.2' ]
+}
+
+@test "SSH MCP deferred resolution refuses an unapproved candidate" {
+  export DOTFILES_PACKAGE_PLAN="$BATS_TEST_TMPDIR/plan" DOTFILES_TTY="$BATS_TEST_TMPDIR/missing-tty"
+  printf 'npm\tssh-mcp\tcheck\tfloating\tregistry\tssh-mcp\t-\t-\tresolve after Node installation\n' >"$DOTFILES_PACKAGE_PLAN"
+  cat >"$BATS_TEST_TMPDIR/bin/npm" <<'STUB'
+#!/bin/sh
+printf '{"ssh-mcp":{"wanted":"2.20.2"}}\n'
+exit 1
+STUB
+  chmod +x "$BATS_TEST_TMPDIR/bin/npm"
+  run bash -c 'source "$1/scripts/common.sh"; package_plan_resolve_deferred_ssh_mcp' _ "$ROOT"
+  [ "$status" -eq 0 ]
+  [ "$(awk -F '\t' '{print $3, $8}' "$DOTFILES_PACKAGE_PLAN")" = 'blocked 2.20.2' ]
+}
+
 @test "OpenCode candidate resolution overrides an inherited release age without an exclude list" {
   cat >"$BATS_TEST_TMPDIR/bin/npm" <<'STUB'
 #!/bin/sh

@@ -261,6 +261,10 @@ main() {
             *) die "unsupported OS: $(uname -s)" ;;
         esac
 
+        if [[ "$INSTALL_AI_OPENCODE" == true ]]; then
+            package_plan_resolve_deferred_ssh_mcp || warn "could not resolve deferred SSH MCP version"
+        fi
+
         [[ "$INSTALL_NEOVIM" == true ]] \
             && { package_action_try github-release terraform "Terraform latest stable through tenv" bootstrap_tenv_terraform || true; }
 
