@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.5.1](https://github.com/crag-h4k/dotfiles/compare/v1.5.0...v1.5.1) (2026-10-24)
+
+
+### Bug Fixes
+
+* **ssh-mcp:** track npm latest ([27248c5](https://github.com/crag-h4k/dotfiles/commit/27248c5b321273de0825acf0be05c3f8affd26c3))
+
 ## [1.5.0](https://github.com/crag-h4k/dotfiles/compare/v1.4.0...v1.5.0) (2026-10-23)
 
 
