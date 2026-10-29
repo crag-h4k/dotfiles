@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.6.0](https://github.com/crag-h4k/dotfiles/compare/v1.5.1...v1.6.0) (2026-10-29)
+
+
+### Features
+
+* **opencode:** add the attention-tabs plugin and tab-aware notifier  ([#152](https://github.com/crag-h4k/dotfiles/issues/152)) ([5bf6d56](https://github.com/crag-h4k/dotfiles/commit/5bf6d5633454ddaeebd6bd6a183eb03d4faf9b75))
+
 ## [1.5.1](https://github.com/crag-h4k/dotfiles/compare/v1.5.0...v1.5.1) (2026-10-24)
 
 
