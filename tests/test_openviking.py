@@ -110,7 +110,7 @@ class OpenVikingTest(unittest.TestCase):
     def test_copilot_profile_does_not_require_local_ollama_or_migrate_existing_vectors(self):
         self.init("copilot")
         config = self.ctl.private_json(self.ctl.PRIVATE / "ov.conf")
-        self.assertEqual(config["vlm"]["model"], "github_copilot/claude-haiku-5.5")
+        self.assertEqual(config["vlm"]["model"], "github_copilot/gpt-6-luna")
         self.assertEqual(config["embedding"]["dense"]["model"], "github_copilot/text-embedding-3-small")
         self.assertEqual(config["embedding"]["dense"]["dimension"], 1536)
         self.init("copilot-ollama")

@@ -251,6 +251,9 @@ Read-only Git commands are allowed; mutating Git operations, including worktree
 changes, ask. The managed global OpenCode instructions also require an explicit
 `question` decision before Git mutations. Before a commit they require at least
 two Release Please Conventional Commit message candidates and a user selection.
+Syncing a feature branch with its base is the one pre-approved exception: a
+fetch and a plain merge with the message `chore: merge <base> into <branch>`
+need no question, and a push of the result still does.
 Credential files and recursive removal commands remain denied.
 
 `cli.json` enables session tabs and keeps OpenCode's default `Ctrl+X` as a
@@ -283,6 +286,12 @@ default ordering; automatic priority sorting is being developed separately.
 `Home` and `<leader>f` move to the first message; the second works on keyboards
 without a Home key. `Ctrl+G`, OpenCode's default for that action, is no longer
 bound.
+
+In the main prompt, Option+Enter sends and Enter inserts a newline. Both
+bindings are seeded in `cli.json`, and Ghostty's own keys are untouched. See
+[OpenCode prompt submit keys](operation.md#opencode-prompt-submit-keys) for how
+the chord travels, the autocomplete gotcha, how a host can use Cmd+Enter, and
+how to opt out.
 
 ### OpenViking
 

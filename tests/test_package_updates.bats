@@ -334,7 +334,7 @@ printf '%s %s %s\n' "$1" "$spec" "${NPM_CONFIG_MIN_RELEASE_AGE:-unset}" >>"$AGE_
 STUB
   printf '#!/bin/sh\nprintf "1.0.0\\n"\n' >"$stubs/copilot"
   chmod +x "$stubs"/*
-  printf 'npm\tssh-mcp\tplanned\tpinned:2.18.0\torigin\tssh-mcp\t-\t2.18.0\tmissing\n' >"$plan"
+  printf 'npm\tssh-mcp\tupdate\tfloating\torigin\tssh-mcp\t2.18.0\t2.20.2\tversion differs\n' >"$plan"
 
   run env HOME="$home" PATH="$stubs:$PATH" AGE_LOG="$age_log" NPM_CONFIG_MIN_RELEASE_AGE=3 \
     DOTFILES_PACKAGE_PLAN="$plan" INSTALL_AI_SSH_MCP=true bash "$REPO_ROOT/scripts/install-ssh-mcp.sh"
@@ -342,7 +342,7 @@ STUB
   run env HOME="$home" PATH="$stubs:$PATH" AGE_LOG="$age_log" NPM_CONFIG_MIN_RELEASE_AGE=3 \
     INSTALL_AI_COPILOT=true bash "$REPO_ROOT/scripts/install-copilot.sh"
   [ "$status" -eq 0 ]
-  [ "$(cat "$age_log")" = "install ssh-mcp@2.18.0 0
+  [ "$(cat "$age_log")" = "install ssh-mcp@2.20.2 0
 install @github/copilot@prerelease 0" ]
 }
 

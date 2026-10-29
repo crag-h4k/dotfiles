@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Install the pinned SSH MCP binary; host profiles stay private and unmanaged.
+# Install the approved SSH MCP version; host profiles stay private and unmanaged.
 set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -12,5 +12,5 @@ source "$SCRIPT_DIR/common.sh"
 command -v npm >/dev/null 2>&1 || die "SSH MCP requires npm"
 
 target=$(package_target npm ssh-mcp)
-[[ "$target" == 2.18.0 ]] || die "SSH MCP expected pinned version 2.18.0"
+release_version_valid "$target" || die "SSH MCP needs an approved version"
 npm install -g --prefix "$HOME/.local" "ssh-mcp@$target"

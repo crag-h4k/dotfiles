@@ -1,5 +1,29 @@
 # Changelog
 
+## [1.5.1](https://github.com/crag-h4k/dotfiles/compare/v1.5.0...v1.5.1) (2026-10-24)
+
+
+### Bug Fixes
+
+* **ssh-mcp:** track npm latest ([27248c5](https://github.com/crag-h4k/dotfiles/commit/27248c5b321273de0825acf0be05c3f8affd26c3))
+
+## [1.5.0](https://github.com/crag-h4k/dotfiles/compare/v1.4.0...v1.5.0) (2026-10-23)
+
+
+### Features
+
+* **install:** install independent AI runtime groups in parallel ([#142](https://github.com/crag-h4k/dotfiles/issues/142)) ([a7e6c97](https://github.com/crag-h4k/dotfiles/commit/a7e6c97db13107d3370f299fc9a0eba0235db879))
+* **opencode:** add the attention-tabs plugin and tab-aware notifier ([#144](https://github.com/crag-h4k/dotfiles/issues/144)) ([c2cd21f](https://github.com/crag-h4k/dotfiles/commit/c2cd21ff579b3201e86556150b8367b63a560548))
+* **opencode:** make Enter a newline and Cmd+Enter submit in the prompt ([#145](https://github.com/crag-h4k/dotfiles/issues/145)) ([929bc92](https://github.com/crag-h4k/dotfiles/commit/929bc928c15b87b37d8c2a62ebdf174ff92e4e0d))
+* **openviking:** add file-memory import and OpenCode 2 export, default to Haiku 5.5 ([#143](https://github.com/crag-h4k/dotfiles/issues/143)) ([f9220ed](https://github.com/crag-h4k/dotfiles/commit/f9220ed49920942e98b41724a5036e7141614f09))
+
+
+### Bug Fixes
+
+* **caveman:** route Copilot and Anthropic Messages ([#139](https://github.com/crag-h4k/dotfiles/issues/139)) ([bb10648](https://github.com/crag-h4k/dotfiles/commit/bb10648b2d41cd71c192becaece0c2874e77bba1))
+* **dotfiles:** keep OC2 prompts alive, seed Shift+Tab and accelerate CI ([#141](https://github.com/crag-h4k/dotfiles/issues/141)) ([fde5cc5](https://github.com/crag-h4k/dotfiles/commit/fde5cc57cac86ea2bdd2615c52730df4618bd4fb))
+* **openviking:** default the Copilot starters to GPT-6 Luna extraction ([#146](https://github.com/crag-h4k/dotfiles/issues/146)) ([c9c67ae](https://github.com/crag-h4k/dotfiles/commit/c9c67ae80f977a2a9897cd0f3244172fdc637de2))
+
 ## [1.4.0](https://github.com/crag-h4k/dotfiles/compare/v1.3.1...v1.4.0) (2026-10-20)
 
 
