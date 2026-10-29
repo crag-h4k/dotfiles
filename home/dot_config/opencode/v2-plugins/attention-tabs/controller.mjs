@@ -251,7 +251,8 @@ export function createController(ctx, rawOptions, deps = {}) {
   function bannerTarget(sessionID) {
     if (!options.banner) return undefined
     const { entries } = snapshot()
-    const top = topOther(entries, ctx.data.session.root(sessionID))
+    // Completion still affects tab order and tint, but should not leave a banner behind.
+    const top = topOther(entries.filter((entry) => entry.kind !== "completion"), ctx.data.session.root(sessionID))
     if (!top) return undefined
     const keys = ctx.keymap?.shortcuts?.(JUMP) ?? []
     const hint = keys[0] ? ` (click or ${keys[0]})` : " (click)"

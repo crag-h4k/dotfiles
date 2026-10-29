@@ -567,6 +567,17 @@ test("the banner appears only while another tab needs you, and names the class a
   assert.equal(h.controller.bannerTarget("c"), undefined, "the tab itself is not 'another tab'")
 })
 
+test("the banner skips unread completion but still shows another pending request", () => {
+  const h = harness()
+  h.set("b", { unread: "activity" })
+  assert.equal(h.controller.bannerTarget("a"), undefined)
+
+  h.state.forms.c = 1
+  const banner = h.controller.bannerTarget("a")
+  assert.equal(banner.sessionID, "c")
+  assert.equal(banner.kind, "question")
+})
+
 test("the banner offers the top-ranked tab, and only the banner option shows it", () => {
   const h = harness()
   h.state.forms.b = 1
