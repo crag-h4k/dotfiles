@@ -90,9 +90,11 @@ CLI, server, plugin SDK, and terminal versions when diagnosing compatibility.
   Seed `keybinds.agent.cycle` to `shift+tab` in `cli.json`; preserve explicit
   local bindings, including disabled values.
 - The attention-tabs CLI plugin (`v2-plugins/attention-tabs`) owns tab order, the
-  jump command, the toast and banner, and the optional tmux tint. Keep the ranking
-  in `rank.mjs` (pure, no host imports) and everything that needs a fake context in
-  `controller.mjs`, so `tests/test_opencode_attention_*.mjs` run without OpenCode.
+  jump command, the toast and banner, and the optional tmux tint. The persistent
+  banner excludes unread completion; those tabs still rank and tint normally. Keep
+  the ranking in `rank.mjs` (pure, no host imports) and everything that needs a fake
+  context in `controller.mjs`, so `tests/test_opencode_attention_*.mjs` run without
+  OpenCode.
   Setup runs more than once, so cleanup must remove every listener, timer, and
   stored entry. Start the notifier detached and never await it. `ui.tabs.move`
   applies in call order but a read in the same tick still shows the old order, and

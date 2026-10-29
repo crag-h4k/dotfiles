@@ -357,7 +357,7 @@ you gave them.
 | --- | --- |
 | Sorting | Off by default (`sort`). Moves only the tabs whose class changed, after a 300 ms trailing debounce. It never re-sorts the whole bar and pauses while a leader chord is pending |
 | Toast | A permission or question in another tab raises a toast. OpenCode adds its clickable Open action when that tab's root differs from the one on screen |
-| Banner | A clickable line above the prompt names the class and tab of the top-ranked other tab. Clicking it focuses that tab |
+| Banner | A clickable line above the prompt names the top-ranked other tab with a pending permission, question, or error. Unread completion markers do not leave a banner. Clicking it focuses that tab |
 | Jump | `attention.jump` (default `<leader>z`, `/attention-jump`, command palette) focuses the most urgent other tab. Repeat to step through the rest in rank order |
 | Pause | `attention.sort.pause` (`/attention-sort`, command palette) toggles sorting so you can drag a tab by hand |
 | tmux tint | Asks the notifier to tint the pane: `tint own <group>` for the tab in view, `tint elsewhere <group>` for another tab, `tint clear` for none. Applied on a change of state only, so a keypress that clears an own tint is not undone. See [notifications](notifications.md) |
