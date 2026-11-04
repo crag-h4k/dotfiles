@@ -223,7 +223,8 @@ plugin decides when to call them.
 - `tint own <group>` is the viewed tab's own alert: the group's full color on the
   pane and the window-tab pill, with `@notify` set. It leaves any stored
   elsewhere state alone.
-- `tint elsewhere <group>` is a different tab needing attention. It stores a
+- `tint elsewhere <group>` is a different tab that is waiting on a permission,
+  question, or error. The plugin does not send it for a tab that only finished. It stores a
   dimmed color and the accent in `@notify_elsewhere_bg` and
   `@notify_elsewhere_accent`. If the pane has no own tint it also shows the dimmed
   color and sets the pill. It never sets `@notify`. An own tint on screen wins.

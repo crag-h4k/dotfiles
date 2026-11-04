@@ -369,7 +369,7 @@ you gave them.
 | Banner | A clickable line above the prompt names the top-ranked other tab with a pending permission, question, or error. Unread completion markers do not leave a banner. Clicking it focuses that tab |
 | Jump | `attention.jump` (default `<leader>z`, `/attention-jump`, command palette) focuses the most urgent other tab. Repeat to step through the rest in rank order |
 | Pause | `attention.sort.pause` (`/attention-sort`, command palette) toggles sorting so you can drag a tab by hand |
-| tmux tint | Asks the notifier to tint the pane: `tint own <group>` for the tab in view, `tint elsewhere <group>` for another tab, `tint clear` for none. Applied on a change of state only, so a keypress that clears an own tint is not undone. See [notifications](notifications.md) |
+| tmux tint | Asks the notifier to tint the pane: `tint own <group>` for the tab in view, `tint elsewhere <group>` for another tab that is waiting on a permission, question, or error, `tint clear` for none. Another tab that only finished does not tint the pane, because with many tabs one is nearly always unread. The first state is always sent, so a tint an earlier process left is dropped, and the tint is cleared when the TUI exits. Applied on a change of state only, so a keypress that clears an own tint is not undone. See [notifications](notifications.md) |
 
 A tab that is active in any live TUI is never moved. Each TUI writes its active
 tab and a heartbeat to the plugin's shared storage, and every sorter skips the

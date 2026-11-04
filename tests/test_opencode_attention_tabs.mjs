@@ -59,11 +59,50 @@ test("the sink applies a state change once and never re-applies the same state",
   ])
 })
 
-test("nothing pending at start means nothing to clear, so the sink stays quiet", () => {
+test("the first state is always sent, even clear, so a tint an earlier process left is dropped", () => {
   const { calls, spawn } = spawnSpy()
   const sink = createSink({ command: "/opt/notify", env: TMUX_ENV, spawn, isExecutable: () => true })
+  assert.equal(sink.apply({ key: "clear", args: ["tint", "clear"] }), true)
+  assert.deepEqual(calls.map((call) => call.args), [["tint", "clear"]])
   assert.equal(sink.apply({ key: "clear", args: ["tint", "clear"] }), false)
-  assert.equal(calls.length, 0)
+  assert.equal(calls.length, 1)
+})
+
+test("release drops the tint once, and only when a tint may exist", () => {
+  const own = { key: "own:opencode", args: ["tint", "own", "opencode"] }
+  const { calls, spawn } = spawnSpy()
+  const sink = createSink({ command: "/opt/notify", env: TMUX_ENV, spawn, isExecutable: () => true })
+  assert.equal(sink.apply(own), true)
+  assert.equal(sink.release(), true)
+  assert.deepEqual(calls.at(-1).args, ["tint", "clear"])
+  assert.equal(calls.at(-1).options.detached, true)
+  assert.equal(calls.at(-1).options.stdio, "ignore")
+  assert.equal(calls.at(-1).unref, 1)
+  assert.equal(sink.release(), false, "already clear")
+  assert.equal(calls.length, 2)
+  assert.equal(sink.apply(own), true, "a later state applies again")
+  assert.equal(calls.length, 3)
+
+  // Nothing applied yet: the pane may still hold an earlier process's tint.
+  const fresh = spawnSpy()
+  const early = createSink({ command: "/opt/notify", env: TMUX_ENV, spawn: fresh.spawn, isExecutable: () => true })
+  assert.equal(early.release(), true)
+  assert.deepEqual(fresh.calls.map((call) => call.args), [["tint", "clear"]])
+})
+
+test("release is a silent no-op without tmux or a command, and a failed spawn is retried", () => {
+  const quiet = spawnSpy()
+  const noTmux = createSink({ command: "/opt/notify", env: {}, spawn: quiet.spawn, isExecutable: () => true })
+  assert.doesNotThrow(() => noTmux.release())
+  assert.equal(noTmux.release(), false)
+  assert.equal(quiet.calls.length, 0)
+
+  let attempts = 0
+  const spawn = () => { attempts += 1; throw new Error("EAGAIN") }
+  const sink = createSink({ command: "/opt/notify", env: TMUX_ENV, spawn, isExecutable: () => true })
+  assert.equal(sink.release(), false)
+  assert.equal(sink.release(), false)
+  assert.equal(attempts, 2)
 })
 
 test("the sink is a silent no-op without tmux, a pane, or an executable command", () => {
@@ -643,19 +682,62 @@ test("the sink follows the derived state and applies only changes", () => {
   const h = harness()
   h.change()
   h.change()
-  assert.deepEqual(h.calls.sink, [], "nothing pending: nothing to clear at start")
+  assert.deepEqual(h.calls.sink, ["tint:clear"], "the first state is sent once, even clear")
   h.state.forms.c = 1
   h.change()
   h.change()
   h.change()
-  assert.deepEqual(h.calls.sink, ["tint:elsewhere:opencode_question"])
+  assert.deepEqual(h.calls.sink, ["tint:clear", "tint:elsewhere:opencode_question"])
   h.set("c", { active: true })
   h.set("a", { active: false })
   h.change()
-  assert.deepEqual(h.calls.sink, ["tint:elsewhere:opencode_question", "tint:own:opencode_question"])
+  assert.deepEqual(h.calls.sink, ["tint:clear", "tint:elsewhere:opencode_question", "tint:own:opencode_question"])
   h.state.forms.c = 0
   h.change()
   assert.deepEqual(h.calls.sink.at(-1), "tint:clear")
+})
+
+test("another tab that only finished leaves the pane untinted, and the tab still ranks", () => {
+  const h = harness({ options: SORT })
+  h.set("c", { unread: "activity" })
+  h.change()
+  assert.deepEqual(h.calls.sink, ["tint:clear"])
+  assert.equal(h.controller.snapshot().entries.find((entry) => entry.sessionID === "c").kind, "completion")
+  h.clock.advance(5000)
+  assert.deepEqual(h.order().at(-1), "c", "completion still sorts the tab to the right")
+  h.state.forms.b = 1
+  h.change()
+  assert.deepEqual(h.calls.sink.at(-1), "tint:elsewhere:opencode_question")
+})
+
+test("cleanup drops the tint this TUI left on the pane, and a quiet pane is cleared too", () => {
+  const h = harness()
+  h.state.permissions.c = 1
+  h.change()
+  assert.deepEqual(h.calls.sink, ["tint:elsewhere:opencode_permission"])
+  h.controller.dispose()
+  assert.deepEqual(h.calls.sink, ["tint:elsewhere:opencode_permission", "tint:clear"])
+  h.controller.dispose()
+  assert.equal(h.calls.sink.length, 2, "a second dispose does nothing")
+
+  const quiet = harness()
+  quiet.change()
+  quiet.controller.dispose()
+  assert.deepEqual(quiet.calls.sink, ["tint:clear"], "already clear: nothing more to send")
+
+  const early = harness()
+  early.controller.dispose()
+  assert.deepEqual(early.calls.sink, ["tint:clear"], "no state applied yet: the pane may hold an old tint")
+})
+
+test("a controller without a sink or without release still cleans up", () => {
+  const h = harness()
+  const bare = createController(h.context, {}, { now: h.clock.now, timers: h.clock.timers, instanceId: "bare", sink: { apply: () => false } })
+  bare.start()
+  assert.doesNotThrow(() => bare.dispose())
+  const none = createController(h.context, {}, { now: h.clock.now, timers: h.clock.timers, instanceId: "none", sink: null })
+  none.start()
+  assert.doesNotThrow(() => none.dispose())
 })
 
 test("the tab in view wins the tint over another tab's class", () => {

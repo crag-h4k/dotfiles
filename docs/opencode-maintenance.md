@@ -102,7 +102,10 @@ CLI, server, plugin SDK, and terminal versions when diagnosing compatibility.
   OpenCode before changing them.
 - The attention-tabs CLI plugin (`v2-plugins/attention-tabs`) owns tab order, the
   jump command, the toast and banner, and the optional tmux tint. The persistent
-  banner excludes unread completion; those tabs still rank and tint normally. Keep
+  banner and the elsewhere tint exclude unread completion; those tabs still rank and
+  sort, and the tab in view keeps its own completion tint. The sink sends its first
+  state even when it is `clear` and releases the tint on cleanup, because a keypress
+  cannot clear an elsewhere tint. Keep
   the ranking in `rank.mjs` (pure, no host imports) and everything that needs a fake
   context in `controller.mjs`, so `tests/test_opencode_attention_*.mjs` run without
   OpenCode.

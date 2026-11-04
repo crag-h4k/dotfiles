@@ -352,6 +352,9 @@ export function createController(ctx, rawOptions, deps = {}) {
     if (sortTimer !== undefined) timers.clearTimeout(sortTimer)
     if (heartbeat !== undefined) timers.clearInterval(heartbeat)
     sortTimer = heartbeat = undefined
+    // Nothing keeps watching the pane after this, and a keypress cannot clear an
+    // elsewhere tint, so drop whatever tint this TUI left on it.
+    sink?.release?.()
     if (shared) {
       void shared
         .update((draft) => { if (draft.tuis) delete draft.tuis[instanceId] })

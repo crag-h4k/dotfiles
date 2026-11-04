@@ -25,9 +25,12 @@ function executableFile(path) {
 
 /**
  * command: notifier path, a leading ~ expands. env must hold TMUX and TMUX_PANE.
- * apply({ key, args }) runs `command ...args` once per change of key. The child
- * is detached with its output ignored and is never awaited: awaiting the old
- * notifier's child is what got it killed.
+ * apply({ key, args }) runs `command ...args` once per change of key, and the
+ * first state is always sent, even "clear": an earlier process in this pane may
+ * have left a tint behind, and an elsewhere tint is not cleared by a keypress.
+ * release() drops the tint when the TUI goes away. The child is detached with its
+ * output ignored and is never awaited: awaiting the old notifier's child is what
+ * got it killed.
  */
 export function createSink({
   command,
@@ -37,23 +40,34 @@ export function createSink({
   home = homedir(),
 } = {}) {
   const path = resolveCommand(command, home)
-  // Nothing pending at start means nothing to clear.
-  let last = "clear"
+  // Unknown until the first apply or release, so a leftover tint is never trusted.
+  let last
 
   const available = () => Boolean(env.TMUX && env.TMUX_PANE && path && isExecutable(path))
+
+  function run(args) {
+    try {
+      const child = spawn(path, args, { detached: true, stdio: "ignore", env })
+      child.on?.("error", () => {})
+      child.unref?.()
+      return true
+    } catch {
+      return false
+    }
+  }
 
   return {
     available,
     apply(state) {
       if (!state || state.key === last || !available()) return false
-      try {
-        const child = spawn(path, state.args, { detached: true, stdio: "ignore", env })
-        child.on?.("error", () => {})
-        child.unref?.()
-      } catch {
-        return false
-      }
+      if (!run(state.args)) return false
       last = state.key
+      return true
+    },
+    release() {
+      if (last === "clear" || !available()) return false
+      if (!run(["tint", "clear"])) return false
+      last = "clear"
       return true
     },
   }
