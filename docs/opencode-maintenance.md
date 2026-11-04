@@ -105,7 +105,9 @@ CLI, server, plugin SDK, and terminal versions when diagnosing compatibility.
   banner and the elsewhere tint exclude unread completion; those tabs still rank and
   sort, and the tab in view keeps its own completion tint. The sink sends its first
   state even when it is `clear` and releases the tint on cleanup, because a keypress
-  cannot clear an elsewhere tint. Keep
+  cannot clear an elsewhere tint. A reload starts the new controller within a few
+  milliseconds of the old one's release and the notifier takes about 100 ms, so a
+  tint waits `SINK_SETTLE_MS` before it is sent; a clear never waits. Keep
   the ranking in `rank.mjs` (pure, no host imports) and everything that needs a fake
   context in `controller.mjs`, so `tests/test_opencode_attention_*.mjs` run without
   OpenCode.

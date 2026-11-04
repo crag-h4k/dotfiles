@@ -4,7 +4,7 @@ import { chmodSync, existsSync, mkdtempSync, readFileSync, rmSync, writeFileSync
 import { tmpdir } from "node:os"
 import { join } from "node:path"
 import test, { after } from "node:test"
-import { DEFAULTS, createController, normalizeOptions } from "../home/dot_config/opencode/v2-plugins/attention-tabs/controller.mjs"
+import { DEFAULTS, SINK_SETTLE_MS, createController, normalizeOptions } from "../home/dot_config/opencode/v2-plugins/attention-tabs/controller.mjs"
 import { createSink, resolveCommand } from "../home/dot_config/opencode/v2-plugins/attention-tabs/sink.mjs"
 
 const PLUGIN = new URL("../home/dot_config/opencode/v2-plugins/attention-tabs/", import.meta.url)
@@ -259,7 +259,7 @@ function fakeClock() {
   }
 }
 
-function harness({ options = {}, tabs = ["a", "b", "c", "d"], active = "a", route, instanceId = "me", realSink } = {}) {
+function harness({ options = {}, tabs = ["a", "b", "c", "d"], active = "a", route, instanceId = "me", realSink, settled = false } = {}) {
   const clock = fakeClock()
   const calls = { moves: [], focus: [], toasts: [], sync: [], sink: [] }
   const listeners = new Map()
@@ -361,6 +361,8 @@ function harness({ options = {}, tabs = ["a", "b", "c", "d"], active = "a", rout
     sinkDeps: realSink ?? recorder,
   })
   controller.start()
+  // Past the settle window a tint is sent at once. Tests of the window leave this off.
+  if (settled) clock.advance(SINK_SETTLE_MS)
   const emit = (type, data) => [...(listeners.get(type) ?? [])].forEach((handler) => handler({ type, data }))
   return {
     clock,
@@ -679,7 +681,7 @@ test("attention.jump does nothing when no other tab needs you", () => {
 // tmux sink wiring
 
 test("the sink follows the derived state and applies only changes", () => {
-  const h = harness()
+  const h = harness({ settled: true })
   h.change()
   h.change()
   assert.deepEqual(h.calls.sink, ["tint:clear"], "the first state is sent once, even clear")
@@ -698,7 +700,7 @@ test("the sink follows the derived state and applies only changes", () => {
 })
 
 test("another tab that only finished leaves the pane untinted, and the tab still ranks", () => {
-  const h = harness({ options: SORT })
+  const h = harness({ options: SORT, settled: true })
   h.set("c", { unread: "activity" })
   h.change()
   assert.deepEqual(h.calls.sink, ["tint:clear"])
@@ -711,7 +713,7 @@ test("another tab that only finished leaves the pane untinted, and the tab still
 })
 
 test("cleanup drops the tint this TUI left on the pane, and a quiet pane is cleared too", () => {
-  const h = harness()
+  const h = harness({ settled: true })
   h.state.permissions.c = 1
   h.change()
   assert.deepEqual(h.calls.sink, ["tint:elsewhere:opencode_permission"])
@@ -730,6 +732,75 @@ test("cleanup drops the tint this TUI left on the pane, and a quiet pane is clea
   assert.deepEqual(early.calls.sink, ["tint:clear"], "no state applied yet: the pane may hold an old tint")
 })
 
+test("a tint waits out the settle window, so a replaced controller's release cannot erase it", () => {
+  const h = harness()
+  h.state.permissions.c = 1
+  h.change()
+  assert.deepEqual(h.calls.sink, [], "held, not sent")
+  h.clock.advance(SINK_SETTLE_MS - 1)
+  assert.deepEqual(h.calls.sink, [], "still inside the window")
+  h.clock.advance(1)
+  assert.deepEqual(h.calls.sink, ["tint:elsewhere:opencode_permission"], "sent once the window ends")
+  h.clock.advance(60000)
+  assert.equal(h.calls.sink.length, 1, "and only once")
+})
+
+test("a clear is sent at once, even inside the settle window", () => {
+  const h = harness()
+  h.change()
+  assert.deepEqual(h.calls.sink, ["tint:clear"])
+})
+
+test("changes inside the settle window arm one timer, and the latest state wins", () => {
+  const h = harness()
+  const before = h.clock.size()
+  h.state.permissions.c = 1
+  h.change()
+  h.state.forms.b = 1
+  h.change()
+  h.change()
+  assert.equal(h.clock.size(), before + 1, "one settle timer, however many changes")
+  h.clock.advance(SINK_SETTLE_MS)
+  assert.deepEqual(h.calls.sink, ["tint:elsewhere:opencode_permission"], "the strongest state when the window ends")
+})
+
+test("a state that clears inside the settle window sends the clear and never the held tint", () => {
+  const h = harness()
+  h.state.permissions.c = 1
+  h.change()
+  h.state.permissions.c = 0
+  h.change()
+  assert.deepEqual(h.calls.sink, ["tint:clear"])
+  h.clock.advance(SINK_SETTLE_MS * 2)
+  assert.deepEqual(h.calls.sink, ["tint:clear"])
+})
+
+test("cleanup inside the settle window cancels the held tint and leaves no timer", () => {
+  const h = harness()
+  h.state.permissions.c = 1
+  h.change()
+  h.controller.dispose()
+  assert.equal(h.clock.size(), 0, "no timer survives cleanup")
+  h.clock.advance(SINK_SETTLE_MS * 2)
+  assert.deepEqual(h.calls.sink, ["tint:clear"], "only the release, never the held tint")
+})
+
+test("a controller that replaces another holds its tint until the old release has had time to finish", () => {
+  // The old controller releases its tint and the new one starts a few ms later with the
+  // same pending request. The new tint must not be sent until the settle window ends.
+  const old = harness({ settled: true })
+  old.state.permissions.c = 1
+  old.change()
+  old.controller.dispose()
+  assert.deepEqual(old.calls.sink, ["tint:elsewhere:opencode_permission", "tint:clear"])
+  const fresh = harness()
+  fresh.state.permissions.c = 1
+  fresh.change()
+  assert.deepEqual(fresh.calls.sink, [], "the new controller waits")
+  fresh.clock.advance(SINK_SETTLE_MS)
+  assert.deepEqual(fresh.calls.sink, ["tint:elsewhere:opencode_permission"])
+})
+
 test("a controller without a sink or without release still cleans up", () => {
   const h = harness()
   const bare = createController(h.context, {}, { now: h.clock.now, timers: h.clock.timers, instanceId: "bare", sink: { apply: () => false } })
@@ -741,7 +812,7 @@ test("a controller without a sink or without release still cleans up", () => {
 })
 
 test("the tab in view wins the tint over another tab's class", () => {
-  const h = harness()
+  const h = harness({ settled: true })
   h.state.permissions.c = 1
   h.state.forms.a = 1
   h.change()
@@ -749,7 +820,7 @@ test("the tab in view wins the tint over another tab's class", () => {
 })
 
 test("a recompute from the heartbeat never re-applies an unchanged state", () => {
-  const h = harness()
+  const h = harness({ settled: true })
   h.state.permissions.c = 1
   h.change()
   h.clock.advance(60000)
@@ -758,7 +829,7 @@ test("a recompute from the heartbeat never re-applies an unchanged state", () =>
 
 test("with tmux and a command, the controller runs the notifier through the sink", () => {
   const { calls, spawn } = spawnSpy()
-  const h = harness({ realSink: { command: "/opt/notify", spawn, env: TMUX_ENV, isExecutable: () => true } })
+  const h = harness({ realSink: { command: "/opt/notify", spawn, env: TMUX_ENV, isExecutable: () => true }, settled: true })
   assert.equal(h.controller.sinkAvailable(), true)
   h.state.permissions.c = 1
   h.change()
