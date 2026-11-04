@@ -31,6 +31,11 @@ const STORE_KEY = "attention-tabs.active"
 const JUMP = "attention.jump"
 const PAUSE = "attention.sort.pause"
 const TOAST_MS = 8000
+// A controller that replaces another (a reload) starts within milliseconds of the old
+// one's release, and the notifier takes about 100 ms per call, so a tint sent in that
+// window can be erased by the old clear. Measured: lost up to 13 of 36 at 0 ms, never
+// at 300 ms. A clear is safe to send at once, so only a tint waits.
+export const SINK_SETTLE_MS = 400
 const TITLE_MAX = 40
 const VARIANT = { permission: "warning", question: "info" }
 
@@ -78,6 +83,8 @@ export function createController(ctx, rawOptions, deps = {}) {
   const synced = new Set()
   let sortTimer
   let heartbeat
+  let settleTimer
+  const settleUntil = now() + SINK_SETTLE_MS
   let paused = false
   let disposed = false
   let published = { tab: undefined, at: 0 }
@@ -196,6 +203,16 @@ export function createController(ctx, rawOptions, deps = {}) {
   function applySink({ entries, activeID }) {
     if (!sink) return
     const state = sinkState(entries, activeID)
+    const wait = settleUntil - now()
+    if (state.key !== "clear" && wait > 0) {
+      if (settleTimer === undefined) {
+        settleTimer = timers.setTimeout(() => {
+          settleTimer = undefined
+          if (!disposed) untrack(() => applySink(snapshot()))
+        }, wait)
+      }
+      return
+    }
     if (sink.apply(state)) debug("sink", { key: state.key })
   }
 
@@ -351,7 +368,11 @@ export function createController(ctx, rawOptions, deps = {}) {
     for (const stop of unsubscribe.splice(0)) stop()
     if (sortTimer !== undefined) timers.clearTimeout(sortTimer)
     if (heartbeat !== undefined) timers.clearInterval(heartbeat)
-    sortTimer = heartbeat = undefined
+    if (settleTimer !== undefined) timers.clearTimeout(settleTimer)
+    sortTimer = heartbeat = settleTimer = undefined
+    // Nothing keeps watching the pane after this, and a keypress cannot clear an
+    // elsewhere tint, so drop whatever tint this TUI left on it.
+    sink?.release?.()
     if (shared) {
       void shared
         .update((draft) => { if (draft.tuis) delete draft.tuis[instanceId] })

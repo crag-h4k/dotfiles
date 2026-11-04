@@ -26,7 +26,7 @@ shared subsystem used by process detection, tmux, and AI attention hooks.
 - The OpenCode TUI plugin drives visuals through shim verbs: `tint own`,
   `tint elsewhere`, `tint clear` and `describe`. The plugin owns those visuals;
   the server `notify.ts` keeps calling `fire` until that changes. An elsewhere
-  tint (another tab needs attention) lives in `@notify_elsewhere_bg` and
+  tint (another tab is waiting on a permission, question, or error) lives in `@notify_elsewhere_bg` and
   `@notify_elsewhere_accent` and never sets `@notify`, because the keypress
   binding clears a pane only when `@notify` is set. An own tint supersedes it, and
   `notify_clear` clears only the own tint and puts the elsewhere one back. Claude,

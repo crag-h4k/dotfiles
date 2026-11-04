@@ -138,7 +138,10 @@ const clear = () => ({ key: "clear", args: ["tint", "clear"] })
 
 /**
  * What the tmux sink should show: the tab in view wins, then the strongest other
- * tab, then nothing. The key names the state so the caller can apply changes only.
+ * tab that is waiting on you, then nothing. A finished tab elsewhere is not
+ * waiting, and with many tabs one is nearly always unread, so counting it would
+ * leave every pane tinted with nothing to answer. The key names the state so the
+ * caller can apply changes only.
  */
 export function sinkState(entries, activeID) {
   const own = entries.find((entry) => entry.sessionID === activeID)
@@ -147,7 +150,7 @@ export function sinkState(entries, activeID) {
     args: ["tint", scope, SINK_GROUP[kind]],
   })
   if (own && own.rank > 0) return from("own", own.kind)
-  const other = topOther(entries, activeID)
+  const other = topOther(entries.filter((entry) => entry.kind !== "completion"), activeID)
   return other ? from("elsewhere", other.kind) : clear()
 }
 

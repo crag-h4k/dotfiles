@@ -197,6 +197,19 @@ test("sink state: the tab in view wins, otherwise the strongest other tab, other
   assert.deepEqual(sinkState([tab("p", 4, 1)], undefined), { key: "elsewhere:opencode_permission", args: ["tint", "elsewhere", "opencode_permission"] })
 })
 
+test("sink state: a finished tab elsewhere never tints the pane, a blocked one still does", () => {
+  const clear = { key: "clear", args: ["tint", "clear"] }
+  assert.deepEqual(sinkState([tab("a"), tab("c", 2, 3)], "a"), clear)
+  assert.deepEqual(sinkState([tab("c", 2, 3)], undefined), clear)
+  assert.deepEqual(sinkState([tab("a"), tab("c", 2, 3), tab("d", 2, 4)], "a"), clear)
+  assert.deepEqual(
+    sinkState([tab("a"), tab("c", 2, 3), tab("q", 3, 9)], "a"),
+    { key: "elsewhere:opencode_question", args: ["tint", "elsewhere", "opencode_question"] },
+  )
+  // The tab in view keeps its own completion tint; a keypress clears that one.
+  assert.deepEqual(sinkState([tab("a", 2, 1), tab("c", 2, 3)], "a"), { key: "own:opencode", args: ["tint", "own", "opencode"] })
+})
+
 test("live pins are every other TUI's active tab until the entry expires", () => {
   const store = {
     tuis: {
