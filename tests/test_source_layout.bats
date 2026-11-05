@@ -152,6 +152,83 @@ PY
   [ "$status" -eq 0 ]
 }
 
+@test "Ghostty quick-hide agent follows the ghostty selection and replaces native autohide on macOS" {
+  local config="${BATS_TEST_TMPDIR}/chezmoi.toml" os target
+  local plist_source="$SOURCE_ROOT/Library/LaunchAgents/io.github.crag-h4k.dotfiles.ghostty-quick-hide.plist.tmpl"
+  local script_source="$SOURCE_ROOT/dot_local/bin/executable_ghostty-quick-hide"
+  local template="$SOURCE_ROOT/dot_config/ghostty/config.tmpl"
+  printf '[data]\n' > "$config"
+
+  # Targets must be ignored everywhere except macOS with Ghostty selected.
+  for target in \
+    Library/LaunchAgents/io.github.crag-h4k.dotfiles.ghostty-quick-hide.plist \
+    .local/bin/ghostty-quick-hide; do
+    run chezmoi execute-template --source "$REPO_ROOT" --config "$config" \
+      --override-data '{"chezmoi":{"os":"darwin"}}' < "$SOURCE_ROOT/.chezmoiignore"
+    [ "$status" -eq 0 ]
+    [[ "$output" != *"$target"* ]]
+
+    run chezmoi execute-template --source "$REPO_ROOT" --config "$config" \
+      --override-data '{"chezmoi":{"os":"linux"}}' < "$SOURCE_ROOT/.chezmoiignore"
+    [ "$status" -eq 0 ]
+    [[ "$output" == *"$target"* ]]
+
+    run chezmoi execute-template --source "$REPO_ROOT" --config "$config" \
+      --override-data '{"chezmoi":{"os":"darwin"},"components":{"terminal":{"ghostty":false}}}' \
+      < "$SOURCE_ROOT/.chezmoiignore"
+    [ "$status" -eq 0 ]
+    [[ "$output" == *"$target"* ]]
+  done
+
+  # Native autohide is off only where the agent replaces it. Both halves are
+  # needed: autohide on plus the agent double-toggles, autohide off without the
+  # agent never hides the dropdown.
+  for os in darwin linux; do
+    run chezmoi execute-template --source "$REPO_ROOT" --config "$config" \
+      --override-data "{\"chezmoi\":{\"os\":\"$os\"}}" < "$template"
+    [ "$status" -eq 0 ]
+    if [ "$os" = darwin ]; then
+      [[ "$output" == *$'\nquick-terminal-autohide = false\n'* ]]
+      [[ "$output" != *$'\nquick-terminal-autohide = true\n'* ]]
+    else
+      [[ "$output" == *$'\nquick-terminal-autohide = true\n'* ]]
+      [[ "$output" != *$'\nquick-terminal-autohide = false\n'* ]]
+    fi
+  done
+
+  run chezmoi execute-template --source "$REPO_ROOT" --config "$config" \
+    --override-data '{"chezmoi":{"os":"darwin","homeDir":"/Users/example"}}' < "$plist_source"
+  [ "$status" -eq 0 ]
+  printf '%s\n' "$output" > "${BATS_TEST_TMPDIR}/quick-hide.plist"
+  if command -v plutil >/dev/null 2>&1; then
+    run plutil -lint "${BATS_TEST_TMPDIR}/quick-hide.plist"
+    [ "$status" -eq 0 ]
+  fi
+  run python3 - "${BATS_TEST_TMPDIR}/quick-hide.plist" <<'PY'
+import plistlib
+import sys
+
+with open(sys.argv[1], "rb") as handle:
+    agent = plistlib.load(handle)
+
+# osascript, not the script's shebang, so the Automation grant belongs to the
+# stable Apple-signed binary and a launchd run does not depend on shebang parsing.
+assert agent["ProgramArguments"] == [
+    "/usr/bin/osascript", "-l", "JavaScript", "/Users/example/.local/bin/ghostty-quick-hide",
+]
+assert agent["RunAtLoad"] is True
+assert agent["KeepAlive"] is True
+assert agent["StandardOutPath"].startswith("/Users/example/Library/Logs/")
+PY
+  [ "$status" -eq 0 ]
+
+  [ "$(head -n 1 "$script_source")" = '#!/usr/bin/osascript -l JavaScript' ]
+  if command -v osacompile >/dev/null 2>&1; then
+    run osacompile -l JavaScript -o "${BATS_TEST_TMPDIR}/quick-hide.scpt" "$script_source"
+    [ "$status" -eq 0 ]
+  fi
+}
+
 @test "Trixie bootstraps Python before selected configuration merges run" {
   run python3 - "$REPO_ROOT/tests/trixie-deployment/Dockerfile.trixie" <<'PY'
 import pathlib

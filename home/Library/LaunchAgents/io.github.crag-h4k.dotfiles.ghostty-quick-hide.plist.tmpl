@@ -1,0 +1,21 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- home/Library/LaunchAgents/io.github.crag-h4k.dotfiles.ghostty-quick-hide.plist.tmpl -->
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+  <key>Label</key><string>io.github.crag-h4k.dotfiles.ghostty-quick-hide</string>
+  <key>ProgramArguments</key>
+  <array>
+    <string>/usr/bin/osascript</string>
+    <string>-l</string>
+    <string>JavaScript</string>
+    <string>{{ .chezmoi.homeDir }}/.local/bin/ghostty-quick-hide</string>
+  </array>
+  <key>RunAtLoad</key><true/>
+  <key>KeepAlive</key><true/>
+  <key>ThrottleInterval</key><integer>10</integer>
+  <key>LimitLoadToSessionType</key><string>Aqua</string>
+  <key>StandardOutPath</key><string>{{ .chezmoi.homeDir }}/Library/Logs/ghostty-quick-hide.log</string>
+  <key>StandardErrorPath</key><string>{{ .chezmoi.homeDir }}/Library/Logs/ghostty-quick-hide.log</string>
+</dict>
+</plist>

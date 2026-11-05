@@ -695,6 +695,48 @@ The flag applies only to the launch the agent performs. If Ghostty is already
 running, `open` leaves it alone, and opening Ghostty by hand while it is not
 running gives you a normal window.
 
+Native autohide is off on macOS. Ghostty's `quick-terminal-autohide` hides the
+dropdown on any loss of key focus, and system helpers such as Notification
+Center and `CoreServicesUIAgent` take key focus for a few milliseconds with no
+app switch, so the dropdown used to vanish at random. A second agent,
+`io.github.crag-h4k.dotfiles.ghostty-quick-hide`, runs
+`~/.local/bin/ghostty-quick-hide` (a JavaScript for Automation script, so there
+is nothing to build). It hides the dropdown on two real signals:
+
+- Another regular app, one with a Dock icon, becomes active. That covers
+  Cmd+Tab and clicks into a different app. Background helpers never count.
+- A mouse button goes down outside the dropdown. That covers clicking back into
+  the app you summoned it from, which never lost activation, so no activation
+  event fires for it.
+
+The hide is Ghostty's own `toggle_quick_terminal` action sent over AppleScript,
+so it needs no Accessibility permission, and it does not depend on which key
+opens the dropdown. It does need Ghostty 1.3 or newer with `macos-applescript`
+left at its default of `true`.
+
+The first hide asks macOS whether `osascript` may control Ghostty. Allow it, or
+the dropdown will not hide when you click away (System Settings, Privacy &
+Security, Automation). The agent logs to `~/Library/Logs/ghostty-quick-hide.log`.
+Run the script by hand with `--dry-run` to log what it would hide, or `--trace`
+to log every activation and click. Clicking a regular Ghostty window does not
+hide the dropdown, because the script ignores Ghostty's own activations.
+
+Load both agents now instead of waiting for the next login:
+
+```zsh
+for label in ghostty ghostty-quick-hide; do
+  launchctl bootstrap "gui/$(id -u)" ~/Library/LaunchAgents/io.github.crag-h4k.dotfiles.$label.plist
+done
+```
+
+To go back to Ghostty's native autohide, set `quick-terminal-autohide = true`
+in `override.conf` and stop the hide agent, or the two will both fire:
+
+```zsh
+launchctl bootout "gui/$(id -u)/io.github.crag-h4k.dotfiles.ghostty-quick-hide"
+launchctl disable "gui/$(id -u)/io.github.crag-h4k.dotfiles.ghostty-quick-hide"
+```
+
 On macOS, Ghostty can also read
 `~/Library/Application Support/com.mitchellh.ghostty/config`. These dotfiles
 manage only the XDG path. Remove an old Application Support config or symlink
