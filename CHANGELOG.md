@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.7.0](https://github.com/crag-h4k/dotfiles/compare/v1.6.0...v1.7.0) (2026-11-05)
+
+
+### Features
+
+* **ghostty:** start Ghostty at login on macOS for the quick-terminal… ([#155](https://github.com/crag-h4k/dotfiles/issues/155)) ([fe61495](https://github.com/crag-h4k/dotfiles/commit/fe61495628d93dc3ac20ac3aec4634f9fe5ad7ea))
+
 ## [1.6.0](https://github.com/crag-h4k/dotfiles/compare/v1.5.1...v1.6.0) (2026-11-04)
 
 
