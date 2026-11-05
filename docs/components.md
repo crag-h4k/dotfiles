@@ -674,6 +674,27 @@ A top-aligned, 40% quick terminal toggles with Command+backtick on macOS or
 Control+backtick on Linux. macOS needs Accessibility permission. Linux needs a
 desktop that implements the XDG GlobalShortcuts portal.
 
+On macOS the toggle is a global keybind served by the running Ghostty process,
+so it does nothing until Ghostty is up. A managed LaunchAgent,
+`~/Library/LaunchAgents/io.github.crag-h4k.dotfiles.ghostty.plist`, starts it at
+login with `open -g -b com.mitchellh.ghostty --args --initial-window=false`:
+no window, no focus grab, just the toggle. It loads at the next login. Load it
+now with:
+
+```zsh
+launchctl bootstrap "gui/$(id -u)" ~/Library/LaunchAgents/io.github.crag-h4k.dotfiles.ghostty.plist
+```
+
+Turn it off without touching the source (launchd remembers this across applies):
+
+```zsh
+launchctl disable "gui/$(id -u)/io.github.crag-h4k.dotfiles.ghostty"
+```
+
+The flag applies only to the launch the agent performs. If Ghostty is already
+running, `open` leaves it alone, and opening Ghostty by hand while it is not
+running gives you a normal window.
+
 On macOS, Ghostty can also read
 `~/Library/Application Support/com.mitchellh.ghostty/config`. These dotfiles
 manage only the XDG path. Remove an old Application Support config or symlink

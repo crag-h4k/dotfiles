@@ -107,6 +107,51 @@ SOURCE_ROOT="$REPO_ROOT/home"
   done
 }
 
+@test "Ghostty login LaunchAgent is macOS-only, follows the ghostty selection, and starts windowless" {
+  local config="${BATS_TEST_TMPDIR}/chezmoi.toml"
+  local target="Library/LaunchAgents/io.github.crag-h4k.dotfiles.ghostty.plist"
+  printf '[data]\n' > "$config"
+
+  run chezmoi execute-template --source "$REPO_ROOT" --config "$config" \
+    --override-data '{"chezmoi":{"os":"darwin"}}' < "$SOURCE_ROOT/.chezmoiignore"
+  [ "$status" -eq 0 ]
+  [[ "$output" != *"$target"* ]]
+
+  run chezmoi execute-template --source "$REPO_ROOT" --config "$config" \
+    --override-data '{"chezmoi":{"os":"linux"}}' < "$SOURCE_ROOT/.chezmoiignore"
+  [ "$status" -eq 0 ]
+  [[ "$output" == *"$target"* ]]
+
+  run chezmoi execute-template --source "$REPO_ROOT" --config "$config" \
+    --override-data '{"chezmoi":{"os":"darwin"},"components":{"terminal":{"ghostty":false}}}' \
+    < "$SOURCE_ROOT/.chezmoiignore"
+  [ "$status" -eq 0 ]
+  [[ "$output" == *"$target"* ]]
+
+  if command -v plutil >/dev/null 2>&1; then
+    run plutil -lint "$SOURCE_ROOT/$target"
+    [ "$status" -eq 0 ]
+  fi
+
+  # The agent only helps if Ghostty comes up in the background with no window;
+  # a foreground launch or an initial window would be worse than no agent.
+  run python3 - "$SOURCE_ROOT/$target" <<'PY'
+import plistlib
+import sys
+
+with open(sys.argv[1], "rb") as handle:
+    agent = plistlib.load(handle)
+
+args = agent["ProgramArguments"]
+assert agent["RunAtLoad"] is True
+assert args[0] == "/usr/bin/open"
+assert "-g" in args
+assert "com.mitchellh.ghostty" in args
+assert args[args.index("--args") + 1:] == ["--initial-window=false"]
+PY
+  [ "$status" -eq 0 ]
+}
+
 @test "Trixie bootstraps Python before selected configuration merges run" {
   run python3 - "$REPO_ROOT/tests/trixie-deployment/Dockerfile.trixie" <<'PY'
 import pathlib
