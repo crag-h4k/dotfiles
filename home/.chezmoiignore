@@ -232,6 +232,17 @@ Library/LaunchAgents/io.github.crag-h4k.dotfiles.openviking.plist
 {{ if not (dig "components" "terminal" "ghostty" true .) -}}
 .config/ghostty
 {{ end -}}
+{{/* The quick-terminal toggle is a global keybind served by the running Ghostty
+     process, so it does nothing until Ghostty is up. This macOS LaunchAgent
+     starts it windowless at login. The quick-hide agent and its script hide the
+     dropdown on real app switches; the managed config turns native autohide off
+     on macOS to match, so keep them under the same gate. Ignore off darwin or
+     without the ghostty sub-feature. */}}
+{{ if or (ne .chezmoi.os "darwin") (not (dig "components" "terminal" "ghostty" true .)) -}}
+Library/LaunchAgents/io.github.crag-h4k.dotfiles.ghostty.plist
+Library/LaunchAgents/io.github.crag-h4k.dotfiles.ghostty-quick-hide.plist
+.local/bin/ghostty-quick-hide
+{{ end -}}
 {{/* iterm2 Dynamic Profiles JSON (~/.config/iterm2, symlinked into ~/Library by
      install-iterm2.sh) are macOS-only and opt-in; iterm2 is now a terminal
      sub-feature. Ignore unless we are on darwin AND terminal > iterm2 is selected. */}}

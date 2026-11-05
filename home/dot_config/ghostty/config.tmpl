@@ -78,7 +78,16 @@ clipboard-write = allow
 quick-terminal-position = top
 quick-terminal-size = 40%
 quick-terminal-animation-duration = 0.15
+{{ if eq .chezmoi.os "darwin" -}}
+# On macOS the ghostty-quick-hide LaunchAgent hides the dropdown when another app
+# becomes active. Native autohide fires on any loss of key focus, including the
+# millisecond steals by Notification Center and CoreServicesUIAgent, so it stays
+# off. To go back to it, set this to true in override.conf and run
+# `launchctl disable gui/$(id -u)/io.github.crag-h4k.dotfiles.ghostty-quick-hide`.
+quick-terminal-autohide = false
+{{ else -}}
 quick-terminal-autohide = true
+{{ end -}}
 {{ if eq .chezmoi.os "darwin" }}
 # macOS-only quick-terminal options.
 # Show the dropdown on whichever monitor the mouse is on.

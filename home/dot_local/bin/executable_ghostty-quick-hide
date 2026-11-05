@@ -1,0 +1,144 @@
+#!/usr/bin/osascript -l JavaScript
+// home/dot_local/bin/executable_ghostty-quick-hide
+// Hide Ghostty's quick terminal when you click away from it or switch apps.
+//
+// Ghostty's own quick-terminal-autohide hides on any loss of key focus, which
+// includes millisecond steals by Notification Center and CoreServicesUIAgent.
+// The managed config turns it off on macOS and this agent hides the terminal on
+// two real signals instead:
+//   - another regular app (any activation policy but regular never counts) is
+//     activated, which covers Cmd+Tab and clicks into a different app;
+//   - a mouse button goes down outside the quick terminal, which covers
+//     clicking back into the app you summoned it from. That app never lost
+//     activation, so no activation event fires for it.
+// The hide is Ghostty's own toggle_quick_terminal action sent over AppleScript,
+// so no Accessibility permission is needed; the first hide asks macOS once to
+// let osascript control Ghostty. Reading the mouse button state needs no
+// permission either.
+//
+// Flags: --dry-run logs what it would hide without hiding; --trace logs every
+// activation and click.
+
+ObjC.import('Cocoa');
+
+const GHOSTTY_ID = 'com.mitchellh.ghostty';
+const TICK_SECONDS = 0.05;
+const REFRESH_TICKS = 5;
+const GRACE_MS = 400;
+const COOLDOWN_MS = 800;
+
+const flags = [];
+const argv = $.NSProcessInfo.processInfo.arguments;
+for (let i = 0; i < argv.count; i++) flags.push(ObjC.unwrap(argv.objectAtIndex(i)));
+const dryRun = flags.includes('--dry-run');
+const trace = flags.includes('--trace');
+
+const stamp = $.NSDateFormatter.alloc.init;
+stamp.dateFormat = 'HH:mm:ss.SSS';
+
+function log(message) {
+  const line = ObjC.unwrap(stamp.stringFromDate($.NSDate.date)) + ' ' + message + '\n';
+  $.NSFileHandle.fileHandleWithStandardOutput.writeData(
+    $(line).dataUsingEncoding($.NSUTF8StringEncoding));
+}
+
+// The quick terminal is Ghostty's only floating-level window (layer 3 once it
+// has finished animating in). Window names need Screen Recording permission;
+// owner, layer and bounds do not. Bounds use a top-left origin.
+function quickTerminalFrame() {
+  const windows = ObjC.deepUnwrap(ObjC.castRefToObject(
+    $.CGWindowListCopyWindowInfo($.kCGWindowListOptionOnScreenOnly, $.kCGNullWindowID)));
+  const found = windows.find((w) => w.kCGWindowOwnerName === 'Ghostty' && w.kCGWindowLayer === 3);
+  return found ? found.kCGWindowBounds : null;
+}
+
+function mouseInside(frame) {
+  // NSEvent.mouseLocation has a bottom-left origin on the primary display;
+  // window bounds have a top-left origin.
+  const primaryHeight = $.NSScreen.screens.objectAtIndex(0).frame.size.height;
+  const point = $.NSEvent.mouseLocation;
+  const x = point.x;
+  const y = primaryHeight - point.y;
+  return x >= frame.X && x < frame.X + frame.Width && y >= frame.Y && y < frame.Y + frame.Height;
+}
+
+let visibleSince = null;
+let cooldownUntil = 0;
+let lastButtons = 0;
+let tick = 0;
+
+// Both signals can fire for one click, so a hide starts a cooldown and the
+// terminal is re-checked first. A second toggle would show it again.
+function hide(reason) {
+  if (Date.now() < cooldownUntil) return;
+  if (visibleSince === null || Date.now() - visibleSince < GRACE_MS) return;
+  if (quickTerminalFrame() === null) return;
+  cooldownUntil = Date.now() + COOLDOWN_MS;
+  log((dryRun ? 'would hide' : 'hiding') + ' for ' + reason);
+  if (dryRun) return;
+  try {
+    const ghostty = Application(GHOSTTY_ID);
+    const done = ghostty.performAction('toggle_quick_terminal', { on: ghostty.terminals[0] });
+    if (!done) log('toggle_quick_terminal was not performed');
+  } catch (error) {
+    log('hide failed: ' + error);
+  }
+}
+
+function refresh() {
+  const visible = quickTerminalFrame() !== null;
+  if (visible && visibleSince === null) visibleSince = Date.now();
+  else if (!visible) visibleSince = null;
+}
+
+// An exception thrown out of a registered method ends the whole process, so
+// each handler catches and logs.
+ObjC.registerSubclass({
+  name: 'GhosttyQuickHide',
+  methods: {
+    'poll:': {
+      types: ['void', ['id']],
+      implementation: function () {
+        try {
+          tick += 1;
+          if (tick % REFRESH_TICKS === 0) refresh();
+          const buttons = Number($.NSEvent.pressedMouseButtons);
+          const pressed = buttons !== 0 && lastButtons === 0;
+          lastButtons = buttons;
+          if (!pressed || visibleSince === null) return;
+          const frame = quickTerminalFrame();
+          if (frame === null) return;
+          const inside = mouseInside(frame);
+          if (trace) log('click ' + (inside ? 'inside' : 'outside') + ' the quick terminal');
+          if (!inside) hide('a click outside the quick terminal');
+        } catch (error) {
+          log('poll failed: ' + error);
+        }
+      },
+    },
+    'activated:': {
+      types: ['void', ['id']],
+      implementation: function (note) {
+        try {
+          const app = note.userInfo.objectForKey($.NSWorkspaceApplicationKey);
+          const id = ObjC.unwrap(app.bundleIdentifier) || '?';
+          const regular = Number(app.activationPolicy) === 0;
+          if (trace) log('activated ' + id + (regular ? '' : ' (not regular)'));
+          if (id === GHOSTTY_ID || !regular) return;
+          hide('activation of ' + id);
+        } catch (error) {
+          log('activation handler failed: ' + error);
+        }
+      },
+    },
+  },
+});
+
+const observer = $.GhosttyQuickHide.alloc.init;
+$.NSWorkspace.sharedWorkspace.notificationCenter.addObserverSelectorNameObject(
+  observer, 'activated:', $.NSWorkspaceDidActivateApplicationNotification, $());
+$.NSTimer.scheduledTimerWithTimeIntervalTargetSelectorUserInfoRepeats(
+  TICK_SECONDS, observer, 'poll:', $(), true);
+
+log('ghostty-quick-hide started' + (dryRun ? ' (dry run)' : ''));
+$.NSRunLoop.currentRunLoop.run;
