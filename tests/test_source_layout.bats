@@ -107,6 +107,36 @@ SOURCE_ROOT="$REPO_ROOT/home"
   done
 }
 
+# ---- Option as Alt: left Option is Alt on macOS, Linux untouched --------------
+@test "Ghostty makes only the left Option key Alt, and only on macOS" {
+  local config="${BATS_TEST_TMPDIR}/chezmoi.toml" xdg="${BATS_TEST_TMPDIR}/xdg" os
+  local template="$SOURCE_ROOT/dot_config/ghostty/config.tmpl" settings
+  printf '[data]\n' > "$config"
+  mkdir -p "$xdg/ghostty/themes" "${BATS_TEST_TMPDIR}/home"
+  chezmoi execute-template --source "$REPO_ROOT" --config "$config" \
+    < "$SOURCE_ROOT/dot_config/ghostty/themes/dotfiles.conf.tmpl" > "$xdg/ghostty/themes/dotfiles.conf"
+
+  for os in darwin linux; do
+    run chezmoi execute-template --source "$REPO_ROOT" --config "$config" \
+      --override-data "{\"chezmoi\":{\"os\":\"$os\"}}" < "$template"
+    [ "$status" -eq 0 ]
+    printf '%s\n' "$output" > "$xdg/ghostty/config"
+    settings="$(grep -E '^[[:space:]]*macos-option-as-alt[[:space:]]*=' "$xdg/ghostty/config" || true)"
+    if [ "$os" = darwin ]; then
+      # Exactly one setting, and it is `left`: right Option keeps typing accents.
+      [ "$settings" = "macos-option-as-alt = left" ]
+    else
+      [ -z "$settings" ]
+    fi
+
+    if command -v ghostty >/dev/null 2>&1; then
+      run env XDG_CONFIG_HOME="$xdg" HOME="${BATS_TEST_TMPDIR}/home" \
+        ghostty +validate-config --config-file="$xdg/ghostty/config"
+      [ "$status" -eq 0 ]
+    fi
+  done
+}
+
 @test "Ghostty login LaunchAgent is macOS-only, follows the ghostty selection, and starts windowless" {
   local config="${BATS_TEST_TMPDIR}/chezmoi.toml"
   local target="Library/LaunchAgents/io.github.crag-h4k.dotfiles.ghostty.plist"

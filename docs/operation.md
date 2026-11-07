@@ -13,6 +13,7 @@
   - [Shell PATH additions](#shell-path-additions)
   - [OpenCode terminal settings](#opencode-terminal-settings)
   - [OpenCode prompt submit keys](#opencode-prompt-submit-keys)
+  - [OpenCode Option word keys](#opencode-option-word-keys)
   - [OpenCode idle locations](#opencode-idle-locations)
   - [OpenCode server plugins](#opencode-server-plugins)
 - [Terminal (tmux) behavior](#terminal-tmux-behavior)
@@ -602,8 +603,8 @@ warning, so a hand edit is never destroyed.
 ### OpenCode prompt submit keys
 
 In the main prompt composer, Option+Enter sends and Enter inserts a newline.
-Shift+Enter, Ctrl+Enter, and Ctrl+J also insert a newline. Nothing in Ghostty
-changes. Two seeded `cli.json` keybinds do it:
+Shift+Enter, Ctrl+Enter, and Ctrl+J also insert a newline. Ghostty's Enter
+bindings stay at their defaults. Two seeded `cli.json` keybinds do it:
 
 - `keybinds.input.submit` is `super+return,alt+return`.
 - `keybinds.input.newline` is `return,shift+return,ctrl+return,ctrl+j`.
@@ -661,10 +662,10 @@ Things to know:
 
 If Option+Enter does not send, pick one of these:
 
-- Set `macos-option-as-alt = true` in `override.conf`. Option then acts as Alt for
-  every key, which also stops Option from composing accented characters. Ghostty
-  already defaults to `true` on U.S. layouts and `false` on others, and `left` or
-  `right` limits the change to one Option key.
+- Run the check below. If Option+a prints nothing either, the keyboard or a key
+  remapper is not sending Option, and no terminal setting fixes that.
+  `macos-option-as-alt` is not the cause: Option+Enter prints nothing, so Ghostty
+  sends it as Alt from either Option key.
 - Change `input.submit` to a chord that does arrive, keeping it out of
   `input.newline`.
 
@@ -697,9 +698,11 @@ stty "$old"
 In a bare Ghostty window expect `^[[13;3u`. Inside tmux expect `^[^M`. Ghostty's
 docs say an Option chord that produces no printable character, which includes
 Option+Enter, is treated as Alt whatever `macos-option-as-alt` says, so it arrives
-without that setting. Press Option+a too: expect `^[[97;3u` with the protocol on, or
-`^[a` with it off. If neither key prints anything, the keyboard or a key remapper is
-not sending Option, and the terminal never sees it.
+from either Option key. Press left Option+a too: expect `^[[97;3u` with the
+protocol on, or `^[a` with it off. Right Option+a types `å` on purpose (see
+[OpenCode Option word keys](#opencode-option-word-keys)). If neither Option key
+prints anything, the keyboard or a key remapper is not sending Option, and the
+terminal never sees it.
 
 Checked in isolated tmux 3.8 servers against OpenCode 2.1.3: Enter inserts a
 newline, Alt+Enter (ESC then Enter) sends, and forms, dialogs, the command palette,
@@ -712,6 +715,86 @@ with it off and inside tmux. Inside tmux, Shift+Enter and Ctrl+Enter arrive as p
 Enter, which is why they stay newline chords. A live OpenCode session confirmed
 that Enter inserts a newline and Option+Enter sends. Not yet verified: Enter in the
 permission prompt.
+
+Re-checked on 2026-11-06 after the macOS config set `macos-option-as-alt = left`,
+in an isolated tmux 3.8 server against OpenCode 2.2.5. ESC then Enter typed
+through a real tmux client, and `ESC[13;3u` written straight to the pane, both
+sent; plain Enter still inserted a newline. A physical Option+Enter from each
+Option key in Ghostty with the new setting is still a manual check.
+
+### OpenCode Option word keys
+
+Option edits words in the prompt composer the way it does in macOS text fields:
+
+| Keys | Action | OpenCode id |
+| --- | --- | --- |
+| Option+Left, left Option+B | Back one word | `input.word.backward` |
+| Option+Right, left Option+F | Forward one word | `input.word.forward` |
+| Option+Backspace | Delete the previous word | `input.delete.word.backward` |
+| Option+fn+Delete, left Option+D | Delete the next word | `input.delete.word.forward` |
+
+These are OpenCode's own defaults, so `cli.json` does not seed them. In 2.2.5 the
+four ids are `alt+b,alt+left,ctrl+left`, `alt+f,alt+right,ctrl+right`,
+`ctrl+w,ctrl+backspace,alt+backspace`, and `alt+d,alt+delete,ctrl+delete`.
+Leaving them unseeded lets a later OpenCode default arrive. To change one, set
+that id in **Open settings** or `cli.json`; `keybinds` accepts native command ids
+only, and a value you set survives apply.
+
+The Ghostty half is macOS-only. The managed config sets
+`macos-option-as-alt = left`, so the left Option key acts as Alt for letters and
+Option+B arrives as `alt+b` instead of typing `∫`. Ghostty's defaults already send
+Option+Left and Option+Right as ESC b and ESC f, and an Option chord that prints
+nothing (the arrows, Backspace, Delete, Enter) is Alt from either Option key
+whatever the setting says.
+
+The right Option key still types accented and special characters, such as
+Option+E then E for `é`. On a U.S. layout that is a change: left unset, Ghostty
+treats both Option keys as Alt there. To choose differently on one machine, set
+it in `~/.config/ghostty/override.conf`:
+
+```text
+# Both Option keys act as Alt: Ghostty's unset default on U.S. layouts.
+macos-option-as-alt = true
+```
+
+`false` hands both keys back to macOS, so Option+B types `∫` while Option+Left,
+Option+Backspace, Option+fn+Delete, and Option+Enter keep working. `right` swaps
+which key is Alt.
+
+What OpenCode receives:
+
+| Keys | Bare Ghostty (kitty protocol) | Inside tmux |
+| --- | --- | --- |
+| Option+Left, Option+Right | `ESC b`, `ESC f` | `ESC b`, `ESC f` |
+| Left Option+B, F, D | `ESC[98;3u`, `ESC[102;3u`, `ESC[100;3u` | `ESC b`, `ESC f`, `ESC d` |
+| Option+Backspace | `ESC[127;3u` | `ESC DEL` |
+| Option+fn+Delete | `ESC[3;3~` | `ESC[3;3~` |
+| Option+Enter | `ESC[13;3u` | `ESC CR` |
+
+tmux needs no change. With `extended-keys off` it forwards these as the legacy
+sequences, the notifier's root `Any` binding passes them through untouched, and
+each chord arrives in one write, so the default `escape-time` does not split it.
+
+Things to know:
+
+- Option+Right and Option+F stop at the start of the next word, not at the end
+  of the current one as in macOS text fields, and deleting the next word takes
+  the space after it too. That is OpenCode's word motion; no keybind changes it.
+- zsh's emacs keymap already binds ESC b, ESC f, ESC d, and ESC DEL, so the same
+  keys work at the shell prompt. zsh has no binding for Option+fn+Delete
+  (`ESC[3;3~`) and inserts `;3~`. To fix that on one machine, add
+  `bindkey '^[[3;3~' kill-word` to `~/.zsh_override`.
+- The `cli.json` side is not OS-gated. On Debian and over SSH the same chords
+  work when the local terminal sends Option or Alt as Meta.
+
+Checked on 2026-11-06 in an isolated tmux 3.8 server against OpenCode 2.2.5 with
+the notifier binding loaded. Each tmux sequence above, typed through a real tmux
+client, and each kitty sequence, written straight to the pane, moved or deleted
+the expected word in both the home and in-session composers. Not checked:
+physical keypresses in Ghostty with the new setting. To check by hand, run the
+`cat -v` recipe in [OpenCode prompt submit keys](#opencode-prompt-submit-keys):
+left Option+b prints `^[[98;3u` with the protocol on or `^[b` with it off, and
+right Option+b prints `∫` (`M-bM-^HM-+` in `cat -v`).
 
 ### OpenCode idle locations
 

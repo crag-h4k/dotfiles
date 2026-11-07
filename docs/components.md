@@ -288,10 +288,16 @@ without a Home key. `Ctrl+G`, OpenCode's default for that action, is no longer
 bound.
 
 In the main prompt, Option+Enter sends and Enter inserts a newline. Both
-bindings are seeded in `cli.json`, and Ghostty's own keys are untouched. See
+bindings are seeded in `cli.json`, and Ghostty's Enter bindings are untouched. See
 [OpenCode prompt submit keys](operation.md#opencode-prompt-submit-keys) for how
 the chord travels, the autocomplete gotcha, how a host can use Cmd+Enter, and
 how to opt out.
+
+Option also moves and deletes by word in the prompt: Option+Left and
+Option+Right, Option+Backspace, Option+fn+Delete, and left Option+B, F, and D.
+Those are OpenCode's native bindings and are not seeded; on macOS, Ghostty's
+left Option key acts as Alt so the letter chords arrive. See
+[OpenCode Option word keys](operation.md#opencode-option-word-keys).
 
 ### OpenViking
 
@@ -669,6 +675,13 @@ template.
 
 The selected palette lands at `~/.config/ghostty/themes/dotfiles.conf`. Hack
 Nerd Font Mono provides the prompt and tmux glyphs.
+
+On macOS the left Option key acts as Alt (`macos-option-as-alt = left`), so
+Option+B, Option+F, and Option+D reach zsh and OpenCode as word keys. The right
+Option key still types accented and special characters. Set
+`macos-option-as-alt` to `true`, `false`, or `right` in
+`~/.config/ghostty/override.conf` to choose differently on one machine; see
+[OpenCode Option word keys](operation.md#opencode-option-word-keys).
 
 A top-aligned, 40% quick terminal toggles with Command+backtick on macOS or
 Control+backtick on Linux. macOS needs Accessibility permission. Linux needs a
