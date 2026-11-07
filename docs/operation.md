@@ -6,7 +6,6 @@
 - [Daily operation](#daily-operation)
 - [Lazygit](#lazygit)
 - [Telemetry opt-outs](#telemetry-opt-outs)
-- [Telemetry opt-outs](#telemetry-opt-outs)
 - [OpenCode updates](#opencode-updates)
 - [Worktree and agent directories](#worktree-and-agent-directories)
 - [Local overrides](#local-overrides)

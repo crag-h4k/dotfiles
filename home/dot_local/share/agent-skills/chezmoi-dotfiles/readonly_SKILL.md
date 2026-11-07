@@ -32,7 +32,8 @@ Use the actual tool environment and preserve another agent's work.
 
 ## Choose the work
 
-- For a change or diagnosis, read the applicable child guidance and product
+- For any change, read `docs/principles.md` from the repository root first. Then,
+  for a change or diagnosis, read the applicable child guidance and product
   documentation. Read `references/workflows.md` for component, package,
   deployment, or terminal work. In chezmoi source this reference is named
   `references/readonly_workflows.md`.

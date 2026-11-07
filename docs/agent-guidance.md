@@ -3,7 +3,8 @@
 The root [AGENTS.md](../AGENTS.md) describes how to work on this repository.
 Its linked child files cover managed source, packaging, tests, CI, documentation,
 OpenCode2, Neovim, and notifications. Read the relevant chain before editing even
-when the harness starts at the repository root.
+when the harness starts at the repository root. Read [Principles](principles.md)
+first: it sets the repository's scope and the checks a change is judged against.
 
 Guidance is based on explicit user decisions, recurring corrections, and current
 code. Supported inferences are defaults. Keep entrypoints concise and update

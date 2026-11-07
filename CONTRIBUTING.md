@@ -4,6 +4,9 @@ This is a personal workstation repo, not a standards committee. The rules are
 here so the next change is easy to review and Release Please does not stare at
 an unparseable squash commit and quietly wander off.
 
+Read [Principles](docs/principles.md) first. It says what belongs in this repo,
+which defaults it imposes, and the checklist a change gets judged against.
+
 ## Agent guidance
 
 Start with [AGENTS.md](AGENTS.md) and read the child contracts for the files being
@@ -136,6 +139,9 @@ See [Release workflow](docs/releases.md) for SemVer rules, commit overrides, and
 the one-time `v1.0.0` release instructions.
 
 ## Scope
+
+What the repo manages, and what it leaves alone, is listed in
+[Principles](docs/principles.md#scope).
 
 Keep managed host state under `home/`. Project tests, scripts, docs, CI, linter
 policy, and vendored authoring inputs stay outside the managed source root.

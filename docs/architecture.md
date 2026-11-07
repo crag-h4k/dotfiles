@@ -161,8 +161,7 @@ dirty the dotfiles repository. See [Neovim tooling](neovim.md) for the full spli
 | `home/dot_tflint.hcl` | `~/.tflint.hcl` | terraform lint rules |
 | `home/dot_markdownlint.yaml` | `~/.markdownlint.yaml` | markdown rules; nvim-lint points `--config` here |
 | `home/dot_config/yamllint/config` | `~/.config/yamllint/config` | yamllint's XDG config path |
-| `home/dot_gitconfig` | `~/.gitconfig` | shared Git behavior and credential helpers; gated on `git > config` |
-| `home/dot_gitconfig` | `~/.gitconfig` | generic settings only; includes the unmanaged `~/.gitconfig.override` last and sets `user.useConfigOnly` |
+| `home/dot_gitconfig` | `~/.gitconfig` | generic settings and `gh` credential helpers only; includes the unmanaged `~/.gitconfig.override` last and sets `user.useConfigOnly`; gated on `git > config` |
 | `home/dot_gitignore_global` | `~/.gitignore_global` | global ignore patterns; gated on `git > ignore_global` (on by default) |
 | `home/.chezmoi.toml.tmpl` | `~/.config/chezmoi/chezmoi.toml` | prompts for components, palette, and install mode before apply; with AI selected, its `directories` checkbox opens one editor for `worktreesDir` and `agentsDir`, which are persisted either way |
 | `home/.chezmoitemplates/dotfiles-dir` | (shared template) | expands and validates `worktreesDir` and `agentsDir` for the config, `~/.zshenv`, the directory script, and the Plan handoff rules; check mode lets the init editor ask again and refuses text that could not be shown safely |

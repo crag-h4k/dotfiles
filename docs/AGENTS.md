@@ -2,6 +2,8 @@
 
 Write for someone maintaining or deploying this workstation. State the behavior,
 the command that controls it, and the evidence or limitation needed to use it.
+Read [principles.md](principles.md) before changing a doc. If the change would
+contradict it, call out the conflict before writing it.
 
 - Keep engineering docs direct and conversational. Some dry irreverence fits;
   useful procedures take priority. The README can be louder and more playful.

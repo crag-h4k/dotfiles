@@ -85,10 +85,10 @@ target ownership when another account uses a shared source checkout.
 Record the chain: terminal/client, SSH, tmux or direct session, application, and
 versions. Compare the failing chain with a working path. Check glyph width,
 truecolor, capability probes, raw reply bytes, bindings, and parser availability.
-For the OpenCode footer, reproduce display issues against the pinned
+For the OpenCode footer, reproduce display issues against the installed
 `opencode-pillbox-statusline` release and its render tests; keep `/demo` to its
 minimal model usage. Font changes alone do not settle rendering failures.
-For Sidequest, compare the identical server/TUI pins and its `focusKey` terminal
+For Sidequest, compare the identical server/TUI references and its `focusKey` terminal
 option before changing host keybindings. Dotfiles seeds `<leader>p` and keeps
 OpenCode's default `Ctrl+X` as the leader; panel behavior is maintained in the Sidequest repository.
 

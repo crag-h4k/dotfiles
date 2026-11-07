@@ -9,6 +9,9 @@ palette, AI tooling, and verified deployments are central to the project.
 - Identify the execution host, real Git root, branch, worktrees, and dirty files
   before changing anything. `~/dotfiles` can be a symlink. An attached OpenCode2
   session can execute somewhere different from the terminal running its client.
+- Read [docs/principles.md](docs/principles.md) before proposing or making a
+  change. If a request conflicts with it, say so before acting; do not violate
+  it silently.
 - Read [CONTRIBUTING.md](CONTRIBUTING.md) and the documentation for the behavior
   you are changing. Read every applicable child `AGENTS.md` before editing;
   descendant files may need explicit loading when a session starts at the root.

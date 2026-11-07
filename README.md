@@ -122,6 +122,7 @@ checkout dirty.
 
 | Guide | Use it for |
 | --- | --- |
+| [Principles](docs/principles.md) | What belongs here, the defaults it imposes, and how a change gets judged |
 | [Components](docs/components.md) | Pickers, sub-features, package mode, and changing a host later |
 | [Agent skills](docs/agent-skills.md) | Cross-harness layout, invocation policy, immutable pins, and threat boundaries |
 | [Agent guidance](docs/agent-guidance.md) | Repository instructions, maintenance workflows, and recorded decisions |

@@ -49,7 +49,9 @@ packages, and keep their runtime state out of managed source.
 ## Source and privacy boundaries
 
 Load the `chezmoi-dotfiles` skill and read the repository instructions before
-editing. Resolve the actual source checkout rather than assuming a home path.
+editing. In the dotfiles checkout, read `docs/principles.md` first for scope
+and how a change is judged. Resolve the actual source checkout rather than
+assuming a home path.
 Isolate independent feature work through the `git-worktree` skill, in the flat
 `$DOTFILES_WORKTREES_DIR/<repo>-<slug>` layout (default `$HOME/worktrees`).
 Edit managed source, never generated home targets. Respect chezmoi attributes

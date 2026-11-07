@@ -15,3 +15,7 @@
 ## Risks or limitations
 
 <!-- Known tradeoffs, follow-up work, or "None known". -->
+
+## Principles
+
+- [ ] Fits `docs/principles.md` (explain any conflict under Risks or limitations)

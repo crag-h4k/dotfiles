@@ -281,7 +281,8 @@ but its permission handler needs an attached terminal client. Do not launch
 that client with the global `--auto` flag when using the per-session cycle.
 
 `<leader>t` opens the built-in session list. Native session tabs keep OpenCode's
-default ordering; automatic priority sorting is being developed separately.
+default ordering unless the attention-tabs `sort` option, off by default, is
+enabled; see [OpenCode attention tabs](#opencode-attention-tabs).
 
 `Home` and `<leader>f` move to the first message; the second works on keyboards
 without a Home key. `Ctrl+G`, OpenCode's default for that action, is no longer
@@ -595,10 +596,11 @@ path; neither option starts installation. Independent steps continue after a
 failure, but the final installer result is nonzero so chezmoi can retry it.
 
 Exact versions remain source-controlled. Package mode reasserts the pinned
-tree-sitter CLI instead of advancing it. The pinned OpenCode statusline plugin
-reference, prek revisions, and palette submodule commit change only
-through repository updates. Initializing that exact palette submodule commit
-happens only after package approval.
+tree-sitter CLI instead of advancing it. Prek revisions and the palette
+submodule commit change only through repository updates. Initializing that
+exact palette submodule commit happens only after package approval. The
+OpenCode footer and Sidequest plugins follow npm `latest` instead; OpenCode
+installs a newer release only on `opencode2 plugin update`.
 
 The plan appears on first init or when the `package mode` setup action is
 selected. A normal later init reuses the saved mode.
