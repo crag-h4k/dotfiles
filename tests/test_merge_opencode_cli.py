@@ -800,3 +800,37 @@ def test_chezmoi_prompt_keys_reach_an_existing_host_and_a_user_choice_stays(sand
     assert keys["input.submit"] == PROMPT_KEYS["input.submit"]
     assert keys["input.newline"] == "ctrl+j"
     assert sandbox.chezmoi(sandbox.merge_source, "diff").stdout == ""
+
+
+# ---- Option word keys: OpenCode's native defaults, never seeded ----------------
+# OpenCode already binds Option word movement and deletion (2.2.5: alt+b/f/d,
+# alt+left/right, alt+backspace, alt+delete). The merge leaves these ids alone so
+# a later upstream default still reaches every host, and a user's value stays.
+# Ghostty's macos-option-as-alt = left is what makes Option+B/F/D arrive as Alt.
+WORD_KEYS = (
+    "input.word.backward",
+    "input.word.forward",
+    "input.delete.word.backward",
+    "input.delete.word.forward",
+)
+OPTION_WORD_CHORDS = {
+    "alt+b", "alt+f", "alt+d", "alt+left", "alt+right", "alt+backspace", "alt+delete",
+}
+
+
+def test_option_word_keys_stay_on_native_defaults(script):
+    keys = merge(script, {})["keybinds"]
+    for action in WORD_KEYS:
+        assert action not in keys, f"{action} is left to OpenCode's native default"
+    # No managed keybind may take an Option word chord away from the composer.
+    managed = {chord for value in keys.values() if isinstance(value, str)
+               for chord in value.split(",")}
+    assert managed.isdisjoint(OPTION_WORD_CHORDS)
+
+
+@pytest.mark.parametrize("action", WORD_KEYS)
+@pytest.mark.parametrize("binding", ["ctrl+left", "none", ["alt+b", "ctrl+left"]])
+def test_option_word_keys_a_user_set_are_kept(script, action, binding):
+    once = merge(script, {"keybinds": {action: binding}})
+    assert once["keybinds"][action] == binding
+    assert merge(script, once) == once

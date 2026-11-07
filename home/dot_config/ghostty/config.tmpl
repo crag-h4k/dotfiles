@@ -95,6 +95,18 @@ quick-terminal-screen = mouse
 # Keep the dropdown on the current Space when switching Spaces.
 quick-terminal-space-behavior = move
 {{ end -}}
+{{ if eq .chezmoi.os "darwin" }}
+# ---- Option as Alt (macOS) --------------------------------------------------
+# The left Option key is Alt, so Option+B, Option+F, and Option+D reach zsh and
+# OpenCode as word back, word forward, and delete word instead of typing the
+# symbols macOS maps to them. The right Option key still types accented and
+# special characters. Option chords that print nothing (Enter, the arrows,
+# Backspace, Delete) count as Alt on either key whatever this says, so
+# Option+Enter still sends an OpenCode prompt. Left unset, Ghostty picks true on
+# U.S. layouts and false on the rest. To change it on one machine, set
+# macos-option-as-alt (true, false, or right) in override.conf.
+macos-option-as-alt = left
+{{ end -}}
 
 # ---- Keybinds ---------------------------------------------------------------
 # Splits, tabs, and pane navigation use Ghostty's built-in per-platform defaults
