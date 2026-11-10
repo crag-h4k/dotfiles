@@ -804,6 +804,14 @@ updater timestamps.
 
 Dynamic Profiles are read-only in the iTerm2 interface. Edit the JSON source.
 
+Both profiles send Esc+ from the left and the right Option key
+(`Option Key Sends` and `Right Option Key Sends` are 2), so Option+B, Option+F,
+Option+D, Option+Backspace, and Option+Enter reach OpenCode and zsh as Alt, the
+same bytes Ghostty sends. Neither key then types accents or special characters.
+Set both values back to 0 in `home/dot_config/iterm2/dotfiles.json.tmpl` to get
+them back; see
+[OpenCode Option word keys](operation.md#opencode-option-word-keys).
+
 On a fresh machine, iTerm2 loads the profiles from JSON. If matching regular
 profiles already exist, iTerm2 keeps them because it rejects duplicate GUIDs
 and will not run with an empty profile list. The committed JSON remains the

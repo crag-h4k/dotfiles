@@ -795,6 +795,11 @@ Things to know:
   things. Over SSH they work when the local terminal sends Option or Alt as Meta.
   Tests pin that the Linux Ghostty render sets no Option remap and that no
   Ghostty or managed OpenCode keybind takes an Alt or Option word chord.
+- The iTerm2 profiles are the other macOS terminal. They send Esc+ from both
+  Option keys, so the same chords arrive there as ESC b, ESC f, ESC d, ESC DEL,
+  and ESC CR. iTerm2's default Normal setting would type `∫` for Option+B and send
+  a plain Enter for Option+Enter, which inserts a newline instead of sending.
+  This is not checked with physical keypresses; a test pins the profile values.
 
 Checked on 2026-11-06 in an isolated tmux 3.8 server against OpenCode 2.2.5 with
 the notifier binding loaded. Each tmux sequence above, typed through a real tmux

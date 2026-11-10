@@ -144,6 +144,31 @@ SOURCE_ROOT="$REPO_ROOT/home"
   done
 }
 
+@test "iTerm2 profiles send Esc+ from both Option keys, so Option word keys work there too" {
+  local config="${BATS_TEST_TMPDIR}/chezmoi.toml"
+  printf '[data]\n' > "$config"
+  run chezmoi execute-template --source "$REPO_ROOT" --config "$config" \
+    --override-data '{"chezmoi":{"os":"darwin"}}' < "$SOURCE_ROOT/dot_config/iterm2/dotfiles.json.tmpl"
+  [ "$status" -eq 0 ]
+  printf '%s\n' "$output" > "${BATS_TEST_TMPDIR}/iterm2.json"
+
+  # iTerm2 values: 0 Normal (Option+B types a symbol), 1 Meta, 2 Esc+. Esc+ makes
+  # either Option key arrive as Alt, the same bytes Ghostty sends.
+  run python3 - "${BATS_TEST_TMPDIR}/iterm2.json" <<'PY'
+import json
+import sys
+
+with open(sys.argv[1]) as handle:
+    profiles = json.load(handle)["Profiles"]
+
+assert len(profiles) >= 2
+for profile in profiles:
+    for key in ("Option Key Sends", "Right Option Key Sends"):
+        assert profile[key] == 2, f'{profile["Name"]}: {key} is {profile[key]}, want 2 (Esc+)'
+PY
+  [ "$status" -eq 0 ]
+}
+
 @test "Ghostty login LaunchAgent is macOS-only, follows the ghostty selection, and starts windowless" {
   local config="${BATS_TEST_TMPDIR}/chezmoi.toml"
   local target="Library/LaunchAgents/io.github.crag-h4k.dotfiles.ghostty.plist"
