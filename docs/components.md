@@ -294,10 +294,10 @@ the chord travels, the autocomplete gotcha, how a host can use Cmd+Enter, and
 how to opt out.
 
 Option also moves and deletes by word in the prompt: Option+Left and
-Option+Right, Option+Backspace, Option+fn+Delete, and left Option+B, F, and D.
-Those are OpenCode's native bindings and are not seeded; on macOS, Ghostty's
-left Option key acts as Alt so the letter chords arrive. See
-[OpenCode Option word keys](operation.md#opencode-option-word-keys).
+Option+Right, Option+Backspace, Option+fn+Delete, and Option+B, F, and D, with
+Alt in the same place on Linux. Those are OpenCode's native bindings and are not
+seeded; on macOS, Ghostty's Option keys act as Alt so the letter chords arrive.
+See [OpenCode Option word keys](operation.md#opencode-option-word-keys).
 
 ### OpenViking
 
@@ -676,12 +676,13 @@ template.
 The selected palette lands at `~/.config/ghostty/themes/dotfiles.conf`. Hack
 Nerd Font Mono provides the prompt and tmux glyphs.
 
-On macOS the left Option key acts as Alt (`macos-option-as-alt = left`), so
-Option+B, Option+F, and Option+D reach zsh and OpenCode as word keys. The right
-Option key still types accented and special characters. Set
-`macos-option-as-alt` to `true`, `false`, or `right` in
+On macOS both Option keys act as Alt (`macos-option-as-alt = true`), so
+Option+B, Option+F, and Option+D reach zsh and OpenCode as word keys on any
+keyboard layout. Neither key then types accented or special characters. Set
+`macos-option-as-alt` to `left`, `right`, or `false` in
 `~/.config/ghostty/override.conf` to choose differently on one machine; see
-[OpenCode Option word keys](operation.md#opencode-option-word-keys).
+[OpenCode Option word keys](operation.md#opencode-option-word-keys). Linux sets
+nothing, because Alt already arrives as Alt.
 
 A top-aligned, 40% quick terminal toggles with Command+backtick on macOS or
 Control+backtick on Linux. macOS needs Accessibility permission. Linux needs a

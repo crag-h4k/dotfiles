@@ -698,8 +698,8 @@ stty "$old"
 In a bare Ghostty window expect `^[[13;3u`. Inside tmux expect `^[^M`. Ghostty's
 docs say an Option chord that produces no printable character, which includes
 Option+Enter, is treated as Alt whatever `macos-option-as-alt` says, so it arrives
-from either Option key. Press left Option+a too: expect `^[[97;3u` with the
-protocol on, or `^[a` with it off. Right Option+a types `å` on purpose (see
+from either Option key. Press Option+a on each key too: expect `^[[97;3u` with
+the protocol on, or `^[a` with it off, from either one (see
 [OpenCode Option word keys](#opencode-option-word-keys)). If neither Option key
 prints anything, the keyboard or a key remapper is not sending Option, and the
 terminal never sees it.
@@ -724,14 +724,17 @@ Option key in Ghostty with the new setting is still a manual check.
 
 ### OpenCode Option word keys
 
-Option edits words in the prompt composer the way it does in macOS text fields:
+Option edits words in the prompt composer the way it does in macOS text fields,
+and Alt does the same on Linux. Either Option key works on macOS:
 
 | Keys | Action | OpenCode id |
 | --- | --- | --- |
-| Option+Left, left Option+B | Back one word | `input.word.backward` |
-| Option+Right, left Option+F | Forward one word | `input.word.forward` |
+| Option+Left, Option+B | Back one word | `input.word.backward` |
+| Option+Right, Option+F | Forward one word | `input.word.forward` |
 | Option+Backspace | Delete the previous word | `input.delete.word.backward` |
-| Option+fn+Delete, left Option+D | Delete the next word | `input.delete.word.forward` |
+| Option+fn+Delete, Option+D | Delete the next word | `input.delete.word.forward` |
+
+On Linux read Option as Alt: Alt+Left, Alt+B, Alt+Backspace, and so on.
 
 These are OpenCode's own defaults, so `cli.json` does not seed them. In 2.2.5 the
 four ids are `alt+b,alt+left,ctrl+left`, `alt+f,alt+right,ctrl+right`,
@@ -740,33 +743,35 @@ Leaving them unseeded lets a later OpenCode default arrive. To change one, set
 that id in **Open settings** or `cli.json`; `keybinds` accepts native command ids
 only, and a value you set survives apply.
 
-The Ghostty half is macOS-only. The managed config sets
-`macos-option-as-alt = left`, so the left Option key acts as Alt for letters and
-Option+B arrives as `alt+b` instead of typing `∫`. Ghostty's defaults already send
-Option+Left and Option+Right as ESC b and ESC f, and an Option chord that prints
-nothing (the arrows, Backspace, Delete, Enter) is Alt from either Option key
-whatever the setting says.
+The Ghostty half is macOS-only, because Linux needs none: Alt already arrives as
+Alt there. The managed macOS config sets `macos-option-as-alt = true`, so either
+Option key acts as Alt for letters and Option+B arrives as `alt+b` instead of
+typing `∫`. Ghostty's own default is true only on U.S. Standard and U.S.
+International layouts and false on the rest, so naming the value keeps the keys
+working on every layout. Ghostty's defaults already send Option+Left and
+Option+Right as ESC b and ESC f, and an Option chord that prints nothing (the
+arrows, Backspace, Delete, Enter) is Alt from either Option key whatever the
+setting says.
 
-The right Option key still types accented and special characters, such as
-Option+E then E for `é`. On a U.S. layout that is a change: left unset, Ghostty
-treats both Option keys as Alt there. To choose differently on one machine, set
-it in `~/.config/ghostty/override.conf`:
+Neither Option key then types accented or special characters, such as Option+E
+then E for `é`. To get them back on one machine, set the value in
+`~/.config/ghostty/override.conf`:
 
 ```text
-# Both Option keys act as Alt: Ghostty's unset default on U.S. layouts.
-macos-option-as-alt = true
+# Only the left Option key acts as Alt; the right one types accents again.
+macos-option-as-alt = left
 ```
 
-`false` hands both keys back to macOS, so Option+B types `∫` while Option+Left,
-Option+Backspace, Option+fn+Delete, and Option+Enter keep working. `right` swaps
-which key is Alt.
+`right` swaps which key is Alt. `false` hands both keys back to macOS, so
+Option+B types `∫` while Option+Left, Option+Backspace, Option+fn+Delete, and
+Option+Enter keep working.
 
 What OpenCode receives:
 
 | Keys | Bare Ghostty (kitty protocol) | Inside tmux |
 | --- | --- | --- |
 | Option+Left, Option+Right | `ESC b`, `ESC f` | `ESC b`, `ESC f` |
-| Left Option+B, F, D | `ESC[98;3u`, `ESC[102;3u`, `ESC[100;3u` | `ESC b`, `ESC f`, `ESC d` |
+| Option+B, F, D | `ESC[98;3u`, `ESC[102;3u`, `ESC[100;3u` | `ESC b`, `ESC f`, `ESC d` |
 | Option+Backspace | `ESC[127;3u` | `ESC DEL` |
 | Option+fn+Delete | `ESC[3;3~` | `ESC[3;3~` |
 | Option+Enter | `ESC[13;3u` | `ESC CR` |
@@ -784,17 +789,22 @@ Things to know:
   keys work at the shell prompt. zsh has no binding for Option+fn+Delete
   (`ESC[3;3~`) and inserts `;3~`. To fix that on one machine, add
   `bindkey '^[[3;3~' kill-word` to `~/.zsh_override`.
-- The `cli.json` side is not OS-gated. On Debian and over SSH the same chords
-  work when the local terminal sends Option or Alt as Meta.
+- Nothing on the OpenCode side is OS-gated, and Linux needs no Ghostty setting.
+  On Debian, Alt+B, Alt+F, Alt+D, Alt+Left, Alt+Right, Alt+Backspace, and
+  Alt+Delete send the same sequences as the Option chords above and do the same
+  things. Over SSH they work when the local terminal sends Option or Alt as Meta.
+  Tests pin that the Linux Ghostty render sets no Option remap and that no
+  Ghostty or managed OpenCode keybind takes an Alt or Option word chord.
 
 Checked on 2026-11-06 in an isolated tmux 3.8 server against OpenCode 2.2.5 with
 the notifier binding loaded. Each tmux sequence above, typed through a real tmux
 client, and each kitty sequence, written straight to the pane, moved or deleted
-the expected word in both the home and in-session composers. Not checked:
-physical keypresses in Ghostty with the new setting. To check by hand, run the
-`cat -v` recipe in [OpenCode prompt submit keys](#opencode-prompt-submit-keys):
-left Option+b prints `^[[98;3u` with the protocol on or `^[b` with it off, and
-right Option+b prints `∫` (`M-bM-^HM-+` in `cat -v`).
+the expected word in both the home and in-session composers. Those sequences do
+not depend on which Option key sent them. Not checked: physical keypresses in
+Ghostty with `macos-option-as-alt = true`. To check by hand, run the `cat -v`
+recipe in [OpenCode prompt submit keys](#opencode-prompt-submit-keys): Option+b
+from either Option key prints `^[[98;3u` with the protocol on or `^[b` with it
+off. A `∫` (`M-bM-^HM-+` in `cat -v`) means that key is not acting as Alt.
 
 ### OpenCode idle locations
 

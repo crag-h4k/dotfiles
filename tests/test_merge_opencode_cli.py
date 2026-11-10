@@ -818,14 +818,30 @@ OPTION_WORD_CHORDS = {
 }
 
 
+def _canonical(chord):
+    """Spell Option and Meta as Alt, so a synonym cannot sneak past the check."""
+    *mods, key = chord.strip().lower().split("+")
+    folded = {"alt" if mod in ("option", "opt", "meta") else mod for mod in mods}
+    return "+".join([*sorted(folded), key])
+
+
 def test_option_word_keys_stay_on_native_defaults(script):
     keys = merge(script, {})["keybinds"]
     for action in WORD_KEYS:
         assert action not in keys, f"{action} is left to OpenCode's native default"
-    # No managed keybind may take an Option word chord away from the composer.
-    managed = {chord for value in keys.values() if isinstance(value, str)
+    # No managed keybind may take an Option or Alt word chord away from the
+    # composer, however the chord is spelled. The merge is not OS-gated, so this
+    # holds on macOS and Linux alike.
+    managed = {_canonical(chord) for value in keys.values() if isinstance(value, str)
                for chord in value.split(",")}
     assert managed.isdisjoint(OPTION_WORD_CHORDS)
+
+
+def test_canonical_chord_folds_option_and_meta_into_alt():
+    assert _canonical("option+b") == "alt+b"
+    assert _canonical("Meta+Left") == "alt+left"
+    assert _canonical("ctrl+opt+b") == "alt+ctrl+b"
+    assert _canonical("alt+b") == "alt+b"
 
 
 @pytest.mark.parametrize("action", WORD_KEYS)

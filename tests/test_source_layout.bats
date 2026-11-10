@@ -107,8 +107,8 @@ SOURCE_ROOT="$REPO_ROOT/home"
   done
 }
 
-# ---- Option as Alt: left Option is Alt on macOS, Linux untouched --------------
-@test "Ghostty makes only the left Option key Alt, and only on macOS" {
+# ---- Option and Alt word keys work on every OS ---------------------------------
+@test "Ghostty makes both Option keys Alt on macOS, leaves Linux alone, and never binds an Alt word chord" {
   local config="${BATS_TEST_TMPDIR}/chezmoi.toml" xdg="${BATS_TEST_TMPDIR}/xdg" os
   local template="$SOURCE_ROOT/dot_config/ghostty/config.tmpl" settings
   printf '[data]\n' > "$config"
@@ -123,11 +123,18 @@ SOURCE_ROOT="$REPO_ROOT/home"
     printf '%s\n' "$output" > "$xdg/ghostty/config"
     settings="$(grep -E '^[[:space:]]*macos-option-as-alt[[:space:]]*=' "$xdg/ghostty/config" || true)"
     if [ "$os" = darwin ]; then
-      # Exactly one setting, and it is `left`: right Option keeps typing accents.
-      [ "$settings" = "macos-option-as-alt = left" ]
+      # Exactly one setting, and it is `true`: either Option key is Alt, whatever
+      # the keyboard layout. Ghostty's own default is layout-dependent.
+      [ "$settings" = "macos-option-as-alt = true" ]
     else
+      # Alt is already Alt on Linux; a stray remap would only get in the way.
       [ -z "$settings" ]
     fi
+
+    # The word chords (Alt+B/F/D, Alt+Left/Right, Alt+Backspace/Delete) must
+    # reach the program, so no Ghostty keybind may claim an Alt or Option chord.
+    run grep -Eiq '^[[:space:]]*keybind[[:space:]]*=.*(alt|option)\+' "$xdg/ghostty/config"
+    [ "$status" -eq 1 ]
 
     if command -v ghostty >/dev/null 2>&1; then
       run env XDG_CONFIG_HOME="$xdg" HOME="${BATS_TEST_TMPDIR}/home" \
