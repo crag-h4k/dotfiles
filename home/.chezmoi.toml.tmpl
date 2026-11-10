@@ -4,9 +4,10 @@
 {{- /* change it. Parsed into booleans below so the rest of the repo can gate  */ -}}
 {{- /* on .components.* (see .chezmoiignore, .chezmoiexternal.toml).            */ -}}
 {{- /*                                                                          */ -}}
-{{- /* The AI submenu also carries a `directories` setup action (see $aiActions     */ -}}
-{{- /* and $dirSpecs below). Left unchecked, the worktrees and agent-notes          */ -}}
-{{- /* directories keep their saved value; checked, one editor page asks for both.  */ -}}
+{{- /* The Git and AI submenus each carry one directory setup action (see           */ -}}
+{{- /* $gitActions, $aiActions, and $dirSpecs below): `worktrees` on the Git page   */ -}}
+{{- /* and `workspace` (the agent workspace) on the AI page. Left unchecked, the     */ -}}
+{{- /* folder keeps its saved value; checked, one editor page asks for that path.    */ -}}
 {{- /*                                                                          */ -}}
 {{- /* Single source of truth: add/remove a component by editing this list.    */ -}}
 {{- /* Each record is:                                                          */ -}}
@@ -24,25 +25,33 @@
     (dict "num" "1" "key" "config"        "label" "managed config" "desc" "~/.gitconfig + private ~/.gitconfig.override stub" "all" false)
     (dict "num" "3" "key" "ignore_global" "label" "global ignore"  "desc" "~/.gitignore_global"                         "all" true)
 -}}
-{{- /* OpenCode V2 is the AI submenu default. CodeCompanion is deliberately last */ -}}
-{{- /* and off by default because it installs Neovim, Node, and claude-agent-acp. */ -}}
+{{- /* The list order is the display order: OpenCode V2 (the AI submenu default),  */ -}}
+{{- /* OpenViking, and the statusline first. CodeCompanion is deliberately last and */ -}}
+{{- /* off by default because it installs Neovim, Node, and claude-agent-acp.        */ -}}
+{{- /* The numbers are persisted tokens, not positions: an old typed aiSelection     */ -}}
+{{- /* such as "1 4 8" must keep meaning the same features, and 7 and 9 are retired   */ -}}
+{{- /* tokens that migrate to opencode. Reordering never renumbers.                  */ -}}
 {{- $aiFeatures := list
+    (dict "num" "4" "key" "opencode"      "label" "opencode"      "desc" "OpenCode V2 + managed standalone wrapper + tmux notifier" "all" true)
+    (dict "num" "8" "key" "openviking"    "label" "openviking"    "desc" "local memory service + unmanaged starter configs" "all" false)
+    (dict "num" "3" "key" "statusline"    "label" "statusline"    "desc" "Claude token/context statusline + matching Codex theme" "all" false)
     (dict "num" "1" "key" "claude_hooks"  "label" "claude_hooks"  "desc" "Claude settings.json notify hooks"           "all" false)
     (dict "num" "2" "key" "codex_hooks"   "label" "codex_hooks"   "desc" "Codex config.toml notify hook"               "all" false)
-    (dict "num" "3" "key" "statusline"    "label" "statusline"    "desc" "Claude token/context statusline + matching Codex theme" "all" false)
-    (dict "num" "4" "key" "opencode"      "label" "opencode"      "desc" "OpenCode V2 + managed standalone wrapper + tmux notifier" "all" true)
     (dict "num" "5" "key" "copilot"       "label" "copilot"       "desc" "GitHub Copilot CLI (npm @github/copilot; pulls in the copilot binary)" "all" false)
-    (dict "num" "8" "key" "openviking"    "label" "openviking"    "desc" "local memory service + unmanaged starter configs" "all" false)
     (dict "num" "6" "key" "codecompanion" "label" "codecompanion" "desc" "CodeCompanion.nvim assistant (also installs Neovim, Node + claude-agent-acp)" "all" false)
 -}}
-{{- /* Init-time actions of the AI submenu. Like the top-level $actions they are    */ -}}
-{{- /* shown with the sub-features but are never components: they stay out of       */ -}}
-{{- /* $aiFeatures, [data.components.ai], and the persisted aiSelection, and the     */ -}}
-{{- /* number is outside the sub-feature range (7 and 9 are retired tokens that      */ -}}
-{{- /* migrate to opencode). Unchecked by default and only offered when init can      */ -}}
-{{- /* actually prompt (see $dirsOffered).                                            */ -}}
+{{- /* Init-time actions of the Git and AI submenus. Like the top-level $actions they */ -}}
+{{- /* are shown with the sub-features but are never components: they stay out of    */ -}}
+{{- /* the feature lists, [data.components.*], and the persisted selections. Each     */ -}}
+{{- /* submenu numbers its actions from 10, outside its sub-feature range including    */ -}}
+{{- /* retired tokens (Git 2 migrates to config; AI 7 and 9 migrate to opencode).      */ -}}
+{{- /* `dir` names the $dirSpecs entry the action edits. Unchecked by default and only  */ -}}
+{{- /* offered when init can actually prompt (see $dirsInteractive).                    */ -}}
+{{- $gitActions := list
+    (dict "num" "10" "key" "worktrees" "label" "worktrees" "desc" "change the worktrees folder (unchecked keeps it)" "dir" "worktreesDir" "all" false "action" true)
+-}}
 {{- $aiActions := list
-    (dict "num" "10" "key" "directories" "label" "directories" "desc" "change the worktrees and agent-notes directories (unchecked keeps them)" "all" false "action" true)
+    (dict "num" "10" "key" "workspace" "label" "workspace" "desc" "change the agent workspace folder (unchecked keeps it)" "dir" "agentsDir" "all" false "action" true)
 -}}
 {{- /* Terminal-emulator sub-features. MULTI-select (like git/ai): installing more */ -}}
 {{- /* than one emulator's config is harmless and Dane runs both, so this is not a  */ -}}
@@ -61,9 +70,9 @@
     (dict "num" "1" "key" "zsh"      "label" "Zsh"                "desc" "oh-my-zsh, plugins, custom functions, aliases"  "all" true  "sub" (list))
     (dict "num" "2" "key" "tmux"     "label" "tmux"               "desc" "tmux + plugins (tpm, resurrect, sensible, yank)" "all" true  "sub" (list))
     (dict "num" "3" "key" "neovim"   "label" "Neovim"             "desc" "Neovim, lazy.nvim, language servers, linters"   "all" true  "sub" (list))
-    (dict "num" "4" "key" "git"      "label" "Git"                "desc" "managed config and independent global ignore"   "all" true  "sub" $gitFeatures "selKey" "gitSelection" "header" "Git configuration")
-    (dict "num" "5" "key" "ai"       "label" "AI tools"           "desc" "OpenCode V2, hooks, statusline, Copilot, CodeCompanion" "all" false "sub" $aiFeatures  "selKey" "aiSelection"  "header" "AI tools")
-    (dict "num" "6" "key" "terminal" "label" "terminal emulators" "desc" "independent Ghostty and iTerm2 configuration"    "all" false "sub" $terminalFeatures "selKey" "terminalSelection" "header" "Terminal emulators")
+    (dict "num" "4" "key" "git"      "label" "Git"                "desc" "managed config and independent global ignore"   "all" true  "sub" $gitFeatures "selKey" "gitSelection" "header" "Git configuration" "actions" $gitActions)
+    (dict "num" "5" "key" "ai"       "label" "AI tools"           "desc" "OpenCode V2, OpenViking, statusline, hooks, Copilot, CodeCompanion" "all" false "sub" $aiFeatures  "selKey" "aiSelection"  "header" "AI tools" "actions" $aiActions)
+    (dict "num" "6" "key" "terminal" "label" "terminal emulators" "desc" "independent Ghostty and iTerm2 configuration"    "all" false "sub" $terminalFeatures "selKey" "terminalSelection" "header" "Terminal emulators" "actions" (list))
 -}}
 {{- /* Init-time actions are shown separately and never persisted as components. */ -}}
 {{- $actions := list
@@ -205,16 +214,20 @@
 {{- /* range rebinds `.` to the element, so capture the root data for dig /     */ -}}
 {{- /* promptStringOnce (which must read the persisted [data] selection keys).   */ -}}
 {{- $root := . -}}
-{{- /* Worktrees and agent-notes directories. Each entry resolves to the value the   */ -}}
-{{- /* editor pre-fills, and to the persisted value when nothing prompts: a saved     */ -}}
+{{- /* The worktrees folder and the agent workspace. Each entry resolves to the value */ -}}
+{{- /* the editor pre-fills, and to the persisted value when nothing prompts: a saved   */ -}}
 {{- /* [data] value always wins, then DOTFILES_WORKTREES_DIR / DOTFILES_AGENTS_DIR     */ -}}
 {{- /* (which only seed a first init, or an old config that lacks the key), then the    */ -}}
 {{- /* "$HOME/<default>" default. The stored text stays verbatim (absolute, ~/, or       */ -}}
 {{- /* $HOME/ forms); consumers expand it through the shared dotfiles-dir template.     */ -}}
+{{- /* `label` is the editor line key, `show` the page header label, and `title` the    */ -}}
+{{- /* typed prompt (no commas: chezmoi's -p prompt simulation splits on them).         */ -}}
 {{- $dirSpecs := list
-      (dict "key" "worktreesDir" "env" "DOTFILES_WORKTREES_DIR" "default" "worktrees" "label" "worktrees" "title" "Git worktrees directory (one folder per task)")
-      (dict "key" "agentsDir"    "env" "DOTFILES_AGENTS_DIR"    "default" "agents"    "label" "agents"    "title" "Agent notes directory (plans/specs/drafts/handoffs)")
+      (dict "key" "worktreesDir" "env" "DOTFILES_WORKTREES_DIR" "default" "worktrees" "label" "worktrees" "show" "Worktrees"       "title" "Git worktrees directory (one folder per task)")
+      (dict "key" "agentsDir"    "env" "DOTFILES_AGENTS_DIR"    "default" "agents"    "label" "workspace" "show" "Agent workspace" "title" "Agent workspace directory (plans/specs/drafts/scripts/tools/scratch/tmp)")
 -}}
+{{- $dirSpecOf := dict -}}
+{{- range $dirSpecs }}{{- $dirSpecOf = set $dirSpecOf .key . -}}{{- end -}}
 {{- $dirs := dict -}}
 {{- range $dirSpecs -}}
 {{-   $dirValue := trim (dig .key "" $root) -}}
@@ -222,7 +235,7 @@
 {{-   if eq $dirValue "" }}{{- $dirValue = printf "$HOME/%s" .default -}}{{- end -}}
 {{-   $dirs = set $dirs .key $dirValue -}}
 {{- end -}}
-{{- /* What the AI page shows and the editor pre-fills. The pre-fill is the value       */ -}}
+{{- /* What a page shows and its editor pre-fills. The pre-fill is the value          */ -}}
 {{- /* above only when dotfiles-dir's check mode accepts it (usable, and plain text);    */ -}}
 {{- /* anything else is replaced by the literal default and noted in $dirBad, so an      */ -}}
 {{- /* unvalidated saved or seeded value never reaches the editor or a shell word. The    */ -}}
@@ -243,17 +256,17 @@
 {{-   end -}}
 {{-   $dirShow = set $dirShow .key (printf "%s%s" (regexReplaceAll `[^A-Za-z0-9._ @%+=:,/~${}-]` $dirCur "?") $dirNote) -}}
 {{- end -}}
-{{- /* The directories entry exists only where init can ask: AI selected, an            */ -}}
-{{- /* interactive run (not DOTFILES_NO_TUI, not a `cup` re-init, not the `all+`           */ -}}
-{{- /* migration), a TTY stdin, and a /dev/tty that opens. The `default` shortcut never      */ -}}
-{{- /* selects AI, so it needs no gate. chezmoi's own promptString fails without a terminal,  */ -}}
-{{- /* and an entry that does nothing when checked is worse than none. Everywhere else the     */ -}}
-{{- /* values stay as resolved above. (get $resolved "ai") only spares the terminal probe.      */ -}}
-{{- $dirsOffered := false -}}
-{{- if and (get $resolved "ai") (not $legacyAllPlus) (not $packageUpdate) (not (env "DOTFILES_NO_TUI")) (stdinIsATTY) -}}
-{{-   if eq (trim (output "sh" "-c" "test -e /dev/tty && (: </dev/tty) 2>/dev/null && printf tty || true")) "tty" }}{{- $dirsOffered = true }}{{- end -}}
+{{- /* The directory actions exist only where init can ask: their submenu's parent      */ -}}
+{{- /* selected (Git for worktrees, AI for the workspace), an interactive run (not        */ -}}
+{{- /* DOTFILES_NO_TUI, not a `cup` re-init, not the `all+` migration), a TTY stdin, and  */ -}}
+{{- /* a /dev/tty that opens. The `default` shortcut never opens a submenu, so it needs   */ -}}
+{{- /* no gate. chezmoi's own promptString fails without a terminal, and an entry that   */ -}}
+{{- /* does nothing when checked is worse than none. Everywhere else the values stay as   */ -}}
+{{- /* resolved above. The parent test only spares the terminal probe.                   */ -}}
+{{- $dirsInteractive := false -}}
+{{- if and (or (get $resolved "git") (get $resolved "ai")) (not $legacyAllPlus) (not $packageUpdate) (not (env "DOTFILES_NO_TUI")) (stdinIsATTY) -}}
+{{-   if eq (trim (output "sh" "-c" "test -e /dev/tty && (: </dev/tty) 2>/dev/null && printf tty || true")) "tty" }}{{- $dirsInteractive = true }}{{- end -}}
 {{- end -}}
-{{- $wantDirs := false -}}
 {{- range $c := $components -}}
 {{-   if gt (len $c.sub) 0 -}}
 {{-     $feats := $c.sub -}}
@@ -268,11 +281,13 @@
 {{-     $subDefault := join " " $subDefaultKeys -}}
 {{-     $r := dict -}}
 {{-     $stored := "" -}}
+{{- /* The $dirSpecs entry a checked directory action asks to edit on this page. */ -}}
+{{-     $editSpec := dict -}}
 {{-     if get $resolved $c.key -}}
 {{-       $subSel := "" -}}
-{{- /* The submenu's init-time actions (AI only, and only where init can prompt). */ -}}
+{{- /* The submenu's init-time actions (Git and AI, only where init can prompt). */ -}}
 {{-       $subActions := list -}}
-{{-       if and (eq $c.key "ai") $dirsOffered }}{{ $subActions = $aiActions }}{{ end -}}
+{{-       if $dirsInteractive }}{{ $subActions = dig "actions" (list) $c }}{{ end -}}
 {{- /* `default` takes the sub-defaults without prompting (the guard below        */ -}}
 {{- /* defaults an empty $subSel); only an explicit per-number selection prompts. */ -}}
 {{-       if $legacyAllPlus -}}
@@ -305,16 +320,16 @@
 {{-         range $menuFeats }}{{ $subOpts = append $subOpts (squote (get $subOptOf .key)) }}{{ end -}}
 {{-         range $subActions }}{{ $subOpts = append $subOpts (squote (get $subOptOf .key)) }}{{ end -}}
 {{-         $subHdr := printf "%s  (space toggles, enter confirms, esc cancels):" $c.header -}}
-{{- /* The header's extra lines show the current directories, one per line. */ -}}
-{{-         if gt (len $subActions) 0 }}{{ $subHdr = printf "%s\nWorktrees:   %s\nAgent notes: %s" $subHdr (get $dirShow "worktreesDir") (get $dirShow "agentsDir") }}{{ end -}}
+{{- /* One extra header line per action shows the folder it would change. */ -}}
+{{-         range $subActions }}{{ $subHdr = printf "%s\n%s: %s" $subHdr (get (get $dirSpecOf .dir) "show") (get $dirShow .dir) }}{{ end -}}
 {{-         $subSelFlag := "" -}}
 {{-         if gt (len $seedOpts) 0 }}{{ $subSelFlag = printf "--selected=%s" (join "," $seedOpts | squote) }}{{ end -}}
 {{- /* The header travels as a positional parameter ($1), so a value with quotes or   */ -}}
 {{- /* newlines in it can never be parsed as shell syntax. A taller header needs a      */ -}}
 {{- /* taller list: Gum 0.14 (Debian) subtracts the header's lines from --height, so the  */ -}}
-{{- /* page gets room for every option, the header, and a spare line.                      */ -}}
+{{- /* page gets room for every option, every header line, and two spare lines.         */ -}}
 {{-         $subHeight := "" -}}
-{{-         if gt (len $subActions) 0 }}{{ $subHeight = printf "--height %d" (add (len $subOpts) 5) }}{{ end -}}
+{{-         if gt (len $subActions) 0 }}{{ $subHeight = printf "--height %d" (add (len $subOpts) (len $subActions) 3) }}{{ end -}}
 {{-         $subCmd := printf "test -e /dev/tty && gum choose --no-limit %s %s --header \"$1\" %s </dev/tty 2>/dev/tty || true" $subSelFlag $subHeight (join " " $subOpts) -}}
 {{-         $picked := list -}}
 {{-         range (splitList "\n" (trim (output "sh" "-c" $subCmd "sh" $subHdr))) }}{{ if . }}{{ $picked = append $picked (first (splitList " " .)) }}{{ end }}{{ end -}}
@@ -324,7 +339,7 @@
 {{-         $subLines := list (printf "%s (enter numbers or keys):" $c.header) -}}
 {{-         range $menuFeats }}{{ $subLines = append $subLines (printf "  %s) %s - %s" .num .label .desc) }}{{ end -}}
 {{-         range $subActions }}{{ $subLines = append $subLines (printf "  %s) %s - %s" .num .label .desc) }}{{ end -}}
-{{-         if gt (len $subActions) 0 }}{{ $subLines = append $subLines (printf "  now: worktrees %s, agent notes %s" (get $dirShow "worktreesDir") (get $dirShow "agentsDir")) }}{{ end -}}
+{{-         range $subActions }}{{ $subLines = append $subLines (printf "  now: %s %s" (lower (get (get $dirSpecOf .dir) "show")) (get $dirShow .dir)) }}{{ end -}}
 {{-         $subPrompt := printf "%s\n\nEnter (e.g. \"1 3\"), or press Enter for default (%s)" (join "\n" $subLines) $subDefault -}}
 {{-         $subSel = trim (promptStringOnce $root $c.selKey $subPrompt) -}}
 {{-       end -}}
@@ -348,8 +363,9 @@
 {{- /* Personal identity used to be a peer of managed Git config. Promote a */ -}}
 {{- /* personal-only old selection to managed config before resolving fields. */ -}}
 {{-       if and (eq $c.key "git") (or (hasKey $subTokens "personal") (hasKey $subTokens "2") (dig "components" "git" "personal" false $root)) }}{{- $subTokens = set $subTokens "config" true }}{{- end -}}
-{{- /* A sub-menu action is selected by key or number too; it only ever sets a flag. */ -}}
-{{-       range $subActions }}{{ if or (hasKey $subTokens .key) (hasKey $subTokens .num) }}{{ $wantDirs = true }}{{ end }}{{ end -}}
+{{- /* A sub-menu action is selected by key or number too; it only picks the folder */ -}}
+{{- /* this page's editor asks for. It is never a feature and never stored.          */ -}}
+{{-       range $subActions }}{{ if or (hasKey $subTokens .key) (hasKey $subTokens .num) }}{{ $editSpec = get $dirSpecOf .dir }}{{ end }}{{ end -}}
 {{-       range $feats }}{{ $r = set $r .key (or (hasKey $subTokens .key) (hasKey $subTokens .num)) }}{{ end -}}
 {{-       $storedKeys := list -}}
 {{-       range $feats }}{{ if get $r .key }}{{ $storedKeys = append $storedKeys .key }}{{ end }}{{ end -}}
@@ -359,66 +375,64 @@
 {{-     end -}}
 {{-     $subResolved = set $subResolved $c.key $r -}}
 {{-     $subSelStore = set $subSelStore $c.key $stored -}}
-{{- /* End of the AI submenu: the one directories editor. $wantDirs is only ever set      */ -}}
-{{- /* when the `directories` entry was offered (see $dirsOffered: an interactive run, a    */ -}}
-{{- /* TTY stdin, and a /dev/tty that opens) and checked; it stays set for the terminal      */ -}}
-{{- /* submenu that follows, hence the key test. With Gum: a single `gum write`             */ -}}
-{{- /* page holding both paths on two lines, pre-filled from $dirOffer (saved value,       */ -}}
-{{- /* else env seed, else default). Without Gum: a typed promptString per path, pre-      */ -}}
-{{- /* filled the same way. Answers are parsed leniently, checked through dotfiles-dir     */ -}}
-{{- /* in check mode, and asked again up to three times with the text kept; then the       */ -}}
-{{- /* existing dotfiles-dir error stops init. Esc, Ctrl+C, or an empty answer keeps the    */ -}}
-{{- /* pre-fill. User text reaches a shell only as a positional parameter ($1, $2), never    */ -}}
-{{- /* spliced into the command string.                                                      */ -}}
-{{-     if and (eq $c.key "ai") $wantDirs -}}
-{{-       $dirNew := dict "worktreesDir" (get $dirOffer "worktreesDir") "agentsDir" (get $dirOffer "agentsDir") -}}
-{{-       range $spec := $dirSpecs -}}
-{{-         if hasKey $dirBad $spec.key -}}
-{{-           $_ := output "sh" "-c" (printf "printf '%%s\\n' %s >/dev/tty 2>/dev/null || true" (squote (printf "The current %s value is not usable; showing the default instead." $spec.key))) -}}
-{{-         end -}}
+{{- /* Right after its page: the editor for the one folder that page's action names */ -}}
+{{- /* (the Git page edits worktreesDir, the AI page agentsDir). $editSpec is only    */ -}}
+{{- /* set when the action was offered (see $dirsInteractive: an interactive run, a  */ -}}
+{{- /* TTY stdin, and a /dev/tty that opens) and checked. With Gum: one `gum write`    */ -}}
+{{- /* page holding a single `key: path` line, pre-filled from $dirOffer (saved      */ -}}
+{{- /* value, else env seed, else default). Without Gum: a typed promptString,         */ -}}
+{{- /* pre-filled the same way. Answers are parsed leniently, checked through          */ -}}
+{{- /* dotfiles-dir in check mode, and asked again up to three times with the text     */ -}}
+{{- /* kept; then the existing dotfiles-dir error stops init. Esc, Ctrl+C, or an empty  */ -}}
+{{- /* answer keeps the pre-fill. User text reaches a shell only as a positional        */ -}}
+{{- /* parameter ($1, $2), never spliced into the command string.                       */ -}}
+{{-     if gt (len $editSpec) 0 -}}
+{{-       $spec := $editSpec -}}
+{{-       $offer := get $dirOffer $spec.key -}}
+{{-       $dirNew := $offer -}}
+{{-       if hasKey $dirBad $spec.key -}}
+{{-         $_ := output "sh" "-c" `printf '%s\n' "$1" >/dev/tty 2>/dev/null || true` "sh" (printf "The current %s value is not usable; showing the default instead." $spec.key) -}}
 {{-       end -}}
 {{-       if lookPath "gum" -}}
-{{-         $dirText := printf "worktrees: %s\nagents: %s" (get $dirNew "worktreesDir") (get $dirNew "agentsDir") -}}
-{{-         $dirHdr := "Edit the paths: Enter saves, Ctrl+C keeps as shown" -}}
+{{-         $dirText := printf "%s: %s" $spec.label $offer -}}
+{{-         $dirHdr := "Edit the path: Enter saves, Ctrl+C keeps as shown" -}}
 {{- /* Gum 2.x hides the first line of a pre-filled value while its width is automatic     */ -}}
 {{- /* (--width 0 or unset), so the page gets an explicit width: the terminal's, less the    */ -}}
 {{- /* prompt, or 78 when it cannot be read. --char-limit 0 lifts the 400-character default   */ -}}
 {{- /* of Gum 0.14. Only flags that exist in 0.14.0 through 2.x are used.                     */ -}}
-{{-         $dirCmd := `w=$(stty size </dev/tty 2>/dev/null | cut -d' ' -f2); case $w in ''|*[!0-9]*) w=80 ;; esac; [ "$w" -ge 24 ] || w=80; w=$((w - 2)); test -e /dev/tty && gum write --width "$w" --header "$2" --value "$1" --placeholder "Empty keeps the shown values" --char-limit 0 </dev/tty 2>/dev/tty || true` -}}
+{{-         $dirCmd := `w=$(stty size </dev/tty 2>/dev/null | cut -d' ' -f2); case $w in ''|*[!0-9]*) w=80 ;; esac; [ "$w" -ge 24 ] || w=80; w=$((w - 2)); test -e /dev/tty && gum write --width "$w" --header "$2" --value "$1" --placeholder "Empty keeps the shown value" --char-limit 0 </dev/tty 2>/dev/tty || true` -}}
+{{-         $dirKeyRe := printf `(?i)^%s\s*[:=]` $spec.label -}}
 {{-         $dirDone := false -}}
-{{-         $dirLast := $dirNew -}}
+{{-         $dirLast := $offer -}}
 {{-         range $try := until 3 -}}
 {{-           if not $dirDone -}}
 {{-             $dirAnswer := trim (output "sh" "-c" $dirCmd "sh" $dirText $dirHdr) -}}
 {{-             if eq $dirAnswer "" -}}
 {{-               $dirDone = true -}}
 {{-             else -}}
-{{- /* One `key: path` per line; keys are case-insensitive, spaces optional, blank lines    */ -}}
-{{- /* ignored, a key left empty or deleted keeps its pre-fill, a later line wins.           */ -}}
-{{-               $dirParsed := dict -}}
+{{- /* A `key: path` line; the key is case-insensitive, spaces are optional, blank   */ -}}
+{{- /* lines are ignored, a key left empty or a deleted line keeps the pre-fill, and   */ -}}
+{{- /* a later line wins. Any other text, including the other folder's key, is not    */ -}}
+{{- /* read and reopens the page.                                                     */ -}}
+{{-               $dirCand := $offer -}}
 {{-               $dirUnread := false -}}
 {{-               range $dirLine := splitList "\n" $dirAnswer -}}
 {{-                 $dirLine = trim $dirLine -}}
 {{-                 if ne $dirLine "" -}}
-{{-                   if regexMatch `(?i)^(worktrees|agents)\s*[:=]` $dirLine -}}
-{{-                     $dirKey := lower (regexFind `(?i)^(worktrees|agents)` $dirLine) -}}
-{{-                     $dirVal := trim (regexReplaceAll `(?i)^(worktrees|agents)\s*[:=]` $dirLine "") -}}
-{{-                     if ne $dirVal "" }}{{- $dirParsed = set $dirParsed $dirKey $dirVal }}{{- end -}}
+{{-                   if regexMatch $dirKeyRe $dirLine -}}
+{{-                     $dirVal := trim (regexReplaceAll $dirKeyRe $dirLine "") -}}
+{{-                     if ne $dirVal "" }}{{- $dirCand = $dirVal }}{{- end -}}
 {{-                   else -}}
 {{-                     $dirUnread = true -}}
 {{-                   end -}}
 {{-                 end -}}
 {{-               end -}}
-{{-               $dirCand := dict "worktreesDir" (dig "worktrees" (get $dirOffer "worktreesDir") $dirParsed) "agentsDir" (dig "agents" (get $dirOffer "agentsDir") $dirParsed) -}}
-{{-               $dirProblems := list -}}
-{{-               range $spec := $dirSpecs -}}
-{{-                 if includeTemplate "dotfiles-dir" (dict "home" $root.chezmoi.homeDir "key" $spec.key "value" (get $dirCand $spec.key) "default" $spec.default "check" true) }}{{- $dirProblems = append $dirProblems $spec.label }}{{- end -}}
-{{-               end -}}
+{{-               $dirProblem := includeTemplate "dotfiles-dir" (dict "home" $root.chezmoi.homeDir "key" $spec.key "value" $dirCand "default" $spec.default "check" true) -}}
 {{-               $dirLast = $dirCand -}}
-{{-               if or $dirUnread (gt (len $dirProblems) 0) -}}
+{{-               if or $dirUnread (ne $dirProblem "") -}}
 {{-                 $dirText = $dirAnswer -}}
-{{-                 $dirMsg := "Each line must look like 'worktrees: <path>' or 'agents: <path>'." -}}
-{{-                 if gt (len $dirProblems) 0 }}{{- $dirMsg = printf "Not a usable directory for %s: use an absolute path, ~/..., or $HOME/... with letters, digits, spaces, and . _ @ %% + = : , / ~ -" (join " and " $dirProblems) }}{{- end -}}
+{{-                 $dirMsg := printf "The line must look like '%s: <path>'." $spec.label -}}
+{{-                 if ne $dirProblem "" }}{{- $dirMsg = printf "Not a usable directory for %s: use an absolute path, ~/..., or $HOME/... with letters, digits, spaces, and . _ @ %% + = : , / ~ -" $spec.label }}{{- end -}}
 {{-                 $_ := output "sh" "-c" `printf '%s\n' "$1" >/dev/tty 2>/dev/null || true` "sh" $dirMsg -}}
 {{-               else -}}
 {{-                 $dirNew = $dirCand -}}
@@ -430,36 +444,29 @@
 {{- /* Three unusable answers: stop here with the existing clear error rather than      */ -}}
 {{- /* opening the next prompt first.                                                    */ -}}
 {{-         if not $dirDone -}}
-{{-           range $spec := $dirSpecs -}}
-{{-             $_ := includeTemplate "dotfiles-dir" (dict "home" $root.chezmoi.homeDir "key" $spec.key "value" (get $dirLast $spec.key) "default" $spec.default) -}}
-{{-           end -}}
-{{-           fail "Could not use the directories answer after three tries. Use lines like 'worktrees: ~/worktrees' and 'agents: ~/agents' with plain path characters." -}}
+{{-           $_ := includeTemplate "dotfiles-dir" (dict "home" $root.chezmoi.homeDir "key" $spec.key "value" $dirLast "default" $spec.default) -}}
+{{-           fail (printf "Could not use the %s answer after three tries. Use a line like '%s: ~/%s' with plain path characters." $spec.label $spec.label $spec.default) -}}
 {{-         end -}}
 {{-       else -}}
-{{-         range $spec := $dirSpecs -}}
-{{-           $offer := get $dirOffer $spec.key -}}
-{{-           $answer := $offer -}}
-{{-           $taken := false -}}
-{{-           range $try := until 3 -}}
-{{-             if not $taken -}}
-{{-               $given := trim (promptString $spec.title $offer) -}}
-{{-               if eq $given "" }}{{- $given = $offer -}}{{- end -}}
-{{-               $answer = $given -}}
-{{-               if includeTemplate "dotfiles-dir" (dict "home" $root.chezmoi.homeDir "key" $spec.key "value" $given "default" $spec.default "check" true) -}}
-{{-                 $_ := output "sh" "-c" "printf '%s\\n' 'Not a usable directory: use an absolute path, ~/..., or $HOME/... with letters, digits, spaces, and . _ @ % + = : , / ~ -' >/dev/tty 2>/dev/null || true" -}}
-{{-               else -}}
-{{-                 $taken = true -}}
-{{-               end -}}
+{{-         $taken := false -}}
+{{-         range $try := until 3 -}}
+{{-           if not $taken -}}
+{{-             $given := trim (promptString $spec.title $offer) -}}
+{{-             if eq $given "" }}{{- $given = $offer -}}{{- end -}}
+{{-             $dirNew = $given -}}
+{{-             if includeTemplate "dotfiles-dir" (dict "home" $root.chezmoi.homeDir "key" $spec.key "value" $given "default" $spec.default "check" true) -}}
+{{-               $_ := output "sh" "-c" "printf '%s\\n' 'Not a usable directory: use an absolute path, ~/..., or $HOME/... with letters, digits, spaces, and . _ @ % + = : , / ~ -' >/dev/tty 2>/dev/null || true" -}}
+{{-             else -}}
+{{-               $taken = true -}}
 {{-             end -}}
 {{-           end -}}
-{{-           if not $taken -}}
-{{-             $_ := includeTemplate "dotfiles-dir" (dict "home" $root.chezmoi.homeDir "key" $spec.key "value" $answer "default" $spec.default) -}}
-{{-             fail (printf "Could not use the %s answer after three tries." $spec.label) -}}
-{{-           end -}}
-{{-           $dirNew = set $dirNew $spec.key $answer -}}
+{{-         end -}}
+{{-         if not $taken -}}
+{{-           $_ := includeTemplate "dotfiles-dir" (dict "home" $root.chezmoi.homeDir "key" $spec.key "value" $dirNew "default" $spec.default) -}}
+{{-           fail (printf "Could not use the %s answer after three tries." $spec.label) -}}
 {{-         end -}}
 {{-       end -}}
-{{-       range $spec := $dirSpecs }}{{- $dirs = set $dirs $spec.key (get $dirNew $spec.key) }}{{- end -}}
+{{-       $dirs = set $dirs $spec.key $dirNew -}}
 {{-     end -}}
 {{-   end -}}
 {{- end -}}
@@ -542,12 +549,12 @@
 {{-   $_ := output "sh" "-c" (printf "printf '%%s\\n' %s >/dev/tty 2>/dev/null || true" (squote $msg)) -}}
 {{- end -}}
 {{- $zshTheme := dig "zshTheme" "gud" $root -}}
-{{- /* Worktrees and agent-notes directories are persisted like palette/installMode,   */ -}}
-{{- /* with their prefill resolved (and, after the AI submenu, prompted) above. An      */ -}}
-{{- /* unprompted run keeps the saved value, then the env seed, then the default, so     */ -}}
-{{- /* DOTFILES_NO_TUI, no-gum, and no-tty runs agree. Calling dotfiles-dir here           */ -}}
-{{- /* validates the final value, so a bad entry fails at init instead of rendering into   */ -}}
-{{- /* ~/.zshenv.                                                                           */ -}}
+{{- /* The worktrees folder and the agent workspace are persisted like                 */ -}}
+{{- /* palette/installMode, with their prefill resolved (and, after the Git or AI       */ -}}
+{{- /* submenu, prompted) above. An unprompted run keeps the saved value, then the env   */ -}}
+{{- /* seed, then the default, so DOTFILES_NO_TUI, no-gum, and no-tty runs agree.        */ -}}
+{{- /* Calling dotfiles-dir here validates the final value, so a bad entry fails at      */ -}}
+{{- /* init instead of rendering into ~/.zshenv.                                          */ -}}
 {{- $worktreesDir := get $dirs "worktreesDir" -}}
 {{- $agentsDir := get $dirs "agentsDir" -}}
 {{- $worktreesCheck := includeTemplate "dotfiles-dir" (dict "home" .chezmoi.homeDir "key" "worktreesDir" "value" $worktreesDir "default" "worktrees") -}}

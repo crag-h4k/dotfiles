@@ -1,0 +1,117 @@
+#!/usr/bin/env bash
+# home/dot_local/bin/executable_git-wt
+# git wt: create a linked worktree in the flat dotfiles layout,
+# $DOTFILES_WORKTREES_DIR/<repo>-<slug> (default $HOME/worktrees). Git runs any
+# git-<name> on PATH as `git <name>`, so this needs ~/.local/bin on PATH.
+#
+# usage: git wt [--fetch] <branch-or-slug> [base]
+#
+# Written for Bash 3.2 (macOS) as well as current Bash.
+set -euo pipefail
+
+usage() {
+    cat <<'EOF'
+usage: git wt [--fetch] <branch-or-slug> [base]
+
+Create a linked worktree at $DOTFILES_WORKTREES_DIR/<repo>-<slug>
+($HOME/worktrees when the variable is unset), one flat folder per task.
+
+  <branch-or-slug>  branch to check out; the slug is the part after the last
+                    "/" (feat/foo-bar -> foo-bar)
+  [base]            start point for a new branch; default: origin/HEAD when it
+                    resolves, else HEAD
+
+An existing local branch is checked out as is and [base] is ignored. A new
+branch is created from [base] without upstream tracking; push it with
+`git push -u` to set one. <repo> is the main worktree's directory name, also
+when run from a linked worktree; a bare repository uses its name without .git.
+
+  --fetch     first fetch the base's remote branch (only that branch); without
+              it nothing is fetched
+  -h, --help  show this help (`git wt --help` opens Git's manual page instead)
+
+The new worktree's path is the last line on stdout. Git's own messages go to
+stderr. It refuses to touch a destination that already exists.
+EOF
+}
+
+die() {
+    printf 'git wt: %s\n' "$*" >&2
+    exit 1
+}
+
+fetch=false
+args=()
+while [[ $# -gt 0 ]]; do
+    case "$1" in
+        -h | --help) usage; exit 0 ;;
+        --fetch) fetch=true ;;
+        --) shift; while [[ $# -gt 0 ]]; do args+=("$1"); shift; done; break ;;
+        -*) die "unknown option $1 (see git wt -h)" ;;
+        *) args+=("$1") ;;
+    esac
+    shift
+done
+[[ ${#args[@]} -ge 1 && ${#args[@]} -le 2 ]] || { usage >&2; exit 2; }
+branch=${args[0]}
+base=${args[1]:-}
+
+git rev-parse --git-dir >/dev/null 2>&1 || die "not inside a Git repository"
+git check-ref-format --branch "$branch" >/dev/null 2>&1 || die "'$branch' is not a valid branch name"
+slug=${branch##*/}
+[[ -n "$slug" ]] || die "cannot derive a folder name from '$branch'"
+
+# The main worktree is the first `worktree list` record, wherever this runs. A
+# bare repository reports its Git directory there; drop a trailing .git, and use
+# the parent's name for a bare repository stored as <dir>/.git.
+main_record=""
+IFS= read -r -d '' main_record < <(git worktree list --porcelain -z) || true
+main=${main_record#worktree }
+[[ "$main_record" == "worktree "* && -n "$main" ]] || die "cannot find the main worktree"
+repo=$(basename "$main")
+repo=${repo%.git}
+[[ -n "$repo" ]] || repo=$(basename "$(dirname "$main")")
+[[ -n "$repo" && "$repo" != / && "$repo" != . ]] || die "cannot derive a repository name from $main"
+
+root=${DOTFILES_WORKTREES_DIR:-$HOME/worktrees}
+[[ "$root" == /* ]] || die "DOTFILES_WORKTREES_DIR must be an absolute path, not '$root'"
+root=${root%/}
+dest="$root/$repo-$slug"
+if [[ -e "$dest" || -L "$dest" ]]; then
+    die "$dest already exists; remove or rename it first"
+fi
+
+if git show-ref --verify --quiet "refs/heads/$branch"; then
+    [[ -z "$base" ]] || printf 'git wt: %s already exists; checking it out and ignoring %s\n' "$branch" "$base" >&2
+    [[ "$fetch" == false ]] || printf 'git wt: %s already exists; nothing to fetch\n' "$branch" >&2
+    git worktree add -- "$dest" "$branch" >&2
+else
+    if [[ -z "$base" ]]; then
+        base=$(git symbolic-ref --quiet refs/remotes/origin/HEAD 2>/dev/null || true)
+        [[ -n "$base" ]] || base=HEAD
+    fi
+    if [[ "$fetch" == true ]]; then
+        # Resolve a symbolic ref such as origin/HEAD to the branch it names, then
+        # find the remote whose tracking namespace holds it.
+        full=$(git symbolic-ref --quiet "$base" 2>/dev/null || git rev-parse --symbolic-full-name "$base" 2>/dev/null || true)
+        remote=""
+        if [[ "$full" == refs/remotes/* ]]; then
+            while IFS= read -r name; do
+                if [[ "$full" == "refs/remotes/$name/"* ]]; then
+                    remote=$name
+                    break
+                fi
+            done < <(git remote)
+        fi
+        if [[ -n "$remote" ]]; then
+            remote_branch=${full#"refs/remotes/$remote/"}
+            git fetch --no-tags -- "$remote" "+refs/heads/$remote_branch:refs/remotes/$remote/$remote_branch" >&2
+        else
+            printf 'git wt: %s is not a remote-tracking branch; nothing to fetch\n' "$base" >&2
+        fi
+    fi
+    git rev-parse --verify --quiet "$base^{commit}" >/dev/null || die "cannot resolve base '$base'"
+    git worktree add --no-track -b "$branch" -- "$dest" "$base" >&2
+fi
+
+printf '%s\n' "$dest"

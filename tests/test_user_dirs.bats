@@ -1,18 +1,19 @@
 #!/usr/bin/env bats
 # shellcheck disable=SC2016,SC2030,SC2031,SC2088
 # tests/test_user_dirs.bats
-# The worktrees and agent-notes directories: chezmoi data keys (worktreesDir,
-# agentsDir), their env seeds, the `directories` entry on the AI picker and its
-# one-page editor, the shared dotfiles-dir template, the ~/.zshenv exports, and the
-# directory-creation script. Everything runs against a disposable HOME and config;
-# nothing touches the real home or runs sudo.
+# The worktrees folder and the agent workspace: chezmoi data keys (worktreesDir,
+# agentsDir), their env seeds, the `worktrees` entry on the Git picker and the
+# `workspace` entry on the AI picker with their one-path editors, the shared
+# dotfiles-dir template, the ~/.zshenv exports, and the directory-creation script.
+# Everything runs against a disposable HOME and config; nothing touches the real
+# home or runs sudo.
 #
 # The prompts need a terminal, so those tests run the init template through
 # tests/ctty_run.py, which supplies (or withholds) a controlling pty on any host,
 # with a stub `gum` on PATH that records calls and answers from a script. A typed
-# AI menu answer is the persisted aiSelection (promptStringOnce returns it), and
-# chezmoi's prompt simulation (-p "<prompt text>=value") stands in for typing the
-# two paths without Gum.
+# Git or AI menu answer is the persisted gitSelection or aiSelection
+# (promptStringOnce returns it), and chezmoi's prompt simulation
+# (-p "<prompt text>=value") stands in for typing a path without Gum.
 # SC2016 and SC2088 are disabled file-wide: literal $HOME, $USER, and ~/ are the
 # values under test. SC2030 and SC2031 are the usual Bats noise: `run` sets $output
 # and $status in the test's own shell, and the helpers read them back.
@@ -25,7 +26,7 @@ ENSURE_DIRS="${REPO_ROOT}/scripts/ensure-dirs.sh"
 CTTY="${BATS_TEST_DIRNAME}/ctty_run.py"
 # chezmoi's prompt simulation keys on the exact prompt text.
 WT_TITLE='Git worktrees directory (one folder per task)'
-AG_TITLE='Agent notes directory (plans/specs/drafts/handoffs)'
+AG_TITLE='Agent workspace directory (plans/specs/drafts/scripts/tools/scratch/tmp)'
 
 setup() {
   command -v chezmoi >/dev/null 2>&1 || skip "chezmoi not installed"
@@ -158,13 +159,13 @@ render_tmpl() {
   [ "$status" -ne 0 ]
 }
 
-# --- the `directories` entry of the AI page and its editor ---------------------
+# --- the `worktrees` (Git page) and `workspace` (AI page) entries and editors ----
 
 # write_gum_stub: a gum stand-in. It records every call in $STUBS/calls (newlines
 # inside an argument show as a literal \n), saves what each call was given in
 # $STUBS/{header,selected,value}.<sub>.<n>, and answers like a user:
-#   choose  accepts the preselected options, or, when GUM_STUB_TOP / GUM_STUB_AI name
-#           prefixes, the options whose text starts with one of them
+#   choose  accepts the preselected options, or, when GUM_STUB_TOP / GUM_STUB_GIT /
+#           GUM_STUB_AI name prefixes, the options whose text starts with one of them
 #   write   prints $STUBS/write.<n> verbatim; "@value" presses Enter on the text it
 #           was given; a missing file is Esc (no output, non-zero exit)
 #   input   exists only to prove it is never called: it records itself and exits 1
@@ -207,6 +208,7 @@ case $sub in
   choose)
     case $header in
       Components*) picks=${GUM_STUB_TOP-} ;;
+      "Git configuration"*) picks=${GUM_STUB_GIT-} ;;
       "AI tools"*) picks=${GUM_STUB_AI-} ;;
       *) picks="" ;;
     esac
@@ -236,8 +238,9 @@ need_pty() {
   write_gum_stub
 }
 
-# seed_ai_config [extra [data] lines...]: an existing host with AI selected and no
-# directory keys unless a line adds them, like a config written before the prompt.
+# seed_ai_config [extra [data] lines...]: an existing host with AI selected (and Git
+# not), no directory keys unless a line adds them, like a config written before the
+# prompt. The AI page is then the second Gum page.
 seed_ai_config() {
   {
     printf '[data]\n    componentSelection = "5"\n    aiSelection = "opencode"\n'
@@ -302,6 +305,17 @@ stored() {
 }
 
 AI_HDR='AI tools  (space toggles, enter confirms, esc cancels):'
+GIT_HDR='Git configuration  (space toggles, enter confirms, esc cancels):'
+
+# seed_git_config [extra [data] lines...]: an existing host with only Git selected.
+# The Git page is then the second Gum page.
+seed_git_config() {
+  {
+    printf '[data]\n    componentSelection = "4"\n    gitSelection = "ignore_global"\n'
+    printf '    %s\n' "$@"
+    printf '[data.components.git]\n    ignore_global = true\n'
+  } > "$CONFIG"
+}
 
 @test "dirs page: unchecked asks nothing and keeps the default on a first init" {
   need_pty
@@ -315,6 +329,15 @@ AI_HDR='AI tools  (space toggles, enter confirms, esc cancels):'
   [ "$(gum_count write)" = 0 ]
   [ "$(gum_calls choose | sed -n 2p | cut -d' ' -f1-2)" = "choose #2:" ]
   [ "$(wc -l < "$STUBS/calls" | tr -d ' ')" = 2 ]
+
+  # The Git page alike: shown, nothing asked.
+  reset_stub
+  printf '[data]\n' > "$CONFIG"
+  render_tty GUM_STUB_TOP='4)'
+  [ "$status" -eq 0 ]
+  [ "$(gum_count choose)" = 2 ]
+  [ "$(gum_count write)" = 0 ]
+  [[ "$output" == *'worktreesDir = "$HOME/worktrees"'* ]]
 }
 
 @test "dirs page: unchecked keeps the saved value and the env seed on a re-init" {
@@ -334,95 +357,135 @@ AI_HDR='AI tools  (space toggles, enter confirms, esc cancels):'
   [ "$(gum_count write)" = 0 ]
 }
 
-@test "dirs page: the entry is a checkbox that starts unchecked, in the AI page only" {
+@test "dirs page: each entry is an unchecked checkbox on its own page" {
   need_pty
   seed_ai_config 'worktreesDir = "/srv/saved-wt"'
   render_tty
   [ "$status" -eq 0 ]
-  # The AI page lists the entry last, and never preselects it, on a re-init
-  # (opencode is on) and on a first init alike.
-  gum_calls choose | sed -n 2p | grep -Fq '[directories - change the worktrees and agent-notes directories (unchecked keeps them)]'
+  # The AI page lists the workspace entry last and never preselects it, on a re-init
+  # (opencode is on) and on a first init alike. The worktrees entry is not here.
+  gum_calls choose | sed -n 2p | grep -Fq '[workspace - change the agent workspace folder (unchecked keeps it)]'
+  [[ "$(gum_calls choose | sed -n 2p)" != *'[worktrees -'* ]]
   [[ "$(cat "$STUBS/selected.choose.2")" == *opencode* ]]
-  [[ "$(cat "$STUBS/selected.choose.2")" != *directories* ]]
-  # It is no component: not on the top page, not in the Git page.
-  [[ "$(gum_calls choose | sed -n 1p)" != *directories* ]]
+  [[ "$(cat "$STUBS/selected.choose.2")" != *workspace* ]]
+  # Neither is a component: not on the top page.
+  [[ "$(gum_calls choose | sed -n 1p)" != *workspace* ]]
+
+  # The Git page lists the worktrees entry last, unchecked, without the workspace.
+  reset_stub
+  seed_git_config
+  render_tty
+  [ "$status" -eq 0 ]
+  gum_calls choose | sed -n 2p | grep -Fq '[worktrees - change the worktrees folder (unchecked keeps it)]'
+  [[ "$(gum_calls choose | sed -n 2p)" != *'[workspace -'* ]]
+  [[ "$(cat "$STUBS/selected.choose.2")" == *ignore_global* ]]
+  [[ "$(cat "$STUBS/selected.choose.2")" != *worktrees* ]]
 
   reset_stub
   printf '[data]\n' > "$CONFIG"
-  render_tty GUM_STUB_TOP='5)'
+  render_tty GUM_STUB_TOP='4) 5)'
   [ "$status" -eq 0 ]
-  [[ "$(cat "$STUBS/selected.choose.2")" != *directories* ]]
+  [[ "$(cat "$STUBS/selected.choose.2")" != *worktrees* ]]
+  [[ "$(cat "$STUBS/selected.choose.3")" != *workspace* ]]
 }
 
-@test "dirs page: the header shows the current paths on their own lines" {
+@test "dirs page: each header shows the folder its entry changes" {
   need_pty
   seed_ai_config 'worktreesDir = "~/src/worktrees"'
   render_tty DOTFILES_AGENTS_DIR=/opt/seeded-agents
   [ "$status" -eq 0 ]
-  [ "$(cat "$STUBS/header.choose.2")" = "$AI_HDR"$'\nWorktrees:   ~/src/worktrees\nAgent notes: /opt/seeded-agents' ]
+  [ "$(cat "$STUBS/header.choose.2")" = "$AI_HDR"$'\nAgent workspace: /opt/seeded-agents' ]
 
-  # A first init shows the defaults.
+  reset_stub
+  seed_git_config 'worktreesDir = "~/src/worktrees"'
+  render_tty
+  [ "$(cat "$STUBS/header.choose.2")" = "$GIT_HDR"$'\nWorktrees: ~/src/worktrees' ]
+
+  # A first init shows the defaults, the Git page before the AI page.
   reset_stub
   printf '[data]\n' > "$CONFIG"
-  render_tty GUM_STUB_TOP='5)'
-  [ "$(cat "$STUBS/header.choose.2")" = "$AI_HDR"$'\nWorktrees:   $HOME/worktrees\nAgent notes: $HOME/agents' ]
+  render_tty GUM_STUB_TOP='4) 5)'
+  [ "$(cat "$STUBS/header.choose.2")" = "$GIT_HDR"$'\nWorktrees: $HOME/worktrees' ]
+  [ "$(cat "$STUBS/header.choose.3")" = "$AI_HDR"$'\nAgent workspace: $HOME/agents' ]
 }
 
 @test "dirs page: an unusable or hostile saved value is masked and marked, never run" {
   need_pty
-  seed_ai_config "agentsDir = \"/tmp/x'; touch $TEST_HOME/pwned; echo '\"" 'worktreesDir = "relative"'
+  seed_ai_config "agentsDir = \"/tmp/x'; touch $TEST_HOME/pwned; echo '\""
   render_tty
   [ "$status" -ne 0 ]
   [ ! -e "$TEST_HOME/pwned" ]
-  header=$(cat "$STUBS/header.choose.2")
-  [[ "$header" == *$'\nWorktrees:   relative (not usable)\n'* ]]
-  [[ "$header" == *"Agent notes: /tmp/x?? touch $TEST_HOME/pwned? echo ? (not usable)"* ]]
+  [[ "$(cat "$STUBS/header.choose.2")" == *"Agent workspace: /tmp/x?? touch $TEST_HOME/pwned? echo ? (not usable)"* ]]
+
+  reset_stub
+  seed_git_config 'worktreesDir = "relative"'
+  render_tty
+  [ "$status" -ne 0 ]
+  [ "$(cat "$STUBS/header.choose.2")" = "$GIT_HDR"$'\nWorktrees: relative (not usable)' ]
+
   # Escape sequences and newlines cannot reach the terminal through the page.
   reset_stub
   seed_ai_config "agentsDir = \"/tmp/\\u001b[31mred\\u001b[0m\""
   render_tty
   header=$(cat "$STUBS/header.choose.2")
   [[ "$header" != *$'\033'* ]]
-  [[ "$header" == *'Agent notes: /tmp/??31mred??0m (not usable)'* ]]
+  [[ "$header" == *'Agent workspace: /tmp/??31mred??0m (not usable)'* ]]
 }
 
-@test "dirs editor: checked opens exactly one page with both paths, in order after the AI page" {
+@test "dirs editor: checked workspace opens exactly one page with one path, right after the AI page" {
   need_pty
   printf '[data]\n' > "$CONFIG"
   set_write 1 @value
-  render_tty GUM_STUB_TOP='5)' GUM_STUB_AI='opencode directories'
+  render_tty GUM_STUB_TOP='5)' GUM_STUB_AI='opencode workspace'
   [ "$status" -eq 0 ]
   [ "$(stored)" = $'    worktreesDir = "$HOME/worktrees"\n    agentsDir = "$HOME/agents"' ]
   [ "$(gum_count choose)" = 2 ]
   [ "$(gum_count write)" = 1 ]
   [ "$(sed -n 3p "$STUBS/calls" | cut -d' ' -f1-2)" = "write #1:" ]
   [ "$(wc -l < "$STUBS/calls" | tr -d ' ')" = 3 ]
-  [ "$(cat "$STUBS/value.write.1")" = $'worktrees: $HOME/worktrees\nagents: $HOME/agents' ]
+  [ "$(cat "$STUBS/value.write.1")" = 'workspace: $HOME/agents' ]
   # Flags that behave the same in Gum 0.14 and 2.x: an explicit width (a fresh pty reports
   # none, so the 80-column fallback less the prompt) and no 400-character cap.
   gum_calls write | grep -Fq '[--width] [78]'
   gum_calls write | grep -Fq '[--char-limit] [0]'
-  # The AI page gets room for 8 options plus its 3-line header, for Gum 0.14.
-  gum_calls choose | sed -n 2p | grep -Fq '[--height] [13]'
+  # The AI page gets room for 8 options plus its 2-line header, for Gum 0.14.
+  gum_calls choose | sed -n 2p | grep -Fq '[--height] [12]'
   # The page says how to submit and cancel, in the oldest and newest Gum alike.
   [[ "$(cat "$STUBS/header.write.1")" == *'Enter saves'* ]]
   [[ "$(cat "$STUBS/header.write.1")" == *'Ctrl+C'* ]]
   # The checkbox is the only way in: it never reaches the saved selection or the tables.
   [[ "$output" == *'aiSelection = "opencode"'* ]]
-  [[ "$output" != *'directories'* ]]
+  [[ "$output" != *'workspace'* ]]
 }
 
-@test "dirs editor: a later submenu does not open it again" {
+@test "dirs editor: checked worktrees opens one page right after the Git page" {
   need_pty
   printf '[data]\n' > "$CONFIG"
-  set_write 1 @value
-  set_write 2 @value
-  render_tty GUM_STUB_TOP='5) 6)' GUM_STUB_AI='opencode directories'
+  set_write 1 $'worktrees: /opt/git-page-wt'
+  render_tty GUM_STUB_TOP='4)' GUM_STUB_GIT='ignore_global worktrees'
   [ "$status" -eq 0 ]
-  # Top page, AI page, the editor, then the terminal page: one editor in all.
-  [ "$(gum_count choose)" = 3 ]
-  [ "$(gum_count write)" = 1 ]
-  [ "$(awk -F'[ #:]' '{print $1}' "$STUBS/calls" | tr '\n' ' ')" = "choose choose write choose " ]
+  [ "$(stored)" = $'    worktreesDir = "/opt/git-page-wt"\n    agentsDir = "$HOME/agents"' ]
+  [ "$(awk -F'[ #:]' '{print $1}' "$STUBS/calls" | tr '\n' ' ')" = "choose choose write " ]
+  [ "$(cat "$STUBS/value.write.1")" = 'worktrees: $HOME/worktrees' ]
+  # Two features, the entry, and a 2-line header.
+  gum_calls choose | sed -n 2p | grep -Fq '[--height] [7]'
+  [[ "$output" == *'gitSelection = "ignore_global"'* ]]
+  [[ "$output" == *'ignore_global = true'* ]]
+  [[ "$output" != *'worktrees = '* ]]
+}
+
+@test "dirs editor: with both checked, each editor follows its own page" {
+  need_pty
+  printf '[data]\n' > "$CONFIG"
+  set_write 1 'worktrees: /opt/both-wt'
+  set_write 2 'workspace: /opt/both-agents'
+  render_tty GUM_STUB_TOP='4) 5) 6)' GUM_STUB_GIT='ignore_global worktrees' GUM_STUB_AI='opencode workspace'
+  [ "$status" -eq 0 ]
+  # Top page, Git page, its editor, AI page, its editor, then the terminal page.
+  [ "$(awk -F'[ #:]' '{print $1}' "$STUBS/calls" | tr '\n' ' ')" = "choose choose write choose write choose " ]
+  [ "$(cat "$STUBS/value.write.1")" = 'worktrees: $HOME/worktrees' ]
+  [ "$(cat "$STUBS/value.write.2")" = 'workspace: $HOME/agents' ]
+  [ "$(stored)" = $'    worktreesDir = "/opt/both-wt"\n    agentsDir = "/opt/both-agents"' ]
 }
 
 @test "dirs editor: the pre-fill is the default, then the saved value, with the env seed between" {
@@ -430,101 +493,107 @@ AI_HDR='AI tools  (space toggles, enter confirms, esc cancels):'
   # First init, no seed: the default.
   printf '[data]\n' > "$CONFIG"
   set_write 1 @value
-  render_tty GUM_STUB_TOP='5)' GUM_STUB_AI='opencode directories'
-  [ "$(cat "$STUBS/value.write.1")" = $'worktrees: $HOME/worktrees\nagents: $HOME/agents' ]
+  render_tty GUM_STUB_TOP='5)' GUM_STUB_AI='opencode workspace'
+  [ "$(cat "$STUBS/value.write.1")" = 'workspace: $HOME/agents' ]
 
-  # No saved value, env seeds: the seeds.
+  # No saved value, env seeds: the seed.
   reset_stub
   set_write 1 @value
-  render_tty GUM_STUB_TOP='5)' GUM_STUB_AI='opencode directories' \
+  render_tty GUM_STUB_TOP='5)' GUM_STUB_AI='opencode workspace' \
     DOTFILES_WORKTREES_DIR=/opt/seeded-wt DOTFILES_AGENTS_DIR='~/seeded/agents'
-  [ "$(cat "$STUBS/value.write.1")" = $'worktrees: /opt/seeded-wt\nagents: ~/seeded/agents' ]
+  [ "$(cat "$STUBS/value.write.1")" = 'workspace: ~/seeded/agents' ]
   [ "$(stored)" = $'    worktreesDir = "/opt/seeded-wt"\n    agentsDir = "~/seeded/agents"' ]
 
   # Saved values win over seeds, one key at a time.
   reset_stub
-  seed_ai_config 'worktreesDir = "~/src/worktrees"'
+  seed_ai_config 'agentsDir = "~/src/agents"'
   set_write 1 @value
-  render_tty GUM_STUB_AI='opencode directories' DOTFILES_WORKTREES_DIR=/opt/seeded-wt DOTFILES_AGENTS_DIR=/opt/seeded-agents
+  render_tty GUM_STUB_AI='opencode workspace' DOTFILES_WORKTREES_DIR=/opt/seeded-wt DOTFILES_AGENTS_DIR=/opt/seeded-agents
   [ "$status" -eq 0 ]
-  [ "$(cat "$STUBS/value.write.1")" = $'worktrees: ~/src/worktrees\nagents: /opt/seeded-agents' ]
-  [ "$(stored)" = $'    worktreesDir = "~/src/worktrees"\n    agentsDir = "/opt/seeded-agents"' ]
+  [ "$(cat "$STUBS/value.write.1")" = 'workspace: ~/src/agents' ]
+  [ "$(stored)" = $'    worktreesDir = "/opt/seeded-wt"\n    agentsDir = "~/src/agents"' ]
+
+  # The Git page follows the same order.
+  reset_stub
+  seed_git_config
+  set_write 1 @value
+  render_tty GUM_STUB_GIT='ignore_global worktrees' DOTFILES_WORKTREES_DIR=/opt/seeded-wt
+  [ "$(cat "$STUBS/value.write.1")" = 'worktrees: /opt/seeded-wt' ]
+  reset_stub
+  seed_git_config 'worktreesDir = "~/src/worktrees"'
+  set_write 1 @value
+  render_tty GUM_STUB_GIT='ignore_global worktrees' DOTFILES_WORKTREES_DIR=/opt/seeded-wt
+  [ "$(cat "$STUBS/value.write.1")" = 'worktrees: ~/src/worktrees' ]
 }
 
-@test "dirs editor: both values can be edited and are stored as typed" {
-  need_pty
-  seed_ai_config 'worktreesDir = "/srv/old-wt"'
-  set_write 1 $'worktrees: /opt/typed-wt/\nagents: ~/typed/agents'
-  render_tty GUM_STUB_AI='opencode directories'
-  [ "$status" -eq 0 ]
-  [ "$(stored)" = $'    worktreesDir = "/opt/typed-wt/"\n    agentsDir = "~/typed/agents"' ]
-  [ "$(gum_count write)" = 1 ]
-}
-
-@test "dirs editor: one edited value leaves the other at its pre-fill" {
+@test "dirs editor: an edited value is stored as typed and the other folder is untouched" {
   need_pty
   seed_ai_config 'worktreesDir = "/srv/old-wt"' 'agentsDir = "/srv/old-agents"'
-  set_write 1 $'worktrees: /srv/old-wt\nagents: /opt/new-agents'
-  render_tty GUM_STUB_AI='opencode directories'
+  set_write 1 'workspace: ~/typed/agents/'
+  render_tty GUM_STUB_AI='opencode workspace'
   [ "$status" -eq 0 ]
-  [ "$(stored)" = $'    worktreesDir = "/srv/old-wt"\n    agentsDir = "/opt/new-agents"' ]
+  [ "$(stored)" = $'    worktreesDir = "/srv/old-wt"\n    agentsDir = "~/typed/agents/"' ]
+  [ "$(gum_count write)" = 1 ]
 
-  # A deleted line, or a key left empty, keeps that pre-fill too.
+  # A key left empty, or a deleted line, keeps the pre-fill.
   reset_stub
-  set_write 1 'worktrees: /opt/only-wt'
-  render_tty GUM_STUB_AI='opencode directories'
-  [ "$(stored)" = $'    worktreesDir = "/opt/only-wt"\n    agentsDir = "/srv/old-agents"' ]
-  reset_stub
-  set_write 1 $'worktrees:\nagents: /opt/only-agents'
-  render_tty GUM_STUB_AI='opencode directories'
-  [ "$(stored)" = $'    worktreesDir = "/srv/old-wt"\n    agentsDir = "/opt/only-agents"' ]
+  set_write 1 'workspace:'
+  render_tty GUM_STUB_AI='opencode workspace'
+  [ "$(stored)" = $'    worktreesDir = "/srv/old-wt"\n    agentsDir = "/srv/old-agents"' ]
 }
 
 @test "dirs editor: the answer is parsed tolerantly" {
   need_pty
-  seed_ai_config 'worktreesDir = "/srv/old-wt"' 'agentsDir = "/srv/old-agents"'
-  set_write 1 $'\n  WORKTREES :   /opt/loose wt  \n\n\tAgents=~/loose/agents\n\n'
-  render_tty GUM_STUB_AI='opencode directories'
+  seed_ai_config 'agentsDir = "/srv/old-agents"'
+  set_write 1 $'\n  WORKSPACE :   /opt/loose agents  \n\n'
+  render_tty GUM_STUB_AI='opencode workspace'
   [ "$status" -eq 0 ]
-  [ "$(stored)" = $'    worktreesDir = "/opt/loose wt"\n    agentsDir = "~/loose/agents"' ]
-  [ "$(gum_count write)" = 1 ]
+  [ "$(stored)" = $'    worktreesDir = "$HOME/worktrees"\n    agentsDir = "/opt/loose agents"' ]
+
+  reset_stub
+  seed_git_config
+  set_write 1 $'\tWorktrees=/opt/loose-wt'
+  render_tty GUM_STUB_GIT='ignore_global worktrees'
+  [ "$status" -eq 0 ]
+  [[ "$(stored)" == *'worktreesDir = "/opt/loose-wt"'* ]]
 }
 
 @test "dirs editor: a bad value reopens the editor with the text kept and says why" {
   need_pty
   seed_ai_config
-  set_write 1 $'worktrees: relative/path\nagents: /srv/kept-agents'
-  set_write 2 $'worktrees: /srv/good-wt\nagents: /srv/kept-agents'
-  render_tty GUM_STUB_AI='opencode directories'
+  set_write 1 'workspace: relative/path'
+  set_write 2 'workspace: /srv/good-agents'
+  render_tty GUM_STUB_AI='opencode workspace'
   [ "$status" -eq 0 ]
-  [ "$(stored)" = $'    worktreesDir = "/srv/good-wt"\n    agentsDir = "/srv/kept-agents"' ]
+  [ "$(stored)" = $'    worktreesDir = "$HOME/worktrees"\n    agentsDir = "/srv/good-agents"' ]
   [ "$(gum_count write)" = 2 ]
   # The second page opens on the user's own text, not on the pre-fill.
-  [ "$(cat "$STUBS/value.write.2")" = $'worktrees: relative/path\nagents: /srv/kept-agents' ]
-  grep -Fq 'Not a usable directory for worktrees' "$TTY_LOG"
+  [ "$(cat "$STUBS/value.write.2")" = 'workspace: relative/path' ]
+  grep -Fq 'Not a usable directory for workspace' "$TTY_LOG"
 }
 
-@test "dirs editor: a line it cannot read reopens the editor too" {
+@test "dirs editor: a line it cannot read, or the other page's key, reopens the editor" {
   need_pty
   seed_ai_config
-  set_write 1 $'/opt/forgot-the-key\nagents: /srv/a'
-  set_write 2 $'worktrees: /opt/fixed\nagents: /srv/a'
-  render_tty GUM_STUB_AI='opencode directories'
+  set_write 1 '/opt/forgot-the-key'
+  set_write 2 'worktrees: /opt/wrong-page'
+  set_write 3 'workspace: /srv/a'
+  render_tty GUM_STUB_AI='opencode workspace'
   [ "$status" -eq 0 ]
-  [ "$(gum_count write)" = 2 ]
-  [ "$(cat "$STUBS/value.write.2")" = $'/opt/forgot-the-key\nagents: /srv/a' ]
-  [ "$(stored)" = $'    worktreesDir = "/opt/fixed"\n    agentsDir = "/srv/a"' ]
-  grep -Fq "Each line must look like 'worktrees: <path>'" "$TTY_LOG"
+  [ "$(gum_count write)" = 3 ]
+  [ "$(cat "$STUBS/value.write.2")" = '/opt/forgot-the-key' ]
+  [ "$(stored)" = $'    worktreesDir = "$HOME/worktrees"\n    agentsDir = "/srv/a"' ]
+  grep -Fq "The line must look like 'workspace: <path>'" "$TTY_LOG"
 }
 
 @test "dirs editor: a value that parses but is unsafe to show is refused" {
   need_pty
-  seed_ai_config
+  seed_git_config
   # Cleaning the path would drop the quote with its ".." segment, so the usable-path check
   # alone passes; the raw text still could not be shown or re-edited safely.
   set_write 1 "worktrees: /tmp/a'b\$(id)/../ok"
   set_write 2 'worktrees: /srv/good'
-  render_tty GUM_STUB_AI='opencode directories'
+  render_tty GUM_STUB_GIT='ignore_global worktrees'
   [ "$status" -eq 0 ]
   [ "$(gum_count write)" = 2 ]
   [ "$(cat "$STUBS/value.write.2")" = "worktrees: /tmp/a'b\$(id)/../ok" ]
@@ -534,39 +603,40 @@ AI_HDR='AI tools  (space toggles, enter confirms, esc cancels):'
 @test "dirs editor: three bad answers fail with the existing clear error" {
   need_pty
   seed_ai_config
-  set_write 1 'worktrees: relative/path'
-  set_write 2 'worktrees: relative/path'
-  set_write 3 'worktrees: relative/path'
-  render_tty GUM_STUB_AI='opencode directories'
+  set_write 1 'workspace: relative/path'
+  set_write 2 'workspace: relative/path'
+  set_write 3 'workspace: relative/path'
+  render_tty GUM_STUB_AI='opencode workspace'
   [ "$status" -ne 0 ]
-  [[ "$output" == *"data.worktreesDir must be an absolute path"* ]]
+  [[ "$output" == *"data.agentsDir must be an absolute path"* ]]
   [ "$(gum_count write)" = 3 ]
 
   # Unreadable three times is a clear failure as well, not a silent keep.
   reset_stub
+  seed_git_config
   set_write 1 'no keys here'
   set_write 2 'no keys here'
   set_write 3 'no keys here'
-  render_tty GUM_STUB_AI='opencode directories'
+  render_tty GUM_STUB_GIT='ignore_global worktrees'
   [ "$status" -ne 0 ]
-  [[ "$output" == *"Could not use the directories answer after three tries"* ]]
+  [[ "$output" == *"Could not use the worktrees answer after three tries"* ]]
   [ "$(gum_count write)" = 3 ]
 }
 
 @test "dirs editor: an empty answer and Escape keep the pre-fill without asking again" {
   need_pty
-  seed_ai_config 'worktreesDir = "/srv/kept-wt"'
+  seed_ai_config 'agentsDir = "/srv/kept-agents"'
   set_write 1 ''
-  render_tty GUM_STUB_AI='opencode directories'
+  render_tty GUM_STUB_AI='opencode workspace'
   [ "$status" -eq 0 ]
-  [ "$(stored)" = $'    worktreesDir = "/srv/kept-wt"\n    agentsDir = "$HOME/agents"' ]
+  [ "$(stored)" = $'    worktreesDir = "$HOME/worktrees"\n    agentsDir = "/srv/kept-agents"' ]
   [ "$(gum_count write)" = 1 ]
 
   # Escape or Ctrl+C: Gum prints nothing and exits non-zero.
   reset_stub
-  render_tty GUM_STUB_AI='opencode directories'
+  render_tty GUM_STUB_AI='opencode workspace'
   [ "$status" -eq 0 ]
-  [ "$(stored)" = $'    worktreesDir = "/srv/kept-wt"\n    agentsDir = "$HOME/agents"' ]
+  [ "$(stored)" = $'    worktreesDir = "$HOME/worktrees"\n    agentsDir = "/srv/kept-agents"' ]
   [ "$(gum_count write)" = 1 ]
 }
 
@@ -576,97 +646,123 @@ AI_HDR='AI tools  (space toggles, enter confirms, esc cancels):'
   # value travels as a parameter, is replaced by the default, and the user is told.
   seed_ai_config "agentsDir = \"/tmp/x'; touch $TEST_HOME/pwned; echo '\""
   set_write 1 @value
-  render_tty GUM_STUB_AI='opencode directories'
+  render_tty GUM_STUB_AI='opencode workspace'
   [ "$status" -eq 0 ]
   [ ! -e "$TEST_HOME/pwned" ]
-  [ "$(cat "$STUBS/value.write.1")" = $'worktrees: $HOME/worktrees\nagents: $HOME/agents' ]
+  [ "$(cat "$STUBS/value.write.1")" = 'workspace: $HOME/agents' ]
   [ "$(stored)" = $'    worktreesDir = "$HOME/worktrees"\n    agentsDir = "$HOME/agents"' ]
   grep -Fq 'agentsDir value is not usable' "$TTY_LOG"
 }
 
 @test "dirs editor: a path the user types with quotes in the text reaches the page intact" {
   need_pty
-  seed_ai_config
+  seed_git_config
   # The kept text goes back to the editor through a parameter: quotes, $(), and backticks
   # in a refused answer must not be interpreted by sh.
-  set_write 1 $'worktrees: /tmp/a\'b$(touch '"$TEST_HOME"$'/pwned)`id`\nagents: /srv/a'
+  set_write 1 $'worktrees: /tmp/a\'b$(touch '"$TEST_HOME"$'/pwned)`id`'
   set_write 2 'worktrees: /srv/ok'
-  render_tty GUM_STUB_AI='opencode directories'
+  render_tty GUM_STUB_GIT='ignore_global worktrees'
   [ "$status" -eq 0 ]
   [ ! -e "$TEST_HOME/pwned" ]
-  [ "$(cat "$STUBS/value.write.2")" = $'worktrees: /tmp/a\'b$(touch '"$TEST_HOME"$'/pwned)`id`\nagents: /srv/a' ]
+  [ "$(cat "$STUBS/value.write.2")" = $'worktrees: /tmp/a\'b$(touch '"$TEST_HOME"$'/pwned)`id`' ]
 }
 
 # --- typed fallback ------------------------------------------------------------
 
-@test "dirs typed: a selected entry asks each path with promptString, pre-filled" {
+@test "dirs typed: a selected entry asks its one path with promptString, pre-filled" {
   need_pty
-  # The typed AI menu answer is the persisted aiSelection (promptStringOnce); chezmoi's
-  # prompt simulation stands in for typing the two paths.
+  # The typed menu answer is the persisted selection (promptStringOnce); chezmoi's
+  # prompt simulation stands in for typing the path.
   seed_ai_config 'worktreesDir = "/srv/saved-wt"'
-  sed -i.bak 's/aiSelection = "opencode"/aiSelection = "opencode directories"/' "$CONFIG"
+  sed -i.bak 's/aiSelection = "opencode"/aiSelection = "opencode workspace"/' "$CONFIG"
   render_typed
   [ "$status" -eq 0 ]
   no_gum_calls
-  # No typed answer: Enter keeps the pre-fill (saved, then default).
+  # No typed answer: Enter keeps the pre-fill.
   [ "$(stored)" = $'    worktreesDir = "/srv/saved-wt"\n    agentsDir = "$HOME/agents"' ]
 
-  render_typed -- -p "$WT_TITLE=/opt/typed-wt" -p "$AG_TITLE=~/typed/agents"
+  # The AI entry asks for the workspace only; a worktrees answer is never used.
+  render_typed -- -p "$WT_TITLE=/opt/ignored" -p "$AG_TITLE=~/typed/agents"
   [ "$status" -eq 0 ]
-  [ "$(stored)" = $'    worktreesDir = "/opt/typed-wt"\n    agentsDir = "~/typed/agents"' ]
+  [ "$(stored)" = $'    worktreesDir = "/srv/saved-wt"\n    agentsDir = "~/typed/agents"' ]
   # The choice never lands in the saved selection or the tables.
   [[ "$output" == *'aiSelection = "opencode"'* ]]
-  [[ "$output" != *'directories'* ]]
+  [[ "$output" != *'workspace'* ]]
+
+  seed_git_config
+  sed -i.bak 's/gitSelection = "ignore_global"/gitSelection = "ignore_global worktrees"/' "$CONFIG"
+  render_typed -- -p "$WT_TITLE=/opt/typed-wt" -p "$AG_TITLE=/opt/ignored"
+  [ "$status" -eq 0 ]
+  [ "$(stored)" = $'    worktreesDir = "/opt/typed-wt"\n    agentsDir = "$HOME/agents"' ]
+  [[ "$output" == *'gitSelection = "ignore_global"'* ]]
 }
 
-@test "dirs typed: the number selects the entry, and an unselected entry asks nothing" {
+@test "dirs typed: number 10 selects each page's entry, and an unselected entry asks nothing" {
   need_pty
   seed_ai_config
   sed -i.bak 's/aiSelection = "opencode"/aiSelection = "4 10"/' "$CONFIG"
+  render_typed -- -p "$AG_TITLE=/opt/by-number"
+  [ "$status" -eq 0 ]
+  [[ "$output" == *'agentsDir = "/opt/by-number"'* ]]
+  [[ "$output" == *'opencode = true'* ]]
+
+  seed_git_config
+  sed -i.bak 's/gitSelection = "ignore_global"/gitSelection = "3 10"/' "$CONFIG"
   render_typed -- -p "$WT_TITLE=/opt/by-number"
   [ "$status" -eq 0 ]
   [[ "$output" == *'worktreesDir = "/opt/by-number"'* ]]
-  [[ "$output" == *'opencode = true'* ]]
+  [[ "$output" == *'ignore_global = true'* ]]
 
   seed_ai_config
   render_typed -- -p "$WT_TITLE=/opt/ignored" -p "$AG_TITLE=/opt/ignored"
   [ "$status" -eq 0 ]
-  [[ "$output" == *'worktreesDir = "$HOME/worktrees"'* ]]
+  [ "$(stored)" = $'    worktreesDir = "$HOME/worktrees"\n    agentsDir = "$HOME/agents"' ]
 }
 
 @test "dirs typed: a bad typed answer is asked again and then fails clearly" {
   need_pty
   seed_ai_config
-  sed -i.bak 's/aiSelection = "opencode"/aiSelection = "opencode directories"/' "$CONFIG"
-  render_typed -- -p "$WT_TITLE=/tmp/it's"
+  sed -i.bak 's/aiSelection = "opencode"/aiSelection = "opencode workspace"/' "$CONFIG"
+  render_typed -- -p "$AG_TITLE=/tmp/it's"
   [ "$status" -ne 0 ]
-  [[ "$output" == *"data.worktreesDir must name a directory using only"* ]]
+  [[ "$output" == *"data.agentsDir must name a directory using only"* ]]
 }
 
-# --- existing AI selections are untouched -------------------------------------
+# --- existing selections are untouched -----------------------------------------
 
 @test "dirs regression: every AI sub-feature still resolves from its key and its number" {
   need_pty
-  local expect='    claude_hooks = true
-    codex_hooks = true
-    statusline = true
-    opencode = true
-    copilot = true
+  local expect='    opencode = true
     openviking = true
+    statusline = true
+    claude_hooks = true
+    codex_hooks = true
+    copilot = true
     codecompanion = true'
   seed_ai_config
-  render_tty GUM_STUB_AI='claude_hooks codex_hooks statusline opencode copilot openviking codecompanion directories'
+  render_tty GUM_STUB_AI='claude_hooks codex_hooks statusline opencode copilot openviking codecompanion workspace'
   [ "$status" -eq 0 ]
   [[ "$output" == *"$expect"* ]]
-  [[ "$output" == *'aiSelection = "claude_hooks codex_hooks statusline opencode copilot openviking codecompanion"'* ]]
+  [[ "$output" == *'aiSelection = "opencode openviking statusline claude_hooks codex_hooks copilot codecompanion"'* ]]
 
-  # Persisted numbers: 1..6 and 8 are the sub-features, 7 and 9 are retired tokens that
-  # migrate to opencode, and 10 is the entry, never a feature.
+  # Persisted numbers are tokens, not positions: 1..6 and 8 are the sub-features
+  # whatever the display order, 7 and 9 are retired tokens that migrate to opencode,
+  # and 10 is the entry, never a feature.
   seed_ai_config
   sed -i.bak 's/aiSelection = "opencode"/aiSelection = "1 2 3 4 5 8 6"/' "$CONFIG"
   render_typed
   [ "$status" -eq 0 ]
   [[ "$output" == *"$expect"* ]]
+
+  local num key
+  for num in 1:claude_hooks 2:codex_hooks 3:statusline 4:opencode 5:copilot 6:codecompanion 8:openviking; do
+    key=${num#*:}
+    seed_ai_config
+    sed -i.bak "s/aiSelection = \"opencode\"/aiSelection = \"${num%%:*}\"/" "$CONFIG"
+    render_typed
+    [ "$status" -eq 0 ]
+    [[ "$output" == *"aiSelection = \"$key\""* ]]
+  done
 
   seed_ai_config
   sed -i.bak 's/aiSelection = "opencode"/aiSelection = "7"/' "$CONFIG"
@@ -685,40 +781,96 @@ AI_HDR='AI tools  (space toggles, enter confirms, esc cancels):'
   [[ "$output" == *'aiSelection = ""'* ]]
 }
 
-@test "dirs regression: the AI page keeps its order, and the entry comes last" {
+@test "dirs regression: the AI page puts opencode, openviking, and statusline first" {
   need_pty
   seed_ai_config
   render_tty
   [ "$status" -eq 0 ]
   local keys
   keys=$(gum_calls choose | sed -n 2p | grep -o '\[[a-z_]* - ' | sed -E 's/^\[([a-z_]*) - $/\1/' | tr '\n' ' ')
-  [ "$keys" = "claude_hooks codex_hooks statusline opencode copilot openviking codecompanion directories " ]
+  [ "$keys" = "opencode openviking statusline claude_hooks codex_hooks copilot codecompanion workspace " ]
+}
+
+@test "dirs regression: the typed AI menu shows the same order with unchanged numbers" {
+  need_pty
+  # A real init without Gum and without a saved aiSelection prints the typed menu and
+  # waits for an answer that never comes; the deadline ends it. chezmoi writes the
+  # prompt to the terminal or to its output depending on the host, so read both and
+  # keep the first copy of each line. (execute-template never prints a typed prompt.)
+  local persisted="$TEST_HOME/.config/chezmoi/chezmoi.toml" typed_path="$BATS_TEST_TMPDIR/no-gum"
+  mkdir -p "$(dirname "$persisted")" "$typed_path"
+  ln -sf /bin/sh "$typed_path/sh"
+  ln -sf "$(command -v python3)" "$typed_path/python3"
+  printf '[data]\n    componentSelection = "5"\n' > "$persisted"
+  run env HOME="$TEST_HOME" XDG_CONFIG_HOME="$TEST_HOME/.config" \
+    XDG_DATA_HOME="$TEST_HOME/.local/share" XDG_STATE_HOME="$TEST_HOME/.local/state" \
+    XDG_CACHE_HOME="$TEST_HOME/.cache" PATH="$typed_path" CTTY_LOG="$TTY_LOG" CTTY_TIMEOUT=5 \
+    DOTFILES_INSTALL_MODE=configs \
+    python3 "$CTTY" --stdin-tty "$CHEZMOI" init --source "$REPO_ROOT"
+  [ "$status" -eq 124 ]
+  local menu
+  local typed
+  typed=$({ cat "$TTY_LOG" 2>/dev/null; printf '%s\n' "$output"; } | tr -d '\r' | awk '!seen[$0]++')
+  menu=$(grep -Eo '^ +[0-9]+\) [a-z_]+ - ' <<<"$typed" | sed -E 's/^ +([0-9]+)\) ([a-z_]+) - $/\1:\2/' | tr '\n' ' ')
+  [ "$menu" = "4:opencode 8:openviking 3:statusline 1:claude_hooks 2:codex_hooks 5:copilot 6:codecompanion 10:workspace " ]
+  grep -Fq '  now: agent workspace $HOME/agents' <<<"$typed"
+}
+
+@test "dirs regression: the Git page keeps its features and their numbers" {
+  need_pty
+  seed_git_config
+  render_tty
+  [ "$status" -eq 0 ]
+  local keys
+  keys=$(gum_calls choose | sed -n 2p | grep -o '\[[a-z_]* - ' | sed -E 's/^\[([a-z_]*) - $/\1/' | tr '\n' ' ')
+  [ "$keys" = "config ignore_global worktrees " ]
+
+  # 1 and 3 are the features, 2 is the retired identity token that migrates to
+  # config, and 10 is the entry, never a feature.
+  seed_git_config
+  sed -i.bak 's/gitSelection = "ignore_global"/gitSelection = "1 3"/' "$CONFIG"
+  render_typed
+  [[ "$output" == *'gitSelection = "config ignore_global"'* ]]
+  seed_git_config
+  sed -i.bak 's/gitSelection = "ignore_global"/gitSelection = "2"/' "$CONFIG"
+  render_typed
+  [[ "$output" == *'gitSelection = "config"'* ]]
+  seed_git_config
+  sed -i.bak 's/gitSelection = "ignore_global"/gitSelection = "10"/' "$CONFIG"
+  render_typed
+  [ "$status" -eq 0 ]
+  [[ "$output" == *'gitSelection = ""'* ]]
 }
 
 # --- gates: nothing is offered or asked ---------------------------------------
-# Every case persists an aiSelection that already names the entry, so a leaked gate
-# would open the editor or a prompt; the simulated typed answers would win if it did.
+# Every case persists selections that already name both entries, so a leaked gate
+# would open an editor or a prompt; the simulated typed answers would win if it did.
 
-# seed_ai_with_entry: AI selected, entry chosen, saved worktrees value.
-seed_ai_with_entry() {
-  seed_ai_config 'worktreesDir = "/srv/saved-wt"'
-  sed -i.bak 's/aiSelection = "opencode"/aiSelection = "opencode directories"/' "$CONFIG"
+# seed_with_entries: Git and AI selected, both entries chosen, saved worktrees value.
+seed_with_entries() {
+  {
+    printf '[data]\n    componentSelection = "4 5"\n'
+    printf '    gitSelection = "ignore_global worktrees"\n    aiSelection = "opencode workspace"\n'
+    printf '    worktreesDir = "/srv/saved-wt"\n'
+    printf '[data.components.git]\n    ignore_global = true\n[data.components.ai]\n    opencode = true\n'
+  } > "$CONFIG"
 }
 
-# gated_result: nothing was asked, the saved value and the default stand, the entry is not
-# stored, and the typed answers that would have won were never used.
+# gated_result: nothing was asked, the saved value and the default stand, neither entry
+# is stored, and the typed answers that would have won were never used.
 gated_result() {
   [ "$status" -eq 0 ]
   [ "$(gum_count write)" = 0 ]
   [[ "$output" == *'worktreesDir = "/srv/saved-wt"'* ]]
   [[ "$output" == *'agentsDir = "$HOME/agents"'* ]]
+  [[ "$output" == *'gitSelection = "ignore_global"'* ]]
   [[ "$output" == *'aiSelection = "opencode"'* ]]
-  [[ "$output" != *'directories'* ]]
+  [[ "$output" != *'workspace'* ]]
 }
 
 @test "dirs gate: no controlling terminal keeps the pre-fill and never opens anything" {
   need_pty
-  seed_ai_with_entry
+  seed_with_entries
   set_write 1 'worktrees: /opt/never-used'
   CTTY_MODE=--none
   render_tty -- -p "$WT_TITLE=/opt/ignored" -p "$AG_TITLE=/opt/ignored"
@@ -728,50 +880,52 @@ gated_result() {
 @test "dirs gate: a tty stdin without a controlling terminal never prompts" {
   need_pty
   # chezmoi's own promptString fails here (no /dev/tty), so the template must not reach it.
-  seed_ai_with_entry
+  seed_with_entries
   CTTY_MODE=--stdin-only
   render_typed -- -p "$WT_TITLE=/opt/ignored" -p "$AG_TITLE=/opt/ignored"
   gated_result
 }
 
-@test "dirs gate: a terminal without a tty stdin hides the entry and the paths" {
+@test "dirs gate: a terminal without a tty stdin hides the entries and the paths" {
   need_pty
-  seed_ai_with_entry
+  seed_with_entries
   set_write 1 'worktrees: /opt/never-used'
   CTTY_MODE=--ctty
-  render_tty GUM_STUB_AI='opencode directories' -- -p "$WT_TITLE=/opt/ignored"
+  render_tty GUM_STUB_GIT='ignore_global worktrees' GUM_STUB_AI='opencode workspace' -- -p "$WT_TITLE=/opt/ignored"
   gated_result
-  # The AI page itself is still shown (Gum opens /dev/tty), without the entry or paths.
-  [ "$(gum_count choose)" = 2 ]
-  [ "$(cat "$STUBS/header.choose.2")" = "$AI_HDR" ]
-  [[ "$(gum_calls choose | sed -n 2p)" != *directories* ]]
-  [[ "$(gum_calls choose | sed -n 2p)" != *'--height'* ]]
+  # The pages themselves are still shown (Gum opens /dev/tty), without the entries or paths.
+  [ "$(gum_count choose)" = 3 ]
+  [ "$(cat "$STUBS/header.choose.2")" = "$GIT_HDR" ]
+  [ "$(cat "$STUBS/header.choose.3")" = "$AI_HDR" ]
+  [[ "$(gum_calls choose | sed -n 2p)" != *worktrees* ]]
+  [[ "$(gum_calls choose | sed -n 3p)" != *workspace* ]]
+  [[ "$(gum_calls choose | sed -n 3p)" != *'--height'* ]]
 }
 
 @test "dirs gate: DOTFILES_NO_TUI skips everything" {
   need_pty
-  seed_ai_with_entry
+  seed_with_entries
   set_write 1 'worktrees: /opt/never-used'
   render_tty DOTFILES_NO_TUI=1 -- -p "$WT_TITLE=/opt/ignored" -p "$AG_TITLE=/opt/ignored"
   gated_result
   no_gum_calls
 }
 
-@test "dirs gate: a host without AI selected is never asked and keeps its values" {
+@test "dirs gate: a host without Git or AI selected is never asked and keeps its values" {
   need_pty
-  printf '[data]\n    componentSelection = "1 2 3"\n    aiSelection = "opencode directories"\n    worktreesDir = "/srv/saved-wt"\n    agentsDir = "/srv/saved-agents"\n' > "$CONFIG"
+  printf '[data]\n    componentSelection = "1 2 3"\n    gitSelection = "worktrees"\n    aiSelection = "opencode workspace"\n    worktreesDir = "/srv/saved-wt"\n    agentsDir = "/srv/saved-agents"\n' > "$CONFIG"
   set_write 1 'worktrees: /opt/never-used'
   render_tty DOTFILES_WORKTREES_DIR=/opt/seeded -- -p "$WT_TITLE=/opt/ignored"
   [ "$status" -eq 0 ]
   [ "$(gum_count write)" = 0 ]
-  # The top picker only: no AI page.
+  # The top picker only: no Git or AI page.
   [ "$(gum_count choose)" = 1 ]
   [ "$(stored)" = $'    worktreesDir = "/srv/saved-wt"\n    agentsDir = "/srv/saved-agents"' ]
 }
 
 @test "dirs gate: a package update re-init (cup) does not reopen anything" {
   need_pty
-  seed_ai_with_entry
+  seed_with_entries
   set_write 1 'worktrees: /opt/never-used'
   render_tty DOTFILES_PACKAGE_UPDATE=1 -- -p "$WT_TITLE=/opt/ignored" -p "$AG_TITLE=/opt/ignored"
   gated_result
@@ -780,8 +934,8 @@ gated_result() {
 
 @test "dirs gate: the retired all+ migration does not reopen anything" {
   need_pty
-  seed_ai_with_entry
-  sed -i.bak 's/componentSelection = "5"/componentSelection = "all+"/' "$CONFIG"
+  seed_with_entries
+  sed -i.bak 's/componentSelection = "4 5"/componentSelection = "all+"/' "$CONFIG"
   set_write 1 'worktrees: /opt/never-used'
   # all+ only reaches the template through the typed menu (a Gum top page would replace it).
   render_typed -- -p "$WT_TITLE=/opt/ignored" -p "$AG_TITLE=/opt/ignored"
@@ -789,7 +943,7 @@ gated_result() {
   no_gum_calls
   [[ "$output" == *'worktreesDir = "/srv/saved-wt"'* ]]
   [[ "$output" == *'agentsDir = "$HOME/agents"'* ]]
-  [[ "$output" != *'directories'* ]]
+  [[ "$output" != *'workspace'* ]]
 }
 
 @test "dirs gate: chezmoi apply never prompts, even with Gum and a terminal" {
@@ -805,24 +959,26 @@ gated_result() {
   grep -Fxq "export DOTFILES_WORKTREES_DIR='/opt/worktrees'" "$TEST_HOME/.zshenv"
 }
 
-@test "dirs: a real chezmoi init stores an edited answer and pre-fills it next time" {
+@test "dirs: a real chezmoi init stores edited answers and pre-fills them next time" {
   need_pty
   local persisted="$TEST_HOME/.config/chezmoi/chezmoi.toml"
   mkdir -p "$(dirname "$persisted")"
-  printf '[data]\n    componentSelection = "5"\n    aiSelection = "opencode"\n[data.components.ai]\n    opencode = true\n' > "$persisted"
-  set_write 1 $'worktrees: /opt/typed-wt\nagents: ~/typed/agents'
+  printf '[data]\n    componentSelection = "4 5"\n    gitSelection = "ignore_global"\n    aiSelection = "opencode"\n[data.components.git]\n    ignore_global = true\n[data.components.ai]\n    opencode = true\n' > "$persisted"
+  set_write 1 'worktrees: /opt/typed-wt'
+  set_write 2 'workspace: ~/typed/agents'
   run env HOME="$TEST_HOME" XDG_CONFIG_HOME="$TEST_HOME/.config" \
     XDG_DATA_HOME="$TEST_HOME/.local/share" XDG_STATE_HOME="$TEST_HOME/.local/state" \
     XDG_CACHE_HOME="$TEST_HOME/.cache" PATH="$STUBS:/usr/bin:/bin" GUM_STUB_DIR="$STUBS" \
-    GUM_STUB_AI='opencode directories' CTTY_LOG="$TTY_LOG" DOTFILES_INSTALL_MODE=configs \
+    GUM_STUB_GIT='ignore_global worktrees' GUM_STUB_AI='opencode workspace' CTTY_LOG="$TTY_LOG" \
+    DOTFILES_INSTALL_MODE=configs \
     python3 "$CTTY" --stdin-tty "$CHEZMOI" init --source "$REPO_ROOT"
   [ "$status" -eq 0 ]
   grep -Fq 'worktreesDir = "/opt/typed-wt"' "$persisted"
   grep -Fq 'agentsDir = "~/typed/agents"' "$persisted"
-  run grep -Fq 'directories' "$persisted"
+  run grep -Eq 'workspace|"[a-z_ ]*worktrees' "$persisted"
   [ "$status" -eq 1 ]
 
-  # Re-init, entry unchecked: nothing is asked and the values stay, whatever the seeds say.
+  # Re-init, entries unchecked: nothing is asked and the values stay, whatever the seeds say.
   reset_stub
   run env HOME="$TEST_HOME" XDG_CONFIG_HOME="$TEST_HOME/.config" \
     XDG_DATA_HOME="$TEST_HOME/.local/share" XDG_STATE_HOME="$TEST_HOME/.local/state" \
@@ -835,17 +991,19 @@ gated_result() {
   grep -Fq 'worktreesDir = "/opt/typed-wt"' "$persisted"
   grep -Fq 'agentsDir = "~/typed/agents"' "$persisted"
 
-  # Re-init, entry checked: the editor opens on the saved values; Enter keeps them.
+  # Re-init, both checked: each editor opens on its saved value; Enter keeps them.
   reset_stub
   set_write 1 @value
+  set_write 2 @value
   run env HOME="$TEST_HOME" XDG_CONFIG_HOME="$TEST_HOME/.config" \
     XDG_DATA_HOME="$TEST_HOME/.local/share" XDG_STATE_HOME="$TEST_HOME/.local/state" \
     XDG_CACHE_HOME="$TEST_HOME/.cache" PATH="$STUBS:/usr/bin:/bin" GUM_STUB_DIR="$STUBS" \
-    GUM_STUB_AI='opencode directories' CTTY_LOG="$TTY_LOG" DOTFILES_INSTALL_MODE=configs \
-    DOTFILES_WORKTREES_DIR=/tmp/other DOTFILES_AGENTS_DIR=/tmp/other \
+    GUM_STUB_GIT='ignore_global worktrees' GUM_STUB_AI='opencode workspace' CTTY_LOG="$TTY_LOG" \
+    DOTFILES_INSTALL_MODE=configs DOTFILES_WORKTREES_DIR=/tmp/other DOTFILES_AGENTS_DIR=/tmp/other \
     python3 "$CTTY" --stdin-tty "$CHEZMOI" init --source "$REPO_ROOT"
   [ "$status" -eq 0 ]
-  [ "$(cat "$STUBS/value.write.1")" = $'worktrees: /opt/typed-wt\nagents: ~/typed/agents' ]
+  [ "$(cat "$STUBS/value.write.1")" = 'worktrees: /opt/typed-wt' ]
+  [ "$(cat "$STUBS/value.write.2")" = 'workspace: ~/typed/agents' ]
   grep -Fq 'worktreesDir = "/opt/typed-wt"' "$persisted"
   grep -Fq 'agentsDir = "~/typed/agents"' "$persisted"
 }
@@ -911,7 +1069,7 @@ gated_result() {
   [[ "$output" != *'.zshenv'* ]]
 }
 
-@test "ensure run script: worktrees always, agents only with an AI sub-feature" {
+@test "ensure run script: worktrees always, the agent workspace only with an AI sub-feature" {
   local feature
   printf '[data]\nworktreesDir = "/opt/worktrees"\nagentsDir = "/opt/agents"\n' > "$CONFIG"
   render_tmpl "$ENSURE_RUN_TMPL"
@@ -924,8 +1082,36 @@ gated_result() {
       "$feature" > "$CONFIG"
     render_tmpl "$ENSURE_RUN_TMPL"
     [ "$status" -eq 0 ]
-    [[ "$output" == *"dirs=('/opt/worktrees' '/opt/agents')"* ]]
+    [[ "$output" == *"dirs=('/opt/worktrees')"* ]]
+    [[ "$output" == *"agents='/opt/agents'"* ]]
   done
+}
+
+@test "ensure run script: creates the workspace layout once and never touches existing content" {
+  printf '[data]\nagentsDir = "~/ws"\n[data.components.ai]\nopencode = true\n' > "$CONFIG"
+  render_tmpl "$ENSURE_RUN_TMPL"
+  [ "$status" -eq 0 ]
+  printf '%s\n' "$output" > "$BATS_TEST_TMPDIR/run.sh"
+  # An existing workspace with a custom mode, a note, and a hand-made tmp/ survives.
+  mkdir -m 750 "$TEST_HOME/ws"
+  : > "$TEST_HOME/ws/keep.md"
+  mkdir -m 755 "$TEST_HOME/ws/tmp"
+  run env HOME="$TEST_HOME" bash "$BATS_TEST_TMPDIR/run.sh"
+  [ "$status" -eq 0 ]
+  local sub
+  for sub in plans specs drafts scripts tools scratch; do
+    [ -d "$TEST_HOME/ws/$sub" ]
+    [ "$(mode_of "$TEST_HOME/ws/$sub")" = 755 ]
+  done
+  [ "$(mode_of "$TEST_HOME/ws")" = 750 ]
+  [ "$(mode_of "$TEST_HOME/ws/tmp")" = 755 ]
+  [ -f "$TEST_HOME/ws/keep.md" ]
+  [[ "$output" != *"created $TEST_HOME/ws/tmp"* ]]
+
+  # A second apply is silent.
+  run env HOME="$TEST_HOME" bash "$BATS_TEST_TMPDIR/run.sh"
+  [ "$status" -eq 0 ]
+  [ -z "$output" ]
 }
 
 @test "ensure run script: an old config creates the default directories" {
@@ -938,6 +1124,9 @@ gated_result() {
   [ -d "$TEST_HOME/worktrees" ]
   [ -d "$TEST_HOME/agents" ]
   [ "$(mode_of "$TEST_HOME/worktrees")" = 755 ]
+  [ -d "$TEST_HOME/agents/scripts" ]
+  # TMPDIR for the opencode2 wrapper is private from the start.
+  [ "$(mode_of "$TEST_HOME/agents/tmp")" = 700 ]
 }
 
 @test "ensure run script: a non-writable parent warns and still exits zero" {
@@ -985,8 +1174,40 @@ gated_result() {
   [[ "$output" == *"$TEST_HOME/file exists but is not a usable directory"* ]]
   [[ "$output" == *"$TEST_HOME/dangling exists but is not a usable directory"* ]]
   [[ "$output" == *"skipping 'relative'"* ]]
-  [[ "$output" == *"$TEST_HOME/file is not a directory"* ]]
+  # A path below one already reported is skipped quietly instead of warning twice.
+  [[ "$output" != *"$TEST_HOME/file/child"* ]]
   [[ "$output" != *'sudo install'* ]]
+
+  run bash "$ENSURE_DIRS" "$TEST_HOME/file/child"
+  [ "$status" -eq 0 ]
+  [[ "$output" == *"$TEST_HOME/file is not a directory"* ]]
+}
+
+@test "ensure-dirs: -m sets the mode of new directories and of the privileged hint" {
+  run bash "$ENSURE_DIRS" -m 700 "$TEST_HOME/private"
+  [ "$status" -eq 0 ]
+  [ "$(mode_of "$TEST_HOME/private")" = 700 ]
+
+  [ "$(id -u)" -ne 0 ] || skip "root can write anywhere"
+  mkdir -m 555 "$TEST_HOME/locked"
+  run bash "$ENSURE_DIRS" -m 700 "$TEST_HOME/locked/tmp"
+  chmod 755 "$TEST_HOME/locked"
+  [ "$status" -eq 0 ]
+  [[ "$output" == *"-m 0700 $TEST_HOME/locked/tmp"* ]]
+
+  run bash "$ENSURE_DIRS" -m 9z "$TEST_HOME/never"
+  [ "$status" -eq 0 ]
+  [ ! -e "$TEST_HOME/never" ]
+}
+
+@test "ensure-dirs: a workspace root it cannot create gets one hint, not one per subdirectory" {
+  [ "$(id -u)" -ne 0 ] || skip "root can write anywhere"
+  mkdir -m 555 "$TEST_HOME/locked"
+  run bash "$ENSURE_DIRS" "$TEST_HOME/locked/agents" "$TEST_HOME/locked/agents/plans" "$TEST_HOME/locked/agents/scripts"
+  chmod 755 "$TEST_HOME/locked"
+  [ "$status" -eq 0 ]
+  [ "$(grep -c 'sudo install' <<<"$output")" = 1 ]
+  [[ "$output" == *"-m 0755 $TEST_HOME/locked/agents"* ]]
 }
 
 @test "ensure-dirs: an existing directory the user cannot write gets a chown hint" {

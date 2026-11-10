@@ -15,8 +15,10 @@
 # Ownership boundary:
 #   OWNED  - re-asserted on every apply: the file header comment, "$schema", V2
 #            managed plugin registrations, agent colors, Ricer's subagent mode,
-#            and narrow Plan handoff permissions. Every
-#            other agent field, nested comment, and custom agent is preserved.
+#            narrow Plan handoff permissions, and worktree.directory (the parent
+#            of OpenCode's own worktrees, from data.worktreesDir). Every
+#            other agent field, nested comment, and custom agent is preserved,
+#            and so is every other member of "worktree".
 #   SEEDED - with OpenCode selected, add bundled disabled MCP entries only when
 #            absent. The user's disabled flag and overrides win.
 #            The retired singular "plugin" key is removed when present.
@@ -24,9 +26,10 @@
 #            existing timeouts and other experimental settings survive.
 #   SEEDED - native "permissions" are written only when the incoming file has no
 #            permission policy. The exact old seed is migrated. Existing native
-#            permissions retain their policy, except managed OpenViking and
-#            Claude/Agent state allows plus generic hook and Git rules
-#            migrated below; private overlays and unrelated policies survive.
+#            permissions retain their policy, except managed OpenViking,
+#            Claude/Agent state, and agent workspace allows plus generic hook and
+#            Git rules migrated below; private overlays and unrelated policies
+#            survive.
 #   KEPT   - copied through verbatim, comments included: every other top-level
 #            key, in its original order. That is how machine-local "instructions"
 #            and "mcp" entries live in the target file without ever reaching the
@@ -58,8 +61,9 @@ HEADER = """\
 // MERGED, NOT OVERWRITTEN. chezmoi maintains this file through the modify_
 // script home/dot_config/opencode/modify_opencode.jsonc.tmpl. It owns only the
 // header above, "$schema", marked V2 plugin registrations, agent colors,
-// Ricer's subagent mode, and Plan handoff permissions on every apply;
-// every other top-level key is copied through verbatim, comments included.
+// Ricer's subagent mode, Plan handoff permissions, and worktree.directory on
+// every apply; every other top-level key is copied through verbatim, comments
+// included.
 // Add local plugins after dotfiles:plugins:end. Their order, options, and
 // comments survive applies; later -plugin-id controls can disable managed plugins.
 // Machine-local keys ("instructions", "mcp", host-specific subagents) belong
@@ -67,8 +71,8 @@ HEADER = """\
 //
 // Native "permissions" are seeded once so a new machine is not unguarded. The
 // exact retired seed is migrated automatically; customized policies are yours
-// except the managed OpenViking and Claude/Agent state allows plus generic
-// hook/Git rule migrations.
+// except the managed OpenViking, Claude/Agent state, and agent workspace allows
+// plus generic hook/Git rule migrations.
 // experimental.location_idle_timeout is seeded to false when absent; local
 // durations and other experimental settings survive subsequent applies.
 //
@@ -82,11 +86,22 @@ SEED_EXPERIMENTAL = '  "experimental": {"location_idle_timeout": false}'
 
 BUILD_COLOR = "{{ $p.colors.green }}"
 PLAN_COLOR = "{{ $p.colors.blue }}"
-# The agent-notes root (data.agentsDir, default $HOME/agents) as a literal
-# absolute path from the shared dotfiles-dir template. Its character whitelist
-# excludes quotes, backslashes, and the glob characters * ? [ ], so the value is
-# safe inside this Python string and inside a permission resource pattern.
+# The agent workspace root (data.agentsDir, default $HOME/agents) and the
+# worktrees folder (data.worktreesDir, default $HOME/worktrees) as literal
+# absolute paths from the shared dotfiles-dir template. Its character whitelist
+# excludes quotes, backslashes, and the glob characters * ? [ ], so the values
+# are safe inside these Python strings and inside a permission resource pattern.
 AGENTS_DIR = {{ includeTemplate "dotfiles-dir" (dict "home" .chezmoi.homeDir "key" "agentsDir" "value" (dig "agentsDir" "" .) "default" "agents") | quote }}
+WORKTREES_DIR = {{ includeTemplate "dotfiles-dir" (dict "home" .chezmoi.homeDir "key" "worktreesDir" "value" (dig "worktreesDir" "" .) "default" "worktrees") | quote }}
+# OpenCode V2 creates its own worktrees (TUI "New worktree", the worktree tools)
+# under worktree.directory plus the requested or generated name; without it they
+# land in its data directory under worktree/<project id prefix>. Point it at the
+# dotfiles worktrees folder. A project-level opencode.jsonc still overrides it.
+WORKTREE_MEMBER = '"directory": "%s"' % WORKTREES_DIR
+SEED_WORKTREE = '  "worktree": {%s}' % WORKTREE_MEMBER
+# The agent workspace subdirectories the global instructions send agents to:
+# reusable scripts, agent-installed tools, and throwaway scratch work.
+AGENT_WORKSPACE_SUBDIRS = ("scripts", "tools", "scratch")
 PLAN_HANDOFF_RULES = (
     '{ "action": "external_directory", "resource": "$HOME/.local/share/agent-handoffs/*", "effect": "allow" }',
     '{ "action": "edit", "resource": "$HOME/.local/share/agent-handoffs/*", "effect": "deny" }',
@@ -97,6 +112,15 @@ PLAN_HANDOFF_RULES = (
     '{ "action": "external_directory", "resource": "%s/plans/*", "effect": "allow" }' % AGENTS_DIR,
     '{ "action": "edit", "resource": "%s/plans/*", "effect": "deny" }' % AGENTS_DIR,
     '{ "action": "edit", "resource": "%s/plans/*/*-handoff-????-??-??.md", "effect": "allow" }' % AGENTS_DIR,
+) + tuple(
+    # OpenCode appends the global rules after Plan's built-in edit denial, so the
+    # global workspace allows below would otherwise make Plan writable there.
+    # Plan reads these subdirectories like plans/ and never edits them.
+    rule % (AGENTS_DIR, subdir)
+    for subdir in AGENT_WORKSPACE_SUBDIRS
+    for rule in ('{ "action": "external_directory", "resource": "%s/%s/*", "effect": "allow" }',
+                 '{ "action": "edit", "resource": "%s/%s/*", "effect": "deny" }')
+) + (
     '{ "action": "external_directory", "resource": "$HOME/.local/share/agent-skills/handoff/scripts/*", "effect": "allow" }',
     '{ "action": "edit", "resource": "*.env", "effect": "deny" }',
     '{ "action": "edit", "resource": "*.env.*", "effect": "deny" }',
@@ -121,6 +145,19 @@ AGENT_STATE_RULES = (
 )
 AGENT_STATE_RULES_START = "// dotfiles:agent-state-permissions:start"
 AGENT_STATE_RULES_END = "// dotfiles:agent-state-permissions:end"
+# Global rules for the agent workspace subdirectories. Like the Plan handoff
+# roots, each gets an external-directory allow and an edit allow, so writing a
+# script, tool record, or scratch file prompts no more than a Plan handoff does;
+# the secret-file denials that follow still win, and Plan's own block above
+# denies these edits again. The rest of the workspace is not widened.
+AGENT_WORKSPACE_RULES = tuple(
+    rule % (AGENTS_DIR, subdir)
+    for subdir in AGENT_WORKSPACE_SUBDIRS
+    for rule in ('{ "action": "external_directory", "resource": "%s/%s/*", "effect": "allow" }',
+                 '{ "action": "edit", "resource": "%s/%s/*", "effect": "allow" }')
+)
+AGENT_WORKSPACE_RULES_START = "// dotfiles:agent-workspace-permissions:start"
+AGENT_WORKSPACE_RULES_END = "// dotfiles:agent-workspace-permissions:end"
 AGENT_STATE_DENIALS = (
     '{ "action": "edit", "resource": "*.env", "effect": "deny" }',
     '{ "action": "edit", "resource": "*.env.*", "effect": "deny" }',
@@ -993,6 +1030,7 @@ def merge_openviking_permissions(block):
     end = array_close(wrapped, start)
     body = wrapped[start + 1:end]
     for first_marker, last_marker in ((AGENT_STATE_RULES_START, AGENT_STATE_RULES_END),
+                                      (AGENT_WORKSPACE_RULES_START, AGENT_WORKSPACE_RULES_END),
                                       (AGENT_STATE_DENIALS_START, AGENT_STATE_DENIALS_END),
                                       (CAVEMAN_RULES_START, CAVEMAN_RULES_END),
                                       (OPENVIKING_RULES_START, OPENVIKING_RULES_END)):
@@ -1010,6 +1048,9 @@ def merge_openviking_permissions(block):
     owned = [indent + AGENT_STATE_RULES_START]
     owned.extend(indent + rule + "," for rule in AGENT_STATE_RULES)
     owned.extend([indent + AGENT_STATE_RULES_END,
+                  indent + AGENT_WORKSPACE_RULES_START])
+    owned.extend(indent + rule + "," for rule in AGENT_WORKSPACE_RULES)
+    owned.extend([indent + AGENT_WORKSPACE_RULES_END,
                   indent + AGENT_STATE_DENIALS_START])
     owned.extend(indent + rule + "," for rule in AGENT_STATE_DENIALS)
     owned.extend([indent + AGENT_STATE_DENIALS_END,
@@ -1048,6 +1089,30 @@ def seed_mcp(block):
                 server_block = insert_object_member(server_block, open_server, close_server, server_entries, value)
         mcp = mcp[:offset] + server_block + mcp[servers["end"]:]
     return (wrapped[:start] + mcp + wrapped[entry["end"]:])[2:-2]
+
+
+def merge_worktree(block):
+    """Point worktree.directory at data.worktreesDir; keep the other members."""
+    wrapped = "{\n" + block + "\n}"
+    _, _, entries = scan(wrapped)
+    entry = next(item for item in entries if item["name"] == "worktree")
+    start = entry_value_start(wrapped, entry)
+    if wrapped[start] != "{":
+        raise ValueError("worktree is not an object")
+    value = wrapped[start:entry["end"]]
+    opening, closing, members = scan(value)
+    if opening is None or closing is None:
+        raise ValueError("worktree object is incomplete")
+    directory = next((item for item in members if item["name"] == "directory"), None)
+    if directory is None:
+        value = insert_object_member(value, opening, closing, members, WORKTREE_MEMBER)
+    else:
+        field_start = entry_value_start(value, directory)
+        if value[field_start] != '"':
+            raise ValueError("worktree.directory is not a string")
+        field_end = string_token_end(value, field_start)
+        value = value[:field_start] + '"%s"' % WORKTREES_DIR + value[field_end:]
+    return (wrapped[:start] + value + wrapped[entry["end"]:])[2:-2]
 
 
 def seed_experimental(block):
@@ -1118,7 +1183,7 @@ def emit(s):
 # Empty stdin means the target does not exist yet: emit the full generic file,
 # native permissions included.
 if not text.strip():
-    kept = [SEED_EXPERIMENTAL]
+    kept = [SEED_EXPERIMENTAL + ",", SEED_WORKTREE]
     if MCP_SELECTED:
         set_trailing_comma(kept, True)
         kept.append('  "mcp": {"servers": {' + ', '.join(value for _, value in MCP_ENTRIES) + '}}')
@@ -1324,6 +1389,20 @@ if experimental_entry is None:
     if kept:
         set_trailing_comma(kept, True)
     kept.append(SEED_EXPERIMENTAL)
+
+worktree_entry = next((item for item in entries if item["name"] == "worktree"), None)
+if worktree_entry is None:
+    if kept:
+        set_trailing_comma(kept, True)
+    kept.append(SEED_WORKTREE)
+else:
+    first, last = entry_span(worktree_entry)
+    original = "\n".join(lines[first:last + 1])
+    try:
+        updated = merge_worktree(original)
+    except ValueError as exc:
+        passthrough("cannot set worktree.directory: %s" % exc)
+    kept = "\n".join(kept).replace(original, updated, 1).split("\n")
 
 seed = None
 if not has_native_permissions and not has_custom_legacy_permission:

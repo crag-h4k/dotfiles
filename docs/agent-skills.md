@@ -156,9 +156,10 @@ can be edited for save or close, not project files.
 With `ai > opencode` selected, the managed Plan permissions allow edits to
 `<Project>/<slug>-handoff-<YYYY-MM-DD>.md` under three roots:
 `~/.local/share/agent-handoffs/`, `/opt/ai/handoffs/`, and `<agentsDir>/plans/`,
-where `<agentsDir>` is `data.agentsDir` (default `$HOME/agents`) rendered as a
-literal absolute path. Sensitive file suffixes and other filenames are denied
-inside those roots. Review any later private Plan rules before relying on that
+where `<agentsDir>` is `data.agentsDir` (default `$HOME/agents`), the agent
+workspace, rendered as a literal absolute path. Sensitive file suffixes and other
+filenames are denied inside those roots. Plan may read the workspace's
+`scripts/`, `tools/`, and `scratch/` folders but not edit them. Review any later private Plan rules before relying on that
 boundary. The rules also allow external access to the installed handoff snapshot
 script. For a different root, configure a narrow private rule. The permission
 rule does not choose or create a root. A higher-priority harness policy can still

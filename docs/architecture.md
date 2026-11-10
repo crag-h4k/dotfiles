@@ -164,13 +164,14 @@ dirty the dotfiles repository. See [Neovim tooling](neovim.md) for the full spli
 | `home/dot_gitconfig` | `~/.gitconfig` | shared Git behavior and credential helpers; gated on `git > config` |
 | `home/dot_gitconfig` | `~/.gitconfig` | generic settings only; includes the unmanaged `~/.gitconfig.override` last and sets `user.useConfigOnly` |
 | `home/dot_gitignore_global` | `~/.gitignore_global` | global ignore patterns; gated on `git > ignore_global` (on by default) |
-| `home/.chezmoi.toml.tmpl` | `~/.config/chezmoi/chezmoi.toml` | prompts for components, palette, and install mode before apply; with AI selected, its `directories` checkbox opens one editor for `worktreesDir` and `agentsDir`, which are persisted either way |
+| `home/.chezmoi.toml.tmpl` | `~/.config/chezmoi/chezmoi.toml` | prompts for components, palette, and install mode before apply; the Git page's `worktrees` checkbox and the AI page's `workspace` checkbox each open one editor, for `worktreesDir` and `agentsDir`, which are persisted either way |
 | `home/.chezmoitemplates/dotfiles-dir` | (shared template) | expands and validates `worktreesDir` and `agentsDir` for the config, `~/.zshenv`, the directory script, and the Plan handoff rules; check mode lets the init editor ask again and refuses text that could not be shown safely |
 | `home/.chezmoiignore` | (templated) | ignores an off component's (or sub-feature's) target paths |
 | `home/.chezmoiexternal.toml` | (templated externals) | plugins gated by `.components.zsh` / `.components.tmux` |
 | `home/.chezmoiscripts/run_before_00-backup.sh` | apply hook | snapshots existing targets before changes |
 | `home/.chezmoiscripts/run_after_00-install.sh.tmpl` | apply hook | checks selected packages on every package-mode apply |
-| `home/.chezmoiscripts/run_after_02-ensure-dirs.sh.tmpl` | apply hook | creates the worktrees directory, and the agent-notes directory when an AI sub-feature is selected; warns instead of using sudo |
+| `home/.chezmoiscripts/run_after_02-ensure-dirs.sh.tmpl` | apply hook | creates the worktrees folder, and the agent workspace with its `plans/`, `specs/`, `drafts/`, `scripts/`, `tools/`, `scratch/`, and private `tmp/` folders when an AI sub-feature is selected; never moves or deletes; warns instead of using sudo |
+| `home/dot_local/bin/executable_git-wt` | `~/.local/bin/git-wt` | `git wt`: flat `<worktreesDir>/<repo>-<slug>` worktrees; gated on the `git` component |
 
 Repository-only lint policy lives under `config/linters/`: `gitleaks.toml`,
 `luacheckrc`, `markdownlint.yaml`, and `stylua.toml`.

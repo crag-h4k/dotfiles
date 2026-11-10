@@ -294,7 +294,7 @@ AGENTS_WITH_BUILTIN_FIELDS = """\
 
 def test_empty_stdin_seeds_a_complete_generic_file(script):
     out, _ = merge(script, "")
-    assert strict_json_keys(out) == ["$schema", "agents", "experimental", "mcp", "permissions", "plugins"]
+    assert strict_json_keys(out) == ["$schema", "agents", "experimental", "mcp", "permissions", "plugins", "worktree"]
     d = parse(out)
     assert d["$schema"] == "https://opencode.ai/config.json"
     assert set(d["agents"]) == {"build", "plan", "ricer"}
@@ -688,13 +688,13 @@ def test_malformed_plan_permissions_are_not_overwritten(script):
     assert "plan permissions is not an array" in err
 
 
-# --- Plan handoff rules for the agent-notes directory ----------------------
+# --- Plan handoff rules for the agent workspace -----------------------------
 
 PLAN_START = "// dotfiles:plan-handoff:start"
 PLAN_END = "// dotfiles:plan-handoff:end"
 
 # The managed block as an earlier release rendered it: the two fixed roots, the
-# snapshot script, and the secret denials, with no agent-notes rules.
+# snapshot script, and the secret denials, with no agent workspace rules.
 OLDER_PLAN_RULES = (
     '{ "action": "external_directory", "resource": "$HOME/.local/share/agent-handoffs/*", "effect": "allow" }',
     '{ "action": "edit", "resource": "$HOME/.local/share/agent-handoffs/*", "effect": "deny" }',
@@ -748,14 +748,43 @@ def render_with_agents_dir(tmp_path_factory, agents_dir=None):
     return str(path), str(home)
 
 
+WORKSPACE_START = "// dotfiles:agent-workspace-permissions:start"
+WORKSPACE_END = "// dotfiles:agent-workspace-permissions:end"
+
+
+def assert_agent_workspace_subdirs(out: str, notes: str):
+    """Build and the other non-Plan agents write scripts, tools, and scratch work
+    in the workspace without a prompt; secrets stay denied; Plan stays read-only;
+    nothing else in the workspace is widened."""
+    d = parse(out)
+    rules = d["permissions"]
+    plan = rules + d["agents"]["plan"]["permissions"]
+    for sub in ("scripts", "tools", "scratch"):
+        assert permission_effect(rules, "external_directory", "%s/%s/*" % (notes, sub)) == "allow"
+        assert permission_effect(rules, "edit", "%s/%s/deep/name.sh" % (notes, sub)) == "allow"
+        for name in ("secret.key", "secret.pem", "secret.env", "secret.env.local"):
+            assert permission_effect(rules, "edit", "%s/%s/%s" % (notes, sub, name)) == "deny"
+    for other in ("specs/Dotfiles.md", "drafts/a.md", "plans/x/y.md", "tmp/x", "README.md"):
+        assert permission_effect(rules, "edit", notes + "/" + other) != "allow"
+    # The managed block sits inside the global policy, before the secret denials.
+    assert out.count(WORKSPACE_START) == 1 and out.count(WORKSPACE_END) == 1
+    assert out.index(WORKSPACE_END) < out.index("// dotfiles:agent-state-secret-denials:start")
+    # OpenCode applies Plan's built-in edit denial first and then appends the
+    # global rules, so Plan's own block must deny these edits again; Plan can
+    # still read them without an external-directory prompt.
+    for sub in ("scripts", "tools", "scratch"):
+        assert permission_effect(plan, "external_directory", "%s/%s/*" % (notes, sub)) == "allow"
+        assert permission_effect(plan, "edit", "%s/%s/deep/name.sh" % (notes, sub)) == "deny"
+
+
 def plan_block_resources(out: str) -> list[str]:
     """Resources inside the managed marker block, in order."""
     block = out.split(PLAN_START, 1)[1].split(PLAN_END, 1)[0]
     return re.findall(r'"resource": "([^"]*)"', block)
 
 
-def assert_agent_notes_boundary(out: str, notes: str):
-    """The agent-notes handoff rules behave like the two fixed roots."""
+def assert_agent_workspace_boundary(out: str, notes: str):
+    """The agent workspace handoff rules behave like the two fixed roots."""
     d = parse(out)
     effective = d["permissions"] + d["agents"]["plan"]["permissions"]
     plans = notes + "/plans/"
@@ -765,19 +794,25 @@ def assert_agent_notes_boundary(out: str, notes: str):
     for name in ("secret.key", "secret.pem", "secret.env", "secret.env.local",
                  "secret.env.backup-handoff-2026-10-20.md"):
         assert permission_effect(effective, "edit", plans + "Dotfiles/" + name) == "deny"
-    # Only the plans subtree is writable; the rest of the notes tree is not.
-    for other in ("specs/Dotfiles.md", "drafts/note-handoff-2026-10-20.md", "memory/MEMORY.md"):
+    # Only the plans subtree is writable; the rest of the workspace is not.
+    for other in ("specs/Dotfiles.md", "drafts/note-handoff-2026-10-20.md", "memory/MEMORY.md",
+                  "scripts/probe.sh", "tools/README.md", "scratch/notes.md", "tmp/x"):
         assert permission_effect(effective, "edit", notes + "/" + other) != "allow"
-    # The new rules live in Plan only, not in the global native policy.
-    assert not any(notes in rule["resource"] for rule in d["permissions"])
+    # The handoff rules live in Plan only. The global native policy names the
+    # workspace only in its scripts, tools, and scratch allows.
+    workspace = tuple(notes + "/" + sub + "/*" for sub in ("scripts", "tools", "scratch"))
+    assert all(rule["resource"] in workspace
+               for rule in d["permissions"] if notes in rule["resource"])
+    assert_agent_workspace_subdirs(out, notes)
 
 
-def test_plan_handoff_rules_cover_the_default_agent_notes_plans(tmp_path_factory):
+def test_plan_handoff_rules_cover_the_default_agent_workspace_plans(tmp_path_factory):
     script, home = render_with_agents_dir(tmp_path_factory)
     out, _ = merge(script, "")
-    assert_agent_notes_boundary(out, home + "/agents")
+    assert_agent_workspace_boundary(out, home + "/agents")
     resources = plan_block_resources(out)
-    # Two fixed roots first, then agentsDir/plans, then the snapshot script, then
+    # Two fixed roots first, then agentsDir/plans, then Plan's read-only view of
+    # the workspace scripts, tools, and scratch, then the snapshot script, then
     # the secret denials last.
     assert resources == [
         "$HOME/.local/share/agent-handoffs/*",
@@ -789,6 +824,12 @@ def test_plan_handoff_rules_cover_the_default_agent_notes_plans(tmp_path_factory
         home + "/agents/plans/*",
         home + "/agents/plans/*",
         home + "/agents/plans/*/*-handoff-????-??-??.md",
+        home + "/agents/scripts/*",
+        home + "/agents/scripts/*",
+        home + "/agents/tools/*",
+        home + "/agents/tools/*",
+        home + "/agents/scratch/*",
+        home + "/agents/scratch/*",
         "$HOME/.local/share/agent-skills/handoff/scripts/*",
         "*.env", "*.env.*", "*.pem", "*.key",
     ]
@@ -812,7 +853,7 @@ def test_plan_handoff_rules_follow_a_custom_agents_dir(tmp_path_factory, configu
     script, home = render_with_agents_dir(tmp_path_factory, configured)
     out, _ = merge(script, "")
     notes = expected.format(home=home)
-    assert_agent_notes_boundary(out, notes)
+    assert_agent_workspace_boundary(out, notes)
     resources = plan_block_resources(out)
     assert notes + "/plans/*" in resources
     # The default location is not granted when another one is configured.
@@ -823,7 +864,7 @@ def test_plan_handoff_rules_handle_a_path_with_a_space(tmp_path_factory):
     script, home = render_with_agents_dir(tmp_path_factory, "~/my notes/a@b+c%d")
     notes = home + "/my notes/a@b+c%d"
     out, _ = merge(script, "")
-    assert_agent_notes_boundary(out, notes)
+    assert_agent_workspace_boundary(out, notes)
     assert notes + "/plans/*/*-handoff-????-??-??.md" in plan_block_resources(out)
     # The merge script is plain Python: a space or percent sign must not break it.
     compile(Path(script).read_text(), script, "exec")
@@ -865,7 +906,7 @@ def test_plan_handoff_block_regenerates_over_an_older_block(tmp_path_factory):
     assert not err
     assert out.count(PLAN_START) == 1 and out.count(PLAN_END) == 1
     assert plan_block_resources(out).count("/srv/notes/plans/*") == 2
-    assert_agent_notes_boundary(out, "/srv/notes")
+    assert_agent_workspace_boundary(out, "/srv/notes")
     # The older block's exact rules are still present once, not duplicated.
     assert plan_block_resources(out).count("/opt/ai/handoffs/*") == 2
     rules = parse(out)["agents"]["plan"]["permissions"]
@@ -882,7 +923,7 @@ def test_plan_handoff_block_follows_a_changed_agents_dir(tmp_path_factory):
     second, _ = merge(new_script, first)
     assert out_has_single_block(second)
     assert "/srv/old-notes" not in second
-    assert_agent_notes_boundary(second, "/srv/new-notes")
+    assert_agent_workspace_boundary(second, "/srv/new-notes")
     assert merge(new_script, second)[0] == second
 
 
@@ -924,7 +965,7 @@ def test_plan_handoff_regeneration_preserves_everything_outside_the_markers(tmp_
         assert comment in out
     rules = d["agents"]["plan"]["permissions"]
     assert rules[0] == {"action": "edit", "resource": "/private/notes/*", "effect": "allow"}
-    assert_agent_notes_boundary(out, home + "/agents")
+    assert_agent_workspace_boundary(out, home + "/agents")
     assert merge(script, out)[0] == out
 
 
@@ -1374,7 +1415,7 @@ def test_trailing_comma_is_fixed_when_an_owned_key_was_last(script):
         '  "plugin": [\n    "stale@0.0.1"\n  ]\n}\n'
     )
     out, _ = merge(script, src)
-    assert strict_json_keys(out) == ["$schema", "agents", "experimental", "mcp", "permission", "plugins"]
+    assert strict_json_keys(out) == ["$schema", "agents", "experimental", "mcp", "permission", "plugins", "worktree"]
 
 
 # --- idempotence ------------------------------------------------------------
@@ -1453,3 +1494,106 @@ def test_no_work_specific_content_in_public_opencode_merge_template():
         assert not re.search(pattern, body), (
             f"{label} in public source, matched /{pattern}/"
         )
+
+
+# --- Agent workspace permissions and OpenCode's worktree folder ------------------
+
+def render_with_dirs(tmp_path_factory, **data):
+    """Render the merge script with the given [data] directory keys under a
+    disposable HOME. Returns (script_path, home)."""
+    directory = tmp_path_factory.mktemp("opencode-dirs")
+    home = directory / "home"
+    home.mkdir()
+    config = directory / "chezmoi.toml"
+    lines = "".join('%s = "%s"\n' % item for item in data.items())
+    config.write_text(
+        '[data]\npalette = "dracula"\n%s[data.components.ai]\nopencode = true\nopenviking = false\n' % lines
+    )
+    out = subprocess.run(
+        ["chezmoi", "execute-template", "--source", str(REPO), "--config", str(config)],
+        stdin=TMPL.open(), capture_output=True, text=True, check=True,
+        env=dict(os.environ, HOME=str(home)),
+    ).stdout
+    path = directory / "merge.py"
+    path.write_text(out)
+    return str(path), str(home)
+
+
+def test_workspace_rules_reach_an_existing_native_policy(tmp_path_factory):
+    script, home = render_with_dirs(tmp_path_factory, agentsDir="/srv/agents")
+    src = '{\n  "permissions": [\n    { "action": "*", "resource": "*", "effect": "ask" }\n  ]\n}\n'
+    out, err = merge(script, src)
+    assert not err
+    assert_agent_workspace_subdirs(out, "/srv/agents")
+    assert merge(script, out)[0] == out
+
+
+def test_workspace_rules_follow_a_changed_agents_dir(tmp_path_factory):
+    old_script, _ = render_with_dirs(tmp_path_factory, agentsDir="/srv/old-agents")
+    new_script, _ = render_with_dirs(tmp_path_factory, agentsDir="/srv/new-agents")
+    first, _ = merge(old_script, "")
+    second, err = merge(new_script, first)
+    assert not err
+    assert "/srv/old-agents" not in second
+    assert_agent_workspace_subdirs(second, "/srv/new-agents")
+    assert merge(new_script, second)[0] == second
+
+
+@pytest.mark.parametrize("configured, expected", [
+    (None, "{home}/worktrees"),
+    ("~/src/worktrees/", "{home}/src/worktrees"),
+    ("/srv/wt", "/srv/wt"),
+])
+def test_fresh_file_points_opencode_worktrees_at_worktrees_dir(tmp_path_factory, configured, expected):
+    data = {} if configured is None else {"worktreesDir": configured}
+    script, home = render_with_dirs(tmp_path_factory, **data)
+    out, _ = merge(script, "")
+    assert parse(out)["worktree"] == {"directory": expected.format(home=home)}
+    assert merge(script, out)[0] == out
+
+
+def test_worktree_directory_is_reasserted_and_other_members_survive(tmp_path_factory):
+    script, home = render_with_dirs(tmp_path_factory, worktreesDir="/srv/wt")
+    src = '''\
+{
+  // Local note about worktrees stays with its key.
+  "worktree": {
+    "directory": "../trees", // inline note survives
+    "future": { "keep": true }
+  },
+  "model": "local/model"
+}
+'''
+    out, err = merge(script, src)
+    assert not err
+    d = parse(out)
+    assert d["worktree"] == {"directory": "/srv/wt", "future": {"keep": True}}
+    assert d["model"] == "local/model"
+    assert "// Local note about worktrees stays with its key." in out
+    assert "// inline note survives" in out
+    assert out.count('"worktree"') == 1
+    assert merge(script, out)[0] == out
+
+    # A worktree object without a directory gains one; nothing else moves.
+    out, err = merge(script, '{\n  "worktree": { "future": 1 }\n}\n')
+    assert not err
+    assert parse(out)["worktree"] == {"directory": "/srv/wt", "future": 1}
+
+
+def test_worktree_directory_follows_a_changed_worktrees_dir(tmp_path_factory):
+    old_script, _ = render_with_dirs(tmp_path_factory, worktreesDir="/srv/old-wt")
+    new_script, _ = render_with_dirs(tmp_path_factory, worktreesDir="/srv/new-wt")
+    first, _ = merge(old_script, "")
+    second, _ = merge(new_script, first)
+    assert parse(second)["worktree"]["directory"] == "/srv/new-wt"
+    assert "/srv/old-wt" not in second
+
+
+@pytest.mark.parametrize("src, reason", [
+    ('{\n  "worktree": "../trees"\n}\n', "worktree is not an object"),
+    ('{\n  "worktree": { "directory": 7 }\n}\n', "worktree.directory is not a string"),
+])
+def test_malformed_worktree_settings_are_left_alone(script, src, reason):
+    out, err = merge(script, src)
+    assert out == src
+    assert reason in err

@@ -35,14 +35,20 @@ authoring inputs live outside it. Read `docs/architecture.md` and
 - `worktreesDir` and `agentsDir` are data keys whose saved values win on re-init;
   the `DOTFILES_WORKTREES_DIR` and `DOTFILES_AGENTS_DIR` env vars only seed a first
   init. Resolve them through `.chezmoitemplates/dotfiles-dir` with `dig` defaults so
-  old configs keep rendering. Init offers a `directories` entry on the AI page
-  (an init-time action: unchecked by default, outside `[data.components.ai]` and
-  `aiSelection`). Unchecked asks nothing; checked opens one editor with both paths,
-  pre-filled (saved, then env seed, then default). `DOTFILES_NO_TUI`, no usable
-  terminal, `cup`, `all+`, and an unselected AI component never offer it, and `apply`
-  never prompts. Pass user text to shell commands as positional parameters. Apply creates the directories but never runs sudo; it prints the
-  privileged command instead. Existing worktrees and notes are not moved. Plan's
-  handoff permissions follow `agentsDir` through the same template.
+  old configs keep rendering. `agentsDir` is the agent workspace (plans, specs,
+  drafts, scripts, tools, scratch, tmp); `~/.agents` stays the fixed harness root.
+  Init offers one init-time action per folder, number `10` on its page: `worktrees`
+  on the Git page and `workspace` on the AI page (unchecked by default, outside
+  `[data.components.*]` and the saved selections). Unchecked asks nothing; checked
+  opens one editor for that path right after its page, pre-filled (saved, then env
+  seed, then default). `DOTFILES_NO_TUI`, no usable terminal, `cup`, `all+`, and an
+  unselected parent never offer it, and `apply` never prompts. Pass user text to
+  shell commands as positional parameters. Apply creates the folders but never
+  runs sudo; it prints the privileged command instead. Existing worktrees and
+  workspace content are not moved or deleted. Plan's handoff permissions, the
+  workspace permissions, the global OpenCode workspace rule, and OpenCode's
+  `worktree.directory` follow these keys through the same template; the
+  `opencode2` wrapper reads `DOTFILES_AGENTS_DIR` for its `TMPDIR`.
 - Keep Lazy's lockfile, downloaded plugins, OpenCode runtime links and npm state,
   caches, transcripts, and authentication unmanaged. Chezmoi declares desired
   configuration; application/package managers own their local runtime state.
