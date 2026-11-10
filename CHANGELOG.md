@@ -1,5 +1,14 @@
 # Changelog
 
+## [1.7.0](https://github.com/crag-h4k/dotfiles/compare/v1.6.0...v1.7.0) (2026-11-10)
+
+
+### Features
+
+* **ghostty:** make left Option act as Alt on macOS for word keys ([#157](https://github.com/crag-h4k/dotfiles/issues/157)) ([e142fe6](https://github.com/crag-h4k/dotfiles/commit/e142fe6e10d5118a0600c19e3ec00b97d77f07f9))
+* **ghostty:** start Ghostty at login on macOS for the quick-terminal… ([#155](https://github.com/crag-h4k/dotfiles/issues/155)) ([fe61495](https://github.com/crag-h4k/dotfiles/commit/fe61495628d93dc3ac20ac3aec4634f9fe5ad7ea))
+* **init:** add agent workspace and worktree folder prompts with git wt ([#158](https://github.com/crag-h4k/dotfiles/issues/158)) ([8257157](https://github.com/crag-h4k/dotfiles/commit/8257157d95ed9303dfb63328c20d9d8fc0bf380f))
+
 ## [1.6.0](https://github.com/crag-h4k/dotfiles/compare/v1.5.1...v1.6.0) (2026-11-04)
 
 
