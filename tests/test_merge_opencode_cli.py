@@ -800,3 +800,53 @@ def test_chezmoi_prompt_keys_reach_an_existing_host_and_a_user_choice_stays(sand
     assert keys["input.submit"] == PROMPT_KEYS["input.submit"]
     assert keys["input.newline"] == "ctrl+j"
     assert sandbox.chezmoi(sandbox.merge_source, "diff").stdout == ""
+
+
+# ---- Option word keys: OpenCode's native defaults, never seeded ----------------
+# OpenCode already binds Option word movement and deletion (2.2.5: alt+b/f/d,
+# alt+left/right, alt+backspace, alt+delete). The merge leaves these ids alone so
+# a later upstream default still reaches every host, and a user's value stays.
+# Ghostty's macos-option-as-alt = left is what makes Option+B/F/D arrive as Alt.
+WORD_KEYS = (
+    "input.word.backward",
+    "input.word.forward",
+    "input.delete.word.backward",
+    "input.delete.word.forward",
+)
+OPTION_WORD_CHORDS = {
+    "alt+b", "alt+f", "alt+d", "alt+left", "alt+right", "alt+backspace", "alt+delete",
+}
+
+
+def _canonical(chord):
+    """Spell Option and Meta as Alt, so a synonym cannot sneak past the check."""
+    *mods, key = chord.strip().lower().split("+")
+    folded = {"alt" if mod in ("option", "opt", "meta") else mod for mod in mods}
+    return "+".join([*sorted(folded), key])
+
+
+def test_option_word_keys_stay_on_native_defaults(script):
+    keys = merge(script, {})["keybinds"]
+    for action in WORD_KEYS:
+        assert action not in keys, f"{action} is left to OpenCode's native default"
+    # No managed keybind may take an Option or Alt word chord away from the
+    # composer, however the chord is spelled. The merge is not OS-gated, so this
+    # holds on macOS and Linux alike.
+    managed = {_canonical(chord) for value in keys.values() if isinstance(value, str)
+               for chord in value.split(",")}
+    assert managed.isdisjoint(OPTION_WORD_CHORDS)
+
+
+def test_canonical_chord_folds_option_and_meta_into_alt():
+    assert _canonical("option+b") == "alt+b"
+    assert _canonical("Meta+Left") == "alt+left"
+    assert _canonical("ctrl+opt+b") == "alt+ctrl+b"
+    assert _canonical("alt+b") == "alt+b"
+
+
+@pytest.mark.parametrize("action", WORD_KEYS)
+@pytest.mark.parametrize("binding", ["ctrl+left", "none", ["alt+b", "ctrl+left"]])
+def test_option_word_keys_a_user_set_are_kept(script, action, binding):
+    once = merge(script, {"keybinds": {action: binding}})
+    assert once["keybinds"][action] == binding
+    assert merge(script, once) == once

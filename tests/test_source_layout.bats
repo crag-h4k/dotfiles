@@ -107,6 +107,89 @@ SOURCE_ROOT="$REPO_ROOT/home"
   done
 }
 
+# ---- Option and Alt word keys work on every OS ---------------------------------
+@test "Ghostty makes both Option keys Alt on macOS, leaves Linux alone, and never binds an Alt word chord" {
+  local config="${BATS_TEST_TMPDIR}/chezmoi.toml" xdg="${BATS_TEST_TMPDIR}/xdg" os
+  local template="$SOURCE_ROOT/dot_config/ghostty/config.tmpl" settings
+  printf '[data]\n' > "$config"
+  mkdir -p "$xdg/ghostty/themes" "${BATS_TEST_TMPDIR}/home"
+  chezmoi execute-template --source "$REPO_ROOT" --config "$config" \
+    < "$SOURCE_ROOT/dot_config/ghostty/themes/dotfiles.conf.tmpl" > "$xdg/ghostty/themes/dotfiles.conf"
+
+  for os in darwin linux; do
+    run chezmoi execute-template --source "$REPO_ROOT" --config "$config" \
+      --override-data "{\"chezmoi\":{\"os\":\"$os\"}}" < "$template"
+    [ "$status" -eq 0 ]
+    printf '%s\n' "$output" > "$xdg/ghostty/config"
+    settings="$(grep -E '^[[:space:]]*macos-option-as-alt[[:space:]]*=' "$xdg/ghostty/config" || true)"
+    if [ "$os" = darwin ]; then
+      # Exactly one setting, and it is `true`: either Option key is Alt, whatever
+      # the keyboard layout. Ghostty's own default is layout-dependent.
+      [ "$settings" = "macos-option-as-alt = true" ]
+    else
+      # Alt is already Alt on Linux; a stray remap would only get in the way.
+      [ -z "$settings" ]
+    fi
+
+    # The word chords (Alt+B/F/D, Alt+Left/Right, Alt+Backspace/Delete) must
+    # reach the program, so no Ghostty keybind may claim an Alt or Option chord.
+    run grep -Eiq '^[[:space:]]*keybind[[:space:]]*=.*(alt|option)\+' "$xdg/ghostty/config"
+    [ "$status" -eq 1 ]
+
+    if command -v ghostty >/dev/null 2>&1; then
+      run env XDG_CONFIG_HOME="$xdg" HOME="${BATS_TEST_TMPDIR}/home" \
+        ghostty +validate-config --config-file="$xdg/ghostty/config"
+      [ "$status" -eq 0 ]
+    fi
+  done
+}
+
+@test "zsh binds the Alt word chords that iTerm2 and Linux terminals send" {
+  local zshrc="$SOURCE_ROOT/dot_zshrc" block
+  # Pull the commented block out of the real zshrc, so the test breaks if it moves
+  # or loses a line, and run it in a bare zsh that reads no startup files. An
+  # interactive zsh starts on the emacs keymap, so select it the same way.
+  block="$(awk '/^# Alt and Option word keys\./{on=1} on&&/^$/{exit} on' "$zshrc")"
+  [ -n "$block" ]
+  run zsh -f -c "bindkey -e"$'\n'"$block"$'\n''bindkey'
+  [ "$status" -eq 0 ]
+  # Alt+Left, Alt+Right, and Alt+Delete as xterm sends them, on top of the
+  # ESC b and ESC f that zsh binds by default.
+  [[ "$output" == *'"^[[1;3D" backward-word'* ]]
+  [[ "$output" == *'"^[[1;3C" forward-word'* ]]
+  [[ "$output" == *'"^[[3;3~" kill-word'* ]]
+  [[ "$output" == *'"^[b" backward-word'* ]]
+  [[ "$output" == *'"^[f" forward-word'* ]]
+}
+
+@test "iTerm2 profiles send Esc+ from both Option keys and treat Option as Alt for arrows" {
+  local config="${BATS_TEST_TMPDIR}/chezmoi.toml"
+  printf '[data]\n' > "$config"
+  run chezmoi execute-template --source "$REPO_ROOT" --config "$config" \
+    --override-data '{"chezmoi":{"os":"darwin"}}' < "$SOURCE_ROOT/dot_config/iterm2/dotfiles.json.tmpl"
+  [ "$status" -eq 0 ]
+  printf '%s\n' "$output" > "${BATS_TEST_TMPDIR}/iterm2.json"
+
+  # iTerm2 values: 0 Normal (Option+B types a symbol), 1 Meta, 2 Esc+. Esc+ makes
+  # either Option key arrive as Alt for letters. "Treat Option as Alt" covers the
+  # arrows: on, Option+Left is ESC[1;3D; off, Option+arrows typed D, C, A, and B
+  # in OpenCode.
+  run python3 - "${BATS_TEST_TMPDIR}/iterm2.json" <<'PY'
+import json
+import sys
+
+with open(sys.argv[1]) as handle:
+    profiles = json.load(handle)["Profiles"]
+
+assert len(profiles) >= 2
+for profile in profiles:
+    for key in ("Option Key Sends", "Right Option Key Sends"):
+        assert profile[key] == 2, f'{profile["Name"]}: {key} is {profile[key]}, want 2 (Esc+)'
+    assert profile["Treat Option as Alt"] is True, f'{profile["Name"]}: Treat Option as Alt is off'
+PY
+  [ "$status" -eq 0 ]
+}
+
 @test "Ghostty login LaunchAgent is macOS-only, follows the ghostty selection, and starts windowless" {
   local config="${BATS_TEST_TMPDIR}/chezmoi.toml"
   local target="Library/LaunchAgents/io.github.crag-h4k.dotfiles.ghostty.plist"

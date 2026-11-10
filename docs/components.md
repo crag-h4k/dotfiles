@@ -288,10 +288,16 @@ without a Home key. `Ctrl+G`, OpenCode's default for that action, is no longer
 bound.
 
 In the main prompt, Option+Enter sends and Enter inserts a newline. Both
-bindings are seeded in `cli.json`, and Ghostty's own keys are untouched. See
+bindings are seeded in `cli.json`, and Ghostty's Enter bindings are untouched. See
 [OpenCode prompt submit keys](operation.md#opencode-prompt-submit-keys) for how
 the chord travels, the autocomplete gotcha, how a host can use Cmd+Enter, and
 how to opt out.
+
+Option also moves and deletes by word in the prompt: Option+Left and
+Option+Right, Option+Backspace, Option+fn+Delete, and Option+B, F, and D, with
+Alt in the same place on Linux. Those are OpenCode's native bindings and are not
+seeded; on macOS, Ghostty's Option keys act as Alt so the letter chords arrive.
+See [OpenCode Option word keys](operation.md#opencode-option-word-keys).
 
 ### OpenViking
 
@@ -670,6 +676,14 @@ template.
 The selected palette lands at `~/.config/ghostty/themes/dotfiles.conf`. Hack
 Nerd Font Mono provides the prompt and tmux glyphs.
 
+On macOS both Option keys act as Alt (`macos-option-as-alt = true`), so
+Option+B, Option+F, and Option+D reach zsh and OpenCode as word keys on any
+keyboard layout. Neither key then types accented or special characters. Set
+`macos-option-as-alt` to `left`, `right`, or `false` in
+`~/.config/ghostty/override.conf` to choose differently on one machine; see
+[OpenCode Option word keys](operation.md#opencode-option-word-keys). Linux sets
+nothing, because Alt already arrives as Alt.
+
 A top-aligned, 40% quick terminal toggles with Command+backtick on macOS or
 Control+backtick on Linux. macOS needs Accessibility permission. Linux needs a
 desktop that implements the XDG GlobalShortcuts portal.
@@ -789,6 +803,17 @@ a `~/Library` tree or machine state such as window positions, bookmarks, and
 updater timestamps.
 
 Dynamic Profiles are read-only in the iTerm2 interface. Edit the JSON source.
+
+Both profiles send Esc+ from the left and the right Option key
+(`Option Key Sends` and `Right Option Key Sends` are 2), so Option+B, Option+F,
+Option+D, Option+Backspace, and Option+Enter reach OpenCode and zsh as Alt, the
+same bytes Ghostty sends. They also set `Treat Option as Alt` (iTerm2's "Treat
+option as Alt for special keys like arrows"), so the arrows arrive as `ESC[1;3D`
+and its relatives; with it off, Option+arrow typed `D`, `C`, `A`, or `B` in
+OpenCode. Neither Option key then types accents or special characters.
+Set both values back to 0 in `home/dot_config/iterm2/dotfiles.json.tmpl` to get
+them back; see
+[OpenCode Option word keys](operation.md#opencode-option-word-keys).
 
 On a fresh machine, iTerm2 loads the profiles from JSON. If matching regular
 profiles already exist, iTerm2 keeps them because it rejects duplicate GUIDs
