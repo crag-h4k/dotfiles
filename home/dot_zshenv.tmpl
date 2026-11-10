@@ -32,8 +32,9 @@ export ARCH="$(arch)"
 # missing version only after validating HashiCorp's checksum signature.
 export TENV_AUTO_INSTALL=true
 export TENV_VALIDATION=signature
-# Where git worktrees and the local agent notes (plans, specs, drafts, handoffs)
-# live. Resolved from chezmoi data worktreesDir and agentsDir (defaults
+# Where git worktrees and the agent workspace (plans, specs, drafts, handoffs,
+# scripts, tools, scratch, tmp) live. Resolved from chezmoi data worktreesDir and
+# agentsDir (defaults
 # $HOME/worktrees and $HOME/agents, also used when an old config lacks the keys)
 # and rendered as literal absolute paths, so sourcing costs no lookup. Agents and
 # skills read these from non-interactive shells too. Change a value in the

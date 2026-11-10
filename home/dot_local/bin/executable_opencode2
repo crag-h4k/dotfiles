@@ -25,6 +25,87 @@ export NPM_CONFIG_PREFIX="$prefix"
 # release-age cooldown for this process tree only; npm config files stay untouched.
 export NPM_CONFIG_MIN_RELEASE_AGE=0
 
+# Agent temp directory. OpenCode V2 takes its temp directory from os.tmpdir(),
+# which reads TMPDIR, and its system prompt tells agents to prefer
+# <TMPDIR>/opencode over the system temp directory. Point TMPDIR at the agent
+# workspace's tmp/ so everything this process tree writes to "temp" (OpenCode,
+# its tools, and every command an agent runs) lands in one private, pruned place.
+# The workspace root comes from DOTFILES_AGENTS_DIR, which ~/.zshenv exports for
+# this zsh script; $HOME/agents is the dotfiles default. Any doubt about the
+# directory leaves TMPDIR untouched with a warning on stderr.
+oc2_agent_tmp() {
+  local agents="${DOTFILES_AGENTS_DIR:-$HOME/agents}" tmp agents_real tmp_real home_real
+  while [[ "$agents" == ?*/ ]]; do agents="${agents%/}"; done
+  if [[ "$agents" != /?* ]]; then
+    print -u2 "opencode2: DOTFILES_AGENTS_DIR is not an absolute path; TMPDIR left unchanged"
+    return 0
+  fi
+  if [[ ! -d "$agents" ]]; then
+    print -u2 "opencode2: agent workspace $agents is missing (run chezmoi apply or export DOTFILES_AGENTS_DIR); TMPDIR left unchanged"
+    return 0
+  fi
+  tmp="$agents/tmp"
+  # Only the leaf is created, private from the start. The workspace root is apply's job.
+  if [[ ! -e "$tmp" && ! -L "$tmp" ]] && ! mkdir -m 700 -- "$tmp" 2>/dev/null; then
+    print -u2 "opencode2: cannot create $tmp; TMPDIR left unchanged"
+    return 0
+  fi
+  if [[ -L "$tmp" || ! -d "$tmp" || ! -O "$tmp" || ! -w "$tmp" ]]; then
+    print -u2 "opencode2: $tmp is not a directory you own and can write; TMPDIR left unchanged"
+    return 0
+  fi
+  agents_real="${agents:A}" tmp_real="${tmp:A}" home_real="${HOME:A}"
+  if [[ -z "$tmp_real" || "$tmp_real" == / || "$tmp_real" == "$home_real" \
+    || "$tmp_real" != "$agents_real/tmp" ]]; then
+    print -u2 "opencode2: $tmp does not resolve inside the agent workspace; TMPDIR left unchanged"
+    return 0
+  fi
+  # Bun extracts the binary's native libraries to BUN_TMPDIR, else TMPDIR, and
+  # reuses them across launches without touching their mtime. Keep that cache in
+  # the system temp directory so pruning can never race a starting OpenCode.
+  export BUN_TMPDIR="${BUN_TMPDIR:-${TMPDIR:-/tmp}}"
+  export TMPDIR="$tmp"
+  oc2_prune_tmp "$tmp_real" "$agents_real" "$home_real"
+}
+
+# Delete entries in the agent tmp/ older than OPENCODE2_TMP_MAX_AGE_DAYS (default
+# 7; 0 turns pruning off). Files and symlinks go by their own mtime, at any depth;
+# directories only once empty and old, except the tmp/opencode directory that
+# OpenCode creates at startup and promises agents. find never follows symlinks
+# and -xdev keeps it on one filesystem; it starts inside the exact directory it
+# was given, after re-checking where cd -P landed. It runs detached in the
+# background, so launch never waits on it.
+oc2_prune_tmp() {
+  local dir="$1" agents="$2" home="$3" days="${OPENCODE2_TMP_MAX_AGE_DAYS:-7}"
+  if [[ "$days" != <-> ]]; then
+    print -u2 "opencode2: OPENCODE2_TMP_MAX_AGE_DAYS must be a whole number of days; not pruning $dir"
+    return 0
+  fi
+  (( days > 0 )) || return 0
+  if [[ -z "$dir" || "$dir" == / || "$dir" == "$home" || -z "$agents" || "$agents" == / \
+    || "$agents" == "$home" || "$dir" != "$agents/tmp" ]]; then
+    print -u2 "opencode2: not pruning $dir: the agent workspace must be its own directory, not / or your home"
+    return 0
+  fi
+  (
+    cd -P -- "$dir" 2>/dev/null || exit 0
+    [[ "$PWD" == "$dir" ]] || exit 0
+    minutes=$(( days * 1440 ))
+    find . -xdev -mindepth 1 ! -type d -mmin "+$minutes" -delete
+    find . -xdev -mindepth 1 -type d -empty ! -path ./opencode -mmin "+$minutes" -delete
+  ) </dev/null >/dev/null 2>&1 &!
+}
+
+# Version and help probes write no temp files, and the installer's health checks
+# call --version during chezmoi apply, so they never create or prune anything.
+# Every other path (interactive, server, serve, run, update) gets the same TMPDIR:
+# the TUI's own /update already runs under it, so the command-line update matches.
+# override.zsh is sourced later, so a host can still export a different TMPDIR.
+case "${1:-}" in
+  --version|-v|--help|-h) ;;
+  *) oc2_agent_tmp ;;
+esac
+
 cli_override="$HOME/.config/opencode/cli.override.json"
 if [[ -r "$cli_override" && -z "${OPENCODE_CLI_CONFIG_CONTENT:-}" ]]; then
   export OPENCODE_CLI_CONFIG_CONTENT="$(<"$cli_override")"

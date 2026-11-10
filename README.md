@@ -64,9 +64,9 @@ The bootstrap:
 
 1. Installs chezmoi and clones the source into
    `~/.local/share/chezmoi/`.
-1. Opens the component, sub-feature, palette, and install-mode pickers. With AI
-   tools selected, a `directories` checkbox on the AI page opens one editor for
-   where worktrees and agent notes live.
+1. Opens the component, sub-feature, palette, and install-mode pickers. A
+   `worktrees` checkbox on the Git page and a `workspace` checkbox on the AI page
+   each open one editor for where worktrees and the agent workspace live.
 1. Shows the deduplicated package plan before anything mutates a package
    manager.
 1. Backs up managed files and nearby local state under

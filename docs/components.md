@@ -44,7 +44,7 @@ Components to install:
   2) tmux               tmux + plugins (tpm, resurrect, sensible, yank)
   3) Neovim             Neovim, lazy.nvim, language servers, linters
   4) Git                managed config and independent global ignore
-  5) AI tools           OpenCode V2, hooks, statusline, Copilot, CodeCompanion
+  5) AI tools           OpenCode V2, OpenViking, statusline, hooks, Copilot, CodeCompanion
   6) terminal emulators independent Ghostty and iTerm2 configuration
 
 Setup actions:
@@ -78,10 +78,11 @@ The component list in `home/.chezmoi.toml.tmpl` is the source of truth for both
 interfaces. Set `DOTFILES_NO_TUI=1` to force the numbered prompt.
 
 `theme` and `package mode` are init-time actions. They live outside
-`[data.components]` and reopen the relevant picker when selected. The AI submenu
-has one of its own, `directories` (typed number `10`; the numbers of the
-sub-features do not change), which opens the worktrees and agent-notes editor. It
-follows the same rule: never a component, never saved.
+`[data.components]` and reopen the relevant picker when selected. The Git and AI
+submenus have one each, typed number `10` on both pages: `worktrees` opens the
+worktrees folder editor and `workspace` opens the agent workspace editor. They
+follow the same rule: never a component, never saved, and the numbers of the
+sub-features do not change.
 
 ### Sub-feature submenus (git, ai, terminal)
 
@@ -95,19 +96,42 @@ Git is in the default component set. AI and terminal configuration are opt-in.
 | --- | --- | --- | --- | --- |
 | `git` | `config` | `~/.gitconfig` | off | generic Git behavior plus an unmanaged `~/.gitconfig.override` include; creates an empty mode-600 override only when absent |
 | `git` | `ignore_global` | `~/.gitignore_global` | on | independent of the managed Git config |
+| `ai` | `opencode` | OpenCode V2 (`@opencode/cli`) + V2 config + notifier bridge | on when AI is selected | isolated npm prefix, managed wrapper, native permissions, and npm-latest statusline plugin |
+| `ai` | `openviking` | local memory runtime, user services, and starter profiles | off | actual configuration and memory remain unmanaged; optional official OpenCode plugin |
+| `ai` | `statusline` | `~/.claude/settings.json` + `~/.codex/config.toml` (merge) | off | Claude renderer plus a matching selected-palette Codex theme; keeps those files managed when notify hooks are off |
 | `ai` | `claude_hooks` | `~/.claude/settings.json` (merge) | off | merges the Claude notify hooks |
 | `ai` | `codex_hooks` | `~/.codex/config.toml` (merge) | off | merges the Codex notify hook + `tui.notifications` |
-| `ai` | `statusline` | `~/.claude/settings.json` + `~/.codex/config.toml` (merge) | off | Claude renderer plus a matching selected-palette Codex theme; keeps those files managed when notify hooks are off |
-| `ai` | `opencode` | OpenCode V2 (`@opencode/cli`) + V2 config + notifier bridge | on when AI is selected | isolated npm prefix, managed wrapper, native permissions, and npm-latest statusline plugin |
 | `ai` | `copilot` | GitHub Copilot CLI (`@github/copilot` npm, `prerelease` tag) | off | npm-only channel (no Homebrew/apt); binary into `~/.local`; needs Node 22+ |
-| `ai` | `openviking` | local memory runtime, user services, and starter profiles | off | actual configuration and memory remain unmanaged; optional official OpenCode plugin |
 | `ai` | `codecompanion` | CodeCompanion.nvim + `claude-agent-acp` bridge | off | selecting it also enables and installs the Neovim component |
 | `terminal` | `ghostty` | Ghostty config + quick-terminal dropdown | on | macOS and Linux |
 | `terminal` | `iterm2` | iTerm2 Dynamic Profiles | off | macOS only; hidden in the submenu on non-macOS (data key still emitted for column parity), also gated in `home/.chezmoiignore` |
 
 Gum preselects the parent's current sub-features on a re-init. A new parent uses
 its documented defaults. The typed submenu behaves the same way, with Enter
-accepting the defaults.
+accepting the defaults. The AI page lists `opencode`, `openviking`, and
+`statusline` first and `codecompanion` last, but each typed number is a saved
+token rather than a position, so the numbers keep their old meaning and show out
+of sequence:
+
+```text
+AI tools (enter numbers or keys):
+  4) opencode - OpenCode V2 + managed standalone wrapper + tmux notifier
+  8) openviking - local memory service + unmanaged starter configs
+  3) statusline - Claude token/context statusline + matching Codex theme
+  1) claude_hooks - Claude settings.json notify hooks
+  2) codex_hooks - Codex config.toml notify hook
+  5) copilot - GitHub Copilot CLI (npm @github/copilot; pulls in the copilot binary)
+  6) codecompanion - CodeCompanion.nvim assistant (also installs Neovim, Node + claude-agent-acp)
+  10) workspace - change the agent workspace folder (unchecked keeps it)
+  now: agent workspace $HOME/agents
+
+Enter (e.g. "1 3"), or press Enter for default (opencode)
+```
+
+An old saved `aiSelection` such as `1 4 8` still selects the same three
+features, and the retired `7` and `9` still migrate to `opencode`. The typed Git
+menu works the same way: `1) config`, `3) ignore_global`, and `10) worktrees`
+(the retired `2` migrates to `config`).
 
 Sub-feature descriptions use `/` instead of commas in the Gum option string.
 Gum treats commas as selection separators, which otherwise breaks preselection.
@@ -129,18 +153,22 @@ There is no separate submenu choice. A single canonical store under
 `~/.claude/skills` is a compatibility symlink to that root. A legacy real
 Claude skills directory is migrated only with explicit approval during apply.
 
-The same selection creates the agent-notes directory, `data.agentsDir` (default
-`$HOME/agents`), that `handoff` and other skills use for plans, specs, drafts,
-and handoffs. Worktrees have a sibling setting, `data.worktreesDir` (default
-`$HOME/worktrees`), that is created on every host regardless of selection. Both
-are exported from `~/.zshenv`.
+The same selection creates the agent workspace, `data.agentsDir` (default
+`$HOME/agents`), with its `plans/`, `specs/`, `drafts/`, `scripts/`, `tools/`,
+`scratch/`, and `tmp/` folders. `handoff` and other skills keep plans, specs,
+drafts, and handoffs there, and agents keep reusable scripts, installed tools,
+and throwaway work there. Worktrees have a sibling setting, `data.worktreesDir`
+(default `$HOME/worktrees`), that is created on every host regardless of
+selection. Both are exported from `~/.zshenv`.
 
-To change either one, check the `directories` entry at the bottom of the AI
-page (it shows the current paths in its header and starts unchecked). Checked, it
-opens one editor page with both paths, pre-filled with the saved value, the env
-seed, or the default. Unchecked, nothing is asked. The entry is an init-time
-action, not a sub-feature: it is never saved, and it is not offered with
-`DOTFILES_NO_TUI`, without a terminal, or on a `cup` re-init. See
+To change the agent workspace, check the `workspace` entry at the bottom of the
+AI page; for the worktrees folder, check `worktrees` at the bottom of the Git
+page. Each page shows its current folder in the header, and each entry starts
+unchecked. Checked, it opens one editor page with that path, pre-filled with the
+saved value, the env seed, or the default. Unchecked, nothing is asked. The
+entries are init-time actions, not sub-features: they are never saved, and they
+are not offered with `DOTFILES_NO_TUI`, without a terminal, or on a `cup`
+re-init. See
 [Worktree and agent directories](operation.md#worktree-and-agent-directories).
 
 Claude Code and CodeCompanion use the Claude compatibility root. Codex,
@@ -179,7 +207,10 @@ under `~/.local/bin`.
 The OpenCode wrapper, Copilot CLI, and ACP bridge live in `~/.local/bin`. They are
 reachable by name only through the `zsh` component, which puts that directory on
 `PATH` (via `~/.zshenv`) and defines the `oc` / `oc2` / `oc2bg` aliases. With
-`zsh` deselected they are not on `PATH` by name and have no aliases.
+`zsh` deselected they are not on `PATH` by name and have no aliases. The same
+holds for `git wt`: the `git` component installs `~/.local/bin/git-wt`, and Git
+runs it as a subcommand only when that directory is on `PATH`. See
+[git wt](operation.md#git-wt).
 
 The managed `opencode2` wrapper launches interactive sessions with
 `--standalone`. `oc` and the temporary `oc2` alias use that default. `oc2bg`
@@ -202,7 +233,11 @@ unless an explicit method is present before `--`. Interactive launches add
 `--standalone` unless `--standalone`, `--server`, or
 `OPENCODE2_BACKGROUND_SERVICE=true` already chooses the server mode. Other
 subcommands pass through unchanged. The wrapper canonicalizes its paths and
-rejects a prefix whose binary resolves back to the managed wrapper.
+rejects a prefix whose binary resolves back to the managed wrapper. Except for
+`--version` and `--help`, it also points `TMPDIR` at the agent workspace's
+`tmp/` folder for the whole OpenCode process tree, including every command an
+agent runs, and prunes old files there in the background; see
+[OpenCode temp directory](operation.md#opencode-temp-directory).
 
 On npm 12 and newer, the installer explicitly allows `@opencode/cli`'s
 postinstall script, which replaces the package's placeholder launcher with the
@@ -216,7 +251,9 @@ before npm takes ownership. It retains the old release and restores its link
 if CLI verification or the matching runtime installation fails.
 
 `~/.config/opencode/opencode.jsonc` is merge-managed. Chezmoi reasserts the
-schema, agent colors, Ricer's subagent mode, Plan handoff permissions, and the
+schema, agent colors, Ricer's subagent mode, Plan handoff permissions,
+`worktree.directory` (OpenCode's own worktrees go under `data.worktreesDir`; see
+[OpenCode worktrees](operation.md#opencode-worktrees)), and the
 `@latest` V2 registrations in a marked managed section. Local plugin entries
 remain after that section, with their order, options, and comments preserved.
 Managed object options also survive package-pin updates; competing registrations
@@ -229,7 +266,10 @@ Customized V1 policies remain untouched. Existing native V2 policies retain
 their local choices except generic `pre-commit *` and `prek *` hook allows are
 kept together, the generic
 `git worktree *` allow narrows to read-only `git worktree list *`, and the
-generic mutating Git deny rules become ask. Within `agents`, Build and Plan
+generic mutating Git deny rules become ask. A marked block in every native
+policy lets agents write in the agent workspace's `scripts/`, `tools/`, and
+`scratch/` folders without a prompt, ahead of the secret-file denials; see
+[Agent workspace](operation.md#agent-workspace). Within `agents`, Build and Plan
 colors, Ricer's mode, and Plan handoff rules are managed; other fields and
 comments survive unchanged. Ricer's public definition is a subagent under
 `~/.config/opencode/agents/ricer.md`, so it does not enter the Shift+Tab cycle.

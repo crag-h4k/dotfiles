@@ -266,7 +266,7 @@ assert_ai_only() { # aiSelection expected_on_key
         fail=1; rm -rf "$cfgdir"; return
     fi
     rm -rf "$cfgdir"
-    for key in claude_hooks codex_hooks statusline opencode copilot codecompanion; do
+    for key in claude_hooks codex_hooks statusline opencode copilot openviking codecompanion; do
         val=$(printf '%s\n' "$out" | sed -n "s/^[[:space:]]*${key} = \\(.*\\)\$/\\1/p")
         if [[ "$key" == "$want_key" ]]; then
             [[ "$val" == true ]] || { echo "validate-templates: ai '$aisel' expected $key=true, got '$val'" >&2; fail=1; }
@@ -280,6 +280,38 @@ assert_ai_only "opencode"     "opencode"
 assert_ai_only "codex_hooks"  "codex_hooks"
 assert_ai_only "ssh_mcp"      "opencode"
 assert_ai_only "9"            "opencode"
+# Typed numbers are persisted tokens, not menu positions: the AI page lists
+# opencode, openviking, and statusline first, yet every number keeps its feature.
+assert_ai_only "1"            "claude_hooks"
+assert_ai_only "2"            "codex_hooks"
+assert_ai_only "3"            "statusline"
+assert_ai_only "4"            "opencode"
+assert_ai_only "5"            "copilot"
+assert_ai_only "6"            "codecompanion"
+assert_ai_only "8"            "openviking"
+# 10 is the workspace setup action on the AI page, never a feature.
+assert_ai_only "4 10"         "opencode"
+
+# The [data.components.ai] table follows the display order: opencode, openviking,
+# and statusline first, codecompanion last.
+cfgdir=$(mktemp -d)
+printf '[data]\ncomponentSelection = "5"\naiSelection = "opencode"\n' >"$cfgdir/chezmoi.toml"
+out=$(chezmoi execute-template --init --source "$REPO_DIR" --config "$cfgdir/chezmoi.toml" <"$CONFIG_TMPL")
+rm -rf "$cfgdir"
+ai_order=$(printf '%s\n' "$out" | sed -n '/^\[data\.components\.ai\]$/,/^\[/s/^[[:space:]]*\([a-z_]*\) = .*$/\1/p' | tr '\n' ' ')
+if [[ "$ai_order" != "opencode openviking statusline claude_hooks codex_hooks copilot codecompanion " ]]; then
+    echo "validate-templates: AI sub-feature order changed: $ai_order" >&2
+    fail=1
+fi
+# The Git page's worktrees action (typed 10) is never a Git feature either.
+cfgdir=$(mktemp -d)
+printf '[data]\ncomponentSelection = "4"\ngitSelection = "3 10"\n' >"$cfgdir/chezmoi.toml"
+out=$(chezmoi execute-template --init --source "$REPO_DIR" --config "$cfgdir/chezmoi.toml" <"$CONFIG_TMPL")
+rm -rf "$cfgdir"
+printf '%s\n' "$out" | grep -q '^    gitSelection = "ignore_global"$' || {
+    echo "validate-templates: the Git worktrees action leaked into gitSelection" >&2
+    fail=1
+}
 
 # The old V2 token is rewritten in persisted data and never emitted as a child key.
 cfgdir=$(mktemp -d)

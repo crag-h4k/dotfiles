@@ -179,7 +179,7 @@ repos:
         entry: python3 -m unittest tests/test_agent_skills.py
         language: system
         pass_filenames: false
-        files: ^((.*/)?AGENTS\.md|docs/agent-(skills|guidance)\.md|home/(dot_zshenv\.tmpl|\.chezmoi(ignore|external\.toml)|dot_(agents|claude)/skills/.*|dot_config/opencode/(agents/ricer|commands/(dotfiles|handoff|humanize|unslop|publish|pr-watch|worktree))\.md|dot_local/share/agent-skills/.*)|scripts/validate-agent-skills\.py|tests/test_agent_skills\.py)$
+        files: ^((.*/)?AGENTS\.md|docs/agent-(skills|guidance)\.md|home/(dot_zshenv\.tmpl|\.chezmoi(ignore|external\.toml)|dot_(agents|claude)/skills/.*|dot_config/opencode/((agents/ricer|commands/(dotfiles|handoff|humanize|unslop|publish|pr-watch|worktree))\.md|modify_private_AGENTS\.md\.tmpl)|dot_local/share/agent-skills/.*)|scripts/validate-agent-skills\.py|tests/test_agent_skills\.py)$
 
       - id: luacheck
         name: luacheck
@@ -314,6 +314,15 @@ repos:
         additional_dependencies: ['bats@1.13.0']
         pass_filenames: false
         files: ^(home/(\.chezmoi\.toml\.tmpl|\.chezmoitemplates/dotfiles-dir|dot_zshenv\.tmpl|\.chezmoiscripts/run_after_02-ensure-dirs\.sh\.tmpl)|scripts/ensure-dirs\.sh|tests/(test_user_dirs\.bats|ctty_run\.py))$
+
+      - id: bats-git-wt
+        name: bats (git wt worktree helper)
+        entry: bats
+        args: [tests/test_git_wt.bats]
+        language: node
+        additional_dependencies: ['bats@1.13.0']
+        pass_filenames: false
+        files: ^(home/(dot_local/bin/executable_git-wt|\.chezmoiignore)|tests/test_git_wt\.bats)$
 
       - id: test-ctty-run
         name: python (terminal test deadlines)

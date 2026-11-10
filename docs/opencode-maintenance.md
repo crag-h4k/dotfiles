@@ -19,7 +19,11 @@ CLI, server, plugin SDK, and terminal versions when diagnosing compatibility.
   connections, notification bridges, and server routing belong in the overlays.
   The narrow Plan handoff-root permissions (the two fixed roots and
   `<agentsDir>/plans`, rendered from `data.agentsDir`) are portable managed
-  exceptions; any other handoff root still needs a private rule.
+  exceptions; any other handoff root still needs a private rule. So are the
+  agent workspace rules: global external-directory and edit allows for
+  `<agentsDir>/scripts`, `tools`, and `scratch`, and Plan denials for the same
+  folders, because OpenCode appends global rules after Plan's built-in read-only
+  rule. `worktree.directory` is managed the same way, from `data.worktreesDir`.
 - Preserve merge-managed JSONC and unknown user settings. Inspect the renderer
   for the active V2 schema; older OpenCode flags and plugin APIs are not a basis
   for a fix. Do not silently alter account, model, or permission selection.
@@ -37,8 +41,9 @@ CLI, server, plugin SDK, and terminal versions when diagnosing compatibility.
   replaces arrays rather than merging them; do not move the managed `plugins`
   there. Extend `tests/test_merge_opencode_cli.py` with any ownership change.
 - The marked global permissions allow edit tools below `~/.agents/` and
-  `~/.claude/` so OC2 can maintain shared skills and Claude state. Keep that
-  scope deliberate: generic secret suffixes, cloud and SSH paths, and
+  `~/.claude/` so OC2 can maintain shared skills and Claude state, and below the
+  agent workspace's `scripts/`, `tools/`, and `scratch/`. Keep that scope
+  deliberate: generic secret suffixes, cloud and SSH paths, and
   `~/.claude.json` remain denied. Recursive shell deletion remains denied even
   inside these roots.
 - The server plugin merge owns marked registrations, not the whole array.

@@ -22,6 +22,9 @@ flat directory, `<root>/<repo>-<slug>`, where `<root>` is
 `$DOTFILES_WORKTREES_DIR` (default `$HOME/worktrees`; see
 [Worktree and agent directories](docs/operation.md#worktree-and-agent-directories)):
 
+With the `git` component deployed, `git wt --fetch feat/short-description`
+does the same thing and prints the new path. By hand:
+
 ```sh
 git fetch origin
 git worktree add -b feat/short-description \

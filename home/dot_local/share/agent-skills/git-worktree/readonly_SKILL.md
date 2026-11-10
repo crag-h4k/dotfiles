@@ -76,6 +76,10 @@ checkout; a detached commit is a read-only review choice, not a publishing head.
 
 ## Create and verify
 
+When `git wt` is on PATH, prefer it for a branch worktree: it builds the flat
+`<root>/<repo>-<slug>` path, fetches only with `--fetch`, and prints the path
+last. It is still a Git mutation and needs the approval above.
+
 Prefer an available native worktree mechanism when it can honor the approved
 path/base, handle the discovered Git context, and make the tree visible to the
 current harness. A helper that requires `--show-toplevel` or `status` at the bare

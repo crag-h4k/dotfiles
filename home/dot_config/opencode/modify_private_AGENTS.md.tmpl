@@ -27,6 +27,20 @@ shell file discovery when appropriate. Prefer dedicated search tools when
 available; a search tool named `grep` is not the shell command. If `rg` is missing
 in the execution environment, report that rather than silently using `grep`."""
 
+# The agent workspace (data.agentsDir) as a literal absolute path from the shared
+# dotfiles-dir template. Its character whitelist excludes quotes and backslashes,
+# so it is safe inside this Python string.
+AGENTS_DIR = {{ includeTemplate "dotfiles-dir" (dict "home" .chezmoi.homeDir "key" "agentsDir" "value" (dig "agentsDir" "" .) "default" "agents") | quote }}
+WORKSPACE_START = "<!-- dotfiles:agent-workspace:start -->"
+WORKSPACE_END = "<!-- dotfiles:agent-workspace:end -->"
+WORKSPACE = """\
+Keep files you create for later out of temp directories. Save reusable scripts
+in `{agents}/scripts`, install tools you need under `{agents}/tools` and record
+each one in `{agents}/tools/README.md`, and put throwaway work in
+`{agents}/scratch`. Never put them in the system temp directory (`/tmp`,
+`/var/folders`) or `$TMPDIR`: the `opencode2` wrapper points `$TMPDIR` at
+`{agents}/tmp` and prunes old files there.""".format(agents=AGENTS_DIR)
+
 MEMORY_START = "<!-- dotfiles:openviking-memory:start -->"
 MEMORY_END = "<!-- dotfiles:openviking-memory:end -->"
 MEMORY = """\
@@ -70,5 +84,6 @@ def merge(text, start, end, body):
 existing = sys.stdin.read()
 merged = merge(existing, QUESTION_START, QUESTION_END, QUESTION)
 merged = merge(merged, SEARCH_START, SEARCH_END, SEARCH)
+merged = merge(merged, WORKSPACE_START, WORKSPACE_END, WORKSPACE)
 merged = merge(merged, MEMORY_START, MEMORY_END, MEMORY if OPENVIKING else None)
 sys.stdout.write(merged)

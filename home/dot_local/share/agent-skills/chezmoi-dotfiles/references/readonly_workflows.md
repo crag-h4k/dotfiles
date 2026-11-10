@@ -16,28 +16,40 @@ keys and comments against realistic input. For a locally changed target, compare
 source, rendered output, and the override mechanism in `docs/operation.md` before
 choosing overwrite. Private CLI permissions and server routing stay in overlays.
 
-The worktrees and agent-notes directories are the `worktreesDir` and `agentsDir`
-data keys. Resolve them only through the `dotfiles-dir` template, which expands
-`~` and `$HOME`, rejects relative or shell-unsafe values, and supplies the
+The worktrees folder and the agent workspace are the `worktreesDir` and
+`agentsDir` data keys. Resolve them only through the `dotfiles-dir` template, which
+expands `~` and `$HOME`, rejects relative or shell-unsafe values, and supplies the
 defaults, so an old config without the keys keeps rendering. Persisted values win
 on re-init; the `DOTFILES_WORKTREES_DIR` and `DOTFILES_AGENTS_DIR` environment
-variables only seed a first init. Init does not ask for them by default: the AI
-page has an unchecked `directories` entry, an init-time action like `theme` and
-`package mode` (never a component, never in `aiSelection`, number `10` outside the
-sub-feature range). Checked, it opens one `gum write` editor with both paths
-(`worktrees:` and `agents:` lines), pre-filled with the saved value, then the env
-seed, then the default; a typed host gets two `promptString` questions. Follow the
-palette picker's gating: the entry is not offered under `DOTFILES_NO_TUI`, without a
-usable terminal (chezmoi's own `promptString` fails with none), on a `cup` re-init,
-for the `all+` migration, or when AI is unselected, and `apply` never prompts. Pass
-user text to shell commands as positional parameters, and let check mode refuse raw
-text that cannot be shown safely. Plan's handoff permissions render
-`<agentsDir>/plans` from the same template. Creation stays warn-only: print the
-privileged command and never run it. Do not move existing worktrees or notes
-automatically. Drive prompt tests through `tests/ctty_run.py` with a stub `gum`
-(`write` included), and check real Gum in an isolated tmux server: Gum 2.x hides the
-first line of a pre-filled `write` unless it gets an explicit `--width`, and Gum 0.14
-subtracts a taller header from `--height`.
+variables only seed a first init. `agentsDir` is the agents' working home (plans,
+specs, drafts, scripts, tools, scratch, tmp); `~/.agents` remains the fixed
+discovery root for skills and the global `AGENTS.md`. Init does not ask for either
+folder by default: the Git page has an unchecked `worktrees` entry and the AI page
+an unchecked `workspace` entry, init-time actions like `theme` and `package mode`
+(never components, never in a saved selection, number `10` on both pages, outside
+the sub-feature ranges and retired tokens). Checked, an entry opens one `gum write`
+editor right after its page with a single `worktrees:` or `workspace:` line,
+pre-filled with the saved value, then the env seed, then the default; a typed host
+gets one `promptString`. Follow the palette picker's gating: an entry is not
+offered under `DOTFILES_NO_TUI`, without a usable terminal (chezmoi's own
+`promptString` fails with none), on a `cup` re-init, for the `all+` migration, or
+when its parent is unselected, and `apply` never prompts. Pass user text to shell
+commands as positional parameters, and let check mode refuse raw text that cannot
+be shown safely. Plan's handoff permissions, the global workspace permissions and
+Plan's matching denials, the global OpenCode workspace instruction, and OpenCode's
+`worktree.directory` render from the same template. Creation stays warn-only:
+print the privileged command and never run it. Do not move, rename, or delete
+existing worktrees or workspace content. Drive prompt tests through
+`tests/ctty_run.py` with a stub `gum` (`write` included), and check real Gum in an
+isolated tmux server: Gum 2.x hides the first line of a pre-filled `write` unless
+it gets an explicit `--width`, and Gum 0.14 subtracts a taller header from
+`--height`.
+
+The `opencode2` wrapper exports `TMPDIR=<agentsDir>/tmp` (OpenCode's temp dir is
+`$TMPDIR/opencode`) and prunes it in the background; keep `BUN_TMPDIR` on the
+original temp dir, keep the `--version` and `--help` skip, and test the prune in
+disposable homes only. `git wt` (`~/.local/bin/git-wt`, git component) is the
+flat-worktree helper; its tests use local bare remotes, never the network.
 
 For skill additions, keep one canonical copy under
 `home/dot_local/share/agent-skills` and per-entry links under the existing harness

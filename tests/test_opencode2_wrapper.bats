@@ -14,7 +14,12 @@ setup() {
   export HOME="${real_tmpdir}/home"
   export PREFIX="$HOME/.local/share/opencode2"
   export WRAPPER="$HOME/.local/bin/opencode2"
-  mkdir -p "$PREFIX/bin" "$(dirname "$WRAPPER")"
+  # The agent workspace and the "system" temp dir are disposable too: an inherited
+  # DOTFILES_AGENTS_DIR must never point the wrapper at the real workspace.
+  export DOTFILES_AGENTS_DIR="$HOME/agents"
+  export TMPDIR="$real_tmpdir/systmp"
+  unset BUN_TMPDIR OPENCODE2_TMP_MAX_AGE_DAYS
+  mkdir -p "$PREFIX/bin" "$(dirname "$WRAPPER")" "$DOTFILES_AGENTS_DIR" "$TMPDIR"
   cp "$WRAPPER_SRC" "$WRAPPER"
   chmod +x "$WRAPPER"
   cat >"$PREFIX/bin/opencode2" <<'STUB'
@@ -26,6 +31,10 @@ if [[ "${TEST_NPM_POLICY:-false}" == true ]]; then
 fi
 if [[ -n "${OPENCODE_CLI_CONFIG_CONTENT:-}" ]]; then
   print -r -- "cli=$OPENCODE_CLI_CONFIG_CONTENT"
+fi
+if [[ "${TEST_TMP_ENV:-false}" == true ]]; then
+  print -r -- "tmpdir=${TMPDIR:-unset}"
+  print -r -- "buntmp=${BUN_TMPDIR:-unset}"
 fi
 for arg in "$@"; do
   print -r -- "arg=$arg"
@@ -493,4 +502,186 @@ legacy_release_link() {
   [ "$(readlink "$PREFIX/bin/opencode2")" = "$old_target" ]
   [ -x "$PREFIX/bin/opencode2" ]
   [[ "$output" == *"restored the previous release link"* ]]
+}
+
+# --- Agent temp directory --------------------------------------------------------
+# The wrapper points TMPDIR at <agent workspace>/tmp, because OpenCode derives its
+# own temp dir from os.tmpdir(), and prunes old entries there in the background.
+# setup() gives every test a disposable workspace ($HOME/agents) and a disposable
+# "system" temp dir ($TMPDIR).
+
+tmp_env() { # <output> <name>: the tmpdir= or buntmp= line the stub echoed
+  printf '%s\n' "$1" | sed -n "s/^$2=//p"
+}
+
+mode_of() {
+  stat -c %a "$1" 2>/dev/null || stat -f %Lp "$1"
+}
+
+# wait_gone <path>...: poll until every path is gone (the prune is detached).
+wait_gone() {
+  local _ path pending
+  for _ in $(seq 1 50); do
+    pending=false
+    for path in "$@"; do
+      if [ -e "$path" ] || [ -L "$path" ]; then pending=true; fi
+    done
+    [ "$pending" = false ] && return 0
+    sleep 0.1
+  done
+  return 1
+}
+
+age() { # age <path>...: set an mtime well past the default 7 days, without following links
+  touch -h -t 202001010000 "$@"
+}
+
+@test "agent tmp: interactive launches use a private tmp in the agent workspace" {
+  local systmp="$TMPDIR"
+  run env TEST_TMP_ENV=true "$WRAPPER"
+  [ "$status" -eq 0 ]
+  [ "$(tmp_env "$output" tmpdir)" = "$HOME/agents/tmp" ]
+  # Bun's native-library cache stays in the original temp dir.
+  [ "$(tmp_env "$output" buntmp)" = "$systmp" ]
+  [ -d "$HOME/agents/tmp" ]
+  [ "$(mode_of "$HOME/agents/tmp")" = 700 ]
+  [[ "$output" != *'opencode2:'* ]]
+  [[ "$output" == *'arg=--standalone'* ]]
+}
+
+@test "agent tmp: servers, runs, and updates inherit it; version and help probes do not" {
+  local mode
+  for mode in serve "run hello" update "--server http://127.0.0.1:4096" --standalone; do
+    # shellcheck disable=SC2086
+    run env TEST_TMP_ENV=true "$WRAPPER" $mode
+    [ "$status" -eq 0 ]
+    [ "$(tmp_env "$output" tmpdir)" = "$HOME/agents/tmp" ]
+  done
+  for mode in --version -v --help -h; do
+    rmdir "$HOME/agents/tmp" 2>/dev/null || true
+    run env TEST_TMP_ENV=true "$WRAPPER" "$mode"
+    [ "$status" -eq 0 ]
+    [ "$(tmp_env "$output" tmpdir)" = "$TMPDIR" ]
+    [ ! -e "$HOME/agents/tmp" ]
+  done
+}
+
+@test "agent tmp: an unset DOTFILES_AGENTS_DIR falls back to \$HOME/agents" {
+  run env -u DOTFILES_AGENTS_DIR TEST_TMP_ENV=true "$WRAPPER"
+  [ "$status" -eq 0 ]
+  [ "$(tmp_env "$output" tmpdir)" = "$HOME/agents/tmp" ]
+
+  mkdir -p "$HOME/custom-agents"
+  run env DOTFILES_AGENTS_DIR="$HOME/custom-agents/" TEST_TMP_ENV=true "$WRAPPER"
+  [ "$status" -eq 0 ]
+  [ "$(tmp_env "$output" tmpdir)" = "$HOME/custom-agents/tmp" ]
+}
+
+@test "agent tmp: a missing or relative workspace leaves TMPDIR alone and says why" {
+  run env DOTFILES_AGENTS_DIR="$HOME/missing" TEST_TMP_ENV=true "$WRAPPER"
+  [ "$status" -eq 0 ]
+  [ "$(tmp_env "$output" tmpdir)" = "$TMPDIR" ]
+  [ "$(tmp_env "$output" buntmp)" = unset ]
+  [[ "$output" == *"agent workspace $HOME/missing is missing"* ]]
+  # The wrapper never creates the workspace root; apply does.
+  [ ! -e "$HOME/missing" ]
+
+  run env DOTFILES_AGENTS_DIR=agents TEST_TMP_ENV=true "$WRAPPER"
+  [ "$status" -eq 0 ]
+  [ "$(tmp_env "$output" tmpdir)" = "$TMPDIR" ]
+  [[ "$output" == *'not an absolute path'* ]]
+}
+
+@test "agent tmp: a symlinked or non-directory tmp is refused" {
+  mkdir -p "$HOME/elsewhere"
+  ln -s "$HOME/elsewhere" "$HOME/agents/tmp"
+  run env TEST_TMP_ENV=true "$WRAPPER"
+  [ "$status" -eq 0 ]
+  [ "$(tmp_env "$output" tmpdir)" = "$TMPDIR" ]
+  [[ "$output" == *'is not a directory you own and can write'* ]]
+
+  rm "$HOME/agents/tmp"
+  : >"$HOME/agents/tmp"
+  run env TEST_TMP_ENV=true "$WRAPPER"
+  [ "$(tmp_env "$output" tmpdir)" = "$TMPDIR" ]
+  [ -f "$HOME/agents/tmp" ]
+}
+
+@test "agent tmp: override.zsh can still choose another TMPDIR" {
+  mkdir -p "$HOME/.config/opencode" "$HOME/own-tmp"
+  printf 'export TMPDIR=%q\n' "$HOME/own-tmp" >"$HOME/.config/opencode/override.zsh"
+  run env TEST_TMP_ENV=true "$WRAPPER"
+  [ "$status" -eq 0 ]
+  [ "$(tmp_env "$output" tmpdir)" = "$HOME/own-tmp" ]
+}
+
+@test "agent tmp: the prune removes only old entries inside tmp" {
+  local tmp="$HOME/agents/tmp" outside="$HOME/agents/scripts"
+  mkdir -m 700 "$tmp"
+  mkdir -p "$outside" "$tmp/opencode" "$tmp/old-empty" "$tmp/busy" "$tmp/old-full"
+  : >"$outside/keep.sh"
+  : >"$tmp/old.txt"
+  : >"$tmp/new.txt"
+  : >"$tmp/busy/new.txt"
+  : >"$tmp/old-full/old.txt"
+  : >"$tmp/old-full/new.txt"
+  ln -s "$outside/keep.sh" "$tmp/old-link"
+  ln -s "$outside" "$tmp/old-dir-link"
+  age "$outside/keep.sh" "$outside" "$tmp/old.txt" "$tmp/old-full/old.txt" \
+    "$tmp/old-link" "$tmp/old-dir-link" "$tmp/opencode" "$tmp/old-empty" "$tmp/old-full"
+
+  run "$WRAPPER"
+  [ "$status" -eq 0 ]
+  wait_gone "$tmp/old.txt" "$tmp/old-full/old.txt" "$tmp/old-link" "$tmp/old-dir-link" "$tmp/old-empty"
+
+  # Recent files, directories with recent contents, and OpenCode's own directory stay.
+  [ -f "$tmp/new.txt" ]
+  [ -f "$tmp/busy/new.txt" ]
+  [ -f "$tmp/old-full/new.txt" ]
+  [ -d "$tmp/opencode" ]
+  # Links were removed as links; their old targets outside tmp are untouched.
+  [ -f "$outside/keep.sh" ]
+  [ -d "$outside" ]
+  [ -d "$tmp" ]
+}
+
+@test "agent tmp: the prune age is configurable and 0 turns it off" {
+  local tmp="$HOME/agents/tmp" two_days
+  mkdir -m 700 "$tmp"
+  : >"$tmp/kept.txt"
+  age "$tmp/kept.txt"
+  run env OPENCODE2_TMP_MAX_AGE_DAYS=0 "$WRAPPER"
+  [ "$status" -eq 0 ]
+  sleep 1
+  [ -f "$tmp/kept.txt" ]
+
+  run env OPENCODE2_TMP_MAX_AGE_DAYS=soon TEST_TMP_ENV=true "$WRAPPER"
+  [ "$status" -eq 0 ]
+  [[ "$output" == *'must be a whole number of days'* ]]
+  # A bad age skips the prune, not the redirect.
+  [ "$(tmp_env "$output" tmpdir)" = "$tmp" ]
+  sleep 1
+  [ -f "$tmp/kept.txt" ]
+
+  # A file two days old survives the default but not a one-day limit.
+  two_days=$(date -v-2d +%Y%m%d%H%M 2>/dev/null || date -d '2 days ago' +%Y%m%d%H%M)
+  : >"$tmp/two-days.txt"
+  touch -t "$two_days" "$tmp/two-days.txt"
+  run "$WRAPPER"
+  sleep 1
+  [ -f "$tmp/two-days.txt" ]
+  run env OPENCODE2_TMP_MAX_AGE_DAYS=1 "$WRAPPER"
+  wait_gone "$tmp/two-days.txt" "$tmp/kept.txt"
+}
+
+@test "agent tmp: a workspace at \$HOME is used but never pruned" {
+  mkdir -m 700 "$HOME/tmp"
+  : >"$HOME/tmp/mine.txt"
+  age "$HOME/tmp/mine.txt"
+  run env DOTFILES_AGENTS_DIR="$HOME" TEST_TMP_ENV=true "$WRAPPER"
+  [ "$status" -eq 0 ]
+  [ "$(tmp_env "$output" tmpdir)" = "$HOME/tmp" ]
+  [[ "$output" == *'not pruning'* ]]
+  sleep 1
+  [ -f "$HOME/tmp/mine.txt" ]
 }

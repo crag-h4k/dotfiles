@@ -324,6 +324,15 @@ class SkillDeploymentTests(unittest.TestCase):
         self.assertEqual(first.count(search_start), 1)
         search_body = first.split(search_start)[1].split(search_end)[0]
         self.assertIn("`rg`", search_body)
+        workspace_start = "<!-- dotfiles:agent-workspace:start -->"
+        workspace_end = "<!-- dotfiles:agent-workspace:end -->"
+        self.assertEqual(first.count(workspace_start), 1)
+        workspace_body = first.split(workspace_start)[1].split(workspace_end)[0]
+        # The rule names the rendered agent workspace (default ~/agents), not a
+        # placeholder, so agents can write there without resolving anything.
+        for subdir in ("scripts", "tools", "scratch", "tmp"):
+            self.assertIn(f"`{self.destination}/agents/{subdir}", workspace_body)
+        self.assertNotIn("{agents}", workspace_body)
         self.run_chezmoi("apply", "--", str(target))
         self.assertEqual(target.read_text(), first)
         old = first.replace(

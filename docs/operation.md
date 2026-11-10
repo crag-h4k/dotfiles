@@ -9,6 +9,11 @@
 - [Telemetry opt-outs](#telemetry-opt-outs)
 - [OpenCode updates](#opencode-updates)
 - [Worktree and agent directories](#worktree-and-agent-directories)
+  - [Agent workspace](#agent-workspace)
+  - [Changing the folders](#changing-the-folders)
+  - [OpenCode temp directory](#opencode-temp-directory)
+  - [git wt](#git-wt)
+  - [OpenCode worktrees](#opencode-worktrees)
 - [Local overrides](#local-overrides)
   - [Shell PATH additions](#shell-path-additions)
   - [OpenCode terminal settings](#opencode-terminal-settings)
@@ -205,6 +210,8 @@ npm config file, and npm you run from a normal terminal keeps your policy.
 Anything started by `opencode2` inherits the variable, including shell commands
 an agent runs in a session. Run project installs that should honor the cooldown
 outside it.
+The wrapper also exports `TMPDIR` for the same process tree; see
+[OpenCode temp directory](#opencode-temp-directory).
 
 Runtime synchronization reads the installed CLI's SDK peer requirements and
 OpenTUI Solid's declared dependencies and peers, then resolves compatible
@@ -234,13 +241,13 @@ running chezmoi.
 
 ## Worktree and agent directories
 
-Two chezmoi data keys name the directories agents and humans share across
+Two chezmoi data keys name the folders agents and humans share across
 repositories. Both are settings, not fixed paths, so each host picks its own.
 
 | Key | Default | First-init env seed | Holds | Created |
 | --- | --- | --- | --- | --- |
-| `worktreesDir` | `$HOME/worktrees` | `DOTFILES_WORKTREES_DIR` | Git worktrees, one flat directory per task: `<root>/<repo>-<slug>` | Every apply |
-| `agentsDir` | `$HOME/agents` | `DOTFILES_AGENTS_DIR` | Local agent notes: plans, specs, drafts, memory, handoffs | Every apply with an `ai` sub-feature selected |
+| `worktreesDir` | `$HOME/worktrees` | `DOTFILES_WORKTREES_DIR` | Git worktrees, one flat folder per task: `<root>/<repo>-<slug>` | Every apply |
+| `agentsDir` | `$HOME/agents` | `DOTFILES_AGENTS_DIR` | The agent workspace: plans, specs, drafts, scripts, tools, scratch, tmp | Every apply with an `ai` sub-feature selected |
 
 A value can be absolute, `~/...`, or `$HOME/...`. Relative paths, the
 filesystem root, and characters outside letters, digits, spaces, and
@@ -253,73 +260,121 @@ pre-fill, even when the env var holds something else; the env var only seeds a
 first init or an old config that lacks the key. An old config without the keys
 applies with the defaults and needs no re-init.
 
-The AI picker is where you change them. With AI tools selected, its page lists a
-`directories` entry after the sub-features and shows the current paths in its
-header, pre-filled the same way as below (saved value, else env seed, else
-default):
+### Agent workspace
+
+`agentsDir` is where agents work: their plans and notes, and the scripts and
+tools they write for later. It is not `~/.agents`. That one stays the fixed root
+harnesses discover on their own, with the Agent Skills links and the global
+`AGENTS.md`.
+
+Apply creates the workspace root and these folders when they are missing. It
+never moves, renames, or deletes anything already there, and other folders you
+keep in the workspace, such as `memory/`, are left alone.
+
+| Folder | Holds |
+| --- | --- |
+| `plans/` | Plans and handoffs (`plans/<Project>/<slug>-handoff-<date>.md`); Plan mode may write the handoffs |
+| `specs/` | One spec per project |
+| `drafts/` | Message drafts |
+| `scripts/` | Reusable scripts agents write |
+| `tools/` | Tools agents install, each recorded in `tools/README.md` |
+| `scratch/` | Throwaway work |
+| `tmp/` | The `opencode2` wrapper's `TMPDIR`, pruned; see [OpenCode temp directory](#opencode-temp-directory) |
+
+New folders get mode 755, except `tmp/`, which starts at 700 because temp files
+can hold session data.
+
+With `ai > opencode` selected, the managed global instructions in
+`~/.config/opencode/AGENTS.md` tell agents to save reusable scripts in
+`<agentsDir>/scripts`, tools in `<agentsDir>/tools`, and throwaway work in
+`<agentsDir>/scratch`, and never in a temp directory. The merged
+`opencode.jsonc` backs that with a marked global block: an external-directory
+allow and an edit allow for each of those three folders, placed before the
+secret-file denials, so writing there does not prompt. OpenCode appends global
+rules after Plan's built-in read-only rule, so Plan's own managed block denies
+edits there again; Plan can still read them. Nothing else in the workspace is
+widened. Both the instruction and the rules render `agentsDir` as a literal path
+and follow it on the next apply.
+
+### Changing the folders
+
+Each folder has its own entry on the page of the component it belongs to:
+`worktrees` on the Git page and `workspace` on the AI page. Each page's header
+shows the current value, pre-filled the same way as below (saved value, else env
+seed, else default):
+
+```text
+Git configuration  (space toggles, enter confirms, esc cancels):
+Worktrees: ~/src/worktrees
+> • config - ~/.gitconfig + private ~/.gitconfig.override stub
+  • ignore_global - ~/.gitignore_global
+  • worktrees - change the worktrees folder (unchecked keeps it)
+```
 
 ```text
 AI tools  (space toggles, enter confirms, esc cancels):
-Worktrees:   ~/src/worktrees
-Agent notes: $HOME/agents
-> • claude_hooks - Claude settings.json notify hooks
+Agent workspace: $HOME/agents
+> • opencode - OpenCode V2 + managed standalone wrapper + tmux notifier
   ...
-  • directories - change the worktrees and agent-notes directories (unchecked keeps them)
+  • workspace - change the agent workspace folder (unchecked keeps it)
 ```
 
-The entry starts unchecked, is never a component, and is never saved: it is not in
-`[data.components.ai]` or `aiSelection`, and the numbers of the other entries do
-not move. Leave it unchecked and init asks nothing about directories; the values
-stay as resolved. Check it (`x` toggles in Gum 2.x, which ignores Space; Tab works
-too) and init opens exactly one more page, an editor holding both paths:
+An entry starts unchecked, is never a component, and is never saved: it is not
+in `[data.components.*]`, `gitSelection`, or `aiSelection`, and the numbers of
+the other entries do not move. Leave it unchecked and init asks nothing about
+that folder. Check it (`x` toggles in Gum 2.x, which ignores Space; Tab works
+too) and init opens one more page right after that submenu, an editor holding
+that one path:
 
 ```text
-Edit the paths: Enter saves, Ctrl+C keeps as shown
+Edit the path: Enter saves, Ctrl+C keeps as shown
 ┃ worktrees: ~/src/worktrees
-┃ agents: $HOME/agents
 ```
 
-The editor opens on the saved value, else the env seed, else the default, so a
-first init shows the default and every later init shows your last choice. Edit
-either line, then press Enter. Keys
-are case-insensitive, spaces around the colon are optional, blank lines are
-ignored, and a line you delete or leave empty keeps its pre-filled value. Anything
-you type is stored as written, in whichever of the three forms you use. Ctrl+C,
-Escape (Gum 2.x), or an empty answer keeps what is shown, with no second prompt.
+The AI page's editor holds `workspace: <path>` instead. The editor opens on the
+saved value, else the env seed, else the default, so a first init shows the
+default and every later init shows your last choice. Edit the line, then press
+Enter. The key is case-insensitive, spaces around the colon are optional, blank
+lines are ignored, and a line you delete or leave empty keeps the pre-filled
+value. Anything you type is stored as written, in whichever of the three forms
+you use. Ctrl+C, Escape (Gum 2.x), or an empty answer keeps what is shown, with
+no second prompt.
 
 | Situation | Behavior |
 | --- | --- |
-| Gum installed, terminal available | `directories` on the AI page; checked, it opens one `gum write` editor |
-| No Gum, terminal available | `10) directories` in the typed AI menu; chosen, it asks each path with chezmoi's `promptString`, pre-filled, Enter keeps it |
+| Gum installed, terminal available | `worktrees` on the Git page and `workspace` on the AI page; checked, each opens one `gum write` editor |
+| No Gum, terminal available | `10) worktrees` in the typed Git menu and `10) workspace` in the typed AI menu; chosen, each asks its path with chezmoi's `promptString`, pre-filled, Enter keeps it |
 | `DOTFILES_NO_TUI` set | No entry, no prompt; the pre-fill is used |
 | No usable terminal (stdin is not a TTY, or `/dev/tty` will not open) | No entry, no prompt; the pre-fill is used |
 | `cup` (`DOTFILES_PACKAGE_UPDATE`) or the retired `all+` migration | No entry, no prompt; the pre-fill is used |
-| AI tools not selected | The AI page is not shown; the saved value or default stands |
+| Git or AI tools not selected | That page is not shown; the saved value or default stands |
 
 The gate follows the palette picker's rules, not the submenus': chezmoi's typed
 prompt fails outright with no terminal, so an entry that could not ask is not
 offered. `chezmoi apply` never prompts. `chezmoi init --apply` asks during its
-init step only. The typed AI menu is asked once (`promptStringOnce`), so on a host
-without Gum a re-init does not reopen it; change a value there by editing
-`~/.config/chezmoi/chezmoi.toml` (below) or by clearing `aiSelection` first.
+init step only. The typed Git and AI menus are asked once (`promptStringOnce`),
+so on a host without Gum a re-init does not reopen them; change a value there by
+editing `~/.config/chezmoi/chezmoi.toml` (below) or by clearing `gitSelection` or
+`aiSelection` first.
 
-An answer that is not usable, or a line that is not `worktrees: <path>` or
-`agents: <path>`, is explained and the editor reopens with your text kept, up to
-three times; then init stops with the same error `apply` would give. A saved or
-seeded value that is not usable shows as `(not usable)` in the page header and is
-replaced by the default in the editor, so accepting it repairs the config. Leaving
-the entry unchecked with such a value fails at the end of init, as `apply` would.
+An answer that is not usable, or a line that is not the page's own
+`worktrees: <path>` or `workspace: <path>`, is explained and the editor reopens
+with your text kept, up to three times; then init stops with the same error
+`apply` would give. A saved or seeded value that is not usable shows as
+`(not usable)` in the page header and is replaced by the default in the editor,
+so accepting it repairs the config. Leaving the entry unchecked with such a
+value fails at the end of init, as `apply` would.
 
 To pick a value on a new host, seed it once. Init takes the seed as is, or shows
-it pre-filled if you check `directories` (add `DOTFILES_NO_TUI=1` to never be asked):
+it pre-filled if you check the entry (add `DOTFILES_NO_TUI=1` to never be asked):
 
 ```sh
 DOTFILES_WORKTREES_DIR=/opt/worktrees DOTFILES_AGENTS_DIR="$HOME/notes/agents" \
   chezmoi init --apply
 ```
 
-To change it later, re-run `chezmoi init`, check `directories`, and edit the
-pre-filled value, or edit `~/.config/chezmoi/chezmoi.toml` and apply:
+To change it later, re-run `chezmoi init`, check `worktrees` or `workspace`, and
+edit the pre-filled value, or edit `~/.config/chezmoi/chezmoi.toml` and apply:
 
 ```toml
 [data]
@@ -329,25 +384,107 @@ pre-filled value, or edit `~/.config/chezmoi/chezmoi.toml` and apply:
 
 The managed `~/.zshenv` renders both values as literal absolute paths and
 exports them as `DOTFILES_WORKTREES_DIR` and `DOTFILES_AGENTS_DIR` in every zsh,
-including non-interactive shells. The `git-worktree` and `handoff` skills read
-those variables. Open a new shell (`exec zsh`) after changing a value. A
-shell-only override belongs in `~/.zsh_private`; it changes what that shell
-reports, not where dotfiles creates directories. Without the `zsh` component
-`~/.zshenv` is not managed, so the variables are not exported; the skills then
-use `$HOME/worktrees` when it exists and ask for a handoff root.
+including non-interactive shells. The `git-worktree` and `handoff` skills, `git
+wt`, and the `opencode2` wrapper read those variables. Open a new shell
+(`exec zsh`) after changing a value. A shell-only override belongs in
+`~/.zsh_private`; it changes what that shell reports, not where dotfiles creates
+directories. Without the `zsh` component `~/.zshenv` is not managed, so the
+variables are not exported; the skills then use `$HOME/worktrees` when it exists
+and ask for a handoff root, and `git wt` and the wrapper fall back to the
+defaults.
 
-Apply creates a missing directory with mode 755 and leaves an existing one
-untouched: its mode, owner, and contents stay as they are. Dotfiles never runs
-`sudo`. When the nearest existing parent is not writable, for example
-`/opt/worktrees` on a fresh host, apply keeps going and prints the one-time
-command for you to run:
+Apply creates a missing folder and leaves an existing one untouched: its mode,
+owner, and contents stay as they are. Dotfiles never runs `sudo`. When the
+nearest existing parent is not writable, for example `/opt/worktrees` on a fresh
+host, apply keeps going and prints the one-time command for you to run. A
+workspace root it cannot create gets one such hint, and its subfolders wait for
+the next apply:
 
 ```sh
 sudo install -d -o "$USER" -m 0755 /opt/worktrees
 ```
 
-Existing worktrees and notes are not moved. Move a worktree with
+Existing worktrees and workspace content are not moved. Move a worktree with
 `git worktree move <path> <new-path>` from its repository.
+
+### OpenCode temp directory
+
+OpenCode V2 takes its temp directory from `TMPDIR` (`$TMPDIR/opencode`), and its
+system prompt tells agents to prefer that directory over `/tmp`. The managed
+`opencode2` wrapper therefore exports `TMPDIR=<agentsDir>/tmp` before it starts
+OpenCode. It reads the workspace from `DOTFILES_AGENTS_DIR`, which `~/.zshenv`
+exports for the zsh wrapper, and falls back to `$HOME/agents`. It creates only
+`tmp/`, with mode 700, never the workspace root. When the workspace is missing,
+or `tmp/` is a symlink, is not a directory, is not yours, or resolves outside the
+workspace, the wrapper prints a warning on stderr and leaves `TMPDIR` alone.
+
+That changes more than OpenCode's own files. Every process OpenCode starts
+inherits the variable: the server, every tool, and every shell command an agent
+runs, so their `mktemp`, `$TMPDIR`, and Node `os.tmpdir()` files land in
+`<agentsDir>/tmp` too. Bun keeps its native-library cache in the original temp
+directory through `BUN_TMPDIR`, because it reuses that file across launches
+without updating its timestamp. `--version`, `-v`, `--help`, and `-h` skip all of
+this, since the installer probes `--version` during `chezmoi apply`. Interactive
+launches, `--standalone`, `--server`, `serve`, `run`, and `update`/`upgrade` all
+get the same `TMPDIR`; the TUI's own `/update` already runs under it.
+`~/.config/opencode/override.zsh` is sourced later and can export a different
+`TMPDIR`.
+
+At each launch the wrapper prunes `tmp/` in the background, so startup never
+waits: regular files and symlinks older than `OPENCODE2_TMP_MAX_AGE_DAYS`
+(default `7`), then empty directories that old, except `tmp/opencode`, which
+OpenCode creates at startup. `0` turns pruning off; a value that is not a whole
+number skips it with a warning. `find` never follows symlinks, stays on one
+filesystem, and runs only inside the verified `tmp/`. It refuses to run when the
+workspace is `/` or your home directory.
+
+### git wt
+
+With the `git` component selected, `~/.local/bin/git-wt` adds a `git wt`
+subcommand. Git finds it only when `~/.local/bin` is on `PATH`, which the `zsh`
+component provides. It creates a worktree at
+`$DOTFILES_WORKTREES_DIR/<repo>-<slug>`, falling back to `$HOME/worktrees`:
+
+```sh
+git wt feat/foo-bar           # <root>/dotfiles-foo-bar, a new branch from origin/HEAD
+git wt fix/typo main          # a new branch from main
+git wt --fetch feat/fresh     # fetch only the base's remote branch first
+git wt existing-branch        # check out a local branch that already exists
+cd "$(git wt feat/other)"     # the path is the only line on stdout
+```
+
+- `<repo>` is the main worktree's folder name, also when you run it from a
+  linked worktree. A bare repository uses its name without `.git`, or the parent
+  folder's name when it is stored as `<dir>/.git`.
+- `<slug>` is the branch after its last `/`.
+- An existing local branch is checked out as is. Otherwise the branch is created
+  from the base, default `origin/HEAD` when it resolves and `HEAD` otherwise,
+  without upstream tracking; `git push -u` sets one later.
+- Nothing is fetched unless you pass `--fetch`, which fetches only the base's
+  remote branch, without tags.
+- An existing destination is refused. The new path is the last line on stdout;
+  Git's own messages go to stderr.
+- Use `git wt -h` for help. `git wt --help` asks Git for a manual page, which does
+  not exist.
+
+Git has no setting for a default worktree folder (its `worktree.*` keys cover
+remote guessing and relative paths only), so `DOTFILES_WORKTREES_DIR` stays the
+interface.
+
+### OpenCode worktrees
+
+OpenCode V2 can create worktrees itself, from the TUI's **New worktree** dialog
+and its worktree tools. It puts them under the `worktree.directory` setting plus
+the name you give, or a generated one; without the setting they land in its data
+directory under `worktree/<project id prefix>`. The merged `opencode.jsonc` sets
+`worktree.directory` to the resolved `worktreesDir` on every apply and keeps any
+other member of `worktree`. A project's own `opencode.jsonc` still overrides it.
+
+OpenCode does not add a repository prefix, so its worktrees follow the flat
+`<repo>-<slug>` layout only when you name them that way (for example
+`dotfiles-foo-bar`); a generated name looks like `tidy-wolf`. It also checks out a
+detached `HEAD`, not a branch. Use `git wt` when you want the branch and the name
+handled for you.
 
 ## Local overrides
 
@@ -365,8 +502,10 @@ settings in these files, and `chezmoi update` keeps working:
 
 With `ai > opencode` selected, chezmoi also merges portable preferences into
 `~/.config/opencode/AGENTS.md`: use the `question` tool for decisions and Git
-write approvals, and use `rg` instead of `grep` for shell searches, including
-SSH commands and pipeline filters. Dedicated search tools remain preferred.
+write approvals, use `rg` instead of `grep` for shell searches, including
+SSH commands and pipeline filters, and keep scripts, tools, and scratch work in
+the [agent workspace](#agent-workspace) instead of a temp directory. Dedicated
+search tools remain preferred.
 Selecting OpenViking adds find-before-local-loaders guidance; see
 [OpenViking memory](openviking.md#review-and-clean-up-memories).
 Existing local instructions stay intact. These are agent instructions, not
@@ -375,9 +514,11 @@ source edits alone do not change an already installed configuration.
 Its OpenCode config merge adds Plan handoff access for three roots without
 replacing unrelated local Plan rules: `~/.local/share/agent-handoffs`,
 `/opt/ai/handoffs`, and `<agentsDir>/plans`, where `<agentsDir>` is the resolved
-`data.agentsDir` (default `$HOME/agents`) written as a literal absolute path. The
-managed block follows `agentsDir` on the next apply after you change it. Any
-other root still needs a private permission overlay.
+`data.agentsDir` (default `$HOME/agents`) written as a literal absolute path.
+The same block lets Plan read the workspace's `scripts/`, `tools/`, and
+`scratch/` and denies its edits there, which the global workspace allows would
+otherwise grant. The managed block follows `agentsDir` on the next apply after
+you change it. Any other root still needs a private permission overlay.
 
 None are chezmoi-managed. Each is listed
 unconditionally in `home/.chezmoiignore`, so chezmoi never applies or removes
