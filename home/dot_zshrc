@@ -101,6 +101,14 @@ if [[ -n "$DOTFILES_ZSH_THEME_PATH" ]]; then
     fi
 fi
 
+# Alt and Option word keys. Terminals that send Alt+arrows as xterm-modified CSI
+# (iTerm2 with "Treat option as Alt", Ghostty and most others on Linux) need
+# these. ESC b, ESC f, and ESC DEL are already bound, and Ghostty on macOS sends
+# Option+Left and Option+Right as ESC b and ESC f, so it never needed them.
+bindkey '^[[1;3D' backward-word
+bindkey '^[[1;3C' forward-word
+bindkey '^[[3;3~' kill-word
+
 # Custom functions AFTER OMZ so our definitions override any plugin-provided
 # ones (e.g. workflow_helpers.zsh `ta` beats tmux plugin's `ta`).
 for function in $ZSH_CUSTOM/functions/*.zsh; do
