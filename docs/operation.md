@@ -785,10 +785,14 @@ Things to know:
 - Option+Right and Option+F stop at the start of the next word, not at the end
   of the current one as in macOS text fields, and deleting the next word takes
   the space after it too. That is OpenCode's word motion; no keybind changes it.
-- zsh's emacs keymap already binds ESC b, ESC f, ESC d, and ESC DEL, so the same
-  keys work at the shell prompt. zsh has no binding for Option+fn+Delete
-  (`ESC[3;3~`) and inserts `;3~`. To fix that on one machine, add
-  `bindkey '^[[3;3~' kill-word` to `~/.zsh_override`.
+- zsh's emacs keymap already binds ESC b, ESC f, ESC d, and ESC DEL. It does not
+  bind the xterm-modified forms, so the managed `~/.zshrc` adds `ESC[1;3D`
+  (back a word), `ESC[1;3C` (forward a word), and `ESC[3;3~` (delete the next
+  word). Ghostty on macOS sends Option+Left and Option+Right as ESC b and ESC f
+  and never needed them. iTerm2, and Ghostty or most other terminals on Linux,
+  send the modified forms, and without the bindings Option+arrow did nothing at
+  the prompt in iTerm2 and `;3D` could appear. This is a zsh setting, not a
+  terminal one, so it works in every terminal and on both OSes.
 - Nothing on the OpenCode side is OS-gated, and Linux needs no Ghostty setting.
   On Debian, Alt+B, Alt+F, Alt+D, Alt+Left, Alt+Right, Alt+Backspace, and
   Alt+Delete send the same sequences as the Option chords above and do the same
@@ -796,10 +800,14 @@ Things to know:
   Tests pin that the Linux Ghostty render sets no Option remap and that no
   Ghostty or managed OpenCode keybind takes an Alt or Option word chord.
 - The iTerm2 profiles are the other macOS terminal. They send Esc+ from both
-  Option keys, so the same chords arrive there as ESC b, ESC f, ESC d, ESC DEL,
+  Option keys, so the letter chords arrive there as ESC b, ESC f, ESC d, ESC DEL,
   and ESC CR. iTerm2's default Normal setting would type `∫` for Option+B and send
   a plain Enter for Option+Enter, which inserts a newline instead of sending.
-  This is not checked with physical keypresses; a test pins the profile values.
+  The profiles also turn on `Treat Option as Alt`, so Option+Left and Option+Right
+  arrive as `ESC[1;3D` and `ESC[1;3C`; a keypress in iTerm2 printed exactly that.
+  With the setting off, Option+arrow typed `D`, `C`, `A`, or `B` in OpenCode. An
+  isolated tmux 3.8 server running OpenCode 2.2.5 moved by word on `ESC[1;3D` and
+  `ESC[1;3C`. A test pins the profile values.
 
 Checked on 2026-11-06 in an isolated tmux 3.8 server against OpenCode 2.2.5 with
 the notifier binding loaded. Each tmux sequence above, typed through a real tmux

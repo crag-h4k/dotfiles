@@ -105,7 +105,7 @@ CLI, server, plugin SDK, and terminal versions when diagnosing compatibility.
   pins that, so a later upstream default still arrives. The macOS Ghostty arm sets
   `macos-option-as-alt = true` for the letter chords, so either Option key works;
   Linux needs no setting because Alt already arrives as Alt, and the iTerm2 profiles
-  send Esc+ from both Option keys. If that setting changes,
+  send Esc+ from both Option keys and set `Treat Option as Alt` for the arrows. If that setting changes,
   recheck Option+Enter: it relies on Ghostty sending non-printing Option chords
   as Alt.
 - The attention-tabs CLI plugin (`v2-plugins/attention-tabs`) owns tab order, the

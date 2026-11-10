@@ -144,7 +144,25 @@ SOURCE_ROOT="$REPO_ROOT/home"
   done
 }
 
-@test "iTerm2 profiles send Esc+ from both Option keys, so Option word keys work there too" {
+@test "zsh binds the Alt word chords that iTerm2 and Linux terminals send" {
+  local zshrc="$SOURCE_ROOT/dot_zshrc" block
+  # Pull the commented block out of the real zshrc, so the test breaks if it moves
+  # or loses a line, and run it in a bare zsh that reads no startup files. An
+  # interactive zsh starts on the emacs keymap, so select it the same way.
+  block="$(awk '/^# Alt and Option word keys\./{on=1} on&&/^$/{exit} on' "$zshrc")"
+  [ -n "$block" ]
+  run zsh -f -c "bindkey -e"$'\n'"$block"$'\n''bindkey'
+  [ "$status" -eq 0 ]
+  # Alt+Left, Alt+Right, and Alt+Delete as xterm sends them, on top of the
+  # ESC b and ESC f that zsh binds by default.
+  [[ "$output" == *'"^[[1;3D" backward-word'* ]]
+  [[ "$output" == *'"^[[1;3C" forward-word'* ]]
+  [[ "$output" == *'"^[[3;3~" kill-word'* ]]
+  [[ "$output" == *'"^[b" backward-word'* ]]
+  [[ "$output" == *'"^[f" forward-word'* ]]
+}
+
+@test "iTerm2 profiles send Esc+ from both Option keys and treat Option as Alt for arrows" {
   local config="${BATS_TEST_TMPDIR}/chezmoi.toml"
   printf '[data]\n' > "$config"
   run chezmoi execute-template --source "$REPO_ROOT" --config "$config" \
@@ -153,7 +171,9 @@ SOURCE_ROOT="$REPO_ROOT/home"
   printf '%s\n' "$output" > "${BATS_TEST_TMPDIR}/iterm2.json"
 
   # iTerm2 values: 0 Normal (Option+B types a symbol), 1 Meta, 2 Esc+. Esc+ makes
-  # either Option key arrive as Alt, the same bytes Ghostty sends.
+  # either Option key arrive as Alt for letters. "Treat Option as Alt" covers the
+  # arrows: on, Option+Left is ESC[1;3D; off, Option+arrows typed D, C, A, and B
+  # in OpenCode.
   run python3 - "${BATS_TEST_TMPDIR}/iterm2.json" <<'PY'
 import json
 import sys
@@ -165,6 +185,7 @@ assert len(profiles) >= 2
 for profile in profiles:
     for key in ("Option Key Sends", "Right Option Key Sends"):
         assert profile[key] == 2, f'{profile["Name"]}: {key} is {profile[key]}, want 2 (Esc+)'
+    assert profile["Treat Option as Alt"] is True, f'{profile["Name"]}: Treat Option as Alt is off'
 PY
   [ "$status" -eq 0 ]
 }

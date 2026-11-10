@@ -807,7 +807,10 @@ Dynamic Profiles are read-only in the iTerm2 interface. Edit the JSON source.
 Both profiles send Esc+ from the left and the right Option key
 (`Option Key Sends` and `Right Option Key Sends` are 2), so Option+B, Option+F,
 Option+D, Option+Backspace, and Option+Enter reach OpenCode and zsh as Alt, the
-same bytes Ghostty sends. Neither key then types accents or special characters.
+same bytes Ghostty sends. They also set `Treat Option as Alt` (iTerm2's "Treat
+option as Alt for special keys like arrows"), so the arrows arrive as `ESC[1;3D`
+and its relatives; with it off, Option+arrow typed `D`, `C`, `A`, or `B` in
+OpenCode. Neither Option key then types accents or special characters.
 Set both values back to 0 in `home/dot_config/iterm2/dotfiles.json.tmpl` to get
 them back; see
 [OpenCode Option word keys](operation.md#opencode-option-word-keys).
