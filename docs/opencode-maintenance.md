@@ -53,6 +53,10 @@ CLI, server, plugin SDK, and terminal versions when diagnosing compatibility.
   between competing versions. CLI-only plugin overrides remain separate.
 - Stage and check CLI/plugin runtime compatibility and required imports before
   switching the stable binary or runtime links. Preserve old releases on failure.
+  Retire the pre-npm `releases/` and `plugin-runtime/` trees only in the
+  installer, after a success that migrated nothing; chezmoi runs
+  `.chezmoiremove` before any script, too early for a release a link may still
+  use. Match the old installer's release names, never the whole prefix.
   Chezmoi must not manage runtime node_modules, npm lockfiles, or authentication.
   Resolve OpenTUI and Solid.js against the selected SDK's declared peers through
   `npm-candidate.sh`. Chezmoi-driven npm work, including the wrapper and runtime

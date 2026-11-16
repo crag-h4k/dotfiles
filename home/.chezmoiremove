@@ -20,3 +20,16 @@
 .config/opencode/plugin/copilot-tiers.ts
 .config/opencode/plugin/codex-quota.ts
 .config/opencode/plugin/provider-usage.ts
+{{/* A managed package.json and package-lock.json once pinned the OpenCode V2 plugin
+     runtime in ~/.config/opencode. sync-runtime.sh now installs it at the CLI's
+     version without them, and the stale pins would downgrade a plain npm install
+     there. OpenCode also lets users keep their own package.json in that directory,
+     so remove only files that still carry the retired package name. */}}
+{{ range list "package.json" "package-lock.json" -}}
+{{   $path := joinPath $.chezmoi.destDir ".config/opencode" . -}}
+{{   if stat $path -}}
+{{     if contains "\"dotfiles-opencode-runtime\"" (include $path) -}}
+.config/opencode/{{ . }}
+{{     end -}}
+{{   end -}}
+{{ end -}}

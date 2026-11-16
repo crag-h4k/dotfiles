@@ -566,5 +566,63 @@ class ClaudeSkillsMigrationTest(unittest.TestCase):
                 self.assertFalse((home / ".codex/skill").exists())
 
 
+class RetiredOpenCodeRuntimePinsTest(unittest.TestCase):
+    """.chezmoiremove drops the retired runtime pins, never a user's own files."""
+
+    def setUp(self) -> None:
+        temporary = tempfile.TemporaryDirectory()
+        self.addCleanup(temporary.cleanup)
+        self.root = Path(temporary.name)
+        self.repo = self.root / "repo"
+        (self.repo / "home").mkdir(parents=True)
+        (self.repo / ".chezmoiroot").write_text("home\n")
+        shutil.copyfile(REPO / "home/.chezmoiremove", self.repo / "home/.chezmoiremove")
+
+    def apply(self, home: Path) -> subprocess.CompletedProcess:
+        config = home / ".config/chezmoi/chezmoi.toml"
+        config.parent.mkdir(parents=True, exist_ok=True)
+        config.write_text('sourceDir = "' + str(self.repo) + '"\n')
+        environment = {key: value for key, value in os.environ.items() if key not in GIT_ENVIRONMENT}
+        environment.update({
+            "HOME": str(home),
+            "XDG_CONFIG_HOME": str(home / ".config"),
+            "XDG_DATA_HOME": str(home / ".local/share"),
+            "XDG_CACHE_HOME": str(home / ".cache"),
+            "XDG_STATE_HOME": str(home / ".local/state"),
+        })
+        return subprocess.run(
+            ["chezmoi", "--source", str(self.repo), "--destination", str(home), "--no-tty", "apply"],
+            env=environment, stdin=subprocess.DEVNULL, capture_output=True, text=True, timeout=60,
+        )
+
+    def package_files(self, home: Path, name: str) -> list[Path]:
+        directory = home / ".config/opencode"
+        directory.mkdir(parents=True)
+        files = [directory / "package.json", directory / "package-lock.json"]
+        for path in files:
+            path.write_text(json.dumps({"name": name, "dependencies": {"@opencode/plugin": "2.0.8"}}, indent=2) + "\n")
+        return files
+
+    def test_apply_removes_the_retired_runtime_pins(self) -> None:
+        home = self.root / "retired"
+        files = self.package_files(home, "dotfiles-opencode-runtime")
+
+        result = self.apply(home)
+
+        self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+        for path in files:
+            self.assertFalse(path.exists(), path)
+
+    def test_apply_keeps_package_files_the_user_owns(self) -> None:
+        home = self.root / "own"
+        files = self.package_files(home, "my-opencode-plugins")
+
+        result = self.apply(home)
+
+        self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+        for path in files:
+            self.assertTrue(path.exists(), path)
+
+
 if __name__ == "__main__":
     unittest.main()

@@ -250,6 +250,13 @@ The installer migrates `bin/opencode2` links into an older `releases/` layout
 before npm takes ownership. It retains the old release and restores its link
 if CLI verification or the matching runtime installation fails.
 
+A later install that succeeds without migrating anything deletes that old
+layout from the prefix: the `<version>-<epoch>.<pid>` trees under `releases/`
+and `plugin-runtime/releases/`, the `previous-` runtimes it moved aside, and
+`.stage.*` leftovers from interrupted runs. Anything else in those folders
+stays. A run that just moved the link, or replaced a `node_modules` link into
+`plugin-runtime/`, keeps the old trees until the next successful install.
+
 `~/.config/opencode/opencode.jsonc` is merge-managed. Chezmoi reasserts the
 schema, agent colors, Ricer's subagent mode, Plan handoff permissions,
 `worktree.directory` (OpenCode's own worktrees go under `data.worktreesDir`; see
@@ -515,6 +522,13 @@ OpenTUI, and Solid. `sync-runtime.sh` installs versions matching the CLI into
 `~/.config/opencode/node_modules`. Package mode runs it, and the `opencode2`
 wrapper reruns it at launch, where it exits early once the versions match.
 Chezmoi does not track that tree.
+
+Older releases pinned that runtime with a managed `package.json` and
+`package-lock.json` in `~/.config/opencode`. Left behind, they make `npm ls`
+and `npm audit` describe the old pins, and a plain `npm install` there would
+downgrade the runtime. `home/.chezmoiremove` deletes them on apply while they
+still carry the retired `dotfiles-opencode-runtime` name. OpenCode lets you keep
+your own `package.json` in that folder, and one with any other name stays.
 
 Selecting `ai.opencode` includes this footer. The separate `ai.statusline`
 selection controls Claude's statusline and Codex's theme.

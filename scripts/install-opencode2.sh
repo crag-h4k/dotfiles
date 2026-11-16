@@ -76,6 +76,37 @@ install_cli() {
     info "opencode2: @opencode/cli@$have and matching plugin runtime are current"
 }
 
+# Before npm owned the CLI, the installer staged each release under releases/ and
+# its plugin runtime under plugin-runtime/releases/, both named
+# <version>-<epoch>.<pid>. A runtime it moved aside got a previous- prefix, and an
+# interrupted run could leave a .stage.* directory. Remove only those names, never
+# anything else in the prefix, and only while nothing still points into them.
+remove_legacy_releases() {
+    local pattern='^(previous-)?([0-9]+\.[0-9]+\.[0-9]+.*|unknown)-[0-9]+\.[0-9]+$'
+    local dir entry name active removed=0
+    [[ ! -L "$CONFIG_DIR/node_modules" ]] || return 0
+    active="$(canonical_path "$NPM_PREFIX/bin/opencode2")" || return 0
+    [[ "$active" != "$NPM_PREFIX/releases/"* ]] || return 0
+    for dir in "$NPM_PREFIX/releases" "$NPM_PREFIX/plugin-runtime/releases"; do
+        [[ -d "$dir" && ! -L "$dir" ]] || continue
+        for entry in "$dir"/* "$dir"/.stage.*; do
+            [[ -e "$entry" || -L "$entry" ]] || continue
+            name="${entry##*/}"
+            [[ "$name" =~ $pattern || "$name" == .stage.* ]] || continue
+            if rm -rf -- "$entry"; then
+                removed=$((removed + 1))
+            else
+                warn "opencode2: could not remove legacy release $entry"
+            fi
+        done
+        rmdir "$dir" 2>/dev/null || true
+    done
+    rmdir "$NPM_PREFIX/plugin-runtime" 2>/dev/null || true
+    if (( removed > 0 )); then
+        info "opencode2: removed $removed legacy release tree(s)"
+    fi
+}
+
 main() {
     if [[ "${INSTALL_AI_OPENCODE:-false}" != true ]]; then
         return 0
@@ -140,6 +171,9 @@ main() {
             info "opencode2: CLI $installed is current; checking plugin runtime"
         fi
     fi
+    # The old installer linked the plugin runtime into plugin-runtime/releases/.
+    local legacy_runtime_link=false
+    [[ ! -L "$CONFIG_DIR/node_modules" ]] || legacy_runtime_link=true
     local legacy_backup=""
     if [[ -L "$native_link" && "$resolved_native" == "$NPM_PREFIX/releases/"* ]]; then
         legacy_backup="$(mktemp -d "$NPM_PREFIX/.npm-migration.XXXXXX")"
@@ -156,6 +190,11 @@ main() {
     if [[ -n "$legacy_backup" ]]; then
         rm "$legacy_backup/opencode2"
         rmdir "$legacy_backup"
+    fi
+    # A run that just migrated keeps the old trees recoverable until the next
+    # successful install.
+    if [[ -z "$legacy_backup" && "$legacy_runtime_link" == false ]]; then
+        remove_legacy_releases
     fi
 }
 
