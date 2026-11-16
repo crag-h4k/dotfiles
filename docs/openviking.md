@@ -533,7 +533,8 @@ the local catalog already lists a matching skill. Skill discovery uses
 loading applicable local skills. Local-skill precedence stays intact. Missing
 tools, failed searches, and irrelevant results fall back to local guidance with
 the limitation reported. Retrieval does not authorize skill installation.
-The next apply after deselecting OpenViking removes the block.
+The next apply after deselecting OpenViking removes the block, and the Continuity
+section of the global soul block with it.
 
 ## OpenCode permissions
 
