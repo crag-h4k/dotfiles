@@ -504,6 +504,56 @@ legacy_release_link() {
   [[ "$output" == *"restored the previous release link"* ]]
 }
 
+# legacy_trees: what the pre-npm installer left in the prefix, named like its
+# releases (<version>-<epoch>.<pid>), plus a directory it never created.
+LEGACY_ID=2.0.7-1790000000.123
+
+legacy_trees() {
+  mkdir -p "$PREFIX/releases/$LEGACY_ID/bin" "$PREFIX/releases/.stage.abc" \
+    "$PREFIX/releases/keep-me" \
+    "$PREFIX/plugin-runtime/releases/$LEGACY_ID/node_modules/@opencode/plugin" \
+    "$PREFIX/plugin-runtime/releases/previous-$LEGACY_ID/@opencode/plugin"
+  : >"$PREFIX/releases/$LEGACY_ID/bin/opencode2"
+}
+
+@test "a successful install removes only the legacy release trees" {
+  legacy_trees
+  install_with_npm 11.11.0
+  [ ! -e "$PREFIX/releases/$LEGACY_ID" ]
+  [ ! -e "$PREFIX/releases/.stage.abc" ]
+  [ ! -e "$PREFIX/plugin-runtime" ]
+  [ -d "$PREFIX/releases/keep-me" ]
+  [ -x "$PREFIX/bin/opencode2" ]
+}
+
+@test "a failed install keeps the legacy release trees" {
+  legacy_trees
+  NPM_CLI_FAIL=1 install_with_npm 11.11.0 1
+  [ -d "$PREFIX/releases/$LEGACY_ID" ]
+  [ -d "$PREFIX/plugin-runtime/releases/$LEGACY_ID" ]
+  [ -d "$PREFIX/plugin-runtime/releases/previous-$LEGACY_ID" ]
+}
+
+@test "a migrating install keeps the release it left until the next one succeeds" {
+  mkdir -p "$PREFIX/releases/$LEGACY_ID/bin"
+  mv "$PREFIX/bin/opencode2" "$PREFIX/releases/$LEGACY_ID/bin/opencode2"
+  ln -s "$PREFIX/releases/$LEGACY_ID/bin/opencode2" "$PREFIX/bin/opencode2"
+  NPM_REQUIRE_FREE_BIN=1 install_with_npm 11.11.0
+  [ -x "$PREFIX/releases/$LEGACY_ID/bin/opencode2" ]
+
+  install_with_npm 11.11.0
+  [ ! -e "$PREFIX/releases" ]
+}
+
+@test "an install that replaces a runtime link keeps the old runtime tree" {
+  legacy_trees
+  mkdir -p "$HOME/.config/opencode"
+  ln -s "$PREFIX/plugin-runtime/releases/$LEGACY_ID/node_modules" "$HOME/.config/opencode/node_modules"
+  install_with_npm 11.11.0
+  [ ! -L "$HOME/.config/opencode/node_modules" ]
+  [ -d "$PREFIX/plugin-runtime/releases/$LEGACY_ID/node_modules" ]
+}
+
 # --- Agent temp directory --------------------------------------------------------
 # The wrapper points TMPDIR at <agent workspace>/tmp, because OpenCode derives its
 # own temp dir from os.tmpdir(), and prunes old entries there in the background.
