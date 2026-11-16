@@ -380,6 +380,40 @@ class SkillDeploymentTests(unittest.TestCase):
         self.run_chezmoi("apply", "--", str(target))
         self.assertEqual(target.read_text(), without)
 
+    def test_soul_block_is_managed_and_continuity_follows_openviking(self) -> None:
+        target = self.destination / ".config/opencode/AGENTS.md"
+        target.parent.mkdir(parents=True)
+        target.write_text("# Local rules\n\nKeep my custom rule.\n")
+        target.chmod(0o600)
+        start = "<!-- dotfiles:soul:start -->"
+        end = "<!-- dotfiles:soul:end -->"
+        self.config.write_text(VALIDATOR.component_config({"opencode"}))
+        self.run_chezmoi("apply", "--", str(target))
+        without = target.read_text()
+        self.assertIn("Keep my custom rule.", without)
+        self.assertEqual(without.count(start), 1)
+        body = without.split(start)[1].split(end)[0]
+        for heading in ("## Soul", "### Vibe", "### Core truths", "### Boundaries",
+                        "### Praise and pushback"):
+            self.assertIn(heading, body)
+        self.assertNotIn("### Continuity", body)
+        self.assertNotIn("OpenViking", body)
+        self.run_chezmoi("apply", "--", str(target))
+        self.assertEqual(target.read_text(), without)
+        self.config.write_text(VALIDATOR.component_config({"opencode", "openviking"}))
+        self.run_chezmoi("apply", "--", str(target))
+        selected = target.read_text()
+        self.assertEqual(selected.count(start), 1)
+        selected_body = selected.split(start)[1].split(end)[0]
+        self.assertIn("### Continuity", selected_body)
+        self.assertIn("OpenViking", selected_body)
+        target.write_text(selected.replace(selected_body, "\nOld soul.\n"))
+        self.run_chezmoi("apply", "--", str(target))
+        self.assertEqual(target.read_text(), selected)
+        self.config.write_text(VALIDATOR.component_config({"opencode"}))
+        self.run_chezmoi("apply", "--", str(target))
+        self.assertEqual(target.read_text(), without)
+
     def test_handoff_snapshot_is_readonly_and_directly_executable(self) -> None:
         self.config.write_text(VALIDATOR.component_config({"opencode"}))
         target = self.destination / ".local/share/agent-skills/handoff/scripts/snapshot.sh"

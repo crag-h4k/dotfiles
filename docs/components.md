@@ -296,6 +296,17 @@ fetch and a plain merge with the message `chore: merge <base> into <branch>`
 need no question, and a push of the result still does.
 Credential files and recursive removal commands remain denied.
 
+The global instructions also carry a short soul block: how the agent should
+sound and what it holds to, such as answers that lead with the point, a working
+result over a green check, and caution scaled to what a change can break. It
+states character, not rules, and says that specific rules elsewhere win. OpenCode
+V2 loads only `AGENTS.md` files and the `instructions` array, so the block lives
+in the managed global `AGENTS.md` instead of a standalone `soul.md`. Its
+Continuity section, which has the agent save a correction to OpenViking the first
+time it is made, renders only when OpenViking is selected. Like the other marked
+blocks, apply rewrites the text between the markers and leaves the rest of the
+file alone.
+
 `cli.json` enables session tabs and keeps OpenCode's default `Ctrl+X` as a
 1500 ms leader. Chezmoi merge-manages it, so settings changed with **Open
 settings** persist; see
