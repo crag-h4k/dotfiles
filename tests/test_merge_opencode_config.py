@@ -325,7 +325,7 @@ def test_empty_stdin_seeds_a_complete_generic_file(script):
 def test_owned_comments_survive_because_nothing_is_reserialized(script):
     out, _ = merge(script, "")
     for comment in (
-        "// Managed OpenCode V2 plugins track npm latest. Startup checks for updates;",
+        "// Managed OpenCode V2 plugins track npm latest and update themselves:",
         "// Prompt metadata uses each agent's configured color.",
         "// Permission model: ask by default",
         "// Git mutations ask for approval",
@@ -370,7 +370,32 @@ def test_retired_quota_pin_and_its_audit_are_replaced_by_pillbox(script):
     assert "Audited @1.0.0" not in out
     assert "/* Keep this local note. */" in out
     assert "// Managed OpenCode V2 plugins, EXACT-pinned." not in out
-    assert out.count("// Managed OpenCode V2 plugins track npm latest.") == 1
+    assert out.count("// Managed OpenCode V2 plugins track npm latest and update themselves:") == 1
+    assert merge(script, out)[0] == out
+
+
+def test_review_gated_latest_audit_is_replaced_without_dropping_local_comments(script):
+    initial, _ = merge(script, "")
+    # Lines earlier releases wrote before OpenCode updated @latest plugins itself,
+    # including two wrapped fragments of the first Pillbox and Sidequest audit.
+    old_audit = '''\
+    // Managed OpenCode V2 plugins track npm latest. Startup checks for updates;
+    // installing one requires an explicit plugin update. Review it first.
+    // dependencies. Future releases require their own review before updating.
+    // its quota endpoint: api.github.com or the Enterprise API host
+    // configured OpenCode providers; run state and bounded outputs are stored
+    // Keep my plugin note.
+'''
+    src = initial.replace('    // dotfiles:plugins:end', old_audit + '    // dotfiles:plugins:end')
+    out, err = merge(script, src)
+    assert err == ""
+    assert "Startup checks for updates;" not in out
+    assert "requires an explicit plugin update" not in out
+    assert "Future releases require their own review" not in out
+    assert "// its quota endpoint:" not in out
+    assert "// configured OpenCode providers;" not in out
+    assert "// Keep my plugin note." in out
+    assert out.count("// Managed OpenCode V2 plugins track npm latest and update themselves:") == 1
     assert merge(script, out)[0] == out
 
 
