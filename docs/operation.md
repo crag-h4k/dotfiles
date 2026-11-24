@@ -987,14 +987,16 @@ opencode2 plugin list
 
 Chezmoi owns the registrations between `// dotfiles:plugins:start` and
 `// dotfiles:plugins:end`, including their `@latest` references and audit comments.
-Both Pillbox and Sidequest follow npm's moving `latest` tag. OpenCode checks
-for newer versions on startup but keeps the installed versions until you choose
-to update them. Review the release, then run `opencode2 plugin update` to install
-the latest available versions. This executes new plugin code without a dotfiles
-change. The `opencode2` wrapper runs with `NPM_CONFIG_MIN_RELEASE_AGE=0` (see
+Both Pillbox and Sidequest follow npm's moving `latest` tag, so OpenCode updates
+them itself. It checks on startup and every 24 hours, installs a newer release,
+and reloads it. If the new release fails to load, the previous one keeps running.
+That runs new plugin code without a dotfiles change or a prompt. The `opencode2`
+wrapper runs with `NPM_CONFIG_MIN_RELEASE_AGE=0` (see
 [OpenCode updates](#opencode-updates)), so your npm release-age policy does not
-reject a fresh version there; reviewing the release is the control. A fresh
-installation also resolves the moving tags at startup.
+hold a fresh version back either. `opencode2 plugin check` lists pending updates,
+and `opencode2 plugin update` installs them now instead of at the next check.
+Holding a plugin at one version takes a source change: a local exact-version
+entry competes with the managed reference, and the merge refuses it (see below).
 Keep local entries after the end marker. Packages, local paths, Git references,
 object options, and comments survive repeated applies in their original local
 order. There is no dotfiles allowlist; review additions yourself because plugins

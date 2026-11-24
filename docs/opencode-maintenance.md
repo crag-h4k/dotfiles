@@ -66,7 +66,9 @@ CLI, server, plugin SDK, and terminal versions when diagnosing compatibility.
 - The footer is the `opencode-pillbox-statusline` package. Dotfiles owns its
   `@latest` reference in both config files, the `opencode.jsonc` reference audit, and the
   seeded `cli.json` color options; pill behavior, quota sources, and their
-  tests belong upstream. Review a new release before an explicit plugin update; keep
+  tests belong upstream. OpenCode installs `@latest` releases on its own (startup
+  and every 24 hours), so a published release reaches every host without a
+  dotfiles change; do not document a review gate it does not have. Keep
   Copilot tiers opt-in. Keep color overrides as theme tokens with a fallback,
   not palette hex values; `tests/test_opencode_theme.py` proves the hues.
   Retire a removed managed entry through `RETIRED_PLUGINS` in the `cli.json`

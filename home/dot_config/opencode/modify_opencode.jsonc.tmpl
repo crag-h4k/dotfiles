@@ -203,8 +203,9 @@ MANAGED_PLUGINS = (
 PLUGINS_START = "// dotfiles:plugins:start"
 PLUGINS_END = "// dotfiles:plugins:end"
 PLUGIN_AUDIT = """\
-    // Managed OpenCode V2 plugins track npm latest. Startup checks for updates;
-    // installing one requires an explicit plugin update. Review it first.
+    // Managed OpenCode V2 plugins track npm latest and update themselves:
+    // OpenCode checks on startup and every 24 hours, then installs and reloads
+    // a newer release. A release that fails to load leaves the previous one running.
     // opencode-pillbox-statusline draws the footer. This entry loads its server
     // half; cli.json registers the TUI half with the dotfiles color options.
     // Reference audit @0.1.1 (not future releases): compiled TUI and diagnostics
@@ -225,7 +226,7 @@ PLUGIN_AUDIT = """\
     // prompts go through the configured OpenCode providers; run state and bounded outputs are stored
     // locally. The panel can read and message each step. Host permissions still
     // apply. No direct provider HTTP calls, install-time scripts, or runtime npm
-    // dependencies. Future releases require their own review before updating.
+    // dependencies.
 {{ if dig "components" "ai" "openviking" false . }}
     // OpenViking: upstream V2 hooks provide automatic recall and capture.
     // Audited @2026.10.7: captures user/assistant messages and tool output,
@@ -249,7 +250,12 @@ RETIRED_AUDIT = """\
     // it only to GitHub's undocumented Copilot quota API. No telemetry or
     // install-time scripts. cli.json disables its stock TUI half; the local
     // footer displays the quota after session cost, without a reset countdown.
-    // A GitHub API change can make the quota unavailable."""
+    // A GitHub API change can make the quota unavailable.
+    // Managed OpenCode V2 plugins track npm latest. Startup checks for updates;
+    // installing one requires an explicit plugin update. Review it first.
+    // dependencies. Future releases require their own review before updating.
+    // its quota endpoint: api.github.com or the Enterprise API host
+    // configured OpenCode providers; run state and bounded outputs are stored"""
 
 # Retained byte-for-byte only to recognize and migrate the old generated seed.
 LEGACY_SEED_PERMISSION = """\
