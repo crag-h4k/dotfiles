@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.7.1](https://github.com/crag-h4k/dotfiles/compare/v1.7.0...v1.7.1) (2026-11-26)
+
+
+### Bug Fixes
+
+* **opencode:** describe automatic [@latest](https://github.com/latest) plugin updates ([#161](https://github.com/crag-h4k/dotfiles/issues/161)) ([231df4d](https://github.com/crag-h4k/dotfiles/commit/231df4dccda7b912a26ddf4d22e855ccda8be53c))
+
 ## [1.7.0](https://github.com/crag-h4k/dotfiles/compare/v1.6.0...v1.7.0) (2026-11-16)
 
 
