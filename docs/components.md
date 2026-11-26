@@ -314,6 +314,10 @@ time it is made, renders only when OpenViking is selected. Like the other marked
 blocks, apply rewrites the text between the markers and leaves the rest of the
 file alone.
 
+The agent suggests a fork for a side investigation that needs the existing
+conversation. For a new goal, it suggests a fresh chat and offers a short
+prompt to carry over what still matters. Follow-ups stay in the current chat.
+
 `cli.json` enables session tabs and keeps OpenCode's default `Ctrl+X` as a
 1500 ms leader. Chezmoi merge-manages it, so settings changed with **Open
 settings** persist; see
